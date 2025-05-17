@@ -1,0 +1,1 @@
+\copy (select product_detail->'product'->>'title' as title, product_detail->'product'->>'tags' as tags from product_details tablesample bernoulli (0.1) repeatable (42)) to 'products_point_one_percent_sample.csv' header csv
