@@ -172,3 +172,10 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
+
+# Dump files
+products.csv
+products_one_percent_sample.csv
+
+# Emacs food
+*~
