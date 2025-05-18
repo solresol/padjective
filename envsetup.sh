@@ -4,4 +4,4 @@
 # downloads everything that we need to get before
 # internet access is turned off.
 curl -LsSf https://astral.sh/uv/install.sh | sh
-uv run uvbootstrapper.py
+uv run padjective/uvbootstrapper.py
