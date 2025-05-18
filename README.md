@@ -32,4 +32,24 @@ Use the choix library and the sqlite database from tagbattle.py to produce ranki
 
 Creates text and HTML and images from the results of ranking.py
 
+## Running the pipeline
+
+The project uses [uv](https://github.com/astral-sh/uv) for package management.
+After installing ``uv`` you can run the whole analysis pipeline with the
+defaults provided in the repository:
+
+```bash
+# install uv
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# process the sample data
+uv run padjective/tagbattle.py
+uv run padjective/ranking.py
+uv run padjective/display.py
+```
+
+This will create ``battles.sqlite`` from ``products_point_one_percent_sample.csv``,
+produce ``tag_rankings.csv`` and render ``tag_rankings.html`` and
+``tag_rankings.png``.
+
     

@@ -1,0 +1,31 @@
+name: Pipeline
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      - name: Install the latest version of uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: "latest"
+      - name: Run tests
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: uv run -m pytest -q
+      - name: Run pipeline scripts
+        env:
+          PYTHONPATH: ${{ github.workspace }}
+        run: |
+          uv run padjective/tagbattle.py --csv products_point_one_percent_sample.csv --database battles.sqlite
+          uv run padjective/ranking.py --database battles.sqlite --output tag_rankings.csv
+          uv run padjective/display.py --rankings tag_rankings.csv --html tag_rankings.html --image tag_rankings.png
