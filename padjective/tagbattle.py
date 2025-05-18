@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import csv
 import sqlite3
+import sys
 from pathlib import Path
 from typing import Dict, Iterable, List
 
@@ -92,6 +93,8 @@ def process_csv(csv_path: Path, sqlite_path: Path) -> None:
     cur.execute(
         "CREATE TABLE IF NOT EXISTS battles (winner_tag TEXT, loser_tag TEXT)"
     )
+    # Allow very large fields for datasets with massive tag columns
+    csv.field_size_limit(sys.maxsize)
     with open(csv_path, newline="", encoding="utf-8") as f:
         reader = csv.DictReader(f)
         for row in reader:
