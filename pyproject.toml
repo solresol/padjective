@@ -13,3 +13,6 @@ dependencies = [
 ]
 [project.scripts]
 tagbattle = "padjective.tagbattle:main"
+ranking = "padjective.ranking:main"
+display = "padjective.display:main"
+

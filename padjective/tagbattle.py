@@ -6,7 +6,7 @@ import argparse
 import csv
 import sqlite3
 from pathlib import Path
-from typing import Iterable, List, Dict
+from typing import Dict, Iterable, List
 
 
 def filter_nested_tags(tags: Iterable[str]) -> List[str]:
@@ -65,9 +65,9 @@ def record_battles(positions: Dict[str, int], cursor: sqlite3.Cursor) -> None:
             if positions[t1] == positions[t2]:
                 continue
             if positions[t1] < positions[t2]:
-                winner, loser = t1, t2
+                winner, loser = t1.upper(), t2.upper()
             else:
-                winner, loser = t2, t1
+                winner, loser = t2.upper(), t1.upper()
             cursor.execute(
                 "INSERT INTO battles (winner_tag, loser_tag) VALUES (?, ?)",
                 (winner, loser),
@@ -77,7 +77,7 @@ def record_battles(positions: Dict[str, int], cursor: sqlite3.Cursor) -> None:
 def process_product(title: str, tag_string: str, cursor: sqlite3.Cursor) -> None:
     """Process a single product title and tag list."""
     tags = [t.strip() for t in tag_string.split(",") if t.strip()]
-    tags = filter_nested_tags(tags)
+    tags = [t.upper() for t in filter_nested_tags(tags)]
     for part in split_title(title):
         positions = tag_positions(part, tags)
         if len(positions) < 2:
@@ -105,12 +105,16 @@ def main() -> None:
         description="Analyze tag ordering within product titles."
     )
     parser.add_argument(
-        "csv",
+        "--csv",
         type=Path,
+        default=Path("products_point_one_percent_sample.csv"),
         help="CSV file containing 'title' and 'tags' columns",
     )
     parser.add_argument(
-        "database", type=Path, help="SQLite database to store pair results"
+        "--database",
+        type=Path,
+        default=Path("battles.sqlite"),
+        help="SQLite database to store pair results",
     )
     args = parser.parse_args()
     process_csv(args.csv, args.database)

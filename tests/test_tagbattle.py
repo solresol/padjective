@@ -30,5 +30,5 @@ def test_process_product_inserts_pairs():
     process_product("big bunny milk chocolate", "bunny,milk chocolate", cur)
     cur.execute("SELECT winner_tag, loser_tag FROM battles")
     rows = cur.fetchall()
-    assert rows == [("bunny", "milk chocolate")]
+    assert rows == [("BUNNY", "MILK CHOCOLATE")]
     conn.close()
