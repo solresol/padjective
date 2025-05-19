@@ -6,3 +6,5 @@ The real goal is to work with a full data set (products.csv) which is 1000 times
 ---
 
 If CLAUDE.md is present, read it.
+
+Run the unit tests with `uv run -m pytest -q`.

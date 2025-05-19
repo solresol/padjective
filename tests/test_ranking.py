@@ -6,7 +6,7 @@ def test_compute_rankings_disjoint_components():
     df = compute_rankings(pairs)
     # Expect two components
     assert sorted(df["component"].unique()) == [0, 1]
-    # Component 1 has single tag 'X' or 'Y', score 0
-    assert df[df["tag"] == "X"]["score"].iloc[0] == 0.0 or df[df["tag"] == "Y"]["score"].iloc[0] == 0.0
+    comp1_tags = set(df[df["component"] == 1]["tag"])
+    assert comp1_tags == {"X", "Y"}
     assert df.shape[0] == 5
 

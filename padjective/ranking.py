@@ -4,7 +4,20 @@ from pathlib import Path
 from typing import Dict, List, Tuple
 
 import pandas as pd
-import choix
+
+
+def _elo_scores(num_tags: int, data: List[Tuple[int, int]], k: float = 32.0) -> List[float]:
+    """Return Elo ratings for ``num_tags`` competitors."""
+
+    ratings = [0.0] * num_tags
+    for winner, loser in data:
+        r_w = ratings[winner]
+        r_l = ratings[loser]
+        expected_w = 1 / (1 + 10 ** ((r_l - r_w) / 400))
+        expected_l = 1 - expected_w
+        ratings[winner] = r_w + k * (1 - expected_w)
+        ratings[loser] = r_l + k * (0 - expected_l)
+    return ratings
 
 
 def load_pairs(db_path: Path) -> List[Tuple[str, str]]:
@@ -39,19 +52,10 @@ def _connected_components(graph: Dict[str, List[str]]) -> List[List[str]]:
 
 
 def _safe_ilsr(num_tags: int, data: List[Tuple[int, int]]) -> List[float]:
-    """Return ILSR scores, falling back to win ratios if necessary."""
+    """Return ratings using a memory-friendly Elo algorithm."""
     if num_tags == 1:
         return [0.0]
-    try:
-        return list(choix.ilsr_pairwise(num_tags, data))
-    except (ValueError, RuntimeError):
-        wins = [0] * num_tags
-        games = [0] * num_tags
-        for w, l in data:
-            wins[w] += 1
-            games[w] += 1
-            games[l] += 1
-        return [wins[i] / games[i] if games[i] else 0.0 for i in range(num_tags)]
+    return _elo_scores(num_tags, data)
 
 
 def compute_rankings(pairs: List[Tuple[str, str]]) -> pd.DataFrame:
