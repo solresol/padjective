@@ -5,12 +5,18 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 
-def generate_outputs(csv_path: Path, html_path: Path, image_path: Path) -> None:
+def generate_outputs(
+    csv_path: Path, html_path: Path, image_path: Path, rows: int = 10
+) -> None:
     df = pd.read_csv(csv_path)
     df_sorted = df.sort_values("score", ascending=False)
 
-    # Print top ten to stdout
-    print(df_sorted.head(10).to_string(index=False))
+    # Print selected rows to stdout
+    if rows <= 0:
+        to_print = df_sorted
+    else:
+        to_print = df_sorted.head(rows)
+    print(to_print.to_string(index=False))
 
     # Save HTML table
     df_sorted.to_html(html_path, index=False)
@@ -47,8 +53,14 @@ def main() -> None:
         default=Path("tag_rankings.png"),
         help="Image file for plot",
     )
+    parser.add_argument(
+        "--rows",
+        type=int,
+        default=10,
+        help="Number of rows to print to stdout (0 for all)",
+    )
     args = parser.parse_args()
-    generate_outputs(args.rankings, args.html, args.image)
+    generate_outputs(args.rankings, args.html, args.image, args.rows)
 
 
 if __name__ == "__main__":

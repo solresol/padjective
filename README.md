@@ -30,7 +30,9 @@ Use the choix library and the sqlite database from tagbattle.py to produce ranki
 
 ## display.py
 
-Creates text and HTML and images from the results of ranking.py
+Creates text and HTML and images from the results of ranking.py. By default the
+script prints the top ten tags to stdout. Use ``--rows`` to control how many
+rows are printed (``0`` prints them all).
 
 ## Running the pipeline
 
