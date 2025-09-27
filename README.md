@@ -54,4 +54,24 @@ This will create ``battles.sqlite`` from ``products_point_one_percent_sample.csv
 produce ``tag_rankings.csv`` and render ``tag_rankings.html`` and
 ``tag_rankings.png``.
 
+## Hold-out experiments
+
+To monitor how well the inferred rankings predict unseen tag orderings, use the
+``padjective.experiments`` module. It manages a queue of randomised hold-out
+tasks and stores the outcomes in ``holdout_tasks.sqlite`` by default.
+
+```bash
+# create (or extend) a task queue of 5,000 random splits
+uv run -m padjective.experiments init --total 5000 --test-fraction 0.2
+
+# execute up to 250 pending tasks using an existing battles database
+uv run -m padjective.experiments run \
+    --database battles.sqlite \
+    --tasks-db holdout_tasks.sqlite \
+    --take 250
+
+# show overall progress and mean accuracy
+uv run -m padjective.experiments status --tasks-db holdout_tasks.sqlite
+```
+
     

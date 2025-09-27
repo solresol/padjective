@@ -9,11 +9,11 @@ import shutil
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
 import pandas as pd
 
-from . import display, ranking, tagbattle
+from . import display, experiments, ranking, tagbattle
 
 
 def _ensure_clean_directory(path: Path) -> None:
@@ -65,6 +65,7 @@ def _build_index_html(
     chart_path: Path,
     artifact_links: Dict[str, Path],
     source_csv: Path,
+    experiments_summary: Optional[Dict[str, Any]] = None,
 ) -> None:
     top_table = leaderboard.head(20).to_html(index=False, classes="leaderboard")
     generated = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
@@ -73,6 +74,90 @@ def _build_index_html(
         f'<li><a href="{path.relative_to(output_dir).as_posix()}">{label}</a></li>'
         for label, path in artifact_links.items()
     )
+
+    experiments_block = ""
+    if experiments_summary and experiments_summary.get("total"):
+        counts = experiments_summary.get("counts", {})
+        completed = experiments_summary.get("completed_tasks", 0)
+        total = experiments_summary.get("total", 0)
+        mean_accuracy = experiments_summary.get("mean_accuracy")
+        mean_coverage = experiments_summary.get("mean_coverage")
+        recent_rows = experiments_summary.get("recent", [])
+
+        mean_accuracy_text = (
+            f"{mean_accuracy * 100:.2f}%" if mean_accuracy is not None else "n/a"
+        )
+        mean_coverage_text = (
+            f"{mean_coverage * 100:.2f}%" if mean_coverage is not None else "n/a"
+        )
+        test_fraction = experiments_summary.get("test_fraction") or 0.0
+
+        recent_items_list = []
+        for row in recent_rows:
+            accuracy_cell = (
+                f"<td>{row['accuracy'] * 100:.2f}%</td>"
+                if row.get("accuracy") is not None
+                else "<td>n/a</td>"
+            )
+            coverage_cell = (
+                f"<td>{row['coverage'] * 100:.2f}%</td>"
+                if row.get("coverage") is not None
+                else "<td>n/a</td>"
+            )
+            recent_items_list.append(
+                "<tr>"
+                f"<td>{row['id']}</td>"
+                f"<td>{row['seed']}</td>"
+                f"<td>{row['evaluated_pairs'] or 0}</td>"
+                f"{accuracy_cell}"
+                f"{coverage_cell}"
+                f"<td>{row['completed_at'] or ''}</td>"
+                "</tr>"
+            )
+        recent_items = "\n".join(recent_items_list)
+        if not recent_items:
+            recent_items = "<tr><td colspan=\"6\">No completed evaluations yet.</td></tr>"
+
+        experiments_block = f"""
+  <section class=\"experiments\">
+    <h2>Hold-out experiments</h2>
+    <p>We randomly reserve {test_fraction:.0%} of recorded tag battles and check whether the rankings predict the correct ordering.</p>
+    <div class=\"experiments-metrics\">
+      <div class=\"metric\">
+        <span class=\"value\">{completed:,} / {total:,}</span>
+        <span class=\"label\">Tasks completed</span>
+      </div>
+      <div class=\"metric\">
+        <span class=\"value\">{counts.get('pending', 0):,}</span>
+        <span class=\"label\">Pending tasks</span>
+      </div>
+      <div class=\"metric\">
+        <span class=\"value\">{counts.get('running', 0):,}</span>
+        <span class=\"label\">Running tasks</span>
+      </div>
+      <div class=\"metric\">
+        <span class=\"value\">{counts.get('error', 0):,}</span>
+        <span class=\"label\">Errors</span>
+      </div>
+    </div>
+    <p class=\"experiments-accuracy\">Average accuracy across completed tasks: {mean_accuracy_text} (coverage {mean_coverage_text}).</p>
+    <table class=\"experiments-table\">
+      <thead>
+        <tr>
+          <th>Task</th>
+          <th>Seed</th>
+          <th>Evaluated battles</th>
+          <th>Accuracy</th>
+          <th>Coverage</th>
+          <th>Completed</th>
+        </tr>
+      </thead>
+      <tbody>
+        {recent_items}
+      </tbody>
+    </table>
+  </section>
+"""
 
     html = f"""<!DOCTYPE html>
 <html lang=\"en\">
@@ -135,6 +220,8 @@ def _build_index_html(
     <p>Historical SQL dumps are synchronised to <a href=\"https://datadumps.ifost.org.au/padjective/\">datadumps.ifost.org.au</a>.</p>
   </section>
 
+  {experiments_block}
+
   <footer>
     <p>Built from <code>{source_csv.name}</code>. Source available on <a href=\"https://github.com/IFost-Sydney-Uni/padjective\">GitHub</a>.</p>
   </footer>
@@ -145,7 +232,13 @@ def _build_index_html(
     (output_dir / "index.html").write_text(html, encoding="utf-8")
 
 
-def build_site(csv_path: Path, output_dir: Path) -> Dict[str, Any]:
+def build_site(
+    csv_path: Path,
+    output_dir: Path,
+    *,
+    precomputed_database: Optional[Path] = None,
+    tasks_db: Optional[Path] = None,
+) -> Dict[str, Any]:
     csv_path = csv_path.resolve()
     _ensure_clean_directory(output_dir)
 
@@ -156,10 +249,22 @@ def build_site(csv_path: Path, output_dir: Path) -> Dict[str, Any]:
         path.mkdir(parents=True, exist_ok=True)
 
     db_path = downloads_dir / "battles.sqlite"
-    if db_path.exists():
-        db_path.unlink()
 
-    tagbattle.process_csv(csv_path, db_path)
+    if precomputed_database is not None:
+        source = precomputed_database.resolve()
+        destination = db_path.resolve()
+        if source != destination:
+            if db_path.exists():
+                db_path.unlink()
+            shutil.copyfile(source, db_path)
+        else:
+            # The precomputed database already matches the expected output path.
+            if not db_path.exists():
+                shutil.copyfile(source, db_path)
+    else:
+        if db_path.exists():
+            db_path.unlink()
+        tagbattle.process_csv(csv_path, db_path)
 
     pairs = ranking.load_pairs(db_path)
     leaderboard = ranking.compute_rankings(pairs)
@@ -201,6 +306,14 @@ table.leaderboard tbody tr:nth-child(even) {background: #f8fafc;}
 .chart img {max-width: 100%; height: auto; border-radius: 0.75rem; box-shadow: 0 10px 25px rgba(15, 23, 42, 0.1);}
 .methodology {background: #eef2ff; border-radius: 1rem;}
 .methodology ol {line-height: 1.7;}
+.experiments {background: white; border-radius: 1rem; box-shadow: 0 12px 30px rgba(15, 23, 42, 0.12); margin-top: 2rem; padding-bottom: 2rem;}
+.experiments h2 {margin-top: 0; padding: 2rem 1.5rem 0;}
+.experiments p {padding: 0 1.5rem;}
+.experiments-metrics {display: flex; flex-wrap: wrap; gap: 1rem; padding: 1rem 1.5rem;}
+.experiments-accuracy {font-style: italic; color: #334155;}
+.experiments-table {width: calc(100% - 3rem); margin: 1rem 1.5rem; border-collapse: collapse;}
+.experiments-table th, .experiments-table td {border-bottom: 1px solid #e5e7eb; padding: 0.75rem 1rem; text-align: left;}
+.experiments-table thead {background: #f1f5f9;}
 .downloads ul {list-style: none; padding: 0;}
 .downloads li {margin: 0.5rem 0;}
 .downloads a {color: #0b6ce3; text-decoration: none; font-weight: 600;}
@@ -219,13 +332,26 @@ footer {text-align: center; padding: 2rem 1.5rem 3rem; color: #6b7280;}
         "Top tags chart": chart_path,
     }
 
-    _build_index_html(output_dir, stats, leaderboard, chart_path, artifact_links, csv_path)
+    experiments_summary: Optional[Dict[str, Any]] = None
+    if tasks_db is not None and tasks_db.exists():
+        experiments_summary = experiments.task_status(tasks_db)
+
+    _build_index_html(
+        output_dir,
+        stats,
+        leaderboard,
+        chart_path,
+        artifact_links,
+        csv_path,
+        experiments_summary,
+    )
 
     metadata = {
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "source_csv": str(csv_path),
         "stats": stats,
         "artifacts": {label: str(path.relative_to(output_dir)) for label, path in artifact_links.items()},
+        "experiments": experiments_summary,
     }
     (output_dir / "metadata.json").write_text(
         json.dumps(metadata, indent=2) + "\n",
@@ -244,9 +370,26 @@ def main() -> None:
         default=Path("build/site"),
         help="Directory where the static site should be written",
     )
+    parser.add_argument(
+        "--precomputed-database",
+        type=Path,
+        default=None,
+        help="Optional precomputed battles SQLite database",
+    )
+    parser.add_argument(
+        "--tasks-db",
+        type=Path,
+        default=None,
+        help="Optional experiments task database for progress reporting",
+    )
     args = parser.parse_args()
 
-    build_site(args.csv, args.output)
+    build_site(
+        args.csv,
+        args.output,
+        precomputed_database=args.precomputed_database,
+        tasks_db=args.tasks_db,
+    )
 
 
 if __name__ == "__main__":
