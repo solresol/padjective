@@ -130,6 +130,7 @@ def test_build_site_includes_synset_progress(tmp_path: Path, monkeypatch) -> Non
     assert "Products classified" in index_html
     assert "banana" in index_html
     assert "Recent products without a synset" in index_html
+    assert "Biggest losers" in index_html
 
     synset_page = (output_dir / "synsets" / "n07737745.html").read_text(
         encoding="utf-8"
