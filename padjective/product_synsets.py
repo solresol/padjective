@@ -146,6 +146,7 @@ def _build_tool_spec() -> Dict[str, object]:
 
     return {
         "type": "function",
+        "name": "record_synset",
         "function": {
             "name": "record_synset",
             "description": (
