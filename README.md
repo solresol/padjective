@@ -34,6 +34,17 @@ Creates text and HTML and images from the results of ranking.py. By default the
 script prints the top ten tags to stdout. Use ``--rows`` to control how many
 rows are printed (``0`` prints them all).
 
+## Part-of-speech considerations
+
+The pipeline currently works with whatever tags appear in the CSV input and
+does not attempt to decide whether a tag is an adjective, noun, or another
+part of speech. All tags are normalised to uppercase and compared solely by
+their character spans within each product title. If you need linguistic
+annotations—such as mapping the head noun of a title to a WordNet synset—you'll
+need to run an additional pass outside this repository. That could be a custom
+script, a traditional NLP library, or an LLM that labels each product before
+feeding the results into the existing ranking workflow.
+
 ## Running the pipeline
 
 The project uses [uv](https://github.com/astral-sh/uv) for package management.
