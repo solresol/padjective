@@ -1,15 +1,16 @@
-"""Build a static website showcasing the latest tag ranking results."""
+"""Build a static website showcasing tag rankings and synset progress."""
 
 from __future__ import annotations
 
 import argparse
 import csv
+import html
 import json
 import shutil
 import sqlite3
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Iterable, Optional
 
 import pandas as pd
 
@@ -66,6 +67,7 @@ def _build_index_html(
     artifact_links: Dict[str, Path],
     source_csv: Path,
     experiments_summary: Optional[Dict[str, Any]] = None,
+    synset_summary: Optional[Dict[str, Any]] = None,
 ) -> None:
     top_table = leaderboard.head(20).to_html(index=False, classes="leaderboard")
     generated = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
@@ -159,6 +161,92 @@ def _build_index_html(
   </section>
 """
 
+    synset_section = ""
+    if synset_summary:
+        processed = synset_summary.get("processed", 0)
+        remaining = synset_summary.get("remaining", 0)
+        not_found = synset_summary.get("not_found", 0)
+        progress_pct = synset_summary.get("progress_pct")
+        rate_per_day = synset_summary.get("rate_per_day")
+        rate_text = "n/a"
+        if rate_per_day is not None and rate_per_day > 0:
+            rate_text = f"{rate_per_day:,.1f} products/day"
+        eta_text = synset_summary.get("eta_text") or "n/a"
+        completion_text = synset_summary.get("estimated_completion_text") or ""
+        completion_fragment = f" {html.escape(completion_text)}" if completion_text else ""
+        last_processed_text = synset_summary.get("last_processed_text") or ""
+        last_processed_fragment = f" {html.escape(last_processed_text)}" if last_processed_text else ""
+
+        top_synsets = synset_summary.get("synsets", [])[:10]
+        top_rows: Iterable[str] = []
+        if top_synsets:
+            top_rows = [
+                "<tr>"
+                f"<td><a href=\"synsets/{html.escape(s['synset_id'])}.html\">{html.escape(s.get('synset_name') or s['synset_id'])}</a></td>"
+                f"<td>{html.escape(s['synset_id'])}</td>"
+                f"<td>{s['product_count']:,}</td>"
+                f"<td>{s['share'] * 100:.1f}%</td>"
+                "</tr>"
+                for s in top_synsets
+            ]
+        top_table = "<table class=\"synset-table\"><thead><tr><th>Synset</th><th>ID</th><th>Products</th><th>Share</th></tr></thead><tbody>"
+        if top_synsets:
+            top_table += "\n".join(top_rows)
+        else:
+            top_table += "<tr><td colspan=\"4\">No synsets processed yet.</td></tr>"
+        top_table += "</tbody></table>"
+
+        progress_text = f"{progress_pct:.1f}%" if progress_pct is not None else "n/a"
+        not_found_examples = synset_summary.get("not_found_examples") or []
+        not_found_block = ""
+        if not_found_examples:
+            items = "\n".join(
+                f"<li>{html.escape(title)}</li>" for title in not_found_examples if title
+            )
+            if items:
+                not_found_block = (
+                    "<div class=\"synset-not-found\">"
+                    "<h4>Recent products without a synset</h4>"
+                    f"<ul>{items}</ul>"
+                    "</div>"
+                )
+
+        synset_section = f"""
+  <section class=\"synset-progress\">
+    <div class=\"synset-header\">
+      <h2>WordNet synset tagging</h2>
+      <p>We ask GPT models to map each product to the closest WordNet synset.</p>
+    </div>
+    <div class=\"metrics synset-metrics\">
+      <div class=\"metric\">
+        <span class=\"value\">{processed:,}</span>
+        <span class=\"label\">Products classified</span>
+      </div>
+      <div class=\"metric\">
+        <span class=\"value\">{remaining:,}</span>
+        <span class=\"label\">Products remaining</span>
+      </div>
+      <div class=\"metric\">
+        <span class=\"value\">{not_found:,}</span>
+        <span class=\"label\">No WordNet match</span>
+      </div>
+      <div class=\"metric\">
+        <span class=\"value\">{progress_text}</span>
+        <span class=\"label\">Coverage so far</span>
+      </div>
+    </div>
+    <p class=\"synset-eta\">
+      Processing rate: {rate_text}. Remaining work estimated completion: {eta_text}.{completion_fragment}{last_processed_fragment}
+    </p>
+    <div class=\"synset-top\">
+      <h3>Most common synsets</h3>
+      {top_table}
+      <p><a href=\"synsets/index.html\">Explore all processed synsets &rarr;</a></p>
+    </div>
+    {not_found_block}
+  </section>
+"""
+
     html = f"""<!DOCTYPE html>
 <html lang=\"en\">
 <head>
@@ -202,6 +290,8 @@ def _build_index_html(
     </figure>
   </section>
 
+  {synset_section}
+
   <section class=\"methodology\">
     <h2>How the rankings work</h2>
     <ol>
@@ -232,12 +322,315 @@ def _build_index_html(
     (output_dir / "index.html").write_text(html, encoding="utf-8")
 
 
+def _parse_sqlite_timestamp(value: Optional[str]) -> Optional[datetime]:
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(value.replace(" ", "T"))
+    except ValueError:
+        for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M:%S.%f"):
+            try:
+                return datetime.strptime(value, fmt)
+            except ValueError:
+                continue
+    return None
+
+
+def _format_duration(hours: float) -> str:
+    if hours <= 0:
+        return "soon"
+    total_seconds = int(hours * 3600)
+    days, remainder = divmod(total_seconds, 86400)
+    hrs, remainder = divmod(remainder, 3600)
+    minutes = remainder // 60
+    parts = []
+    if days:
+        parts.append(f"{days} day{'s' if days != 1 else ''}")
+    if hrs:
+        parts.append(f"{hrs} hour{'s' if hrs != 1 else ''}")
+    if minutes and not days:
+        parts.append(f"{minutes} min")
+    return " ".join(parts) or "<1 min"
+
+
+def _collect_synset_progress(
+    db_path: Path, total_products: int
+) -> Optional[Dict[str, Any]]:
+    if not db_path.exists():
+        return None
+
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+    try:
+        summary_row = conn.execute(
+            """
+            SELECT
+                COUNT(*) AS processed,
+                SUM(CASE WHEN not_found = 1 THEN 1 ELSE 0 END) AS not_found,
+                MIN(processed_at) AS first_processed,
+                MAX(processed_at) AS last_processed
+            FROM product_synsets
+            """
+        ).fetchone()
+        processed = int(summary_row["processed"] or 0)
+        if processed == 0:
+            return {
+                "processed": 0,
+                "remaining": max(total_products, 0),
+                "not_found": 0,
+                "progress_pct": 0.0 if total_products else None,
+                "synsets": [],
+                "eta_text": "n/a",
+            }
+
+        not_found = int(summary_row["not_found"] or 0)
+        remaining = max(total_products - processed, 0)
+        progress_pct = (processed / total_products * 100.0) if total_products else None
+
+        last_processed = _parse_sqlite_timestamp(summary_row["last_processed"])
+        last_processed_text = (
+            f"Last processed at {last_processed.isoformat(timespec='seconds')}"
+            if last_processed
+            else ""
+        )
+
+        recent_rows = conn.execute(
+            """
+            SELECT processed_at FROM product_synsets
+            WHERE processed_at IS NOT NULL
+            ORDER BY processed_at DESC
+            LIMIT 500
+            """
+        ).fetchall()
+        recent_times = [
+            _parse_sqlite_timestamp(row[0])
+            for row in reversed(recent_rows)
+            if row[0] is not None
+        ]
+        rate_per_hour: Optional[float] = None
+        eta_text = None
+        estimated_completion_text = None
+        if len(recent_times) >= 2:
+            elapsed = (recent_times[-1] - recent_times[0]).total_seconds() / 3600
+            if elapsed > 0:
+                window_processed = len(recent_times)
+                rate_per_hour = window_processed / elapsed
+                if remaining > 0:
+                    eta_hours = remaining / rate_per_hour
+                    eta_text = _format_duration(eta_hours)
+                    if last_processed:
+                        projected = last_processed + timedelta(hours=eta_hours)
+                        estimated_completion_text = (
+                            f"Projected completion around {projected.isoformat(timespec='minutes')}"
+                        )
+                else:
+                    eta_text = "complete"
+
+        if eta_text is None:
+            eta_text = "n/a"
+
+        synset_rows = conn.execute(
+            """
+            SELECT synset_id, synset_name, synset_definition, COUNT(*) AS product_count
+            FROM product_synsets
+            WHERE not_found = 0 AND synset_id IS NOT NULL
+            GROUP BY synset_id, synset_name, synset_definition
+            ORDER BY product_count DESC, synset_id
+            """
+        ).fetchall()
+
+        synsets: list[Dict[str, Any]] = []
+        for row in synset_rows:
+            synset_id = row["synset_id"]
+            if not synset_id:
+                continue
+            products = conn.execute(
+                """
+                SELECT product_id, title, tags, confidence, reason, processed_at
+                FROM product_synsets
+                WHERE synset_id = ? AND not_found = 0
+                ORDER BY COALESCE(confidence, 0) DESC, title COLLATE NOCASE
+                """,
+                (synset_id,),
+            ).fetchall()
+            product_records = [
+                {
+                    "product_id": product["product_id"],
+                    "title": product["title"],
+                    "tags": product["tags"],
+                    "confidence": product["confidence"],
+                    "reason": product["reason"],
+                    "processed_at": product["processed_at"],
+                }
+                for product in products
+            ]
+            share = (row["product_count"] or 0) / processed if processed else 0.0
+            synsets.append(
+                {
+                    "synset_id": synset_id,
+                    "synset_name": row["synset_name"],
+                    "synset_definition": row["synset_definition"],
+                    "product_count": int(row["product_count"] or 0),
+                    "share": share,
+                    "products": product_records,
+                }
+            )
+
+        not_found_examples = conn.execute(
+            """
+            SELECT title FROM product_synsets
+            WHERE not_found = 1 AND title IS NOT NULL AND title != ''
+            ORDER BY processed_at DESC
+            LIMIT 5
+            """
+        ).fetchall()
+
+        return {
+            "processed": processed,
+            "remaining": remaining,
+            "not_found": not_found,
+            "progress_pct": progress_pct,
+            "rate_per_hour": rate_per_hour,
+            "rate_per_day": rate_per_hour * 24 if rate_per_hour else None,
+            "eta_text": eta_text,
+            "estimated_completion_text": estimated_completion_text,
+            "last_processed_text": last_processed_text,
+            "synsets": synsets,
+            "not_found_examples": [row[0] for row in not_found_examples],
+        }
+    finally:
+        conn.close()
+
+
+def _build_synset_pages(output_dir: Path, synset_summary: Dict[str, Any]) -> None:
+    synsets = synset_summary.get("synsets") or []
+    if not synsets:
+        return
+
+    synsets_dir = output_dir / "synsets"
+    synsets_dir.mkdir(parents=True, exist_ok=True)
+
+    def _product_rows(products: Iterable[Dict[str, Any]]) -> str:
+        rows = []
+        for product in products:
+            confidence = product.get("confidence")
+            if confidence is None:
+                confidence_text = "n/a"
+            else:
+                confidence_text = f"{confidence:.2f}"
+            reason = html.escape(product.get("reason") or "")
+            if reason:
+                reason_html = f"<details><summary>Why?</summary><p>{reason}</p></details>"
+            else:
+                reason_html = ""
+            rows.append(
+                "<tr>"
+                f"<td>{product['product_id']}</td>"
+                f"<td>{html.escape(product.get('title') or '')}</td>"
+                f"<td>{html.escape(product.get('tags') or '')}</td>"
+                f"<td>{confidence_text}</td>"
+                f"<td>{reason_html}</td>"
+                "</tr>"
+            )
+        return "\n".join(rows) if rows else "<tr><td colspan=\"5\">No products recorded.</td></tr>"
+
+    index_rows = []
+    for synset in synsets:
+        synset_id = synset["synset_id"]
+        name = synset.get("synset_name") or synset_id
+        definition = html.escape(synset.get("synset_definition") or "")
+        product_count = synset["product_count"]
+        share_pct = synset["share"] * 100 if synset["share"] is not None else 0.0
+
+        index_rows.append(
+            "<tr>"
+            f"<td><a href=\"{synset_id}.html\">{html.escape(name)}</a></td>"
+            f"<td>{html.escape(synset_id)}</td>"
+            f"<td>{product_count:,}</td>"
+            f"<td>{share_pct:.1f}%</td>"
+            f"<td>{definition}</td>"
+            "</tr>"
+        )
+
+        products_html = _product_rows(synset.get("products", []))
+        synset_page = f"""<!DOCTYPE html>
+<html lang=\"en\">
+<head>
+  <meta charset=\"utf-8\" />
+  <title>{html.escape(name)} — WordNet synset</title>
+  <link rel=\"stylesheet\" href=\"../assets/styles.css\" />
+</head>
+<body class=\"synset-page\">
+  <header class=\"synset-hero\">
+    <p><a href=\"../index.html\">&larr; Back to overview</a></p>
+    <h1>{html.escape(name)}</h1>
+    <p class=\"synset-id\">{html.escape(synset_id)}</p>
+    <p class=\"synset-definition\">{definition or 'Definition unavailable.'}</p>
+    <p class=\"synset-count\">{product_count:,} product{'s' if product_count != 1 else ''} mapped here.</p>
+  </header>
+  <main class=\"synset-content\">
+    <table class=\"synset-products\">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Title</th>
+          <th>Tags</th>
+          <th>Confidence</th>
+          <th>Notes</th>
+        </tr>
+      </thead>
+      <tbody>
+        {products_html}
+      </tbody>
+    </table>
+  </main>
+</body>
+</html>
+"""
+        (synsets_dir / f"{synset_id}.html").write_text(synset_page, encoding="utf-8")
+
+    index_html = f"""<!DOCTYPE html>
+<html lang=\"en\">
+<head>
+  <meta charset=\"utf-8\" />
+  <title>WordNet synsets overview</title>
+  <link rel=\"stylesheet\" href=\"../assets/styles.css\" />
+</head>
+<body class=\"synset-page\">
+  <header class=\"synset-hero\">
+    <p><a href=\"../index.html\">&larr; Back to overview</a></p>
+    <h1>All processed synsets</h1>
+    <p class=\"synset-definition\">Browse every WordNet concept currently linked to Shopify products.</p>
+  </header>
+  <main class=\"synset-content\">
+    <table class=\"synset-products\">
+      <thead>
+        <tr>
+          <th>Synset</th>
+          <th>ID</th>
+          <th>Products</th>
+          <th>Share</th>
+          <th>Definition</th>
+        </tr>
+      </thead>
+      <tbody>
+        {''.join(index_rows)}
+      </tbody>
+    </table>
+  </main>
+</body>
+</html>
+"""
+    (synsets_dir / "index.html").write_text(index_html, encoding="utf-8")
+
+
 def build_site(
     csv_path: Path,
     output_dir: Path,
     *,
     precomputed_database: Optional[Path] = None,
     tasks_db: Optional[Path] = None,
+    synset_db: Optional[Path] = None,
 ) -> Dict[str, Any]:
     csv_path = csv_path.resolve()
     _ensure_clean_directory(output_dir)
@@ -304,6 +697,21 @@ table.leaderboard thead {background: #f1f5f9;}
 table.leaderboard tbody tr:nth-child(even) {background: #f8fafc;}
 .chart {text-align: center; padding: 0 1rem 2rem;}
 .chart img {max-width: 100%; height: auto; border-radius: 0.75rem; box-shadow: 0 10px 25px rgba(15, 23, 42, 0.1);}
+.synset-progress {background: white; border-radius: 1rem; box-shadow: 0 12px 30px rgba(15, 23, 42, 0.12); margin-top: 2rem; padding-bottom: 2rem;}
+.synset-progress .synset-header {padding: 2rem 1.5rem 0;}
+.synset-progress .synset-header p {margin: 0.5rem 0 0; color: #475569;}
+.synset-progress .synset-top {padding: 0 1.5rem 1.5rem;}
+.synset-progress .synset-top h3 {margin-bottom: 0.5rem;}
+.synset-progress .synset-top a {color: #0b6ce3; font-weight: 600; text-decoration: none;}
+.synset-progress .synset-top a:hover {text-decoration: underline;}
+.synset-eta {padding: 1rem 1.5rem 0; text-align: center; font-style: italic; color: #475569;}
+.synset-not-found {padding: 0 1.5rem 1.5rem;}
+.synset-not-found h4 {margin-bottom: 0.5rem;}
+.synset-not-found ul {margin: 0; padding-left: 1.25rem; color: #475569;}
+.synset-table {width: 100%; border-collapse: collapse; background: white;}
+.synset-table th, .synset-table td {padding: 0.75rem 1rem; border-bottom: 1px solid #e5e7eb; text-align: left;}
+.synset-table thead {background: #f8fafc;}
+.synset-table tbody tr:nth-child(even) {background: #f8fafc;}
 .methodology {background: #eef2ff; border-radius: 1rem;}
 .methodology ol {line-height: 1.7;}
 .experiments {background: white; border-radius: 1rem; box-shadow: 0 12px 30px rgba(15, 23, 42, 0.12); margin-top: 2rem; padding-bottom: 2rem;}
@@ -319,7 +727,20 @@ table.leaderboard tbody tr:nth-child(even) {background: #f8fafc;}
 .downloads a {color: #0b6ce3; text-decoration: none; font-weight: 600;}
 .downloads a:hover {text-decoration: underline;}
 footer {text-align: center; padding: 2rem 1.5rem 3rem; color: #6b7280;}
-@media (max-width: 700px) {.metrics {flex-direction: column;} header.hero {padding: 2.5rem 1rem;} header.hero h1 {font-size: 2rem;}}
+body.synset-page {font-family: 'Inter', 'Helvetica Neue', Arial, sans-serif; margin: 0; color: #1f2937; background: #f7f7fb;}
+.synset-hero {background: linear-gradient(135deg, #6366f1, #8b5cf6); color: white; padding: 2.5rem 1.5rem; text-align: center;}
+.synset-hero a {color: white; opacity: 0.85; text-decoration: none;}
+.synset-hero a:hover {opacity: 1; text-decoration: underline;}
+.synset-hero h1 {margin: 0.5rem 0 0; font-size: 2.25rem;}
+.synset-hero .synset-id {font-family: 'Fira Code', 'SFMono-Regular', Consolas, monospace; margin: 0.5rem 0; opacity: 0.85;}
+.synset-hero .synset-count {margin-top: 0.5rem; font-weight: 600;}
+.synset-content {max-width: 70rem; margin: 0 auto; padding: 2rem 1.5rem 3rem;}
+table.synset-products {width: 100%; border-collapse: collapse; background: white; border-radius: 1rem; overflow: hidden; box-shadow: 0 12px 30px rgba(15, 23, 42, 0.12);}
+table.synset-products th, table.synset-products td {padding: 0.75rem 1rem; border-bottom: 1px solid #e5e7eb; text-align: left; vertical-align: top;}
+table.synset-products thead {background: #f1f5f9;}
+table.synset-products tbody tr:nth-child(even) {background: #f8fafc;}
+.synset-products details {color: #334155;}
+@media (max-width: 700px) {.metrics {flex-direction: column;} header.hero {padding: 2.5rem 1rem;} header.hero h1 {font-size: 2rem;} .synset-content {padding: 1.5rem 1rem 2rem;}}
 """,
         encoding="utf-8",
     )
@@ -336,6 +757,12 @@ footer {text-align: center; padding: 2rem 1.5rem 3rem; color: #6b7280;}
     if tasks_db is not None and tasks_db.exists():
         experiments_summary = experiments.task_status(tasks_db)
 
+    synset_summary: Optional[Dict[str, Any]] = None
+    if synset_db is not None:
+        synset_summary = _collect_synset_progress(synset_db, stats.get("products", 0))
+        if synset_summary:
+            _build_synset_pages(output_dir, synset_summary)
+
     _build_index_html(
         output_dir,
         stats,
@@ -344,6 +771,7 @@ footer {text-align: center; padding: 2rem 1.5rem 3rem; color: #6b7280;}
         artifact_links,
         csv_path,
         experiments_summary,
+        synset_summary,
     )
 
     metadata = {
@@ -352,6 +780,7 @@ footer {text-align: center; padding: 2rem 1.5rem 3rem; color: #6b7280;}
         "stats": stats,
         "artifacts": {label: str(path.relative_to(output_dir)) for label, path in artifact_links.items()},
         "experiments": experiments_summary,
+        "synsets": synset_summary,
     }
     (output_dir / "metadata.json").write_text(
         json.dumps(metadata, indent=2) + "\n",
@@ -382,6 +811,12 @@ def main() -> None:
         default=None,
         help="Optional experiments task database for progress reporting",
     )
+    parser.add_argument(
+        "--synset-db",
+        type=Path,
+        default=None,
+        help="Optional SQLite database with product synset classifications",
+    )
     args = parser.parse_args()
 
     build_site(
@@ -389,6 +824,7 @@ def main() -> None:
         args.output,
         precomputed_database=args.precomputed_database,
         tasks_db=args.tasks_db,
+        synset_db=args.synset_db,
     )
 
 
