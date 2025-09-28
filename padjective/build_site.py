@@ -247,7 +247,7 @@ def _build_index_html(
   </section>
 """
 
-    html = f"""<!DOCTYPE html>
+    html_document = f"""<!DOCTYPE html>
 <html lang=\"en\">
 <head>
   <meta charset=\"utf-8\" />
@@ -319,7 +319,7 @@ def _build_index_html(
 </html>
 """
 
-    (output_dir / "index.html").write_text(html, encoding="utf-8")
+    (output_dir / "index.html").write_text(html_document, encoding="utf-8")
 
 
 def _parse_sqlite_timestamp(value: Optional[str]) -> Optional[datetime]:
