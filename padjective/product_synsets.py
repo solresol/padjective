@@ -233,6 +233,8 @@ def _extract_tool_response(response_dict: Dict[str, object]) -> Dict[str, object
 def call_synset_model(client: "OpenAI", product: ProductRecord, *, model: str) -> SynsetResult:
     """Ask the language model to pick a WordNet synset for the product."""
 
+    tool_choice = {"type": "function", "name": "record_synset"}
+
     response = client.responses.create(
         model=model,
         input=[
@@ -254,7 +256,7 @@ def call_synset_model(client: "OpenAI", product: ProductRecord, *, model: str) -
             },
         ],
         tools=[_build_tool_spec()],
-        tool_choice={"type": "function", "function": {"name": "record_synset"}},
+        tool_choice=tool_choice,
     )
 
     response_dict = response.model_dump()
