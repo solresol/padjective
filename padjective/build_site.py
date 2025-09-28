@@ -70,6 +70,11 @@ def _build_index_html(
     synset_summary: Optional[Dict[str, Any]] = None,
 ) -> None:
     top_table = leaderboard.head(20).to_html(index=False, classes="leaderboard")
+    bottom_table = (
+        leaderboard.sort_values("score", ascending=True)
+        .head(20)
+        .to_html(index=False, classes=["leaderboard", "leaderboard-bottom-table"])
+    )
     generated = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
 
     downloads_list_items = "\n".join(
@@ -288,6 +293,13 @@ def _build_index_html(
       <img src=\"assets/{chart_path.name}\" alt=\"Top tags bar chart\" />
       <figcaption>Top 20 tags by inferred depth.</figcaption>
     </figure>
+    <div class=\"leaderboard-bottom\">
+      <h3>Biggest losers</h3>
+      <p>Tags that our model predicts are most likely to be pushed to the end of product titles.</p>
+      <div class=\"leaderboard-table\">
+        {bottom_table}
+      </div>
+    </div>
   </section>
 
   {synset_section}
@@ -695,6 +707,10 @@ table.leaderboard {border-collapse: collapse; width: 100%; background: white;}
 table.leaderboard th, table.leaderboard td {padding: 0.75rem 1rem; border-bottom: 1px solid #e5e7eb; text-align: left;}
 table.leaderboard thead {background: #f1f5f9;}
 table.leaderboard tbody tr:nth-child(even) {background: #f8fafc;}
+.leaderboard-bottom {padding: 0 1rem 2.5rem;}
+.leaderboard-bottom h3 {margin: 0 0 0.5rem; font-size: 1.35rem;}
+.leaderboard-bottom p {margin: 0 0 1rem; color: #475569;}
+.leaderboard-bottom-table tbody tr:nth-child(even) {background: #f1f5f9;}
 .chart {text-align: center; padding: 0 1rem 2rem;}
 .chart img {max-width: 100%; height: auto; border-radius: 0.75rem; box-shadow: 0 10px 25px rgba(15, 23, 42, 0.1);}
 .synset-progress {background: white; border-radius: 1rem; box-shadow: 0 12px 30px rgba(15, 23, 42, 0.12); margin-top: 2rem; padding-bottom: 2rem;}
