@@ -10,9 +10,12 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import math
 import os
 import sqlite3
-from dataclasses import dataclass
+import time
+from dataclasses import dataclass, field
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Dict, Iterable, Iterator, Optional
 
@@ -67,6 +70,27 @@ class SynsetResult:
     not_found: bool
     reason: Optional[str]
     raw_response: str
+    usage_records: list["UsageRecord"] = field(default_factory=list)
+
+
+@dataclass(slots=True)
+class UsageRecord:
+    """Token usage information for a single model invocation."""
+
+    phase: str
+    model: str
+    input_tokens: int
+    output_tokens: int
+    total_tokens: int
+    recorded_at: datetime
+
+
+@dataclass(slots=True)
+class UsageWindowStats:
+    """Rolling aggregate information about token usage."""
+
+    total_tokens: int
+    earliest: datetime
 
 
 class SynsetDatabase:
@@ -95,6 +119,23 @@ class SynsetDatabase:
                 model TEXT NOT NULL,
                 raw_response TEXT NOT NULL,
                 processed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+            """
+        )
+        self.connection.commit()
+
+        self.connection.execute(
+            """
+            CREATE TABLE IF NOT EXISTS synset_usage (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                product_id INTEGER,
+                phase TEXT NOT NULL,
+                model TEXT NOT NULL,
+                input_tokens INTEGER,
+                output_tokens INTEGER,
+                total_tokens INTEGER,
+                recorded_at TEXT NOT NULL,
+                FOREIGN KEY(product_id) REFERENCES product_synsets(product_id)
             )
             """
         )
@@ -136,6 +177,64 @@ class SynsetDatabase:
             ),
         )
         self.connection.commit()
+
+    def store_usage(self, product_id: int, usage: Iterable[UsageRecord]) -> None:
+        rows = [
+            (
+                product_id,
+                record.phase,
+                record.model,
+                record.input_tokens,
+                record.output_tokens,
+                record.total_tokens,
+                record.recorded_at.isoformat(),
+            )
+            for record in usage
+            if record.total_tokens or record.input_tokens or record.output_tokens
+        ]
+        if not rows:
+            return
+        self.connection.executemany(
+            """
+            INSERT INTO synset_usage (
+                product_id,
+                phase,
+                model,
+                input_tokens,
+                output_tokens,
+                total_tokens,
+                recorded_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            rows,
+        )
+        self.connection.commit()
+
+    def recent_usage(self, window_seconds: int) -> Optional[UsageWindowStats]:
+        if window_seconds <= 0:
+            return None
+        window_start = datetime.now(timezone.utc) - timedelta(seconds=window_seconds)
+        cursor = self.connection.execute(
+            """
+            SELECT
+                SUM(COALESCE(total_tokens, 0)) AS total_tokens,
+                MIN(recorded_at) AS first_record
+            FROM synset_usage
+            WHERE recorded_at >= ?
+            """,
+            (window_start.isoformat(),),
+        )
+        row = cursor.fetchone()
+        if not row:
+            return None
+        total_tokens = int(row[0] or 0)
+        first_value = row[1]
+        if total_tokens <= 0 or not first_value:
+            return None
+        earliest = _parse_timestamp(first_value)
+        if earliest is None:
+            earliest = window_start
+        return UsageWindowStats(total_tokens=total_tokens, earliest=earliest)
 
     def close(self) -> None:
         self.connection.close()
@@ -264,37 +363,157 @@ def _extract_tool_response(response_dict: Dict[str, object]) -> Dict[str, object
 
 
 def call_synset_model(client: "OpenAI", product: ProductRecord, *, model: str) -> SynsetResult:
-    """Ask the language model to pick a WordNet synset for the product."""
+    """Run a two-step synset selection workflow for the product."""
 
+    initial_messages = [
+        {
+            "role": "system",
+            "content": (
+                "You are a linguistic expert that maps product descriptions to "
+                "Princeton WordNet synsets. Provide precise nouns and be explicit "
+                "when a product does not exist in WordNet."
+            ),
+        },
+        {
+            "role": "user",
+            "content": (
+                "Determine the WordNet synset that best represents this product.\n"
+                f"{product.description}\n"
+                "Return the result using the record_synset function."
+            ),
+        },
+    ]
+
+    phase_one_result, phase_one_dict, phase_one_usage = _invoke_synset_phase(
+        client,
+        messages=initial_messages,
+        model=model,
+        phase="initial",
+    )
+    usage_records = [phase_one_usage] if phase_one_usage else []
+
+    if phase_one_result.not_found or not phase_one_result.synset_id:
+        phase_one_result.raw_response = json.dumps(
+            {"initial": phase_one_dict, "confirmation": None}
+        )
+        phase_one_result.usage_records = usage_records
+        return phase_one_result
+
+    synset_details = _lookup_wordnet_synset(phase_one_result.synset_id)
+    details_text = _format_synset_details(synset_details, phase_one_result)
+
+    confirmation_messages = [
+        {
+            "role": "system",
+            "content": (
+                "You are a meticulous linguist who double-checks WordNet mappings. "
+                "Review the candidate synset and either confirm it or select a better match."
+            ),
+        },
+        {
+            "role": "user",
+            "content": (
+                "A previous pass selected the following synset for the product.\n"
+                f"Product:\n{product.description}\n\n"
+                f"Candidate synset: {phase_one_result.synset_id}\n"
+                f"Model explanation: {phase_one_result.reason or 'n/a'}\n"
+                f"Details:\n{details_text}\n\n"
+                "If the synset is appropriate, return it unchanged using the record_synset function. "
+                "Otherwise return a better matching synset."
+            ),
+        },
+    ]
+
+    phase_two_result, phase_two_dict, phase_two_usage = _invoke_synset_phase(
+        client,
+        messages=confirmation_messages,
+        model=model,
+        phase="confirmation",
+    )
+    if phase_two_usage:
+        usage_records.append(phase_two_usage)
+
+    phase_two_result.raw_response = json.dumps(
+        {"initial": phase_one_dict, "confirmation": phase_two_dict}
+    )
+    phase_two_result.usage_records = usage_records
+    return phase_two_result
+
+
+def _format_synset_details(
+    details: Optional[Dict[str, object]], candidate: SynsetResult
+) -> str:
+    if not details:
+        fragments = []
+        if candidate.synset_name:
+            fragments.append(f"Name: {candidate.synset_name}")
+        if candidate.synset_definition:
+            fragments.append(f"Definition: {candidate.synset_definition}")
+        if not fragments:
+            return "Synset details unavailable."
+        return "\n".join(fragments)
+
+    pieces = [
+        f"Name: {details.get('name') or candidate.synset_name or 'unknown'}",
+        f"Definition: {details.get('definition') or candidate.synset_definition or 'n/a'}",
+    ]
+    lemmas = details.get("lemmas")
+    if lemmas:
+        pieces.append("Lemmas: " + ", ".join(sorted(str(lemma) for lemma in lemmas)))
+    examples = details.get("examples")
+    if examples:
+        formatted = "\n".join(f"- {example}" for example in examples)
+        pieces.append(f"Usage examples:\n{formatted}")
+    return "\n".join(pieces)
+
+
+def _lookup_wordnet_synset(synset_id: Optional[str]) -> Optional[Dict[str, object]]:
+    if not synset_id or len(synset_id) < 2:
+        return None
+    pos, offset_text = synset_id[0], synset_id[1:]
+    try:
+        offset = int(offset_text)
+    except ValueError:
+        return None
+    try:  # pragma: no cover - optional dependency
+        from nltk.corpus import wordnet as wn  # type: ignore
+    except (ImportError, LookupError):
+        return None
+    try:
+        synset = wn.synset_from_pos_and_offset(pos, offset)
+    except Exception:  # pragma: no cover - guard against unexpected formats
+        return None
+    return {
+        "name": synset.name().split(".")[0],
+        "definition": synset.definition(),
+        "lemmas": [lemma.name().replace("_", " ") for lemma in synset.lemmas()],
+        "examples": list(synset.examples()),
+    }
+
+
+def _invoke_synset_phase(
+    client: "OpenAI",
+    *,
+    messages: list[Dict[str, object]],
+    model: str,
+    phase: str,
+) -> tuple[SynsetResult, Dict[str, object], Optional[UsageRecord]]:
     tool_choice = {"type": "function", "name": "record_synset"}
-
     response = client.responses.create(
         model=model,
-        input=[
-            {
-                "role": "system",
-                "content": (
-                    "You are a linguistic expert that maps product descriptions to "
-                    "Princeton WordNet synsets. Provide precise nouns and be explicit "
-                    "when a product does not exist in WordNet."
-                ),
-            },
-            {
-                "role": "user",
-                "content": (
-                    "Determine the WordNet synset that best represents this product.\n"
-                    f"{product.description}\n"
-                    "Return the result using the record_synset function."
-                ),
-            },
-        ],
+        input=messages,
         tools=[_build_tool_spec()],
         tool_choice=tool_choice,
     )
 
     response_dict = response.model_dump()
     tool_payload = _extract_tool_response(response_dict)
+    result = _build_synset_result(tool_payload, response_dict)
+    usage_record = _extract_usage(response_dict, phase=phase, model=model)
+    return result, response_dict, usage_record
 
+
+def _build_synset_result(tool_payload: Dict[str, object], response_dict: Dict[str, object]) -> SynsetResult:
     not_found = bool(tool_payload.get("not_found"))
     synset_id = tool_payload.get("synset_id")
     synset_name = tool_payload.get("synset_name")
@@ -329,6 +548,37 @@ def call_synset_model(client: "OpenAI", product: ProductRecord, *, model: str) -
     )
 
 
+def _extract_usage(
+    response_dict: Dict[str, object], *, phase: str, model: str
+) -> Optional[UsageRecord]:
+    usage = response_dict.get("usage")
+    if not isinstance(usage, dict):
+        return None
+    input_tokens = int(usage.get("input_tokens") or 0)
+    output_tokens = int(usage.get("output_tokens") or 0)
+    total_tokens = int(usage.get("total_tokens") or (input_tokens + output_tokens))
+    return UsageRecord(
+        phase=phase,
+        model=model,
+        input_tokens=input_tokens,
+        output_tokens=output_tokens,
+        total_tokens=total_tokens,
+        recorded_at=datetime.now(timezone.utc),
+    )
+
+
+def _parse_timestamp(value: str) -> Optional[datetime]:
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(value)
+    except ValueError:
+        try:
+            return datetime.fromisoformat(value.replace(" ", "T"))
+        except ValueError:
+            return None
+
+
 def process_products(
     *,
     csv_path: Path,
@@ -361,6 +611,9 @@ def process_products(
                 continue
             result = call_synset_model(client, product, model=model)
             database.store_result(product, result, model)
+            if result.usage_records:
+                database.store_usage(product.product_id, result.usage_records)
+                _maybe_throttle(database)
             processed_ids.add(product.product_id)
             processed_count += 1
             if processed_count >= batch_size:
@@ -369,6 +622,25 @@ def process_products(
         database.close()
 
     return processed_count
+
+
+def _maybe_throttle(database: SynsetDatabase) -> None:
+    threshold_per_day = 5_000_000
+    window_seconds = 24 * 3600
+    stats = database.recent_usage(window_seconds)
+    if not stats:
+        return
+    now = datetime.now(timezone.utc)
+    elapsed = max((now - stats.earliest).total_seconds(), 1.0)
+    tokens_per_second = stats.total_tokens / elapsed
+    max_tokens_per_second = threshold_per_day / window_seconds
+    if tokens_per_second <= max_tokens_per_second:
+        return
+    required_elapsed = stats.total_tokens / max_tokens_per_second
+    sleep_seconds = math.ceil(required_elapsed - elapsed)
+    if sleep_seconds <= 0:
+        return
+    time.sleep(sleep_seconds)
 
 
 def _parse_args(argv: Optional[Iterable[str]] = None) -> argparse.Namespace:
