@@ -247,7 +247,16 @@ def _extract_tool_response(response_dict: Dict[str, object]) -> Dict[str, object
                     arguments = _parse_tool_arguments(content_item)
                     if arguments is not None:
                         return arguments
-    raise ValueError("No tool call found in model response")
+    try:
+        serialized_response = json.dumps(
+            response_dict, ensure_ascii=False, indent=2, sort_keys=True
+        )
+    except (TypeError, ValueError):  # pragma: no cover - fallback for unexpected types
+        serialized_response = repr(response_dict)
+    raise ValueError(
+        "No tool call found in model response. Full response:\n"
+        f"{serialized_response}"
+    )
 
 
 def call_synset_model(client: "OpenAI", product: ProductRecord, *, model: str) -> SynsetResult:
