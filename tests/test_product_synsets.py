@@ -55,6 +55,34 @@ def test_extract_tool_response_handles_nested_structure() -> None:
     assert result["not_found"] is False
 
 
+def test_extract_tool_response_handles_tool_use_content() -> None:
+    payload = {
+        "output": [
+            {
+                "type": "message",
+                "role": "assistant",
+                "content": [
+                    {
+                        "type": "tool_use",
+                        "name": "record_synset",
+                        "input": {
+                            "synset_id": "n04256520",
+                            "synset_name": "scooter",
+                            "synset_definition": "a small motorcycle with a step-through frame",
+                            "confidence": 0.8,
+                            "not_found": False,
+                        },
+                    }
+                ],
+            }
+        ]
+    }
+
+    result = _extract_tool_response(payload)
+    assert result["synset_name"] == "scooter"
+    assert result["confidence"] == 0.8
+
+
 class MockClient:
     def __init__(self, response_payload: dict) -> None:
         self.response_payload = response_payload

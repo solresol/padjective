@@ -194,6 +194,20 @@ def _build_tool_spec() -> Dict[str, object]:
     }
 
 
+def _parse_tool_arguments(tool_payload: Dict[str, object]) -> Optional[Dict[str, object]]:
+    """Return the tool arguments regardless of the field used by the API."""
+
+    for key in ("arguments", "input"):
+        if key not in tool_payload:
+            continue
+        value = tool_payload[key]
+        if isinstance(value, dict):
+            return value
+        if isinstance(value, str):
+            return json.loads(value)
+    return None
+
+
 def _extract_tool_response(response_dict: Dict[str, object]) -> Dict[str, object]:
     """Extract the tool call payload from the response dictionary."""
 
@@ -204,28 +218,34 @@ def _extract_tool_response(response_dict: Dict[str, object]) -> Dict[str, object
     for item in output_items:
         if not isinstance(item, dict):
             continue
-        if item.get("type") == "tool_call":
+        item_type = item.get("type")
+        if item_type == "tool_call":
             function = item.get("function", {})
             if not isinstance(function, dict):
                 continue
-            arguments = function.get("arguments")
-            if isinstance(arguments, str):
-                return json.loads(arguments)
-            if isinstance(arguments, dict):
+            arguments = _parse_tool_arguments(function)
+            if arguments is not None:
+                return arguments
+        if item_type == "tool_use":
+            arguments = _parse_tool_arguments(item)
+            if arguments is not None:
                 return arguments
         content = item.get("content")
         if isinstance(content, list):
             for content_item in content:
                 if not isinstance(content_item, dict):
                     continue
-                if content_item.get("type") == "tool_call":
+                content_type = content_item.get("type")
+                if content_type == "tool_call":
                     function = content_item.get("function", {})
                     if not isinstance(function, dict):
                         continue
-                    arguments = function.get("arguments")
-                    if isinstance(arguments, str):
-                        return json.loads(arguments)
-                    if isinstance(arguments, dict):
+                    arguments = _parse_tool_arguments(function)
+                    if arguments is not None:
+                        return arguments
+                if content_type == "tool_use":
+                    arguments = _parse_tool_arguments(content_item)
+                    if arguments is not None:
                         return arguments
     raise ValueError("No tool call found in model response")
 
