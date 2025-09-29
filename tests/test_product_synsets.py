@@ -8,7 +8,9 @@ import pytest
 
 from padjective.product_synsets import (
     CSVProductSource,
+    ProductRecord,
     _extract_tool_response,
+    call_synset_model,
     process_products,
 )
 
@@ -131,6 +133,40 @@ class MockClient:
     def responses(self) -> "MockClient.Responses":
         return MockClient.Responses(self)
 
+
+def test_call_synset_model_handles_missing_synset_id() -> None:
+    response_payload = {
+        "output": [
+            {
+                "type": "tool_call",
+                "function": {
+                    "name": "record_synset",
+                    "arguments": json.dumps(
+                        {
+                            "synset_name": "widget",
+                            "synset_definition": "a placeholder item",
+                            "confidence": 0.6,
+                            "not_found": False,
+                            "reason": "Model forgot the id",
+                        }
+                    ),
+                },
+            }
+        ]
+    }
+    client = MockClient(response_payload)
+    product = ProductRecord(product_id=1, title="Widget", tags="example")
+
+    result = call_synset_model(client, product, model="gpt-5-mini")
+
+    assert result.not_found is True
+    assert result.synset_id is None
+    assert result.reason is not None
+    assert "Model forgot the id" in result.reason
+    assert (
+        "Model response indicated a synset was found but did not include a synset_id."
+        in result.reason
+    )
 
 def test_process_products_stores_results(tmp_path: Path) -> None:
     csv_path = tmp_path / "products.csv"
