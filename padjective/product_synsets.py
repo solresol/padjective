@@ -219,6 +219,10 @@ def _extract_tool_response(response_dict: Dict[str, object]) -> Dict[str, object
         if not isinstance(item, dict):
             continue
         item_type = item.get("type")
+        if item_type == "function_call":
+            arguments = _parse_tool_arguments(item)
+            if arguments is not None:
+                return arguments
         if item_type == "tool_call":
             function = item.get("function", {})
             if not isinstance(function, dict):

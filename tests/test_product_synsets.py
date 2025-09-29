@@ -83,6 +83,30 @@ def test_extract_tool_response_handles_tool_use_content() -> None:
     assert result["confidence"] == 0.8
 
 
+def test_extract_tool_response_handles_function_call_items() -> None:
+    payload = {
+        "output": [
+            {
+                "type": "function_call",
+                "name": "record_synset",
+                "arguments": json.dumps(
+                    {
+                        "synset_id": "n01234567",
+                        "synset_name": "gizmo",
+                        "synset_definition": "a made-up gadget",
+                        "confidence": 0.3,
+                        "not_found": False,
+                    }
+                ),
+            }
+        ]
+    }
+
+    result = _extract_tool_response(payload)
+    assert result["synset_definition"] == "a made-up gadget"
+    assert result["confidence"] == 0.3
+
+
 class MockClient:
     def __init__(self, response_payload: dict) -> None:
         self.response_payload = response_payload
