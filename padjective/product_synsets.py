@@ -304,10 +304,15 @@ def call_synset_model(client: "OpenAI", product: ProductRecord, *, model: str) -
 
     if not not_found:
         if not synset_id:
-            raise ValueError("Model indicated a synset was found but no synset_id was provided")
-        if confidence is not None and not isinstance(confidence, (int, float)):
+            not_found = True
+            missing_reason = (
+                "Model response indicated a synset was found but did not include a synset_id."
+            )
+            reason = f"{reason}\n{missing_reason}" if reason else missing_reason
+        elif confidence is not None and not isinstance(confidence, (int, float)):
             raise ValueError("Confidence value must be numeric when provided")
-    else:
+
+    if not_found:
         synset_id = None
         synset_name = None
         synset_definition = None
@@ -319,7 +324,7 @@ def call_synset_model(client: "OpenAI", product: ProductRecord, *, model: str) -
         synset_definition=synset_definition,
         confidence=float(confidence) if isinstance(confidence, (int, float)) else None,
         not_found=not_found,
-        reason=tool_payload.get("reason"),
+        reason=reason,
         raw_response=json.dumps(response_dict),
     )
 
