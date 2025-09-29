@@ -216,6 +216,48 @@ def _build_index_html(
                     "</div>"
                 )
 
+        usage_summary = synset_summary.get("usage") or {}
+        usage_daily = usage_summary.get("daily") or []
+        tokens_last_24h = int(usage_summary.get("tokens_last_24h") or 0)
+        tokens_per_day = float(usage_summary.get("tokens_per_day") or 0.0)
+        tokens_per_second = float(usage_summary.get("tokens_per_second") or 0.0)
+        daily_quota = float(usage_summary.get("daily_quota") or 5_000_000)
+        usage_rate_text = (
+            f"{tokens_per_day:,.0f} tokens/day ({tokens_per_second:,.1f} tokens/s)"
+            if tokens_per_day
+            else "n/a"
+        )
+        quota_text = f"{daily_quota:,.0f} tokens/day"
+        usage_rows = []
+        for row in usage_daily:
+            usage_rows.append(
+                "<tr>"
+                f"<td>{html.escape(row['date'])}</td>"
+                f"<td>{row['total_tokens']:,}</td>"
+                f"<td>{row['input_tokens']:,}</td>"
+                f"<td>{row['output_tokens']:,}</td>"
+                f"<td>{row['calls']:,}</td>"
+                "</tr>"
+            )
+        usage_table = ""
+        if usage_rows:
+            usage_table = (
+                "<table class=\"synset-usage-table\">"
+                "<thead><tr><th>Date</th><th>Total tokens</th><th>Input</th><th>Output</th><th>LLM calls</th></tr></thead>"
+                f"<tbody>{''.join(usage_rows)}</tbody>"
+                "</table>"
+            )
+        usage_section = (
+            "<div class=\"synset-usage\">"
+            "<h3>Token usage</h3>"
+            f"<p>Last 24h: {tokens_last_24h:,} tokens. Rolling rate: {usage_rate_text}. "
+            f"Quota: {quota_text}.</p>"
+            f"{usage_table}"
+            "</div>"
+            if (tokens_last_24h or usage_rows)
+            else ""
+        )
+
         synset_section = f"""
   <section class=\"synset-progress\">
     <div class=\"synset-header\">
@@ -249,6 +291,7 @@ def _build_index_html(
       <p><a href=\"synsets/index.html\">Explore all processed synsets &rarr;</a></p>
     </div>
     {not_found_block}
+    {usage_section}
   </section>
 """
 
@@ -497,6 +540,66 @@ def _collect_synset_progress(
             """
         ).fetchall()
 
+        usage_table_exists = conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='synset_usage'"
+        ).fetchone()
+        daily_usage: list[Dict[str, Any]] = []
+        tokens_last_24h = 0
+        tokens_per_second = 0.0
+        tokens_per_day = 0.0
+        daily_quota = 5_000_000
+        if usage_table_exists:
+            usage_rows = conn.execute(
+                """
+                SELECT
+                    substr(recorded_at, 1, 10) AS usage_day,
+                    SUM(COALESCE(total_tokens, 0)) AS total_tokens,
+                    SUM(COALESCE(input_tokens, 0)) AS input_tokens,
+                    SUM(COALESCE(output_tokens, 0)) AS output_tokens,
+                    COUNT(*) AS calls
+                FROM synset_usage
+                GROUP BY usage_day
+                ORDER BY usage_day DESC
+                LIMIT 14
+                """
+            ).fetchall()
+
+            daily_usage = [
+                {
+                    "date": row["usage_day"],
+                    "total_tokens": int(row["total_tokens"] or 0),
+                    "input_tokens": int(row["input_tokens"] or 0),
+                    "output_tokens": int(row["output_tokens"] or 0),
+                    "calls": int(row["calls"] or 0),
+                }
+                for row in usage_rows
+                if row["usage_day"]
+            ]
+
+            now = datetime.now(timezone.utc)
+            window_start = now - timedelta(days=1)
+            usage_window = conn.execute(
+                """
+                SELECT
+                    SUM(COALESCE(total_tokens, 0)) AS total_tokens,
+                    MIN(recorded_at) AS first_record
+                FROM synset_usage
+                WHERE recorded_at >= ?
+                """,
+                (window_start.isoformat(),),
+            ).fetchone()
+
+            tokens_last_24h = int((usage_window["total_tokens"] or 0))
+            earliest_usage = _parse_sqlite_timestamp(usage_window["first_record"])
+            if earliest_usage is None:
+                elapsed_seconds = 24 * 3600
+            else:
+                elapsed_seconds = max((now - earliest_usage).total_seconds(), 1.0)
+            tokens_per_second = (
+                tokens_last_24h / elapsed_seconds if tokens_last_24h else 0.0
+            )
+            tokens_per_day = tokens_per_second * 86400
+
         return {
             "processed": processed,
             "remaining": remaining,
@@ -509,6 +612,13 @@ def _collect_synset_progress(
             "last_processed_text": last_processed_text,
             "synsets": synsets,
             "not_found_examples": [row[0] for row in not_found_examples],
+            "usage": {
+                "daily": daily_usage,
+                "tokens_last_24h": tokens_last_24h,
+                "tokens_per_second": tokens_per_second,
+                "tokens_per_day": tokens_per_day,
+                "daily_quota": daily_quota,
+            },
         }
     finally:
         conn.close()
@@ -724,6 +834,13 @@ table.leaderboard tbody tr:nth-child(even) {background: #f8fafc;}
 .synset-not-found {padding: 0 1.5rem 1.5rem;}
 .synset-not-found h4 {margin-bottom: 0.5rem;}
 .synset-not-found ul {margin: 0; padding-left: 1.25rem; color: #475569;}
+.synset-usage {padding: 0 1.5rem 1.5rem;}
+.synset-usage h3 {margin-bottom: 0.5rem;}
+.synset-usage p {margin: 0 0 0.75rem; color: #475569;}
+.synset-usage-table {width: 100%; border-collapse: collapse; background: white;}
+.synset-usage-table th, .synset-usage-table td {padding: 0.6rem 0.75rem; border-bottom: 1px solid #e5e7eb; text-align: left;}
+.synset-usage-table thead {background: #f8fafc;}
+.synset-usage-table tbody tr:nth-child(even) {background: #f8fafc;}
 .synset-table {width: 100%; border-collapse: collapse; background: white;}
 .synset-table th, .synset-table td {padding: 0.75rem 1rem; border-bottom: 1px solid #e5e7eb; text-align: left;}
 .synset-table thead {background: #f8fafc;}
