@@ -10,6 +10,7 @@ dependencies = [
     "pandas>=2.2.3",
     "pytest>=8.3.5",
     "scikit-learn>=1.6.1",
+    "tqdm>=4.67.1",
 ]
 [project.scripts]
 tagbattle = "padjective.tagbattle:main"

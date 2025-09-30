@@ -13,13 +13,11 @@ TOTAL_TASKS=${PADJECTIVE_TOTAL_HOLDOUT_TASKS:-5000}
 TASK_BATCH=${PADJECTIVE_TASK_BATCH:-250}
 BATTLES_DB=${PADJECTIVE_BATTLES_DB:-build/battles.sqlite}
 SYNSETS_DB=${PADJECTIVE_SYNSETS_DB:-data/product_synsets.sqlite}
-SYNSETS_BATCH=${PADJECTIVE_SYNSETS_BATCH:-50}
 
 mkdir -p "$(dirname "$TASKS_DB")"
 mkdir -p "$(dirname "$BATTLES_DB")"
 mkdir -p "$(dirname "$SYNSETS_DB")"
 
-uv run -m padjective.product_synsets --csv "$CSV_PATH" --database "$SYNSETS_DB" --batch "$SYNSETS_BATCH"
 uv run padjective/tagbattle.py --csv "$CSV_PATH" --database "$BATTLES_DB"
 uv run -m padjective.experiments init --tasks-db "$TASKS_DB" --total "$TOTAL_TASKS"
 uv run -m padjective.experiments run --tasks-db "$TASKS_DB" --database "$BATTLES_DB" --take "$TASK_BATCH"
