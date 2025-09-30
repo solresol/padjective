@@ -74,6 +74,15 @@ cross-validation, stores the learned weights in SQLite, and produces a static
 HTML report that highlights which tags carry the largest coefficients across all
 synset classes.
 
+> **Project note**
+>
+> We're currently blocked on the synset identification phase. Each attempt to
+> label products with ``padjective/product_synsets.py`` inserts a literal "no can
+> do" value into the database instead of the expected synset, so the downstream
+> classifier training cannot proceed. It may be worth extracting this script into
+> a standalone repository so we can iterate on the problem independently of the
+> rest of the pipeline.
+
 ```bash
 uv run padjective/synset_classifier.py \
     --database data/product_synsets.sqlite \
