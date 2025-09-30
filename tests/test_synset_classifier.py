@@ -12,6 +12,9 @@ from padjective.synset_classifier import (
     compute_tag_coefficients,
     load_training_data,
     render_coefficients_html,
+    save_model_to_database,
+    summarise_coefficients,
+    train_classifier,
 )
 
 
@@ -92,7 +95,15 @@ def test_render_coefficients_html(tmp_path: Path) -> None:
             },
         ]
     )
-    stats = TrainingStats(samples=10, synsets=2, unique_tags=5, training_accuracy=0.9)
+    stats = TrainingStats(
+        samples=10,
+        synsets=2,
+        unique_tags=5,
+        training_accuracy=0.9,
+        cross_validation_folds=3,
+        cross_validation_mean_accuracy=0.85,
+        cross_validation_std_accuracy=0.02,
+    )
     output = tmp_path / "report.html"
 
     render_coefficients_html(summary, stats, output, top_n=2)
@@ -101,4 +112,60 @@ def test_render_coefficients_html(tmp_path: Path) -> None:
     assert "Synset tag coefficients" in text
     assert "Training samples" in text
     assert "BLUE" in text
+    assert "Cross-validated accuracy" in text
+
+
+def test_save_model_to_database_persists_weights(tmp_path: Path) -> None:
+    data = pd.DataFrame(
+        {
+            "product_id": [1, 2, 3, 4],
+            "synset_id": ["n1", "n1", "n2", "n2"],
+            "tag_list": [
+                ("RED", "ROUND"),
+                ("BLUE",),
+                ("RED",),
+                ("BLUE", "ROUND"),
+            ],
+        }
+    )
+
+    model, stats = train_classifier(data)
+    summary = summarise_coefficients(model)
+    db_path = tmp_path / "classifier.sqlite"
+
+    model_id = save_model_to_database(db_path, model, stats, summary, cv_scores=[0.6, 0.7, 0.8])
+
+    conn = sqlite3.connect(db_path)
+    try:
+        cur = conn.execute(
+            "SELECT samples, synsets, training_accuracy, cv_folds, cv_mean_accuracy FROM synset_classifier_models"
+        )
+        row = cur.fetchone()
+        assert row is not None
+        samples, synsets, training_accuracy, cv_folds, cv_mean = row
+        assert samples == stats.samples
+        assert synsets == stats.synsets
+        assert training_accuracy == pytest.approx(stats.training_accuracy)
+        assert cv_folds == 3
+        assert cv_mean == pytest.approx(0.7)
+
+        coef_count = conn.execute(
+            "SELECT COUNT(*) FROM synset_classifier_coefficients WHERE model_id = ?",
+            (model_id,),
+        ).fetchone()[0]
+        assert coef_count == len(summary) * len(model.named_steps["classifier"].classes_)
+
+        intercept_count = conn.execute(
+            "SELECT COUNT(*) FROM synset_classifier_intercepts WHERE model_id = ?",
+            (model_id,),
+        ).fetchone()[0]
+        assert intercept_count == len(model.named_steps["classifier"].classes_)
+
+        summary_count = conn.execute(
+            "SELECT COUNT(*) FROM synset_classifier_tag_summary WHERE model_id = ?",
+            (model_id,),
+        ).fetchone()[0]
+        assert summary_count == len(summary)
+    finally:
+        conn.close()
 
