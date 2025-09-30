@@ -69,19 +69,26 @@ produce ``tag_rankings.csv`` and render ``tag_rankings.html`` and
 
 Once ``padjective.product_synsets`` has populated ``product_synsets.sqlite`` you
 can train a simple logistic regression model that predicts WordNet synsets from
-tags only. The script produces a static HTML report that highlights which tags
-carry the largest coefficients across all synset classes.
+tags only. The script now evaluates the classifier with stratified
+cross-validation, stores the learned weights in SQLite, and produces a static
+HTML report that highlights which tags carry the largest coefficients across all
+synset classes.
 
 ```bash
-uv run padjective/synset_classifier.py --database data/product_synsets.sqlite --output-dir synset_classifier
+uv run padjective/synset_classifier.py \
+    --database data/product_synsets.sqlite \
+    --model-database data/synset_classifier.sqlite \
+    --output-dir build/synset_classifier
 ```
 
 The output directory contains:
 
-* ``synset_classifier.joblib`` – the fitted scikit-learn pipeline.
-* ``tag_coefficients.csv`` and ``tag_coefficients.json`` – coefficient tables.
 * ``tag_coefficients.html`` – a standalone webpage visualising the tags with the
   largest weights (by both maximum and summed absolute coefficient values).
+
+The ``data/synset_classifier.sqlite`` database captures the trained model
+metadata, cross-validation scores, per-tag synset weights, and the HTML report's
+summary data in a structured format for downstream use.
 
 ## Hold-out experiments
 

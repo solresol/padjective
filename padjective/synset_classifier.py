@@ -1,12 +1,11 @@
 """Train a logistic regression model to predict synsets from product tags.
 
-This module provides a small command line utility that looks at the
+This module provides a command line utility that looks at the
 ``product_synsets`` SQLite database (produced by :mod:`padjective.product_synsets`),
 trains a multinomial logistic regression model using the tags as binary
-features, and produces a static HTML report describing the most influential
-tags.  The intention is to offer a lightweight baseline model that can be run
-on the full dataset without involving large language models once the initial
-synset annotations have been gathered.
+features, evaluates it with stratified cross-validation, and stores the learned
+weights in an output SQLite database.  A static HTML report summarises the most
+influential tags to aid manual inspection.
 """
 
 from __future__ import annotations
@@ -16,16 +15,17 @@ import html
 import json
 import sqlite3
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Sequence
+from typing import Iterable, Sequence
 
-import joblib
 import numpy as np
 import pandas as pd
 from sklearn.feature_extraction import DictVectorizer
 from sklearn.linear_model import LogisticRegression
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import FunctionTransformer
+from sklearn.model_selection import StratifiedKFold, cross_val_score
 
 
 def _split_tags(tags: str) -> tuple[str, ...]:
@@ -54,6 +54,32 @@ class TrainingStats:
     synsets: int
     unique_tags: int
     training_accuracy: float
+    cross_validation_folds: int | None = None
+    cross_validation_mean_accuracy: float | None = None
+    cross_validation_std_accuracy: float | None = None
+
+
+def _create_pipeline() -> Pipeline:
+    """Create the scikit-learn pipeline used for training and evaluation."""
+
+    return Pipeline(
+        steps=[
+            (
+                "tags_to_dicts",
+                FunctionTransformer(_tag_lists_to_dicts, validate=False),
+            ),
+            ("vectorizer", DictVectorizer(sparse=True)),
+            (
+                "classifier",
+                LogisticRegression(
+                    max_iter=1000,
+                    multi_class="auto",
+                    n_jobs=None,
+                    class_weight="balanced",
+                ),
+            ),
+        ]
+    )
 
 
 def load_training_data(
@@ -132,24 +158,7 @@ def train_classifier(data: pd.DataFrame) -> tuple[Pipeline, TrainingStats]:
     if len(set(labels)) < 2:
         raise ValueError("Need at least two synsets to train a classifier.")
 
-    pipeline = Pipeline(
-        steps=[
-            (
-                "tags_to_dicts",
-                FunctionTransformer(_tag_lists_to_dicts, validate=False),
-            ),
-            ("vectorizer", DictVectorizer(sparse=True)),
-            (
-                "classifier",
-                LogisticRegression(
-                    max_iter=1000,
-                    multi_class="auto",
-                    n_jobs=None,
-                    class_weight="balanced",
-                ),
-            ),
-        ]
-    )
+    pipeline = _create_pipeline()
 
     pipeline.fit(tag_sequences, labels)
 
@@ -163,6 +172,38 @@ def train_classifier(data: pd.DataFrame) -> tuple[Pipeline, TrainingStats]:
         training_accuracy=accuracy,
     )
     return pipeline, stats
+
+
+def cross_validate_classifier(
+    data: pd.DataFrame,
+    *,
+    folds: int = 5,
+    random_state: int = 0,
+) -> list[float]:
+    """Evaluate the classifier using stratified k-fold cross-validation."""
+
+    if data.empty:
+        return []
+
+    labels = data["synset_id"].to_numpy()
+    counts = pd.Series(labels).value_counts()
+    max_splits = int(counts.min()) if not counts.empty else 0
+    n_splits = min(folds, max_splits)
+
+    if n_splits < 2:
+        return []
+
+    tag_sequences = data["tag_list"].to_numpy(dtype=object)
+    cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=random_state)
+    scores = cross_val_score(
+        _create_pipeline(),
+        tag_sequences,
+        labels,
+        cv=cv,
+        scoring="accuracy",
+        n_jobs=None,
+    )
+    return [float(score) for score in scores]
 
 
 def compute_tag_coefficients(
@@ -207,6 +248,229 @@ def summarise_coefficients(model: Pipeline) -> pd.DataFrame:
     classifier: LogisticRegression = model.named_steps["classifier"]
     feature_names = vectorizer.get_feature_names_out()
     return compute_tag_coefficients(feature_names, classifier.classes_, classifier.coef_)
+
+
+def _expand_binary_coefficients(
+    classes: Sequence[str],
+    coef_matrix: np.ndarray,
+    intercepts: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Ensure binary classifiers expose one row per class."""
+
+    if coef_matrix.ndim == 1:
+        coef_matrix = coef_matrix.reshape(1, -1)
+
+    intercepts = np.asarray(intercepts, dtype=float)
+
+    if coef_matrix.shape[0] == len(classes):
+        return coef_matrix, intercepts
+
+    if len(classes) == 2 and coef_matrix.shape[0] == 1:
+        coef_row = coef_matrix[0]
+        intercept_value = float(intercepts[0]) if intercepts.size else 0.0
+        expanded_coef = np.vstack([-coef_row, coef_row])
+        expanded_intercepts = np.array([-intercept_value, intercept_value], dtype=float)
+        return expanded_coef, expanded_intercepts
+
+    raise ValueError(
+        "Coefficient matrix shape does not match the number of synset classes."
+    )
+
+
+def save_model_to_database(
+    database_path: Path,
+    model: Pipeline,
+    stats: TrainingStats,
+    summary: pd.DataFrame,
+    cv_scores: Iterable[float] | None = None,
+) -> int:
+    """Persist classifier weights, metadata, and summaries into SQLite."""
+
+    database_path.parent.mkdir(parents=True, exist_ok=True)
+
+    vectorizer: DictVectorizer = model.named_steps["vectorizer"]
+    classifier: LogisticRegression = model.named_steps["classifier"]
+    feature_names = vectorizer.get_feature_names_out()
+    classes = classifier.classes_
+    coef_matrix = classifier.coef_
+    intercepts = classifier.intercept_
+
+    coef_matrix, intercepts = _expand_binary_coefficients(classes, coef_matrix, intercepts)
+    coef_matrix = np.asarray(coef_matrix, dtype=float)
+    intercepts = np.asarray(intercepts, dtype=float)
+
+    cv_scores_list = [float(score) for score in (cv_scores or [])]
+    cv_folds = len(cv_scores_list) if cv_scores_list else None
+    cv_mean = float(np.mean(cv_scores_list)) if cv_scores_list else None
+    cv_std = float(np.std(cv_scores_list, ddof=0)) if cv_scores_list else None
+
+    timestamp = datetime.now(timezone.utc).isoformat()
+
+    with sqlite3.connect(database_path) as conn:
+        conn.execute("PRAGMA foreign_keys = ON")
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS synset_classifier_models (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                trained_at TEXT NOT NULL,
+                samples INTEGER NOT NULL,
+                synsets INTEGER NOT NULL,
+                unique_tags INTEGER NOT NULL,
+                training_accuracy REAL NOT NULL,
+                cv_folds INTEGER,
+                cv_mean_accuracy REAL,
+                cv_std_accuracy REAL
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS synset_classifier_cv_scores (
+                model_id INTEGER NOT NULL,
+                fold INTEGER NOT NULL,
+                accuracy REAL NOT NULL,
+                FOREIGN KEY(model_id) REFERENCES synset_classifier_models(id) ON DELETE CASCADE
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS synset_classifier_coefficients (
+                model_id INTEGER NOT NULL,
+                synset_id TEXT NOT NULL,
+                tag TEXT NOT NULL,
+                weight REAL NOT NULL,
+                FOREIGN KEY(model_id) REFERENCES synset_classifier_models(id) ON DELETE CASCADE
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS synset_classifier_intercepts (
+                model_id INTEGER NOT NULL,
+                synset_id TEXT NOT NULL,
+                intercept REAL NOT NULL,
+                FOREIGN KEY(model_id) REFERENCES synset_classifier_models(id) ON DELETE CASCADE
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS synset_classifier_tag_summary (
+                model_id INTEGER NOT NULL,
+                tag TEXT NOT NULL,
+                top_synset TEXT NOT NULL,
+                top_weight REAL NOT NULL,
+                max_abs_coef REAL NOT NULL,
+                sum_abs_coef REAL NOT NULL,
+                PRIMARY KEY (model_id, tag),
+                FOREIGN KEY(model_id) REFERENCES synset_classifier_models(id) ON DELETE CASCADE
+            )
+            """
+        )
+
+        cursor = conn.execute(
+            """
+            INSERT INTO synset_classifier_models (
+                trained_at,
+                samples,
+                synsets,
+                unique_tags,
+                training_accuracy,
+                cv_folds,
+                cv_mean_accuracy,
+                cv_std_accuracy
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                timestamp,
+                stats.samples,
+                stats.synsets,
+                stats.unique_tags,
+                stats.training_accuracy,
+                cv_folds,
+                cv_mean,
+                cv_std,
+            ),
+        )
+        model_id = int(cursor.lastrowid)
+
+        if cv_scores_list:
+            conn.executemany(
+                """
+                INSERT INTO synset_classifier_cv_scores (model_id, fold, accuracy)
+                VALUES (?, ?, ?)
+                """,
+                [
+                    (model_id, index + 1, float(score))
+                    for index, score in enumerate(cv_scores_list)
+                ],
+            )
+
+        coefficient_rows = []
+        for class_index, class_label in enumerate(classes):
+            for feature_index, tag in enumerate(feature_names):
+                coefficient_rows.append(
+                    (
+                        model_id,
+                        str(class_label),
+                        str(tag),
+                        float(coef_matrix[class_index, feature_index]),
+                    )
+                )
+
+        if coefficient_rows:
+            conn.executemany(
+                """
+                INSERT INTO synset_classifier_coefficients (model_id, synset_id, tag, weight)
+                VALUES (?, ?, ?, ?)
+                """,
+                coefficient_rows,
+            )
+
+        intercept_rows = [
+            (model_id, str(class_label), float(intercept_value))
+            for class_label, intercept_value in zip(classes, intercepts)
+        ]
+        if intercept_rows:
+            conn.executemany(
+                """
+                INSERT INTO synset_classifier_intercepts (model_id, synset_id, intercept)
+                VALUES (?, ?, ?)
+                """,
+                intercept_rows,
+            )
+
+        if not summary.empty:
+            conn.executemany(
+                """
+                INSERT INTO synset_classifier_tag_summary (
+                    model_id,
+                    tag,
+                    top_synset,
+                    top_weight,
+                    max_abs_coef,
+                    sum_abs_coef
+                )
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                [
+                    (
+                        model_id,
+                        str(row["tag"]),
+                        str(row["top_synset"]),
+                        float(row["top_weight"]),
+                        float(row["max_abs_coef"]),
+                        float(row["sum_abs_coef"]),
+                    )
+                    for row in summary.to_dict(orient="records")
+                ],
+            )
+
+        conn.commit()
+
+    return model_id
 
 
 def _render_table(title: str, dataframe: pd.DataFrame, metric_column: str, top_n: int) -> str:
@@ -269,14 +533,30 @@ def render_coefficients_html(
         "lists the tags with the strongest coefficients across all synset classes.</p>"
     )
 
-    metadata = (
-        "<ul class=\"stats\">"
-        f"<li><strong>Training samples:</strong> {stats.samples:,}</li>"
-        f"<li><strong>Synsets:</strong> {stats.synsets:,}</li>"
-        f"<li><strong>Unique tags:</strong> {stats.unique_tags:,}</li>"
-        f"<li><strong>Training accuracy:</strong> {stats.training_accuracy:.3f}</li>"
-        "</ul>"
-    )
+    metadata_items = [
+        f"<li><strong>Training samples:</strong> {stats.samples:,}</li>",
+        f"<li><strong>Synsets:</strong> {stats.synsets:,}</li>",
+        f"<li><strong>Unique tags:</strong> {stats.unique_tags:,}</li>",
+        f"<li><strong>Training accuracy:</strong> {stats.training_accuracy:.3f}</li>",
+    ]
+    if (
+        stats.cross_validation_folds
+        and stats.cross_validation_mean_accuracy is not None
+    ):
+        cv_accuracy = stats.cross_validation_mean_accuracy
+        if stats.cross_validation_std_accuracy is not None:
+            metadata_items.append(
+                "<li><strong>Cross-validated accuracy:</strong> "
+                f"{cv_accuracy:.3f} ± {stats.cross_validation_std_accuracy:.3f}"
+                f" ({stats.cross_validation_folds} folds)</li>"
+            )
+        else:
+            metadata_items.append(
+                "<li><strong>Cross-validated accuracy:</strong> "
+                f"{cv_accuracy:.3f} ({stats.cross_validation_folds} folds)</li>"
+            )
+
+    metadata = "<ul class=\"stats\">" + "".join(metadata_items) + "</ul>"
 
     max_table = _render_table(
         "Tags ranked by maximum absolute coefficient",
@@ -332,6 +612,12 @@ def save_summary_json(summary: pd.DataFrame, stats: TrainingStats, output_path: 
         },
         "coefficients": summary.to_dict(orient="records"),
     }
+    if stats.cross_validation_folds and stats.cross_validation_mean_accuracy is not None:
+        payload["stats"]["cross_validation"] = {
+            "folds": stats.cross_validation_folds,
+            "mean_accuracy": stats.cross_validation_mean_accuracy,
+            "std_accuracy": stats.cross_validation_std_accuracy,
+        }
     output_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
 
@@ -349,7 +635,19 @@ def main() -> None:
         "--output-dir",
         type=Path,
         default=Path("synset_classifier"),
-        help="Directory where the model, CSV, JSON, and HTML report will be written.",
+        help="Directory where the HTML report will be written.",
+    )
+    parser.add_argument(
+        "--model-database",
+        type=Path,
+        default=Path("data/synset_classifier.sqlite"),
+        help="SQLite database where classifier weights and metadata will be stored.",
+    )
+    parser.add_argument(
+        "--cv-folds",
+        type=int,
+        default=5,
+        help="Number of cross-validation folds to evaluate (limited by smallest class).",
     )
     parser.add_argument(
         "--min-samples-per-synset",
@@ -368,25 +666,36 @@ def main() -> None:
     data = load_training_data(
         args.database, min_samples_per_synset=args.min_samples_per_synset
     )
+    cv_scores = cross_validate_classifier(data, folds=max(2, args.cv_folds))
     model, stats = train_classifier(data)
+    if cv_scores:
+        stats.cross_validation_folds = len(cv_scores)
+        stats.cross_validation_mean_accuracy = float(np.mean(cv_scores))
+        stats.cross_validation_std_accuracy = float(np.std(cv_scores, ddof=0))
     summary = summarise_coefficients(model)
 
     output_dir = args.output_dir
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    model_path = output_dir / "synset_classifier.joblib"
-    csv_path = output_dir / "tag_coefficients.csv"
-    json_path = output_dir / "tag_coefficients.json"
     html_path = output_dir / "tag_coefficients.html"
 
-    joblib.dump(model, model_path)
-    summary.to_csv(csv_path, index=False)
-    save_summary_json(summary, stats, json_path)
+    save_model_to_database(args.model_database, model, stats, summary, cv_scores)
     render_coefficients_html(summary, stats, html_path, top_n=args.top_n)
 
     print(f"Trained on {stats.samples} samples covering {stats.synsets} synsets.")
-    print(f"Model saved to {model_path}")
-    print(f"Coefficient tables saved to {csv_path} and {html_path}")
+    if stats.cross_validation_mean_accuracy is not None:
+        print(
+            "Cross-validated accuracy: "
+            f"{stats.cross_validation_mean_accuracy:.3f}"
+            + (
+                f" ± {stats.cross_validation_std_accuracy:.3f}"
+                if stats.cross_validation_std_accuracy is not None
+                else ""
+            )
+            + f" ({stats.cross_validation_folds} folds)"
+        )
+    print(f"Classifier weights written to {args.model_database}")
+    print(f"HTML report saved to {html_path}")
 
 
 if __name__ == "__main__":
