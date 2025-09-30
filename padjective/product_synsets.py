@@ -24,6 +24,11 @@ try:  # pragma: no cover - optional dependency for type checking
 except ModuleNotFoundError:  # pragma: no cover - handled at runtime
     OpenAI = None  # type: ignore[assignment]
 
+try:  # pragma: no cover - optional dependency used for nicer progress reporting
+    from tqdm.auto import tqdm
+except ModuleNotFoundError:  # pragma: no cover - handled gracefully at runtime
+    tqdm = None  # type: ignore[assignment]
+
 
 @dataclass(frozen=True, slots=True)
 class ProductRecord:
@@ -47,6 +52,13 @@ class CSVProductSource:
 
     def __init__(self, csv_path: Path) -> None:
         self.csv_path = csv_path
+
+    def count_products(self) -> int:
+        """Return the number of rows available in the CSV file."""
+
+        with self.csv_path.open("r", newline="", encoding="utf-8") as handle:
+            reader = csv.DictReader(handle)
+            return sum(1 for _ in reader)
 
     def iter_products(self) -> Iterator[ProductRecord]:
         """Yield :class:`ProductRecord` instances for each product in the CSV."""
@@ -583,14 +595,14 @@ def process_products(
     *,
     csv_path: Path,
     database_path: Path,
-    batch_size: int,
+    batch_size: Optional[int],
     model: str,
     client: Optional["OpenAI"] = None,
 ) -> int:
-    """Process up to ``batch_size`` unprocessed products."""
+    """Process unprocessed products and store the results."""
 
-    if batch_size <= 0:
-        raise ValueError("batch_size must be positive")
+    if batch_size is not None and batch_size <= 0:
+        raise ValueError("batch_size must be positive when provided")
 
     if client is None:
         if OpenAI is None:  # pragma: no cover - requires optional dependency
@@ -602,9 +614,31 @@ def process_products(
     source = CSVProductSource(csv_path)
     database = SynsetDatabase(database_path)
 
+    progress_bar = None
+    processed_count = 0
+
     try:
         processed_ids = database.processed_product_ids()
-        processed_count = 0
+
+        total_to_process: Optional[int] = None
+        if tqdm is not None:
+            try:
+                total_products = source.count_products()
+            except (OSError, csv.Error):
+                total_products = None
+            if total_products is not None:
+                remaining = max(total_products - len(processed_ids), 0)
+                total_to_process = remaining if batch_size is None else min(remaining, batch_size)
+            elif batch_size is not None:
+                total_to_process = batch_size
+
+        if tqdm is not None:
+            progress_bar = tqdm(
+                total=total_to_process,
+                unit="product",
+                desc="Synset classification",
+                dynamic_ncols=True,
+            )
 
         for product in source.iter_products():
             if product.product_id in processed_ids:
@@ -616,9 +650,16 @@ def process_products(
                 _maybe_throttle(database)
             processed_ids.add(product.product_id)
             processed_count += 1
-            if processed_count >= batch_size:
+            if progress_bar is not None:
+                progress_bar.update(1)
+            if batch_size is not None and processed_count >= batch_size:
                 break
     finally:
+        if progress_bar is not None:
+            if progress_bar.total is not None and processed_count < progress_bar.total:
+                progress_bar.total = processed_count
+                progress_bar.refresh()
+            progress_bar.close()
         database.close()
 
     return processed_count
@@ -662,8 +703,8 @@ def _parse_args(argv: Optional[Iterable[str]] = None) -> argparse.Namespace:
     parser.add_argument(
         "--batch",
         type=int,
-        default=1000,
-        help="Number of unprocessed products to classify in this run.",
+        default=None,
+        help="Optional limit on the number of products to classify in this run.",
     )
     parser.add_argument(
         "--model",
