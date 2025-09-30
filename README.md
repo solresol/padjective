@@ -65,6 +65,24 @@ This will create ``battles.sqlite`` from ``products_point_one_percent_sample.csv
 produce ``tag_rankings.csv`` and render ``tag_rankings.html`` and
 ``tag_rankings.png``.
 
+## Training a synset classifier
+
+Once ``padjective.product_synsets`` has populated ``product_synsets.sqlite`` you
+can train a simple logistic regression model that predicts WordNet synsets from
+tags only. The script produces a static HTML report that highlights which tags
+carry the largest coefficients across all synset classes.
+
+```bash
+uv run padjective/synset_classifier.py --database data/product_synsets.sqlite --output-dir synset_classifier
+```
+
+The output directory contains:
+
+* ``synset_classifier.joblib`` – the fitted scikit-learn pipeline.
+* ``tag_coefficients.csv`` and ``tag_coefficients.json`` – coefficient tables.
+* ``tag_coefficients.html`` – a standalone webpage visualising the tags with the
+  largest weights (by both maximum and summed absolute coefficient values).
+
 ## Hold-out experiments
 
 To monitor how well the inferred rankings predict unseen tag orderings, use the
