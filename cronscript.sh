@@ -23,8 +23,8 @@ mkdir -p "$(dirname "$CLASSIFIER_DB")"
 mkdir -p "$CLASSIFIER_REPORT_DIR"
 
 uv run padjective/tagbattle.py --csv "$CSV_PATH" --database "$BATTLES_DB"
-uv run -m padjective.experiments init --tasks-db "$TASKS_DB" --total "$TOTAL_TASKS"
-uv run -m padjective.experiments run --tasks-db "$TASKS_DB" --database "$BATTLES_DB" --take "$TASK_BATCH"
+uv run -m padjective.experiments --tasks-db "$TASKS_DB" init --total "$TOTAL_TASKS"
+uv run -m padjective.experiments --tasks-db "$TASKS_DB" run --database "$BATTLES_DB" --take "$TASK_BATCH"
 uv run -m padjective.build_site --csv "$CSV_PATH" --output "$OUTPUT_DIR" --precomputed-database "$BATTLES_DB" --tasks-db "$TASKS_DB" --synset-db "$SYNSETS_DB"
 uv run padjective/synset_classifier.py --database "$SYNSETS_DB" --model-database "$CLASSIFIER_DB" --output-dir "$CLASSIFIER_REPORT_DIR"
 
