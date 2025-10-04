@@ -1,10 +1,8 @@
-import sqlite3
-
 from padjective.tagbattle import (
     filter_nested_tags,
     split_title,
     tag_positions,
-    process_product,
+    build_battles,
 )
 
 
@@ -23,12 +21,6 @@ def test_tag_positions():
     assert pos == {"red": 5, "shoe": 9}
 
 
-def test_process_product_inserts_pairs():
-    conn = sqlite3.connect(":memory:")
-    cur = conn.cursor()
-    cur.execute("CREATE TABLE battles (winner_tag TEXT, loser_tag TEXT)")
-    process_product("big bunny milk chocolate", "bunny,milk chocolate", cur)
-    cur.execute("SELECT winner_tag, loser_tag FROM battles")
-    rows = cur.fetchall()
-    assert rows == [("BUNNY", "MILK CHOCOLATE")]
-    conn.close()
+def test_build_battles_generates_pairs():
+    pairs = build_battles("big bunny milk chocolate", "bunny,milk chocolate")
+    assert pairs == [("BUNNY", "MILK CHOCOLATE")]

@@ -1,9 +1,10 @@
 import argparse
-import sqlite3
-from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Dict, List, Sequence, Tuple
 
 import pandas as pd
+from psycopg import sql
+
+from . import db
 
 
 def _elo_scores(num_tags: int, data: List[Tuple[int, int]], k: float = 32.0) -> List[float]:
@@ -20,14 +21,17 @@ def _elo_scores(num_tags: int, data: List[Tuple[int, int]], k: float = 32.0) -> 
     return ratings
 
 
-def load_pairs(db_path: Path) -> List[Tuple[str, str]]:
-    """Load winner/loser pairs from the database."""
-    conn = sqlite3.connect(db_path)
-    cur = conn.cursor()
-    cur.execute("SELECT winner_tag, loser_tag FROM battles")
-    pairs = cur.fetchall()
-    conn.close()
-    return pairs
+def load_pairs(conn, schema: str) -> List[Tuple[str, str]]:
+    """Load winner/loser pairs from Postgres."""
+
+    with conn.cursor() as cur:
+        cur.execute(
+            sql.SQL("SELECT winner_tag, loser_tag FROM {schema}.battles").format(
+                schema=sql.Identifier(schema)
+            )
+        )
+        rows = cur.fetchall()
+    return [(winner, loser) for winner, loser in rows]
 
 
 def _connected_components(graph: Dict[str, List[str]]) -> List[List[str]]:
@@ -92,28 +96,57 @@ def compute_rankings(pairs: List[Tuple[str, str]]) -> pd.DataFrame:
     return df.sort_values(["component", "score"], ascending=[True, False]).reset_index(drop=True)
 
 
-def save_rankings(df: pd.DataFrame, csv_path: Path) -> None:
-    df.to_csv(csv_path, index=False)
+def ensure_output_table(conn, schema: str, table: str) -> None:
+    columns = (
+        "tag TEXT PRIMARY KEY",
+        "component INTEGER NOT NULL",
+        "score DOUBLE PRECISION NOT NULL",
+        "updated_at TIMESTAMPTZ NOT NULL DEFAULT now()",
+    )
+    indexes: Sequence[sql.SQL] = ()
+    db.ensure_table(conn, schema, table, columns, indexes)
+
+
+def save_rankings(conn, schema: str, table: str, df: pd.DataFrame) -> None:
+    ensure_output_table(conn, schema, table)
+    db.truncate_table(conn, schema, table)
+    records = list(df[["tag", "component", "score"]].itertuples(index=False, name=None))
+    if not records:
+        return
+
+    with conn.cursor() as cur:
+        cur.executemany(
+            sql.SQL(
+                "INSERT INTO {schema}.{table} (tag, component, score) VALUES (%s, %s, %s)"
+            ).format(schema=sql.Identifier(schema), table=sql.Identifier(table)),
+            records,
+        )
+    conn.commit()
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Compute tag rankings from battle data.")
+    parser = argparse.ArgumentParser(description="Compute tag rankings from Postgres battle data.")
     parser.add_argument(
-        "--database",
-        type=Path,
-        default=Path("battles.sqlite"),
-        help="SQLite database produced by tagbattle.py",
+        "--dsn",
+        help="Postgres DSN. Defaults to SHOPIFY_DB_DSN or DATABASE_URL if unset.",
     )
     parser.add_argument(
-        "--output",
-        type=Path,
-        default=Path("tag_rankings.csv"),
-        help="CSV file to write tag rankings to",
+        "--schema",
+        default="padjective",
+        help="Schema containing battle inputs and the output table.",
+    )
+    parser.add_argument(
+        "--output-table",
+        default="tag_rankings",
+        help="Name of the table (within schema) to store rankings in.",
     )
     args = parser.parse_args()
-    pairs = load_pairs(args.database)
+
+    conn = db.get_connection(args.dsn)
+    pairs = load_pairs(conn, args.schema)
     df = compute_rankings(pairs)
-    save_rankings(df, args.output)
+    save_rankings(conn, args.schema, args.output_table, df)
+    conn.close()
 
 
 if __name__ == "__main__":
