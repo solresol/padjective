@@ -106,13 +106,19 @@ def ensure_storage(conn, schema: str) -> None:
     )
     indexes = (
         sql.SQL(
-            "CREATE INDEX IF NOT EXISTS {schema}_battles_winner_idx "
+            "CREATE INDEX IF NOT EXISTS {index} "
             "ON {schema}.battles (winner_tag) TABLESPACE pg_default"
-        ).format(schema=sql.Identifier(schema)),
+        ).format(
+            index=sql.Identifier(f"{schema}_battles_winner_idx"),
+            schema=sql.Identifier(schema),
+        ),
         sql.SQL(
-            "CREATE INDEX IF NOT EXISTS {schema}_battles_loser_idx "
+            "CREATE INDEX IF NOT EXISTS {index} "
             "ON {schema}.battles (loser_tag) TABLESPACE pg_default"
-        ).format(schema=sql.Identifier(schema)),
+        ).format(
+            index=sql.Identifier(f"{schema}_battles_loser_idx"),
+            schema=sql.Identifier(schema),
+        ),
     )
     db.ensure_table(conn, schema, "battles", battle_columns, indexes_sql=indexes)
 
