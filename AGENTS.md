@@ -5,6 +5,15 @@ The real goal is to work with a full data set (products.csv) which is 1000 times
 
 ---
 
+⚠️ **Process data directly from Shopify Postgres**
+
+We no longer read from CSV files or SQLite databases. Always pull product data
+from the Shopify stores Postgres database and persist results to the
+`padjective` schema in that same database (use the default `pg_default`
+tablespace explicitly when creating objects).
+
+---
+
 If CLAUDE.md is present, read it.
 
 Run the unit tests with `uv run -m pytest -q`.

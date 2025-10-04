@@ -1,14 +1,16 @@
 import argparse
 from pathlib import Path
 
-import pandas as pd
 import matplotlib.pyplot as plt
+import pandas as pd
+from psycopg import sql
+
+from . import db
 
 
 def generate_outputs(
-    csv_path: Path, html_path: Path, image_path: Path, rows: int = 10
+    df: pd.DataFrame, html_path: Path, image_path: Path, rows: int = 10
 ) -> None:
-    df = pd.read_csv(csv_path)
     df_sorted = df.sort_values("score", ascending=False)
 
     # Print selected rows to stdout
@@ -33,13 +35,28 @@ def generate_outputs(
     plt.close()
 
 
+def load_rankings(conn, schema: str, table: str) -> pd.DataFrame:
+    query = sql.SQL(
+        "SELECT tag, component, score FROM {schema}.{table} ORDER BY component, score DESC"
+    ).format(schema=sql.Identifier(schema), table=sql.Identifier(table))
+    return pd.read_sql_query(query, conn)
+
+
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Display tag ranking results.")
+    parser = argparse.ArgumentParser(description="Display tag ranking results from Postgres.")
     parser.add_argument(
-        "--rankings",
-        type=Path,
-        default=Path("tag_rankings.csv"),
-        help="CSV file produced by ranking.py",
+        "--dsn",
+        help="Postgres DSN. Defaults to SHOPIFY_DB_DSN or DATABASE_URL if unset.",
+    )
+    parser.add_argument(
+        "--schema",
+        default="padjective",
+        help="Schema containing the rankings table.",
+    )
+    parser.add_argument(
+        "--table",
+        default="tag_rankings",
+        help="Table name holding the rankings data.",
     )
     parser.add_argument(
         "--html",
@@ -60,7 +77,11 @@ def main() -> None:
         help="Number of rows to print to stdout (0 for all)",
     )
     args = parser.parse_args()
-    generate_outputs(args.rankings, args.html, args.image, args.rows)
+
+    conn = db.get_connection(args.dsn)
+    df = load_rankings(conn, args.schema, args.table)
+    generate_outputs(df, args.html, args.image, args.rows)
+    conn.close()
 
 
 if __name__ == "__main__":
