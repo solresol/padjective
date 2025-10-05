@@ -10,7 +10,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
-from . import ranking
+from . import db, ranking
 
 
 ISO_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
@@ -225,7 +225,8 @@ def _evaluate_holdout(
 def run_tasks(
     *,
     tasks_db: Path,
-    database: Path,
+    database,
+    schema: str = "padjective",
     take: int,
 ) -> List[Dict[str, Any]]:
     """Run up to ``take`` pending tasks against ``database``."""
@@ -233,7 +234,7 @@ def run_tasks(
     if take <= 0:
         return []
 
-    pairs = ranking.load_pairs(database)
+    pairs = ranking.load_pairs(database, schema)
     results: List[Dict[str, Any]] = []
 
     with _connect(tasks_db) as conn:
@@ -376,7 +377,15 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
     status_parser = subparsers.add_parser("status", help="Display current task progress")
 
     run_parser = subparsers.add_parser("run", help="Execute pending tasks")
-    run_parser.add_argument("--database", type=Path, required=True, help="SQLite battles database")
+    run_parser.add_argument(
+        "--dsn",
+        help="Postgres DSN. Uses SHOPIFY_DB_DSN or DATABASE_URL if omitted.",
+    )
+    run_parser.add_argument(
+        "--schema",
+        default="padjective",
+        help="Schema containing the battles table.",
+    )
     run_parser.add_argument(
         "--take",
         type=int,
@@ -415,7 +424,16 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
                 args.ensure_total,
                 test_fraction=args.test_fraction,
             )
-        results = run_tasks(tasks_db=args.tasks_db, database=args.database, take=args.take)
+        conn = db.get_connection(args.dsn)
+        try:
+            results = run_tasks(
+                tasks_db=args.tasks_db,
+                database=conn,
+                schema=args.schema,
+                take=args.take,
+            )
+        finally:
+            conn.close()
         if not results:
             print("No pending tasks executed.")
             return

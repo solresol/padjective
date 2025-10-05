@@ -3,13 +3,21 @@
 from __future__ import annotations
 
 import argparse
+import sys
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Dict, Iterable, List, Sequence, Tuple
 
 from psycopg import sql
 from psycopg.rows import dict_row
 
-from . import db
+if __package__ in {None, ""}:
+    project_root = Path(__file__).resolve().parent.parent
+    if str(project_root) not in sys.path:
+        sys.path.append(str(project_root))
+    from padjective import db
+else:
+    from . import db
 
 
 @dataclass(frozen=True)

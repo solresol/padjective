@@ -21,10 +21,16 @@ def _elo_scores(num_tags: int, data: List[Tuple[int, int]], k: float = 32.0) -> 
     return ratings
 
 
-def load_pairs(conn, schema: str) -> List[Tuple[str, str]]:
-    """Load winner/loser pairs from Postgres."""
+def load_pairs(source, schema: str | None = None) -> List[Tuple[str, str]]:
+    """Load winner/loser pairs from Postgres or an in-memory sequence."""
 
-    with conn.cursor() as cur:
+    if isinstance(source, Sequence) and not isinstance(source, (str, bytes)):
+        return [(winner, loser) for winner, loser in source]
+
+    if schema is None:
+        raise TypeError("schema is required when loading pairs from a database connection")
+
+    with source.cursor() as cur:
         cur.execute(
             sql.SQL("SELECT winner_tag, loser_tag FROM {schema}.battles").format(
                 schema=sql.Identifier(schema)
