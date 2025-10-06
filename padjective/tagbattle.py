@@ -220,7 +220,7 @@ def main() -> None:
     )
     parser.add_argument(
         "--taxonomy-table",
-        default="cantbuymelove.product_taxonony",
+        default="cantbuymelove.product_taxonomy",
         help="Qualified taxonomy table to select product IDs from.",
     )
     parser.add_argument(
