@@ -1,10 +1,18 @@
 import argparse
+import sys
+from pathlib import Path
 from typing import Dict, List, Sequence, Tuple
 
 import pandas as pd
 from psycopg import sql
 
-from . import db
+if __package__ in {None, ""}:
+    project_root = Path(__file__).resolve().parent.parent
+    if str(project_root) not in sys.path:
+        sys.path.append(str(project_root))
+    from padjective import db
+else:
+    from . import db
 
 
 def _elo_scores(num_tags: int, data: List[Tuple[int, int]], k: float = 32.0) -> List[float]:
