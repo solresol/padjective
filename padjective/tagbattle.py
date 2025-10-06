@@ -153,19 +153,26 @@ def stream_products(conn, taxonomy_table: str, product_view: str):
 
     taxonomy_identifier = db.qualified_identifier(taxonomy_table)
     product_identifier = db.qualified_identifier(product_view)
+    taxonomy_key_column = sql.Identifier("product_key")
+    product_key_column = sql.Identifier("key")
     query = sql.SQL(
         """
         WITH selected_products AS (
-            SELECT DISTINCT product_id
+            SELECT DISTINCT {taxonomy_key} AS product_key
             FROM {taxonomy}
         )
         SELECT p.id, p.title, p.tags
         FROM {products} AS p
-        JOIN selected_products sp ON sp.product_id = p.id
+        JOIN selected_products sp ON sp.product_key = p.{product_key}
         WHERE p.title IS NOT NULL
         ORDER BY p.id
         """
-    ).format(taxonomy=taxonomy_identifier, products=product_identifier)
+    ).format(
+        taxonomy_key=taxonomy_key_column,
+        taxonomy=taxonomy_identifier,
+        products=product_identifier,
+        product_key=product_key_column,
+    )
 
     with conn.cursor(row_factory=dict_row) as cur:
         cur.execute(query)
