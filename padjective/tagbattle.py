@@ -148,30 +148,87 @@ def insert_battles(conn, schema: str, battles: Sequence[Battle]) -> None:
     conn.commit()
 
 
-def stream_products(conn, taxonomy_table: str, product_view: str):
+def _split_qualified_name(name: str) -> tuple[str, str]:
+    """Return the schema and relation name for ``schema.relation`` strings."""
+
+    parts = name.split(".")
+    if len(parts) != 2 or not all(parts):
+        raise ValueError(
+            f"Expected a fully qualified identifier in the form schema.table, got {name!r}"
+        )
+    return parts[0], parts[1]
+
+
+def _relation_has_column(conn, relation: str, column: str) -> bool:
+    """Return ``True`` if ``relation`` exposes ``column`` in Postgres."""
+
+    schema, relname = _split_qualified_name(relation)
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT 1
+            FROM information_schema.columns
+            WHERE table_schema = %s AND table_name = %s AND column_name = %s
+            """,
+            (schema, relname, column),
+        )
+        return cur.fetchone() is not None
+
+
+def stream_products(
+    conn,
+    taxonomy_table: str,
+    product_view: str,
+    *,
+    product_key_column: str,
+    product_id_column: str | None,
+):
     """Yield product rows filtered by entries in the taxonomy table."""
 
     taxonomy_identifier = db.qualified_identifier(taxonomy_table)
     product_identifier = db.qualified_identifier(product_view)
     taxonomy_key_column = sql.Identifier("product_key")
-    product_key_column = sql.Identifier("key")
+    product_key_identifier = sql.Identifier(product_key_column)
+
+    if product_id_column and not _relation_has_column(conn, product_view, product_id_column):
+        product_id_column = None
+
+    if not _relation_has_column(conn, product_view, product_key_column):
+        raise RuntimeError(
+            "Product relation %s does not expose column %s" % (product_view, product_key_column)
+        )
+
+    if not _relation_has_column(conn, taxonomy_table, "product_key"):
+        raise RuntimeError(
+            "Taxonomy relation %s does not expose column product_key" % taxonomy_table
+        )
+
+    if product_id_column:
+        id_selection = sql.SQL("p.{column} AS id").format(column=sql.Identifier(product_id_column))
+        order_by = sql.SQL("p.{column}").format(column=sql.Identifier(product_id_column))
+    else:
+        id_selection = sql.SQL("NULL AS id")
+        order_by = sql.SQL("p.{column}").format(column=sql.Identifier(product_key_column))
+
     query = sql.SQL(
         """
         WITH selected_products AS (
             SELECT DISTINCT {taxonomy_key} AS product_key
             FROM {taxonomy}
         )
-        SELECT p.id, p.title, p.tags
+        SELECT {id_selection}, p.title, p.tags
         FROM {products} AS p
         JOIN selected_products sp ON sp.product_key = p.{product_key}
         WHERE p.title IS NOT NULL
-        ORDER BY p.id
+        ORDER BY {order_by}
         """
     ).format(
+        id_selection=id_selection,
         taxonomy_key=taxonomy_key_column,
         taxonomy=taxonomy_identifier,
         products=product_identifier,
-        product_key=product_key_column,
+        product_key=product_key_identifier,
+        order_by=order_by,
     )
 
     with conn.cursor(row_factory=dict_row) as cur:
@@ -185,6 +242,8 @@ def process_database(
     schema: str,
     taxonomy_table: str,
     product_view: str,
+    product_key_column: str,
+    product_id_column: str | None,
     batch_size: int = 1000,
 ) -> None:
     """Stream Shopify data and populate the battles table."""
@@ -193,7 +252,13 @@ def process_database(
     ensure_storage(conn, schema)
 
     buffer: List[Battle] = []
-    for row in stream_products(conn, taxonomy_table, product_view):
+    for row in stream_products(
+        conn,
+        taxonomy_table,
+        product_view,
+        product_key_column=product_key_column,
+        product_id_column=product_id_column,
+    ):
         title = row.get("title") or ""
         tag_string = row.get("tags") or ""
         product_id = row.get("id")
@@ -232,8 +297,18 @@ def main() -> None:
     )
     parser.add_argument(
         "--product-view",
-        default="cantbuymelove.product",
+        default="cantbuymelove.products_for_classification",
         help="Qualified product view containing titles and tags.",
+    )
+    parser.add_argument(
+        "--product-key-column",
+        default="product_key",
+        help="Column in the product relation that matches taxonomy.product_key.",
+    )
+    parser.add_argument(
+        "--product-id-column",
+        default="",
+        help="Optional identifier column from the product relation to store in battles.",
     )
     parser.add_argument(
         "--batch-size",
@@ -247,6 +322,8 @@ def main() -> None:
         schema=args.schema,
         taxonomy_table=args.taxonomy_table,
         product_view=args.product_view,
+        product_key_column=args.product_key_column,
+        product_id_column=args.product_id_column or None,
         batch_size=args.batch_size,
     )
 
