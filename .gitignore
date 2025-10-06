@@ -179,3 +179,7 @@ products_one_percent_sample.csv
 
 # Emacs food
 *~
+battles.sqlite
+tag_rankings.csv
+tag_rankings.html
+tag_rankings.png
