@@ -9,6 +9,23 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      SHOPIFY_DB_DSN: postgresql://postgres:postgres@localhost:5432/postgres
+      PYTHONPATH: ${{ github.workspace }}
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-python@v4
@@ -18,14 +35,75 @@ jobs:
         uses: astral-sh/setup-uv@v6
         with:
           version: "latest"
-      - name: Run tests
+      - name: Install Postgres client tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes postgresql-client
+      - name: Wait for Postgres
+        run: |
+          for i in {1..30}; do
+            if pg_isready --host=localhost --port=5432 --username=postgres; then
+              exit 0
+            fi
+            sleep 1
+          done
+          exit 1
         env:
-          PYTHONPATH: ${{ github.workspace }}
+          PGPASSWORD: postgres
+      - name: Seed Postgres with sample Shopify data
+        run: |
+          uv run python - <<'PY'
+          import csv
+          import os
+          from pathlib import Path
+
+          import psycopg
+
+          dsn = os.environ["SHOPIFY_DB_DSN"]
+          csv_path = Path("products_point_one_percent_sample.csv")
+          max_rows = 500
+
+          with psycopg.connect(dsn, autocommit=True) as conn:
+            with conn.cursor() as cur:
+              cur.execute("DROP TABLE IF EXISTS public.product_taxonomy")
+              cur.execute("DROP TABLE IF EXISTS public.products")
+              cur.execute(
+                "CREATE TABLE public.products (id BIGINT PRIMARY KEY, title TEXT, tags TEXT)"
+              )
+              cur.execute(
+                "CREATE TABLE public.product_taxonomy (product_id BIGINT NOT NULL)"
+              )
+
+            with conn.cursor() as cur, csv_path.open(newline="", encoding="utf-8") as handle:
+              reader = csv.DictReader(handle)
+              for idx, row in enumerate(reader, start=1):
+                if idx > max_rows:
+                  break
+                cur.execute(
+                  "INSERT INTO public.products (id, title, tags) VALUES (%s, %s, %s)",
+                  (idx, row["title"], row["tags"]),
+                )
+                cur.execute(
+                  "INSERT INTO public.product_taxonomy (product_id) VALUES (%s)",
+                  (idx,),
+                )
+          PY
+      - name: Run tests
         run: uv run -m pytest -q
       - name: Run pipeline scripts
-        env:
-          PYTHONPATH: ${{ github.workspace }}
         run: |
-          uv run padjective/tagbattle.py --csv products_point_one_percent_sample.csv --database battles.sqlite
-          uv run padjective/ranking.py --database battles.sqlite --output tag_rankings.csv
-          uv run padjective/display.py --rankings tag_rankings.csv --html tag_rankings.html --image tag_rankings.png
+          uv run padjective/tagbattle.py \
+            --dsn "$SHOPIFY_DB_DSN" \
+            --schema padjective \
+            --taxonomy-table public.product_taxonomy \
+            --product-view public.products
+          uv run padjective/ranking.py \
+            --dsn "$SHOPIFY_DB_DSN" \
+            --schema padjective \
+            --output-table tag_rankings
+          uv run padjective/display.py \
+            --dsn "$SHOPIFY_DB_DSN" \
+            --schema padjective \
+            --table tag_rankings \
+            --html tag_rankings.html \
+            --image tag_rankings.png
