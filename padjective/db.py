@@ -44,15 +44,22 @@ def qualified_identifier(name: str) -> sql.Identifier:
 
 
 def ensure_schema(conn: psycopg.Connection, schema: str) -> None:
-    """Create ``schema`` if it does not yet exist."""
+    """Verify that ``schema`` exists and is available to the current user."""
 
     with conn.cursor() as cur:
         cur.execute(
-            sql.SQL("CREATE SCHEMA IF NOT EXISTS {schema}").format(
-                schema=sql.Identifier(schema)
-            )
+            """
+            SELECT 1
+            FROM information_schema.schemata
+            WHERE schema_name = %s
+            """,
+            (schema,),
         )
-    conn.commit()
+        if cur.fetchone() is None:
+            raise RuntimeError(
+                "Schema %s is not available. Ask a database administrator to create it "
+                "and grant access before running this command." % schema
+            )
 
 
 def ensure_table(
