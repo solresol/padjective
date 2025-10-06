@@ -12,18 +12,19 @@ from psycopg import sql
 def get_connection(dsn: str | None = None) -> psycopg.Connection:
     """Return a psycopg connection using ``dsn`` or environment defaults.
 
-    The function checks the ``SHOPIFY_DB_DSN`` environment variable first and
-    then falls back to ``DATABASE_URL``. A missing DSN results in a
-    ``RuntimeError`` with a helpful message so that callers can surface the
-    configuration problem early.
+    The function first checks ``dsn`` and the ``SHOPIFY_DB_DSN`` and
+    ``DATABASE_URL`` environment variables. If none of those values are
+    provided we fall back to ``psycopg``'s default parameter resolution which
+    honours the standard ``PG*`` environment variables (``PGHOST``,
+    ``PGDATABASE``, etc.). This allows the application to run in environments
+    where those variables are already populated without requiring an explicit
+    DSN.
     """
 
     effective_dsn = dsn or os.getenv("SHOPIFY_DB_DSN") or os.getenv("DATABASE_URL")
-    if not effective_dsn:
-        raise RuntimeError(
-            "Provide a Postgres DSN via --dsn, SHOPIFY_DB_DSN, or DATABASE_URL"
-        )
-    return psycopg.connect(effective_dsn)
+    if effective_dsn:
+        return psycopg.connect(effective_dsn)
+    return psycopg.connect()
 
 
 def _split_qualified_name(name: str) -> Tuple[str, str]:
