@@ -56,7 +56,7 @@ defaults provided in the repository:
 curl -LsSf https://astral.sh/uv/install.sh | sh
 
 # process the Shopify data (requires SHOPIFY_DB_DSN or DATABASE_URL)
-uv run padjective/tagbattle.py --taxonomy-table cantbuymelove.product_taxonony --product-view cantbuymelove.product
+uv run padjective/tagbattle.py --taxonomy-table cantbuymelove.product_taxonomy --product-view cantbuymelove.product
 uv run padjective/ranking.py
 uv run padjective/display.py
 ```
