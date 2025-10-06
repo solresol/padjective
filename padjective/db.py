@@ -44,7 +44,7 @@ def qualified_identifier(name: str) -> sql.Identifier:
 
 
 def ensure_schema(conn: psycopg.Connection, schema: str) -> None:
-    """Verify that ``schema`` exists and is available to the current user."""
+    """Ensure ``schema`` exists and is available to the current user."""
 
     with conn.cursor() as cur:
         cur.execute(
@@ -56,10 +56,20 @@ def ensure_schema(conn: psycopg.Connection, schema: str) -> None:
             (schema,),
         )
         if cur.fetchone() is None:
-            raise RuntimeError(
-                "Schema %s is not available. Ask a database administrator to create it "
-                "and grant access before running this command." % schema
-            )
+            try:
+                cur.execute(
+                    sql.SQL(
+                        "CREATE SCHEMA IF NOT EXISTS {schema} AUTHORIZATION CURRENT_USER"
+                    ).format(schema=sql.Identifier(schema))
+                )
+            except psycopg.Error as exc:  # pragma: no cover - defensive guard
+                conn.rollback()
+                raise RuntimeError(
+                    "Schema %s is not available. Ask a database administrator to create it "
+                    "and grant access before running this command." % schema
+                ) from exc
+            else:
+                conn.commit()
 
 
 def ensure_table(
