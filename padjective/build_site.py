@@ -10,11 +10,11 @@ import shutil
 import sqlite3
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Dict, Iterable, Optional
+from typing import Any, Dict, Iterable, Optional, Sequence, Tuple
 
 import pandas as pd
 
-from . import display, experiments, ranking, tagbattle
+from . import db, display, experiments, ranking, tagbattle
 
 
 def _ensure_clean_directory(path: Path) -> None:
@@ -38,25 +38,20 @@ def _collect_tag_stats(csv_path: Path) -> Dict[str, int]:
     return {"products": total_products, "unique_tags": len(unique_tags)}
 
 
-def _count_battles(db_path: Path) -> int:
-    conn = sqlite3.connect(db_path)
-    try:
-        cursor = conn.cursor()
-        cursor.execute("SELECT COUNT(*) FROM battles")
-        (count,) = cursor.fetchone()
-        return int(count)
-    finally:
-        conn.close()
+def _count_battles(pairs: Sequence[Tuple[str, str]]) -> int:
+    return len(pairs)
 
 
-def _write_sql_dump(db_path: Path, dump_path: Path) -> None:
-    conn = sqlite3.connect(db_path)
-    try:
-        with dump_path.open("w", encoding="utf-8") as dump_file:
-            for line in conn.iterdump():
-                dump_file.write(f"{line}\n")
-    finally:
-        conn.close()
+def _write_sql_dump(pairs: Sequence[Tuple[str, str]], dump_path: Path, schema: str) -> None:
+    with dump_path.open("w", encoding="utf-8") as dump_file:
+        dump_file.write("BEGIN;\n")
+        for winner, loser in pairs:
+            safe_winner = winner.replace("'", "''")
+            safe_loser = loser.replace("'", "''")
+            dump_file.write(
+                f"INSERT INTO {schema}.battles (winner_tag, loser_tag) VALUES ('{safe_winner}', '{safe_loser}');\n"
+            )
+        dump_file.write("COMMIT;\n")
 
 
 def _build_index_html(
@@ -65,7 +60,6 @@ def _build_index_html(
     leaderboard: pd.DataFrame,
     chart_path: Path,
     artifact_links: Dict[str, Path],
-    source_csv: Path,
     experiments_summary: Optional[Dict[str, Any]] = None,
     synset_summary: Optional[Dict[str, Any]] = None,
 ) -> None:
@@ -368,7 +362,7 @@ def _build_index_html(
   {experiments_block}
 
   <footer>
-    <p>Built from <code>{source_csv.name}</code>. Source available on <a href=\"https://github.com/IFost-Sydney-Uni/padjective\">GitHub</a>.</p>
+    <p>Rankings sourced from the Shopify Postgres battle records. Source available on <a href=\"https://github.com/IFost-Sydney-Uni/padjective\">GitHub</a>.</p>
   </footer>
 </body>
 </html>
@@ -750,7 +744,8 @@ def build_site(
     csv_path: Path,
     output_dir: Path,
     *,
-    precomputed_database: Optional[Path] = None,
+    precomputed_database: Optional[Any] = None,
+    battle_schema: str = "padjective",
     tasks_db: Optional[Path] = None,
     synset_db: Optional[Path] = None,
 ) -> Dict[str, Any]:
@@ -763,40 +758,22 @@ def build_site(
     for path in (assets_dir, downloads_dir, datadumps_dir):
         path.mkdir(parents=True, exist_ok=True)
 
-    db_path = downloads_dir / "battles.sqlite"
+    if precomputed_database is None:
+        raise ValueError("A Postgres connection is required to build the site")
 
-    if precomputed_database is not None:
-        source = precomputed_database.resolve()
-        destination = db_path.resolve()
-        if source != destination:
-            if db_path.exists():
-                db_path.unlink()
-            shutil.copyfile(source, db_path)
-        else:
-            # The precomputed database already matches the expected output path.
-            if not db_path.exists():
-                shutil.copyfile(source, db_path)
-    else:
-        if db_path.exists():
-            db_path.unlink()
-        tagbattle.process_csv(csv_path, db_path)
-
-    pairs = ranking.load_pairs(db_path)
+    pairs = ranking.load_pairs(precomputed_database, battle_schema)
     leaderboard = ranking.compute_rankings(pairs)
-
-    rankings_csv = downloads_dir / "tag_rankings.csv"
-    ranking.save_rankings(leaderboard, rankings_csv)
 
     rankings_html = downloads_dir / "tag_rankings_table.html"
     chart_path = assets_dir / "top_tags.png"
-    display.generate_outputs(rankings_csv, rankings_html, chart_path, rows=20)
+    display.generate_outputs(leaderboard, rankings_html, chart_path, rows=20)
 
     stats = _collect_tag_stats(csv_path)
-    stats["battles"] = _count_battles(db_path)
+    stats["battles"] = _count_battles(pairs)
     stats["components"] = int(leaderboard["component"].nunique()) if not leaderboard.empty else 0
 
     dump_path = datadumps_dir / "battles.sql"
-    _write_sql_dump(db_path, dump_path)
+    _write_sql_dump(pairs, dump_path, battle_schema)
 
     stylesheet = assets_dir / "styles.css"
     stylesheet.write_text(
@@ -879,9 +856,7 @@ table.synset-products tbody tr:nth-child(even) {background: #f8fafc;}
     )
 
     artifact_links: Dict[str, Path] = {
-        "Tag rankings (CSV)": rankings_csv,
         "Tag rankings table (HTML)": rankings_html,
-        "Tag battles database": db_path,
         "SQL dump of battles": dump_path,
         "Top tags chart": chart_path,
     }
@@ -902,14 +877,12 @@ table.synset-products tbody tr:nth-child(even) {background: #f8fafc;}
         leaderboard,
         chart_path,
         artifact_links,
-        csv_path,
         experiments_summary,
         synset_summary,
     )
 
     metadata = {
         "generated_at": datetime.now(timezone.utc).isoformat(),
-        "source_csv": str(csv_path),
         "stats": stats,
         "artifacts": {label: str(path.relative_to(output_dir)) for label, path in artifact_links.items()},
         "experiments": experiments_summary,
@@ -933,10 +906,13 @@ def main() -> None:
         help="Directory where the static site should be written",
     )
     parser.add_argument(
-        "--precomputed-database",
-        type=Path,
-        default=None,
-        help="Optional precomputed battles SQLite database",
+        "--dsn",
+        help="Postgres DSN for reading battles. Uses SHOPIFY_DB_DSN or DATABASE_URL if unset.",
+    )
+    parser.add_argument(
+        "--schema",
+        default="padjective",
+        help="Schema containing battles and output tables.",
     )
     parser.add_argument(
         "--tasks-db",
@@ -952,13 +928,18 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    build_site(
-        args.csv,
-        args.output,
-        precomputed_database=args.precomputed_database,
-        tasks_db=args.tasks_db,
-        synset_db=args.synset_db,
-    )
+    conn = db.get_connection(args.dsn)
+    try:
+        build_site(
+            args.csv,
+            args.output,
+            precomputed_database=conn,
+            battle_schema=args.schema,
+            tasks_db=args.tasks_db,
+            synset_db=args.synset_db,
+        )
+    finally:
+        conn.close()
 
 
 if __name__ == "__main__":

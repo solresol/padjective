@@ -87,19 +87,29 @@ def _prepare_synset_db(db_path: Path) -> None:
         conn.close()
 
 
-def _prepare_battles_db(db_path: Path) -> None:
-    conn = sqlite3.connect(db_path)
-    try:
-        conn.execute(
-            "CREATE TABLE battles (winner_tag TEXT, loser_tag TEXT)"
-        )
-        conn.executemany(
-            "INSERT INTO battles (winner_tag, loser_tag) VALUES (?, ?)",
-            [("TAG1", "TAG2"), ("TAG1", "TAG3"), ("TAG3", "TAG2")],
-        )
-        conn.commit()
-    finally:
-        conn.close()
+class _FakeCursor:
+    def __init__(self, rows):
+        self._rows = rows
+
+    def execute(self, _query):
+        return self
+
+    def fetchall(self):
+        return list(self._rows)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        return False
+
+
+class _FakeConnection:
+    def __init__(self, rows):
+        self._rows = rows
+
+    def cursor(self):
+        return _FakeCursor(self._rows)
 
 
 def test_build_site_includes_synset_progress(tmp_path: Path, monkeypatch) -> None:
@@ -114,14 +124,14 @@ def test_build_site_includes_synset_progress(tmp_path: Path, monkeypatch) -> Non
     synset_db = tmp_path / "synsets.sqlite"
     _prepare_synset_db(synset_db)
 
-    battles_db = tmp_path / "battles.sqlite"
-    _prepare_battles_db(battles_db)
+    battle_pairs = [("TAG1", "TAG2"), ("TAG1", "TAG3"), ("TAG3", "TAG2")]
+    battles_conn = _FakeConnection(battle_pairs)
 
     output_dir = tmp_path / "site"
     metadata = build_site(
         csv_path,
         output_dir,
-        precomputed_database=battles_db,
+        precomputed_database=battles_conn,
         synset_db=synset_db,
     )
 

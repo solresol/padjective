@@ -109,9 +109,9 @@ tasks and stores the outcomes in ``holdout_tasks.sqlite`` by default.
 # create (or extend) a task queue of 5,000 random splits
 uv run -m padjective.experiments init --total 5000 --test-fraction 0.2
 
-# execute up to 250 pending tasks using an existing battles database
+# execute up to 250 pending tasks against Postgres battle data
 uv run -m padjective.experiments run \
-    --database battles.sqlite \
+    --dsn "$SHOPIFY_DB_DSN" \
     --tasks-db holdout_tasks.sqlite \
     --take 250
 
