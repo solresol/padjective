@@ -1,11 +1,18 @@
 import argparse
+import sys
 from pathlib import Path
 
 import matplotlib.pyplot as plt
 import pandas as pd
 from psycopg import sql
 
-from . import db
+if __package__ in {None, ""}:
+    project_root = Path(__file__).resolve().parent.parent
+    if str(project_root) not in sys.path:
+        sys.path.append(str(project_root))
+    from padjective import db
+else:
+    from . import db
 
 
 def generate_outputs(
