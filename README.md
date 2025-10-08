@@ -1,11 +1,22 @@
 # padjective
 
-Calculate p-adic adjective embeddings
+Calculate p-adic adjective embeddings and product taxonomy classification
 
 # Purpose
 
 We want to get a hierarchy of tags: for any given pair of tags, which one is more likely to appear first in a product title? Then we want to identify "equivalent depth"
 tags where they generally appear at the same depth, and ultimately assign an integer depth to every tag.
+
+Additionally, we want to predict product taxonomy from tags using machine learning approaches, including logistic regression and neural networks.
+
+# Database Schema
+
+The project now uses the simplified `cantbuymelove` schema:
+- `cantbuymelove.product` - Product table with integer primary key (`id`)
+- `cantbuymelove.product_taxonomy` - Links products to taxonomies via `product_id`
+- `cantbuymelove.taxonomy` - Taxonomy definitions with `taxonomy_id`, `taxonomy_name`, and `taxonomy_path`
+
+Products are joined to `public.product_details` to extract tags from the JSONB `product_detail` field.
 
 # Method
 
@@ -25,7 +36,7 @@ For each product retrieved from the Shopify stores Postgres database:
      the ``padjective.battles`` table (created on the ``pg_default`` tablespace)
 
 ## ranking.py
- 
+
 Use the choix library and the Postgres ``padjective.battles`` table from tagbattle.py to produce ranking tables for each tag and persist them in ``padjective.tag_rankings``.
 
 ## display.py
@@ -34,16 +45,36 @@ Creates text and HTML and images from the results of ranking.py. By default the
 script prints the top ten tags to stdout. Use ``--rows`` to control how many
 rows are printed (``0`` prints them all).
 
+## tag_features.py
+
+Utilities for extracting product tags as sparse feature matrices suitable for machine learning. This module:
+- Streams products from the database
+- Parses and normalizes tags
+- Creates sparse matrices (product × tag) for efficient memory usage
+- Optionally includes taxonomy labels for supervised learning
+
+## taxonomy_classifier.py
+
+Trains a multinomial logistic regression model to predict `taxonomy_id` from product tags. Features:
+- Stratified cross-validation for evaluation
+- Coefficient analysis to identify influential tags
+- SQLite storage for model weights and metadata
+- HTML reports visualizing tag importance
+
+## taxonomy_nn_classifier.py
+
+Trains a neural network (MLPClassifier) to predict `taxonomy_id` from product tags. Features:
+- Configurable hidden layer architecture
+- Early stopping to prevent overfitting
+- Cross-validation evaluation
+- Metadata storage and HTML reporting
+
 ## Part-of-speech considerations
 
-The pipeline currently works with whatever tags appear in the CSV input and
+The pipeline currently works with whatever tags appear in the database and
 does not attempt to decide whether a tag is an adjective, noun, or another
 part of speech. All tags are normalised to uppercase and compared solely by
-their character spans within each product title. If you need linguistic
-annotations—such as mapping the head noun of a title to a WordNet synset—you'll
-need to run an additional pass outside this repository. That could be a custom
-script, a traditional NLP library, or an LLM that labels each product before
-feeding the results into the existing ranking workflow.
+their character spans within each product title.
 
 ## Running the pipeline
 
@@ -55,49 +86,58 @@ defaults provided in the repository:
 # install uv
 curl -LsSf https://astral.sh/uv/install.sh | sh
 
-# process the Shopify data (requires SHOPIFY_DB_DSN or DATABASE_URL)
-uv run padjective/tagbattle.py --taxonomy-table cantbuymelove.product_taxonomy --product-view cantbuymelove.product
+# Tag battle analysis (requires SHOPIFY_DB_DSN or DATABASE_URL)
+uv run padjective/tagbattle.py
 uv run padjective/ranking.py
 uv run padjective/display.py
+
+# Extract tag features as sparse matrix
+uv run padjective/tag_features.py --output data/tags.npz --output-metadata data/products.csv
+
+# Train taxonomy classifiers
+uv run padjective/taxonomy_classifier.py \
+    --model-database data/taxonomy_classifier.sqlite \
+    --output-dir build/taxonomy_classifier
+
+uv run padjective/taxonomy_nn_classifier.py \
+    --model-database data/taxonomy_nn_classifier.sqlite \
+    --output-dir build/taxonomy_nn_classifier \
+    --hidden-layers "100,50"
 ```
 
-This sequence populates ``padjective.battles`` and ``padjective.tag_rankings``
-inside the Shopify stores Postgres database and renders ``tag_rankings.html``
-and ``tag_rankings.png`` locally.
+This sequence:
+1. Populates ``padjective.battles`` and ``padjective.tag_rankings`` in Postgres
+2. Renders ``tag_rankings.html`` and ``tag_rankings.png`` locally
+3. Extracts tag features to numpy sparse format
+4. Trains both logistic regression and neural network models to predict taxonomy
+5. Generates HTML reports visualizing model performance and tag coefficients
 
-## Training a synset classifier
+## Model Output
 
-Once ``padjective.product_synsets`` has populated ``product_synsets.sqlite`` you
-can train a simple logistic regression model that predicts WordNet synsets from
-tags only. The script now evaluates the classifier with stratified
-cross-validation, stores the learned weights in SQLite, and produces a static
-HTML report that highlights which tags carry the largest coefficients across all
-synset classes.
+The taxonomy classifiers produce:
 
-> **Project note**
->
-> We're currently blocked on the synset identification phase. Each attempt to
-> label products with ``padjective/product_synsets.py`` inserts a literal "no can
-> do" value into the database instead of the expected synset, so the downstream
-> classifier training cannot proceed. It may be worth extracting this script into
-> a standalone repository so we can iterate on the problem independently of the
-> rest of the pipeline.
+### Logistic Regression
+* **SQLite database** (`data/taxonomy_classifier.sqlite`) containing:
+  - Model metadata (samples, accuracy, CV scores)
+  - Per-taxonomy-per-tag coefficients
+  - Tag importance rankings
+* **HTML report** (`build/taxonomy_classifier/tag_coefficients.html`) visualizing:
+  - Tags with largest absolute coefficients
+  - Tags with largest summed coefficients across all taxonomies
+  - Model performance metrics
 
-```bash
-uv run padjective/synset_classifier.py \
-    --database data/product_synsets.sqlite \
-    --model-database data/synset_classifier.sqlite \
-    --output-dir build/synset_classifier
-```
+### Neural Network
+* **SQLite database** (`data/taxonomy_nn_classifier.sqlite`) containing:
+  - Model metadata (architecture, accuracy, CV scores)
+* **HTML report** (`build/taxonomy_nn_classifier/nn_report.html`) summarizing:
+  - Network architecture
+  - Training and cross-validation performance
 
-The output directory contains:
+## Deprecated: WordNet Synset Classification
 
-* ``tag_coefficients.html`` – a standalone webpage visualising the tags with the
-  largest weights (by both maximum and summed absolute coefficient values).
-
-The ``data/synset_classifier.sqlite`` database captures the trained model
-metadata, cross-validation scores, per-tag synset weights, and the HTML report's
-summary data in a structured format for downstream use.
+The original synset classification workflow (`product_synsets.py` and `synset_classifier.py`)
+has been replaced by the taxonomy-based approach. The codebase now uses the
+`taxonomy_path` from the `cantbuymelove.taxonomy` table instead of WordNet synsets.
 
 ## Hold-out experiments
 

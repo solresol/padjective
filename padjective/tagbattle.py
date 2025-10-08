@@ -148,30 +148,35 @@ def insert_battles(conn, schema: str, battles: Sequence[Battle]) -> None:
     conn.commit()
 
 
-def stream_products(conn, taxonomy_table: str, product_view: str):
-    """Yield product rows filtered by entries in the taxonomy table."""
+def stream_products(conn, product_table: str = "cantbuymelove.product"):
+    """Yield product rows that have taxonomy classifications.
 
-    taxonomy_identifier = db.qualified_identifier(taxonomy_table)
-    product_identifier = db.qualified_identifier(product_view)
-    taxonomy_key_column = sql.Identifier("product_key")
-    product_key_column = sql.Identifier("key")
+    Args:
+        conn: psycopg connection to the database
+        product_table: qualified name of the product table (default: cantbuymelove.product)
+
+    Yields:
+        dict: Product rows with id, title, and tags (extracted from product_details JSONB)
+    """
+
+    product_identifier = db.qualified_identifier(product_table)
     query = sql.SQL(
         """
-        WITH selected_products AS (
-            SELECT DISTINCT {taxonomy_key} AS product_key
-            FROM {taxonomy}
-        )
-        SELECT p.id, p.title, p.tags
+        SELECT
+            p.id,
+            p.product_title AS title,
+            pd.product_detail->'product'->>'tags' AS tags
         FROM {products} AS p
-        JOIN selected_products sp ON sp.product_key = p.{product_key}
-        WHERE p.title IS NOT NULL
+        JOIN public.product_details pd ON
+            p.myshopify_domain = pd.myshopify_domain
+            AND p.run_name = pd.run_name
+            AND p.product_handle = pd.product_handle
+        JOIN cantbuymelove.product_taxonomy pt ON pt.product_id = p.id
+        WHERE p.product_title IS NOT NULL
         ORDER BY p.id
         """
     ).format(
-        taxonomy_key=taxonomy_key_column,
-        taxonomy=taxonomy_identifier,
         products=product_identifier,
-        product_key=product_key_column,
     )
 
     with conn.cursor(row_factory=dict_row) as cur:
@@ -183,17 +188,23 @@ def stream_products(conn, taxonomy_table: str, product_view: str):
 def process_database(
     dsn: str | None,
     schema: str,
-    taxonomy_table: str,
-    product_view: str,
+    product_table: str = "cantbuymelove.product",
     batch_size: int = 1000,
 ) -> None:
-    """Stream Shopify data and populate the battles table."""
+    """Stream Shopify data and populate the battles table.
+
+    Args:
+        dsn: Database connection string (or None to use environment variables)
+        schema: Schema name for the battles table (default: padjective)
+        product_table: Qualified name of the product table (default: cantbuymelove.product)
+        batch_size: Number of battles to buffer before writing to database
+    """
 
     conn = db.get_connection(dsn)
     ensure_storage(conn, schema)
 
     buffer: List[Battle] = []
-    for row in stream_products(conn, taxonomy_table, product_view):
+    for row in stream_products(conn, product_table):
         title = row.get("title") or ""
         tag_string = row.get("tags") or ""
         product_id = row.get("id")
@@ -226,14 +237,9 @@ def main() -> None:
         help="Destination schema for derived tables.",
     )
     parser.add_argument(
-        "--taxonomy-table",
-        default="cantbuymelove.product_taxonomy",
-        help="Qualified taxonomy table to select product IDs from.",
-    )
-    parser.add_argument(
-        "--product-view",
+        "--product-table",
         default="cantbuymelove.product",
-        help="Qualified product view containing titles and tags.",
+        help="Qualified product table to read from.",
     )
     parser.add_argument(
         "--batch-size",
@@ -245,8 +251,7 @@ def main() -> None:
     process_database(
         dsn=args.dsn,
         schema=args.schema,
-        taxonomy_table=args.taxonomy_table,
-        product_view=args.product_view,
+        product_table=args.product_table,
         batch_size=args.batch_size,
     )
 
