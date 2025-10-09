@@ -14,17 +14,15 @@ def get_connection(dsn: str | None = None) -> psycopg.Connection:
 
     The function first checks ``dsn`` and the ``SHOPIFY_DB_DSN`` and
     ``DATABASE_URL`` environment variables. If none of those values are
-    provided we fall back to ``psycopg``'s default parameter resolution which
-    honours the standard ``PG*`` environment variables (``PGHOST``,
-    ``PGDATABASE``, etc.). This allows the application to run in environments
-    where those variables are already populated without requiring an explicit
-    DSN.
+    provided we fall back to the ``shopifystores`` database name. This avoids
+    unexpected connections when ``PGDATABASE`` defaults to the current user
+    name (``psycopg``'s behaviour when no parameters are supplied).
     """
 
     effective_dsn = dsn or os.getenv("SHOPIFY_DB_DSN") or os.getenv("DATABASE_URL")
     if effective_dsn:
         return psycopg.connect(effective_dsn)
-    return psycopg.connect()
+    return psycopg.connect(dbname="shopifystores")
 
 
 def _split_qualified_name(name: str) -> Tuple[str, str]:
