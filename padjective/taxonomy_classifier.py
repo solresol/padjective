@@ -70,8 +70,9 @@ def load_training_data(
 
     # Filter out products without taxonomy
     has_taxonomy = metadata["taxonomy_id"].notna()
-    features = features[has_taxonomy]
-    metadata = metadata[has_taxonomy].copy().reset_index(drop=True)
+    taxonomy_mask = has_taxonomy.to_numpy(dtype=bool, copy=False)
+    features = features[taxonomy_mask]
+    metadata = metadata[taxonomy_mask].copy().reset_index(drop=True)
 
     if len(metadata) == 0:
         raise ValueError("No products with taxonomy classifications found")
@@ -80,8 +81,9 @@ def load_training_data(
     taxonomy_counts = metadata["taxonomy_id"].value_counts()
     valid_taxonomies = taxonomy_counts[taxonomy_counts >= min_samples_per_taxonomy].index
     mask = metadata["taxonomy_id"].isin(valid_taxonomies)
-    features = features[mask]
-    metadata = metadata[mask].copy().reset_index(drop=True)
+    valid_taxonomy_mask = mask.to_numpy(dtype=bool, copy=False)
+    features = features[valid_taxonomy_mask]
+    metadata = metadata[valid_taxonomy_mask].copy().reset_index(drop=True)
 
     if len(metadata) == 0:
         raise ValueError(
