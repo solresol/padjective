@@ -46,7 +46,8 @@ def load_rankings(conn, schema: str, table: str) -> pd.DataFrame:
     query = sql.SQL(
         "SELECT tag, component, score FROM {schema}.{table} ORDER BY component, score DESC"
     ).format(schema=sql.Identifier(schema), table=sql.Identifier(table))
-    return pd.read_sql_query(query, conn)
+    query_text = query.as_string(conn)
+    return pd.read_sql_query(query_text, conn)
 
 
 def main() -> None:
