@@ -58,7 +58,11 @@ def load_training_data(
         min_samples_per_taxonomy: Minimum samples per taxonomy to include
 
     Returns:
-        tuple: (features, labels, feature_names, metadata)
+        tuple: (features, encoded_labels, feature_names, metadata)
+
+    Note:
+        ``metadata`` retains the original ``taxonomy_id`` values and includes a
+        ``taxonomy_index`` column that maps each product to its encoded label.
     """
     features, metadata, feature_names = tag_features.extract_tag_features(
         conn,
@@ -89,7 +93,15 @@ def load_training_data(
             f"No taxonomies with at least {min_samples_per_taxonomy} samples found"
         )
 
-    labels = metadata["taxonomy_id"].to_numpy()
+    # Encode taxonomy labels as integers for compatibility with scikit-learn.
+    # Some taxonomy identifiers are strings/UUIDs which cause downstream
+    # validation (e.g. ``np.isnan`` checks inside ``MLPClassifier``) to fail when
+    # cross-validating.  Factorizing provides a dense integer representation
+    # while preserving the original taxonomy values in ``metadata``.
+    encoded_labels, _ = pd.factorize(metadata["taxonomy_id"], sort=True)
+    metadata["taxonomy_index"] = encoded_labels
+    labels = encoded_labels.astype(np.int32, copy=False)
+
     return features, labels, feature_names, metadata
 
 
