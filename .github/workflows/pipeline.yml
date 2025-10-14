@@ -54,6 +54,7 @@ jobs:
         run: |
           uv run python - <<'PY'
           import csv
+          import json
           import os
           from pathlib import Path
 
@@ -62,16 +63,42 @@ jobs:
           dsn = os.environ["SHOPIFY_DB_DSN"]
           csv_path = Path("products_point_one_percent_sample.csv")
           max_rows = 500
+          domain = "sample-store.myshopify.com"
+          run_name = "sample_run"
 
           with psycopg.connect(dsn, autocommit=True) as conn:
             with conn.cursor() as cur:
-              cur.execute("DROP TABLE IF EXISTS public.product_taxonomy")
-              cur.execute("DROP TABLE IF EXISTS public.products")
+              cur.execute("DROP SCHEMA IF EXISTS cantbuymelove CASCADE")
+              cur.execute("CREATE SCHEMA cantbuymelove AUTHORIZATION postgres")
+              cur.execute("DROP TABLE IF EXISTS public.product_details")
               cur.execute(
-                "CREATE TABLE public.products (id BIGINT PRIMARY KEY, title TEXT, tags TEXT)"
+                """
+                CREATE TABLE cantbuymelove.product (
+                  id BIGINT PRIMARY KEY,
+                  myshopify_domain TEXT NOT NULL,
+                  run_name TEXT NOT NULL,
+                  product_handle TEXT NOT NULL,
+                  product_title TEXT NOT NULL
+                ) TABLESPACE pg_default
+                """
               )
               cur.execute(
-                "CREATE TABLE public.product_taxonomy (product_id BIGINT NOT NULL)"
+                """
+                CREATE TABLE public.product_details (
+                  myshopify_domain TEXT NOT NULL,
+                  run_name TEXT NOT NULL,
+                  product_handle TEXT NOT NULL,
+                  product_detail JSONB NOT NULL,
+                  PRIMARY KEY (myshopify_domain, run_name, product_handle)
+                ) TABLESPACE pg_default
+                """
+              )
+              cur.execute(
+                """
+                CREATE TABLE cantbuymelove.product_taxonomy (
+                  product_id BIGINT PRIMARY KEY
+                ) TABLESPACE pg_default
+                """
               )
 
             with conn.cursor() as cur, csv_path.open(newline="", encoding="utf-8") as handle:
@@ -79,12 +106,35 @@ jobs:
               for idx, row in enumerate(reader, start=1):
                 if idx > max_rows:
                   break
+
+                product_handle = f"product-{idx}"
+                product_detail = json.dumps({"product": {"tags": row["tags"]}})
+
                 cur.execute(
-                  "INSERT INTO public.products (id, title, tags) VALUES (%s, %s, %s)",
-                  (idx, row["title"], row["tags"]),
+                  """
+                  INSERT INTO cantbuymelove.product (
+                    id,
+                    myshopify_domain,
+                    run_name,
+                    product_handle,
+                    product_title
+                  ) VALUES (%s, %s, %s, %s, %s)
+                  """,
+                  (idx, domain, run_name, product_handle, row["title"] or ""),
                 )
                 cur.execute(
-                  "INSERT INTO public.product_taxonomy (product_id) VALUES (%s)",
+                  """
+                  INSERT INTO public.product_details (
+                    myshopify_domain,
+                    run_name,
+                    product_handle,
+                    product_detail
+                  ) VALUES (%s, %s, %s, %s)
+                  """,
+                  (domain, run_name, product_handle, product_detail),
+                )
+                cur.execute(
+                  "INSERT INTO cantbuymelove.product_taxonomy (product_id) VALUES (%s)",
                   (idx,),
                 )
           PY
@@ -95,8 +145,7 @@ jobs:
           uv run padjective/tagbattle.py \
             --dsn "$SHOPIFY_DB_DSN" \
             --schema padjective \
-            --taxonomy-table public.product_taxonomy \
-            --product-view public.products
+            --product-table cantbuymelove.product
           uv run padjective/ranking.py \
             --dsn "$SHOPIFY_DB_DSN" \
             --schema padjective \
