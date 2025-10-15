@@ -1,7 +1,7 @@
 """Train neural network classifiers to predict product taxonomy from tags.
 
-This module provides utilities for training neural network models using scikit-learn's
-MLPClassifier to predict taxonomy IDs from product tags.
+This module provides utilities for training neural network models using PyTorch to
+predict taxonomy IDs from product tags.
 """
 
 from __future__ import annotations
@@ -10,6 +10,7 @@ import argparse
 import html
 import sqlite3
 import sys
+from copy import deepcopy
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -17,8 +18,10 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 from scipy import sparse
-from sklearn.neural_network import MLPClassifier
-from sklearn.model_selection import StratifiedKFold, cross_val_score
+from sklearn.model_selection import StratifiedKFold
+import torch
+from torch import nn
+from torch.utils.data import DataLoader, Dataset, TensorDataset, random_split
 
 if __package__ in {None, ""}:
     project_root = Path(__file__).resolve().parent.parent
@@ -41,6 +44,45 @@ class TrainingStats:
     cross_validation_folds: int | None = None
     cross_validation_mean_accuracy: float | None = None
     cross_validation_std_accuracy: float | None = None
+
+
+def _build_model(
+    input_dim: int, hidden_layer_sizes: tuple[int, ...], output_dim: int
+) -> nn.Module:
+    layers: list[nn.Module] = []
+    previous_dim = input_dim
+    for size in hidden_layer_sizes:
+        layers.append(nn.Linear(previous_dim, size))
+        layers.append(nn.ReLU())
+        previous_dim = size
+    layers.append(nn.Linear(previous_dim, output_dim))
+    return nn.Sequential(*layers)
+
+
+def _to_tensor_dataset(features: sparse.csr_matrix, labels: np.ndarray) -> TensorDataset:
+    x = torch.from_numpy(features.astype(np.float32, copy=False).toarray())
+    y = torch.from_numpy(labels.astype(np.int64, copy=False))
+    return TensorDataset(x, y)
+
+
+def _evaluate_accuracy(model: nn.Module, dataset: Dataset) -> float:
+    if len(dataset) == 0:
+        return 0.0
+
+    device = next(model.parameters()).device
+    loader = DataLoader(dataset, batch_size=1024, shuffle=False)
+    model.eval()
+    correct = 0
+    total = 0
+    with torch.no_grad():
+        for batch_x, batch_y in loader:
+            batch_x = batch_x.to(device)
+            batch_y = batch_y.to(device)
+            logits = model(batch_x)
+            predictions = logits.argmax(dim=1)
+            correct += (predictions == batch_y).sum().item()
+            total += batch_y.size(0)
+    return float(correct / total) if total else 0.0
 
 
 def load_training_data(
@@ -93,11 +135,11 @@ def load_training_data(
             f"No taxonomies with at least {min_samples_per_taxonomy} samples found"
         )
 
-    # Encode taxonomy labels as integers for compatibility with scikit-learn.
-    # Some taxonomy identifiers are strings/UUIDs which cause downstream
-    # validation (e.g. ``np.isnan`` checks inside ``MLPClassifier``) to fail when
-    # cross-validating.  Factorizing provides a dense integer representation
-    # while preserving the original taxonomy values in ``metadata``.
+    # Encode taxonomy labels as integers for compatibility with PyTorch loss
+    # functions. Some taxonomy identifiers are strings/UUIDs which can cause
+    # downstream validation to fail when numeric operations are expected.
+    # Factorizing provides a dense integer representation while preserving the
+    # original taxonomy values in ``metadata``.
     encoded_labels, _ = pd.factorize(metadata["taxonomy_id"], sort=True)
     metadata["taxonomy_index"] = encoded_labels
     labels = encoded_labels.astype(np.int32, copy=False)
@@ -112,20 +154,13 @@ def train_nn_classifier(
     max_iter: int = 200,
     early_stopping: bool = True,
     validation_fraction: float = 0.1,
-) -> tuple[MLPClassifier, TrainingStats]:
-    """Train a neural network classifier.
+    batch_size: int = 256,
+    learning_rate: float = 0.001,
+    weight_decay: float = 0.0001,
+    patience: int = 10,
+) -> tuple[nn.Module, TrainingStats]:
+    """Train a neural network classifier using PyTorch."""
 
-    Args:
-        features: Sparse feature matrix (n_samples x n_features)
-        labels: Target labels (n_samples,)
-        hidden_layer_sizes: Tuple specifying hidden layer architecture
-        max_iter: Maximum training iterations
-        early_stopping: Whether to use early stopping
-        validation_fraction: Fraction of data to use for validation (if early_stopping=True)
-
-    Returns:
-        tuple: (trained_model, training_stats)
-    """
     if len(labels) == 0:
         raise ValueError("Cannot train on empty dataset")
 
@@ -133,25 +168,75 @@ def train_nn_classifier(
     if len(unique_labels) < 2:
         raise ValueError("Need at least 2 taxonomies to train")
 
-    model = MLPClassifier(
-        hidden_layer_sizes=hidden_layer_sizes,
-        activation="relu",
-        solver="adam",
-        alpha=0.0001,
-        batch_size="auto",
-        learning_rate="adaptive",
-        learning_rate_init=0.001,
-        max_iter=max_iter,
-        shuffle=True,
-        random_state=42,
-        early_stopping=early_stopping,
-        validation_fraction=validation_fraction,
-        n_iter_no_change=10,
-        verbose=False,
+    dataset = _to_tensor_dataset(features, labels)
+
+    if early_stopping and 0 < validation_fraction < 1:
+        val_size = max(1, int(len(dataset) * validation_fraction))
+        train_size = len(dataset) - val_size
+        if train_size <= 0:
+            raise ValueError("Validation fraction too large for dataset size")
+        generator = torch.Generator().manual_seed(42)
+        train_dataset, val_dataset = random_split(
+            dataset, [train_size, val_size], generator=generator
+        )
+    else:
+        train_dataset = dataset
+        val_dataset = None
+
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model = _build_model(features.shape[1], hidden_layer_sizes, len(unique_labels)).to(device)
+    optimizer = torch.optim.Adam(
+        model.parameters(), lr=learning_rate, weight_decay=weight_decay
+    )
+    criterion = nn.CrossEntropyLoss()
+
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+    val_loader = (
+        DataLoader(val_dataset, batch_size=batch_size) if val_dataset is not None else None
     )
 
-    model.fit(features, labels)
-    accuracy = float(model.score(features, labels))
+    best_state: dict[str, torch.Tensor] | None = None
+    best_val_loss = float("inf")
+    epochs_without_improvement = 0
+
+    for _ in range(max_iter):
+        model.train()
+        for batch_x, batch_y in train_loader:
+            batch_x = batch_x.to(device)
+            batch_y = batch_y.to(device)
+            optimizer.zero_grad()
+            logits = model(batch_x)
+            loss = criterion(logits, batch_y)
+            loss.backward()
+            optimizer.step()
+
+        if val_loader is not None:
+            model.eval()
+            val_loss = 0.0
+            val_batches = 0
+            with torch.no_grad():
+                for batch_x, batch_y in val_loader:
+                    batch_x = batch_x.to(device)
+                    batch_y = batch_y.to(device)
+                    logits = model(batch_x)
+                    loss = criterion(logits, batch_y)
+                    val_loss += loss.item()
+                    val_batches += 1
+            average_val_loss = val_loss / max(val_batches, 1)
+
+            if average_val_loss < best_val_loss - 1e-4:
+                best_val_loss = average_val_loss
+                best_state = deepcopy(model.state_dict())
+                epochs_without_improvement = 0
+            else:
+                epochs_without_improvement += 1
+                if early_stopping and epochs_without_improvement >= patience:
+                    break
+
+    if best_state is not None:
+        model.load_state_dict(best_state)
+
+    accuracy = _evaluate_accuracy(model, dataset)
 
     stats = TrainingStats(
         samples=len(labels),
@@ -194,39 +279,31 @@ def cross_validate_classifier(
     if n_splits < 2:
         return []
 
-    model = MLPClassifier(
-        hidden_layer_sizes=hidden_layer_sizes,
-        activation="relu",
-        solver="adam",
-        alpha=0.0001,
-        batch_size="auto",
-        learning_rate="adaptive",
-        learning_rate_init=0.001,
-        max_iter=max_iter,
-        shuffle=True,
-        random_state=42,
-        early_stopping=True,
-        validation_fraction=0.1,
-        n_iter_no_change=10,
-        verbose=False,
-    )
-
     cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=42)
-    scores = cross_val_score(
-        model,
-        features,
-        labels,
-        cv=cv,
-        scoring="accuracy",
-        n_jobs=1,  # Neural networks don't parallelize well with n_jobs
-    )
+    scores: list[float] = []
+    placeholder = np.zeros((len(labels), 1), dtype=np.float32)
+    for train_index, test_index in cv.split(placeholder, labels):
+        train_features = features[train_index]
+        train_labels = labels[train_index]
+        test_dataset = _to_tensor_dataset(features[test_index], labels[test_index])
 
-    return [float(score) for score in scores]
+        model, _ = train_nn_classifier(
+            train_features,
+            train_labels,
+            hidden_layer_sizes=hidden_layer_sizes,
+            max_iter=max_iter,
+            early_stopping=True,
+        )
+
+        accuracy = _evaluate_accuracy(model, test_dataset)
+        scores.append(accuracy)
+
+    return scores
 
 
 def save_model_to_database(
     database_path: Path,
-    model: MLPClassifier,
+    model: nn.Module,
     stats: TrainingStats,
     cv_scores: list[float] | None = None,
 ) -> int:
@@ -337,7 +414,7 @@ def render_report_html(
 
     intro = (
         "<p>This report summarizes a neural network classifier trained "
-        "to predict product taxonomies from tags using scikit-learn's MLPClassifier.</p>"
+        "to predict product taxonomies from tags using PyTorch.</p>"
     )
 
     metadata_items = [
