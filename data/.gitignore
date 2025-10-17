@@ -1,2 +1,4 @@
 holdout_tasks.sqlite
 product_synsets.sqlite
+taxonomy_classifier.sqlite
+taxonomy_nn_classifier.sqlite
