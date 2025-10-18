@@ -72,6 +72,7 @@ def stream_product_tags(
 
     Yields:
         dict: Product records with id, title, tags, and optionally taxonomy_id
+        and taxonomy_path
     """
     product_identifier = db.qualified_identifier(product_table)
 
@@ -82,13 +83,15 @@ def stream_product_tags(
                 p.id,
                 p.product_title AS title,
                 pd.product_detail->'product'->>'tags' AS tags,
-                pt.taxonomy_id
+                pt.taxonomy_id,
+                t.taxonomy_path
             FROM {products} AS p
             JOIN public.product_details pd ON
                 p.myshopify_domain = pd.myshopify_domain
                 AND p.run_name = pd.run_name
                 AND p.product_handle = pd.product_handle
             JOIN cantbuymelove.product_taxonomy pt ON pt.product_id = p.id
+            JOIN cantbuymelove.taxonomy t ON t.taxonomy_id = pt.taxonomy_id
             WHERE p.product_title IS NOT NULL
             ORDER BY p.id
             """
@@ -149,11 +152,15 @@ def extract_tag_features(
 
         tags = parse_tags(tags_str)
 
-        products.append({
+        product_record = {
             "product_id": product_id,
             "title": title,
-            "taxonomy_id": taxonomy_id if include_taxonomy else None,
-        })
+        }
+        if include_taxonomy:
+            product_record["taxonomy_id"] = taxonomy_id
+            product_record["taxonomy_path"] = row.get("taxonomy_path")
+
+        products.append(product_record)
         product_tags_list.append(tags)
 
         # Count tag occurrences
@@ -188,7 +195,10 @@ def extract_tag_features(
 
     # Create metadata DataFrame
     if include_taxonomy:
-        metadata_df = pd.DataFrame(products, columns=["product_id", "title", "taxonomy_id"])
+        metadata_df = pd.DataFrame(
+            products,
+            columns=["product_id", "title", "taxonomy_id", "taxonomy_path"],
+        )
     else:
         metadata_df = pd.DataFrame(products, columns=["product_id", "title"])
 

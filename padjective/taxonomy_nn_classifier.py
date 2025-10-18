@@ -19,17 +19,29 @@ import numpy as np
 import pandas as pd
 from scipy import sparse
 from sklearn.model_selection import StratifiedKFold
+from sklearn.metrics import f1_score
 import torch
 from torch import nn
 from torch.utils.data import DataLoader, Dataset, TensorDataset, random_split
+from typing import Mapping, Sequence
 
 if __package__ in {None, ""}:
     project_root = Path(__file__).resolve().parent.parent
     if str(project_root) not in sys.path:
         sys.path.append(str(project_root))
     from padjective import db, tag_features
+    from padjective.metrics import (
+        build_taxonomy_path_map,
+        ensure_taxonomy_paths_cover_labels,
+        hierarchical_loss_score,
+    )
 else:
     from . import db, tag_features
+    from .metrics import (
+        build_taxonomy_path_map,
+        ensure_taxonomy_paths_cover_labels,
+        hierarchical_loss_score,
+    )
 
 
 @dataclass(slots=True)
@@ -41,9 +53,28 @@ class TrainingStats:
     unique_tags: int
     hidden_layers: tuple[int, ...]
     training_accuracy: float
+    training_f1: float | None = None
+    training_hierarchical_loss: float | None = None
     cross_validation_folds: int | None = None
     cross_validation_mean_accuracy: float | None = None
     cross_validation_std_accuracy: float | None = None
+    cross_validation_mean_f1: float | None = None
+    cross_validation_std_f1: float | None = None
+    cross_validation_mean_hierarchical_loss: float | None = None
+    cross_validation_std_hierarchical_loss: float | None = None
+
+
+@dataclass(slots=True)
+class CrossValidationResults:
+    """Container for neural network cross-validation metrics."""
+
+    accuracy: list[float]
+    f1_weighted: list[float]
+    hierarchical_loss: list[float]
+
+    @property
+    def folds(self) -> int:
+        return len(self.accuracy)
 
 
 def _build_model(
@@ -65,24 +96,38 @@ def _to_tensor_dataset(features: sparse.csr_matrix, labels: np.ndarray) -> Tenso
     return TensorDataset(x, y)
 
 
-def _evaluate_accuracy(model: nn.Module, dataset: Dataset) -> float:
+def _collect_predictions(model: nn.Module, dataset: Dataset) -> tuple[np.ndarray, np.ndarray]:
     if len(dataset) == 0:
-        return 0.0
+        return np.array([], dtype=np.int64), np.array([], dtype=np.int64)
 
     device = next(model.parameters()).device
     loader = DataLoader(dataset, batch_size=1024, shuffle=False)
     model.eval()
-    correct = 0
-    total = 0
+    all_targets: list[np.ndarray] = []
+    all_predictions: list[np.ndarray] = []
+
     with torch.no_grad():
         for batch_x, batch_y in loader:
             batch_x = batch_x.to(device)
             batch_y = batch_y.to(device)
             logits = model(batch_x)
             predictions = logits.argmax(dim=1)
-            correct += (predictions == batch_y).sum().item()
-            total += batch_y.size(0)
-    return float(correct / total) if total else 0.0
+            all_targets.append(batch_y.cpu().numpy())
+            all_predictions.append(predictions.cpu().numpy())
+
+    y_true = np.concatenate(all_targets) if all_targets else np.array([], dtype=np.int64)
+    y_pred = np.concatenate(all_predictions) if all_predictions else np.array([], dtype=np.int64)
+    return y_true, y_pred
+
+
+def _evaluate_accuracy(model: nn.Module, dataset: Dataset) -> float:
+    if len(dataset) == 0:
+        return 0.0
+
+    y_true, y_pred = _collect_predictions(model, dataset)
+    if y_true.size == 0:
+        return 0.0
+    return float(np.mean(y_true == y_pred))
 
 
 def load_training_data(
@@ -252,35 +297,29 @@ def train_nn_classifier(
 def cross_validate_classifier(
     features: sparse.csr_matrix,
     labels: np.ndarray,
+    taxonomy_paths: Mapping[int, Sequence[str]],
+    *,
     n_folds: int = 5,
     hidden_layer_sizes: tuple[int, ...] = (100,),
     max_iter: int = 200,
-) -> list[float]:
-    """Evaluate neural network using stratified k-fold cross-validation.
+    hierarchical_base: float = 1.1,
+) -> CrossValidationResults:
+    """Evaluate neural network using stratified k-fold cross-validation."""
 
-    Args:
-        features: Sparse feature matrix
-        labels: Target labels
-        n_folds: Number of cross-validation folds
-        hidden_layer_sizes: Hidden layer architecture
-        max_iter: Maximum iterations
-
-    Returns:
-        List of accuracy scores for each fold
-    """
     if len(labels) == 0:
-        return []
+        return CrossValidationResults([], [], [])
 
-    # Determine maximum possible folds
     unique, counts = np.unique(labels, return_counts=True)
     max_possible_folds = int(counts.min())
     n_splits = min(n_folds, max_possible_folds)
 
     if n_splits < 2:
-        return []
+        return CrossValidationResults([], [], [])
 
     cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=42)
-    scores: list[float] = []
+    accuracies: list[float] = []
+    f1_scores: list[float] = []
+    hierarchical_scores: list[float] = []
     placeholder = np.zeros((len(labels), 1), dtype=np.float32)
     for train_index, test_index in cv.split(placeholder, labels):
         train_features = features[train_index]
@@ -295,17 +334,31 @@ def cross_validate_classifier(
             early_stopping=True,
         )
 
-        accuracy = _evaluate_accuracy(model, test_dataset)
-        scores.append(accuracy)
+        y_true, y_pred = _collect_predictions(model, test_dataset)
+        if y_true.size == 0:
+            continue
 
-    return scores
+        accuracies.append(float(np.mean(y_true == y_pred)))
+        f1_scores.append(float(f1_score(y_true, y_pred, average="weighted")))
+        hierarchical_scores.append(
+            float(
+                hierarchical_loss_score(
+                    y_true,
+                    y_pred,
+                    taxonomy_paths,
+                    base=hierarchical_base,
+                )
+            )
+        )
+
+    return CrossValidationResults(accuracies, f1_scores, hierarchical_scores)
 
 
 def save_model_to_database(
     database_path: Path,
     model: nn.Module,
     stats: TrainingStats,
-    cv_scores: list[float] | None = None,
+    cv_results: CrossValidationResults | None = None,
 ) -> int:
     """Persist model metadata to SQLite.
 
@@ -323,10 +376,17 @@ def save_model_to_database(
     """
     database_path.parent.mkdir(parents=True, exist_ok=True)
 
-    cv_scores_list = [float(s) for s in (cv_scores or [])]
-    cv_folds = len(cv_scores_list) if cv_scores_list else None
-    cv_mean = float(np.mean(cv_scores_list)) if cv_scores_list else None
-    cv_std = float(np.std(cv_scores_list, ddof=0)) if cv_scores_list else None
+    cv_accuracy = [float(s) for s in (cv_results.accuracy if cv_results else [])]
+    cv_f1 = [float(s) for s in (cv_results.f1_weighted if cv_results else [])]
+    cv_hier = [float(s) for s in (cv_results.hierarchical_loss if cv_results else [])]
+
+    cv_folds = len(cv_accuracy) if cv_accuracy else None
+    cv_mean = float(np.mean(cv_accuracy)) if cv_accuracy else None
+    cv_std = float(np.std(cv_accuracy, ddof=0)) if cv_accuracy else None
+    cv_mean_f1 = float(np.mean(cv_f1)) if cv_f1 else None
+    cv_std_f1 = float(np.std(cv_f1, ddof=0)) if cv_f1 else None
+    cv_mean_hier = float(np.mean(cv_hier)) if cv_hier else None
+    cv_std_hier = float(np.std(cv_hier, ddof=0)) if cv_hier else None
 
     timestamp = datetime.now(timezone.utc).isoformat()
     hidden_layers_str = ",".join(str(x) for x in stats.hidden_layers)
@@ -345,31 +405,71 @@ def save_model_to_database(
                 unique_tags INTEGER NOT NULL,
                 hidden_layers TEXT NOT NULL,
                 training_accuracy REAL NOT NULL,
+                training_f1 REAL,
+                training_hierarchical_loss REAL,
                 cv_folds INTEGER,
                 cv_mean_accuracy REAL,
-                cv_std_accuracy REAL
+                cv_std_accuracy REAL,
+                cv_mean_f1 REAL,
+                cv_std_f1 REAL,
+                cv_mean_hierarchical_loss REAL,
+                cv_std_hierarchical_loss REAL
             )
             """
         )
+
+        info_models = conn.execute("PRAGMA table_info(taxonomy_nn_models)").fetchall()
+        existing_columns = {row[1] for row in info_models}
+        if "training_f1" not in existing_columns:
+            conn.execute("ALTER TABLE taxonomy_nn_models ADD COLUMN training_f1 REAL")
+        if "training_hierarchical_loss" not in existing_columns:
+            conn.execute(
+                "ALTER TABLE taxonomy_nn_models ADD COLUMN training_hierarchical_loss REAL"
+            )
+        if "cv_mean_f1" not in existing_columns:
+            conn.execute("ALTER TABLE taxonomy_nn_models ADD COLUMN cv_mean_f1 REAL")
+        if "cv_std_f1" not in existing_columns:
+            conn.execute("ALTER TABLE taxonomy_nn_models ADD COLUMN cv_std_f1 REAL")
+        if "cv_mean_hierarchical_loss" not in existing_columns:
+            conn.execute(
+                "ALTER TABLE taxonomy_nn_models ADD COLUMN cv_mean_hierarchical_loss REAL"
+            )
+        if "cv_std_hierarchical_loss" not in existing_columns:
+            conn.execute(
+                "ALTER TABLE taxonomy_nn_models ADD COLUMN cv_std_hierarchical_loss REAL"
+            )
 
         conn.execute(
             """
             CREATE TABLE IF NOT EXISTS taxonomy_nn_cv_scores (
                 model_id INTEGER NOT NULL,
                 fold INTEGER NOT NULL,
-                accuracy REAL NOT NULL,
+                accuracy REAL,
+                f1_weighted REAL,
+                hierarchical_loss REAL,
                 FOREIGN KEY(model_id) REFERENCES taxonomy_nn_models(id) ON DELETE CASCADE
             )
             """
         )
+
+        info_scores = conn.execute("PRAGMA table_info(taxonomy_nn_cv_scores)").fetchall()
+        existing_score_columns = {row[1] for row in info_scores}
+        if "f1_weighted" not in existing_score_columns:
+            conn.execute("ALTER TABLE taxonomy_nn_cv_scores ADD COLUMN f1_weighted REAL")
+        if "hierarchical_loss" not in existing_score_columns:
+            conn.execute(
+                "ALTER TABLE taxonomy_nn_cv_scores ADD COLUMN hierarchical_loss REAL"
+            )
 
         # Insert model metadata
         cursor = conn.execute(
             """
             INSERT INTO taxonomy_nn_models (
                 trained_at, samples, taxonomies, unique_tags, hidden_layers,
-                training_accuracy, cv_folds, cv_mean_accuracy, cv_std_accuracy
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                training_accuracy, training_f1, training_hierarchical_loss,
+                cv_folds, cv_mean_accuracy, cv_std_accuracy,
+                cv_mean_f1, cv_std_f1, cv_mean_hierarchical_loss, cv_std_hierarchical_loss
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 timestamp,
@@ -378,21 +478,40 @@ def save_model_to_database(
                 stats.unique_tags,
                 hidden_layers_str,
                 stats.training_accuracy,
+                float(stats.training_f1) if stats.training_f1 is not None else None,
+                float(stats.training_hierarchical_loss)
+                if stats.training_hierarchical_loss is not None
+                else None,
                 cv_folds,
                 cv_mean,
                 cv_std,
+                cv_mean_f1,
+                cv_std_f1,
+                cv_mean_hier,
+                cv_std_hier,
             ),
         )
         model_id = int(cursor.lastrowid)
 
         # Insert CV scores
-        if cv_scores_list:
+        if cv_accuracy:
             conn.executemany(
                 """
-                INSERT INTO taxonomy_nn_cv_scores (model_id, fold, accuracy)
-                VALUES (?, ?, ?)
+                INSERT INTO taxonomy_nn_cv_scores (
+                    model_id, fold, accuracy, f1_weighted, hierarchical_loss
+                )
+                VALUES (?, ?, ?, ?, ?)
                 """,
-                [(model_id, i + 1, float(score)) for i, score in enumerate(cv_scores_list)],
+                [
+                    (
+                        model_id,
+                        i + 1,
+                        cv_accuracy[i],
+                        cv_f1[i] if i < len(cv_f1) else None,
+                        cv_hier[i] if i < len(cv_hier) else None,
+                    )
+                    for i in range(len(cv_accuracy))
+                ],
             )
 
         conn.commit()
@@ -403,12 +522,15 @@ def save_model_to_database(
 def render_report_html(
     stats: TrainingStats,
     output_path: Path,
+    *,
+    hierarchical_base: float = 1.1,
 ) -> None:
     """Render HTML report summarizing neural network training.
 
     Args:
         stats: Training statistics
         output_path: Path to save HTML file
+        hierarchical_base: Base used for hierarchical loss metric
     """
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -425,6 +547,18 @@ def render_report_html(
         f"<li><strong>Training accuracy:</strong> {stats.training_accuracy:.3f}</li>",
     ]
 
+    if stats.training_f1 is not None:
+        metadata_items.append(
+            f"<li><strong>Training F1 (weighted):</strong> {stats.training_f1:.3f}</li>"
+        )
+    if stats.training_hierarchical_loss is not None:
+        metadata_items.append(
+            "<li><strong>Training hierarchical loss (M={:.2f}):</strong> {:.3f}</li>".format(
+                hierarchical_base,
+                stats.training_hierarchical_loss,
+            )
+        )
+
     if stats.cross_validation_mean_accuracy is not None:
         cv_text = f"{stats.cross_validation_mean_accuracy:.3f}"
         if stats.cross_validation_std_accuracy is not None:
@@ -432,6 +566,25 @@ def render_report_html(
         if stats.cross_validation_folds:
             cv_text += f" ({stats.cross_validation_folds} folds)"
         metadata_items.append(f"<li><strong>Cross-validated accuracy:</strong> {cv_text}</li>")
+
+    if stats.cross_validation_mean_f1 is not None:
+        cv_text = f"{stats.cross_validation_mean_f1:.3f}"
+        if stats.cross_validation_std_f1 is not None:
+            cv_text += f" ± {stats.cross_validation_std_f1:.3f}"
+        metadata_items.append(
+            f"<li><strong>Cross-validated F1 (weighted):</strong> {cv_text}</li>"
+        )
+
+    if stats.cross_validation_mean_hierarchical_loss is not None:
+        cv_text = f"{stats.cross_validation_mean_hierarchical_loss:.3f}"
+        if stats.cross_validation_std_hierarchical_loss is not None:
+            cv_text += f" ± {stats.cross_validation_std_hierarchical_loss:.3f}"
+        metadata_items.append(
+            "<li><strong>Cross-validated hierarchical loss (M={:.2f}):</strong> {}</li>".format(
+                hierarchical_base,
+                cv_text,
+            )
+        )
 
     metadata = "<ul class=\"stats\">" + "".join(metadata_items) + "</ul>"
 
@@ -518,6 +671,12 @@ def main() -> None:
         action="store_true",
         help="Skip cross-validation (faster for testing)",
     )
+    parser.add_argument(
+        "--hierarchical-base",
+        type=float,
+        default=1.1,
+        help="Base M used for hierarchical loss (loss = M^{-T})",
+    )
 
     args = parser.parse_args()
 
@@ -537,16 +696,21 @@ def main() -> None:
     print(f"Loaded {len(labels)} products with {len(feature_names)} tags")
     print(f"Architecture: {len(feature_names)} -> {hidden_layer_sizes} -> {len(np.unique(labels))}")
 
+    taxonomy_paths = build_taxonomy_path_map(metadata, id_column="taxonomy_index")
+    ensure_taxonomy_paths_cover_labels(np.unique(labels), taxonomy_paths)
+
     # Cross-validate (optional)
-    cv_scores = None
+    cv_results: CrossValidationResults | None = None
     if not args.skip_cv:
         print("\nRunning cross-validation...")
-        cv_scores = cross_validate_classifier(
+        cv_results = cross_validate_classifier(
             features,
             labels,
+            taxonomy_paths,
             n_folds=args.cv_folds,
             hidden_layer_sizes=hidden_layer_sizes,
             max_iter=args.max_iter,
+            hierarchical_base=args.hierarchical_base,
         )
 
     # Train
@@ -558,32 +722,78 @@ def main() -> None:
         max_iter=args.max_iter,
     )
 
-    if cv_scores:
-        stats.cross_validation_folds = len(cv_scores)
-        stats.cross_validation_mean_accuracy = float(np.mean(cv_scores))
-        stats.cross_validation_std_accuracy = float(np.std(cv_scores, ddof=0))
+    full_dataset = _to_tensor_dataset(features, labels)
+    train_true, train_pred = _collect_predictions(model, full_dataset)
+    if train_true.size:
+        stats.training_accuracy = float(np.mean(train_true == train_pred))
+        stats.training_f1 = float(f1_score(train_true, train_pred, average="weighted"))
+        stats.training_hierarchical_loss = float(
+            hierarchical_loss_score(
+                train_true,
+                train_pred,
+                taxonomy_paths,
+                base=args.hierarchical_base,
+            )
+        )
+
+    if cv_results and cv_results.folds:
+        stats.cross_validation_folds = cv_results.folds
+        stats.cross_validation_mean_accuracy = float(np.mean(cv_results.accuracy))
+        stats.cross_validation_std_accuracy = float(np.std(cv_results.accuracy, ddof=0))
+        stats.cross_validation_mean_f1 = float(np.mean(cv_results.f1_weighted))
+        stats.cross_validation_std_f1 = float(np.std(cv_results.f1_weighted, ddof=0))
+        stats.cross_validation_mean_hierarchical_loss = float(
+            np.mean(cv_results.hierarchical_loss)
+        )
+        stats.cross_validation_std_hierarchical_loss = float(
+            np.std(cv_results.hierarchical_loss, ddof=0)
+        )
 
     # Save
     save_model_to_database(
         args.model_database,
         model,
         stats,
-        cv_scores,
+        cv_results,
     )
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
     html_path = args.output_dir / "nn_report.html"
-    render_report_html(stats, html_path)
+    render_report_html(
+        stats,
+        html_path,
+        hierarchical_base=args.hierarchical_base,
+    )
 
     print(f"\nTraining complete!")
     print(f"  Samples: {stats.samples:,}")
     print(f"  Taxonomies: {stats.taxonomies:,}")
     print(f"  Training accuracy: {stats.training_accuracy:.3f}")
+    if stats.training_f1 is not None:
+        print(f"  Training F1 (weighted): {stats.training_f1:.3f}")
+    if stats.training_hierarchical_loss is not None:
+        print(
+            "  Training hierarchical loss (M={:.2f}): {:.3f}".format(
+                args.hierarchical_base, stats.training_hierarchical_loss
+            )
+        )
     if stats.cross_validation_mean_accuracy is not None:
         cv_text = f"{stats.cross_validation_mean_accuracy:.3f}"
         if stats.cross_validation_std_accuracy is not None:
             cv_text += f" ± {stats.cross_validation_std_accuracy:.3f}"
         print(f"  Cross-validated accuracy: {cv_text} ({stats.cross_validation_folds} folds)")
+    if stats.cross_validation_mean_f1 is not None:
+        cv_text = f"{stats.cross_validation_mean_f1:.3f}"
+        if stats.cross_validation_std_f1 is not None:
+            cv_text += f" ± {stats.cross_validation_std_f1:.3f}"
+        print(f"  Cross-validated F1 (weighted): {cv_text}")
+    if stats.cross_validation_mean_hierarchical_loss is not None:
+        cv_text = f"{stats.cross_validation_mean_hierarchical_loss:.3f}"
+        if stats.cross_validation_std_hierarchical_loss is not None:
+            cv_text += f" ± {stats.cross_validation_std_hierarchical_loss:.3f}"
+        print(
+            f"  Cross-validated hierarchical loss (M={args.hierarchical_base:.2f}): {cv_text}"
+        )
     print(f"\nMetadata saved to {args.model_database}")
     print(f"HTML report saved to {html_path}")
 

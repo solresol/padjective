@@ -61,7 +61,7 @@ uv run padjective/taxonomy_nn_classifier.py \
     --hidden-layers "100,50"
 
 uv run -m padjective.experiments --tasks-db "$TASKS_DB" init --total "$TOTAL_TASKS"
-uv run -m padjective.experiments --tasks-db "$TASKS_DB" run --database "$BATTLES_DB" --take "$TASK_BATCH"
+uv run -m padjective.experiments --tasks-db "$TASKS_DB" run "${TAGBATTLE_DSN_ARGS[@]}" --schema "$TAGBATTLE_SCHEMA" --take "$TASK_BATCH"
 uv run -m padjective.build_site --csv "$CSV_PATH" --output "$OUTPUT_DIR" --precomputed-database "$BATTLES_DB" --tasks-db "$TASKS_DB" --synset-db "$SYNSETS_DB"
 
 # Legacy synset classifier (deprecated but keep for now)
