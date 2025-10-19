@@ -469,7 +469,7 @@ def save_model_to_database(
                 training_accuracy, training_f1, training_hierarchical_loss,
                 cv_folds, cv_mean_accuracy, cv_std_accuracy,
                 cv_mean_f1, cv_std_f1, cv_mean_hierarchical_loss, cv_std_hierarchical_loss
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 timestamp,
