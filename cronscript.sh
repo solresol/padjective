@@ -11,7 +11,6 @@ OUTPUT_DIR=${PADJECTIVE_SITE_DIR:-build/site}
 TASKS_DB=${PADJECTIVE_TASKS_DB:-data/holdout_tasks.sqlite}
 TOTAL_TASKS=${PADJECTIVE_TOTAL_HOLDOUT_TASKS:-5000}
 TASK_BATCH=${PADJECTIVE_TASK_BATCH:-250}
-BATTLES_DB=${PADJECTIVE_BATTLES_DB:-build/battles.sqlite}
 SYNSETS_DB=${PADJECTIVE_SYNSETS_DB:-data/product_synsets.sqlite}
 CLASSIFIER_DB=${PADJECTIVE_CLASSIFIER_DB:-data/synset_classifier.sqlite}
 CLASSIFIER_REPORT_DIR=${PADJECTIVE_CLASSIFIER_REPORT_DIR:-build/synset_classifier}
@@ -25,7 +24,6 @@ TAGBATTLE_BATCH_SIZE=${PADJECTIVE_TAGBATTLE_BATCH_SIZE:-2000}
 SHOPIFY_DSN=${PADJECTIVE_SHOPIFY_DSN:-}
 
 mkdir -p "$(dirname "$TASKS_DB")"
-mkdir -p "$(dirname "$BATTLES_DB")"
 mkdir -p "$(dirname "$SYNSETS_DB")"
 mkdir -p "$(dirname "$CLASSIFIER_DB")"
 mkdir -p "$CLASSIFIER_REPORT_DIR"
@@ -62,7 +60,7 @@ uv run padjective/taxonomy_nn_classifier.py \
 
 uv run -m padjective.experiments --tasks-db "$TASKS_DB" init --total "$TOTAL_TASKS"
 uv run -m padjective.experiments --tasks-db "$TASKS_DB" run "${TAGBATTLE_DSN_ARGS[@]}" --schema "$TAGBATTLE_SCHEMA" --take "$TASK_BATCH"
-uv run -m padjective.build_site --csv "$CSV_PATH" --output "$OUTPUT_DIR" --precomputed-database "$BATTLES_DB" --tasks-db "$TASKS_DB" --synset-db "$SYNSETS_DB"
+uv run -m padjective.build_site --csv "$CSV_PATH" --output "$OUTPUT_DIR" "${TAGBATTLE_DSN_ARGS[@]}" --schema "$TAGBATTLE_SCHEMA" --tasks-db "$TASKS_DB" --synset-db "$SYNSETS_DB"
 
 # Legacy synset classifier (deprecated but keep for now)
 if [ -f "$SYNSETS_DB" ]; then
