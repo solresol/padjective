@@ -133,6 +133,14 @@ The taxonomy classifiers produce:
   - Network architecture
   - Training and cross-validation performance
 
+### Complement Naive Bayes
+* **Postgres schema** (`padjective.taxonomy_nb_*` tables) storing:
+  - Model metadata, cross-validation scores, tag summaries, and taxonomy priors
+* **HTML & JSON reports** (`build/taxonomy_nb_classifier/`) providing:
+  - Tags with the highest affinity for each taxonomy
+  - Distribution of products across taxonomy paths
+  - Training and cross-validation accuracy metrics
+
 ## Deprecated: WordNet Synset Classification
 
 The original synset classification workflow (`product_synsets.py` and `synset_classifier.py`)

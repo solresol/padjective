@@ -19,5 +19,5 @@ tagbattle = "padjective.tagbattle:main"
 ranking = "padjective.ranking:main"
 display = "padjective.display:main"
 product_synsets = "padjective.product_synsets:main"
-synset-classifier = "padjective.synset_classifier:main"
+taxonomy-nb-classifier = "padjective.taxonomy_nb_classifier:main"
 
