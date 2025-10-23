@@ -30,9 +30,6 @@ class _FakeConnection:
 
 
 def test_build_site_includes_taxonomy_summary(tmp_path: Path, monkeypatch) -> None:
-    csv_path = tmp_path / "products.csv"
-    csv_path.write_text("title,tags\nWidget,tag1\nGadget,tag2\nThing,tag3\n", encoding="utf-8")
-
     pairs = [("TAG1", "TAG2"), ("TAG1", "TAG3"), ("TAG3", "TAG2")]
     fake_conn = _FakeConnection(pairs)
 
@@ -70,9 +67,13 @@ def test_build_site_includes_taxonomy_summary(tmp_path: Path, monkeypatch) -> No
         lambda _conn: taxonomy_summary,
     )
 
+    monkeypatch.setattr(
+        "padjective.build_site._collect_database_stats",
+        lambda _conn, _schema: {"products": 3, "unique_tags": 3},
+    )
+
     output_dir = tmp_path / "site"
     metadata = build_site(
-        csv_path,
         output_dir,
         precomputed_database=fake_conn,
         battle_schema="padjective",
