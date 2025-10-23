@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import csv
 import html
 import json
 import shutil
@@ -12,6 +11,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional, Sequence, Tuple
 
 import pandas as pd
+from psycopg import sql
 from psycopg.rows import dict_row
 
 from . import db, display, experiments, ranking, tagbattle
@@ -23,19 +23,37 @@ def _ensure_clean_directory(path: Path) -> None:
     path.mkdir(parents=True, exist_ok=True)
 
 
-def _collect_tag_stats(csv_path: Path) -> Dict[str, int]:
-    total_products = 0
-    unique_tags: set[str] = set()
-    with open(csv_path, newline="", encoding="utf-8") as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            total_products += 1
-            tags = row.get("tags", "")
-            for tag in tags.split(","):
-                tag = tag.strip()
-                if tag:
-                    unique_tags.add(tag.upper())
-    return {"products": total_products, "unique_tags": len(unique_tags)}
+def _collect_database_stats(conn, schema: str) -> Dict[str, int]:
+    """Return aggregate statistics derived from Postgres battles data."""
+
+    stats: Dict[str, int] = {"products": 0, "unique_tags": 0}
+
+    with conn.cursor() as cur:
+        cur.execute(
+            sql.SQL(
+                "SELECT COUNT(DISTINCT product_id) FROM {schema}.battles "
+                "WHERE product_id IS NOT NULL"
+            ).format(schema=sql.Identifier(schema))
+        )
+        product_row = cur.fetchone()
+        if product_row and product_row[0] is not None:
+            stats["products"] = int(product_row[0])
+
+    with conn.cursor() as cur:
+        cur.execute(
+            sql.SQL(
+                "SELECT COUNT(DISTINCT tag) FROM ("
+                " SELECT winner_tag AS tag FROM {schema}.battles"
+                " UNION ALL"
+                " SELECT loser_tag AS tag FROM {schema}.battles"
+                ") AS combined_tags"
+            ).format(schema=sql.Identifier(schema))
+        )
+        tag_row = cur.fetchone()
+        if tag_row and tag_row[0] is not None:
+            stats["unique_tags"] = int(tag_row[0])
+
+    return stats
 
 
 def _count_battles(pairs: Sequence[Tuple[str, str]]) -> int:
@@ -426,14 +444,12 @@ def _collect_taxonomy_nb_summary(conn) -> Optional[Dict[str, Any]]:
         "top_tags": top_tags,
     }
 def build_site(
-    csv_path: Path,
     output_dir: Path,
     *,
     precomputed_database: Optional[Any] = None,
     battle_schema: str = "padjective",
     tasks_db: Optional[Path] = None,
 ) -> Dict[str, Any]:
-    csv_path = csv_path.resolve()
     _ensure_clean_directory(output_dir)
 
     assets_dir = output_dir / "assets"
@@ -452,7 +468,7 @@ def build_site(
     chart_path = assets_dir / "top_tags.png"
     display.generate_outputs(leaderboard, rankings_html, chart_path, rows=20)
 
-    stats = _collect_tag_stats(csv_path)
+    stats = _collect_database_stats(precomputed_database, battle_schema)
     stats["battles"] = _count_battles(pairs)
     stats["components"] = int(leaderboard["component"].nunique()) if not leaderboard.empty else 0
 
@@ -553,8 +569,9 @@ footer {text-align: center; padding: 2rem 1.5rem 3rem; color: #6b7280;}
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Generate the Padjective website")
-    parser.add_argument("--csv", type=Path, required=True, help="Path to the products CSV file")
+    parser = argparse.ArgumentParser(
+        description="Generate the Padjective website from Postgres data"
+    )
     parser.add_argument(
         "--output",
         type=Path,
@@ -581,7 +598,6 @@ def main() -> None:
     conn = db.get_connection(args.dsn)
     try:
         build_site(
-            args.csv,
             args.output,
             precomputed_database=conn,
             battle_schema=args.schema,

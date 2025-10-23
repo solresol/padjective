@@ -6,7 +6,6 @@ cd "$(dirname "$0")"
 
 git pull -q
 
-CSV_PATH=${PADJECTIVE_PRODUCTS_CSV:-products_point_one_percent_sample.csv}
 OUTPUT_DIR=${PADJECTIVE_SITE_DIR:-build/site}
 TASKS_DB=${PADJECTIVE_TASKS_DB:-data/holdout_tasks.sqlite}
 TOTAL_TASKS=${PADJECTIVE_TOTAL_HOLDOUT_TASKS:-5000}
@@ -56,7 +55,7 @@ uv run padjective/taxonomy_nn_classifier.py \
 
 uv run -m padjective.experiments --tasks-db "$TASKS_DB" init --total "$TOTAL_TASKS"
 uv run -m padjective.experiments --tasks-db "$TASKS_DB" run "${TAGBATTLE_DSN_ARGS[@]}" --schema "$TAGBATTLE_SCHEMA" --take "$TASK_BATCH"
-uv run -m padjective.build_site --csv "$CSV_PATH" --output "$OUTPUT_DIR" "${TAGBATTLE_DSN_ARGS[@]}" --schema "$TAGBATTLE_SCHEMA" --tasks-db "$TASKS_DB"
+uv run -m padjective.build_site --output "$OUTPUT_DIR" "${TAGBATTLE_DSN_ARGS[@]}" --schema "$TAGBATTLE_SCHEMA" --tasks-db "$TASKS_DB"
 
 uv run padjective/taxonomy_nb_classifier.py \
     "${TAGBATTLE_DSN_ARGS[@]}" \
