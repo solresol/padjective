@@ -4,7 +4,10 @@ import numpy as np
 import pandas as pd
 import pytest
 from scipy import sparse
-from padjective.taxonomy_classifier import compute_tag_coefficients
+from padjective.taxonomy_classifier import (
+    compute_tag_coefficients,
+    compute_taxonomy_top_tags,
+)
 
 
 def test_compute_tag_coefficients_basic():
@@ -54,3 +57,37 @@ def test_compute_tag_coefficients_sorting():
     # Should be sorted by max_abs_coef descending
     assert summary["tag"].tolist() == ["TAG2", "TAG3", "TAG1"]
     assert summary["max_abs_coef"].tolist() == [0.9, 0.3, 0.1]
+
+
+def test_compute_taxonomy_top_tags() -> None:
+    feature_names = ["ALPHA", "BETA", "GAMMA", "DELTA"]
+    classes = np.array(["A", "B"])
+    coef_matrix = np.array(
+        [
+            [0.4, -1.2, 0.6, 0.1],
+            [-0.5, 0.9, -0.7, 0.2],
+        ]
+    )
+
+    top_tags = compute_taxonomy_top_tags(feature_names, classes, coef_matrix, top_k=2)
+
+    assert list(top_tags.columns) == [
+        "taxonomy_id",
+        "tag",
+        "weight",
+        "rank",
+    ]
+    class_a = top_tags[top_tags["taxonomy_id"] == "A"]
+    assert class_a.iloc[0]["tag"] == "GAMMA"
+    assert class_a.iloc[0]["weight"] == pytest.approx(0.6)
+    assert class_a.iloc[1]["tag"] == "ALPHA"
+
+
+def test_compute_taxonomy_top_tags_binary_expansion() -> None:
+    feature_names = ["X", "Y"]
+    classes = np.array(["NEG", "POS"])
+    coef_matrix = np.array([0.8, -0.4])
+
+    top_tags = compute_taxonomy_top_tags(feature_names, classes, coef_matrix, top_k=1)
+    assert len(top_tags) == 2
+    assert set(top_tags["taxonomy_id"]) == {"NEG", "POS"}

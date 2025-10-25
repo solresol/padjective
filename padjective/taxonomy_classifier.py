@@ -2,14 +2,13 @@
 
 This module provides utilities for training logistic regression and neural network
 models that predict taxonomy IDs from product tags. The models are evaluated using
-stratified cross-validation and results are stored in SQLite.
+stratified cross-validation and results are stored in Postgres.
 """
 
 from __future__ import annotations
 
 import argparse
 import html
-import sqlite3
 import sys
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -18,6 +17,7 @@ from typing import Any, Mapping, Sequence
 
 import numpy as np
 import pandas as pd
+from psycopg import sql
 from scipy import sparse
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import f1_score, make_scorer
@@ -231,6 +231,29 @@ def cross_validate_classifier(
     )
 
 
+def _expand_binary_coefficients(
+    classes: np.ndarray,
+    coef_matrix: np.ndarray,
+    intercepts: np.ndarray | None = None,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray | None]:
+    """Return coefficient and intercept arrays expanded for binary classifiers."""
+
+    matrix = coef_matrix
+    expanded_intercepts = intercepts
+
+    if matrix.ndim == 1:
+        matrix = matrix.reshape(1, -1)
+
+    if len(classes) == 2 and matrix.shape[0] == 1:
+        coef_row = matrix[0]
+        matrix = np.vstack([-coef_row, coef_row])
+        if intercepts is not None:
+            intercept_value = float(intercepts[0])
+            expanded_intercepts = np.array([-intercept_value, intercept_value])
+
+    return classes, matrix, expanded_intercepts
+
+
 def compute_tag_coefficients(
     feature_names: list[str],
     classes: np.ndarray,
@@ -246,10 +269,9 @@ def compute_tag_coefficients(
     Returns:
         DataFrame with tag statistics
     """
-    if coef_matrix.ndim == 1:
-        coef_matrix = coef_matrix.reshape(1, -1)
+    _, expanded_coef, _ = _expand_binary_coefficients(classes, coef_matrix)
 
-    abs_coef = np.abs(coef_matrix)
+    abs_coef = np.abs(expanded_coef)
     max_indices = abs_coef.argmax(axis=0)
     max_values = abs_coef[max_indices, range(abs_coef.shape[1])]
     sum_values = abs_coef.sum(axis=0)
@@ -257,7 +279,7 @@ def compute_tag_coefficients(
     rows = []
     for idx, tag in enumerate(feature_names):
         class_index = int(max_indices[idx])
-        weight = coef_matrix[class_index, idx]
+        weight = expanded_coef[class_index, idx]
         rows.append({
             "tag": tag,
             "top_taxonomy": str(classes[class_index]),
@@ -276,41 +298,57 @@ def compute_tag_coefficients(
     return summary
 
 
+def compute_taxonomy_top_tags(
+    feature_names: list[str],
+    classes: np.ndarray,
+    coef_matrix: np.ndarray,
+    *,
+    top_k: int = 20,
+) -> pd.DataFrame:
+    """Return the highest-weight tags for each taxonomy class."""
+
+    _, expanded_coef, _ = _expand_binary_coefficients(classes, coef_matrix)
+
+    rows: list[dict[str, Any]] = []
+    for class_index, taxonomy_id in enumerate(classes):
+        weights = expanded_coef[class_index]
+        if top_k <= 0:
+            sorted_indices: Sequence[int] = []
+        else:
+            sorted_indices = np.argsort(weights)[::-1][:top_k]
+        for rank, feature_idx in enumerate(sorted_indices, start=1):
+            rows.append(
+                {
+                    "taxonomy_id": str(taxonomy_id),
+                    "tag": feature_names[feature_idx],
+                    "weight": float(weights[feature_idx]),
+                    "rank": rank,
+                }
+            )
+
+    return pd.DataFrame(rows)
+
+
 def save_model_to_database(
-    database_path: Path,
+    conn,
+    schema: str,
     model: LogisticRegression,
     stats: TrainingStats,
-    feature_names: list[str],
     summary: pd.DataFrame,
+    class_distribution: pd.DataFrame,
+    top_tags: pd.DataFrame,
+    *,
+    taxonomy_paths: Mapping[str, str] | None = None,
     cv_results: CrossValidationResults | None = None,
 ) -> int:
-    """Persist model weights and metadata to SQLite.
-
-    Args:
-        database_path: Path to SQLite database
-        model: Trained model
-        stats: Training statistics
-        feature_names: List of feature (tag) names
-        summary: Coefficient summary DataFrame
-        cv_scores: Cross-validation scores
-
-    Returns:
-        Model ID in the database
-    """
-    database_path.parent.mkdir(parents=True, exist_ok=True)
+    """Persist model weights and metadata to Postgres."""
 
     classes = model.classes_
     coef_matrix = model.coef_
     intercepts = model.intercept_
-
-    # Handle binary case
-    if coef_matrix.ndim == 1:
-        coef_matrix = coef_matrix.reshape(1, -1)
-    if len(classes) == 2 and coef_matrix.shape[0] == 1:
-        coef_row = coef_matrix[0]
-        intercept_value = float(intercepts[0])
-        coef_matrix = np.vstack([-coef_row, coef_row])
-        intercepts = np.array([-intercept_value, intercept_value])
+    _, expanded_coef, expanded_intercepts = _expand_binary_coefficients(
+        classes, coef_matrix, intercepts
+    )
 
     cv_accuracy = [float(s) for s in (cv_results.accuracy if cv_results else [])]
     cv_f1 = [float(s) for s in (cv_results.f1_weighted if cv_results else [])]
@@ -324,128 +362,24 @@ def save_model_to_database(
     cv_mean_hier = float(np.mean(cv_hier)) if cv_hier else None
     cv_std_hier = float(np.std(cv_hier, ddof=0)) if cv_hier else None
 
-    timestamp = datetime.now(timezone.utc).isoformat()
+    trained_at = datetime.now(timezone.utc)
+    taxonomy_path_lookup = taxonomy_paths or {}
 
-    with sqlite3.connect(database_path) as conn:
-        conn.execute("PRAGMA foreign_keys = ON")
-
-        def _ensure_column(table: str, column: str, definition: str) -> None:
-            info = conn.execute(f"PRAGMA table_info({table})").fetchall()
-            if not any(row[1] == column for row in info):
-                conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
-
-        # Create tables
-        conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS taxonomy_classifier_models (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                trained_at TEXT NOT NULL,
-                samples INTEGER NOT NULL,
-                taxonomies INTEGER NOT NULL,
-                unique_tags INTEGER NOT NULL,
-                training_accuracy REAL NOT NULL,
-                training_f1 REAL,
-                training_hierarchical_loss REAL,
-                cv_folds INTEGER,
-                cv_mean_accuracy REAL,
-                cv_std_accuracy REAL,
-                cv_mean_f1 REAL,
-                cv_std_f1 REAL,
-                cv_mean_hierarchical_loss REAL,
-                cv_std_hierarchical_loss REAL
-            )
-            """
-        )
-
-        _ensure_column(
-            "taxonomy_classifier_models", "training_f1", "REAL"
-        )
-        _ensure_column(
-            "taxonomy_classifier_models", "training_hierarchical_loss", "REAL"
-        )
-        _ensure_column(
-            "taxonomy_classifier_models", "cv_mean_f1", "REAL"
-        )
-        _ensure_column(
-            "taxonomy_classifier_models", "cv_std_f1", "REAL"
-        )
-        _ensure_column(
-            "taxonomy_classifier_models", "cv_mean_hierarchical_loss", "REAL"
-        )
-        _ensure_column(
-            "taxonomy_classifier_models", "cv_std_hierarchical_loss", "REAL"
-        )
-
-        conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS taxonomy_classifier_cv_scores (
-                model_id INTEGER NOT NULL,
-                fold INTEGER NOT NULL,
-                accuracy REAL,
-                f1_weighted REAL,
-                hierarchical_loss REAL,
-                FOREIGN KEY(model_id) REFERENCES taxonomy_classifier_models(id) ON DELETE CASCADE
-            )
-            """
-        )
-
-        _ensure_column(
-            "taxonomy_classifier_cv_scores", "f1_weighted", "REAL"
-        )
-        _ensure_column(
-            "taxonomy_classifier_cv_scores", "hierarchical_loss", "REAL"
-        )
-
-        conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS taxonomy_classifier_coefficients (
-                model_id INTEGER NOT NULL,
-                taxonomy_id TEXT NOT NULL,
-                tag TEXT NOT NULL,
-                weight REAL NOT NULL,
-                FOREIGN KEY(model_id) REFERENCES taxonomy_classifier_models(id) ON DELETE CASCADE
-            )
-            """
-        )
-
-        conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS taxonomy_classifier_intercepts (
-                model_id INTEGER NOT NULL,
-                taxonomy_id TEXT NOT NULL,
-                intercept REAL NOT NULL,
-                FOREIGN KEY(model_id) REFERENCES taxonomy_classifier_models(id) ON DELETE CASCADE
-            )
-            """
-        )
-
-        conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS taxonomy_classifier_tag_summary (
-                model_id INTEGER NOT NULL,
-                tag TEXT NOT NULL,
-                top_taxonomy TEXT NOT NULL,
-                top_weight REAL NOT NULL,
-                max_abs_coef REAL NOT NULL,
-                sum_abs_coef REAL NOT NULL,
-                PRIMARY KEY (model_id, tag),
-                FOREIGN KEY(model_id) REFERENCES taxonomy_classifier_models(id) ON DELETE CASCADE
-            )
-            """
-        )
-
-        # Insert model metadata
-        cursor = conn.execute(
-            """
-            INSERT INTO taxonomy_classifier_models (
-                trained_at, samples, taxonomies, unique_tags,
-                training_accuracy, training_f1, training_hierarchical_loss,
-                cv_folds, cv_mean_accuracy, cv_std_accuracy,
-                cv_mean_f1, cv_std_f1, cv_mean_hierarchical_loss, cv_std_hierarchical_loss
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
+    with conn.cursor() as cur:
+        cur.execute(
+            sql.SQL(
+                """
+                INSERT INTO {schema}.taxonomy_lr_models (
+                    trained_at, samples, taxonomies, unique_tags,
+                    training_accuracy, training_f1, training_hierarchical_loss,
+                    cv_folds, cv_mean_accuracy, cv_std_accuracy,
+                    cv_mean_f1, cv_std_f1, cv_mean_hierarchical_loss, cv_std_hierarchical_loss
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                RETURNING id
+                """
+            ).format(schema=sql.Identifier(schema)),
             (
-                timestamp,
+                trained_at,
                 stats.samples,
                 stats.taxonomies,
                 stats.unique_tags,
@@ -463,86 +397,130 @@ def save_model_to_database(
                 cv_std_hier,
             ),
         )
-        model_id = int(cursor.lastrowid)
+        model_id = int(cur.fetchone()[0])
 
-        # Insert CV scores
-        if cv_accuracy:
-            conn.executemany(
-                """
-                INSERT INTO taxonomy_classifier_cv_scores (
-                    model_id, fold, accuracy, f1_weighted, hierarchical_loss
-                )
-                VALUES (?, ?, ?, ?, ?)
-                """,
-                [
-                    (
-                        model_id,
-                        i + 1,
-                        cv_accuracy[i],
-                        cv_f1[i] if i < len(cv_f1) else None,
-                        cv_hier[i] if i < len(cv_hier) else None,
-                    )
-                    for i in range(len(cv_accuracy))
-                ],
+    if cv_accuracy:
+        rows = [
+            (
+                model_id,
+                i + 1,
+                cv_accuracy[i],
+                cv_f1[i] if i < len(cv_f1) else None,
+                cv_hier[i] if i < len(cv_hier) else None,
             )
-
-        # Insert coefficients
-        coefficient_rows = []
-        for class_idx, taxonomy_id in enumerate(classes):
-            for feature_idx, tag in enumerate(feature_names):
-                coefficient_rows.append((
-                    model_id,
-                    str(taxonomy_id),
-                    str(tag),
-                    float(coef_matrix[class_idx, feature_idx]),
-                ))
-
-        if coefficient_rows:
-            conn.executemany(
-                """
-                INSERT INTO taxonomy_classifier_coefficients (model_id, taxonomy_id, tag, weight)
-                VALUES (?, ?, ?, ?)
-                """,
-                coefficient_rows,
-            )
-
-        # Insert intercepts
-        intercept_rows = [
-            (model_id, str(taxonomy_id), float(intercept))
-            for taxonomy_id, intercept in zip(classes, intercepts)
+            for i in range(len(cv_accuracy))
         ]
-        if intercept_rows:
-            conn.executemany(
-                """
-                INSERT INTO taxonomy_classifier_intercepts (model_id, taxonomy_id, intercept)
-                VALUES (?, ?, ?)
-                """,
+        with conn.cursor() as cur:
+            cur.executemany(
+                sql.SQL(
+                    """
+                    INSERT INTO {schema}.taxonomy_lr_cv_scores (
+                        model_id, fold, accuracy, f1_weighted, hierarchical_loss
+                    ) VALUES (%s, %s, %s, %s, %s)
+                    """
+                ).format(schema=sql.Identifier(schema)),
+                rows,
+            )
+
+    if expanded_intercepts is not None:
+        intercept_rows = [
+            (
+                model_id,
+                str(taxonomy_id),
+                taxonomy_path_lookup.get(str(taxonomy_id)),
+                float(intercept),
+            )
+            for taxonomy_id, intercept in zip(classes, expanded_intercepts)
+        ]
+        with conn.cursor() as cur:
+            cur.executemany(
+                sql.SQL(
+                    """
+                    INSERT INTO {schema}.taxonomy_lr_intercepts (
+                        model_id, taxonomy_id, taxonomy_path, intercept
+                    ) VALUES (%s, %s, %s, %s)
+                    """
+                ).format(schema=sql.Identifier(schema)),
                 intercept_rows,
             )
 
-        # Insert tag summary
-        if not summary.empty:
-            conn.executemany(
-                """
-                INSERT INTO taxonomy_classifier_tag_summary (
-                    model_id, tag, top_taxonomy, top_weight, max_abs_coef, sum_abs_coef
-                ) VALUES (?, ?, ?, ?, ?, ?)
-                """,
-                [
-                    (
-                        model_id,
-                        str(row["tag"]),
-                        str(row["top_taxonomy"]),
-                        float(row["top_weight"]),
-                        float(row["max_abs_coef"]),
-                        float(row["sum_abs_coef"]),
-                    )
-                    for row in summary.to_dict(orient="records")
-                ],
+    summary_records = summary.to_dict("records")
+    if summary_records:
+        summary_rows = [
+            (
+                model_id,
+                row["tag"],
+                row["top_taxonomy"],
+                row.get("top_taxonomy_path"),
+                float(row["top_weight"]),
+                float(row["max_abs_coef"]),
+                float(row["sum_abs_coef"]),
+            )
+            for row in summary_records
+        ]
+        with conn.cursor() as cur:
+            cur.executemany(
+                sql.SQL(
+                    """
+                    INSERT INTO {schema}.taxonomy_lr_tag_summary (
+                        model_id, tag, top_taxonomy_id, top_taxonomy_path,
+                        top_weight, max_abs_weight, sum_abs_weight
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s)
+                    """
+                ).format(schema=sql.Identifier(schema)),
+                summary_rows,
             )
 
-        conn.commit()
+    class_records = class_distribution.to_dict("records")
+    if class_records:
+        distribution_rows = [
+            (
+                model_id,
+                row["taxonomy_id"],
+                row.get("taxonomy_path"),
+                int(row["sample_count"]),
+                float(row["sample_fraction"]),
+            )
+            for row in class_records
+        ]
+        with conn.cursor() as cur:
+            cur.executemany(
+                sql.SQL(
+                    """
+                    INSERT INTO {schema}.taxonomy_lr_class_distribution (
+                        model_id, taxonomy_id, taxonomy_path, sample_count, sample_fraction
+                    ) VALUES (%s, %s, %s, %s, %s)
+                    """
+                ).format(schema=sql.Identifier(schema)),
+                distribution_rows,
+            )
 
+    top_tag_records = top_tags.to_dict("records")
+    if top_tag_records:
+        top_tag_rows = [
+            (
+                model_id,
+                row["taxonomy_id"],
+                row.get("taxonomy_path"),
+                row["tag"],
+                float(row["weight"]),
+                int(row["rank"]),
+            )
+            for row in top_tag_records
+        ]
+        with conn.cursor() as cur:
+            cur.executemany(
+                sql.SQL(
+                    """
+                    INSERT INTO {schema}.taxonomy_lr_top_tags (
+                        model_id, taxonomy_id, taxonomy_path, tag, weight, rank
+                    ) VALUES (%s, %s, %s, %s, %s, %s)
+                    """
+                ).format(schema=sql.Identifier(schema)),
+                top_tag_rows,
+            )
+
+    conn.commit()
     return model_id
 
 
@@ -706,10 +684,9 @@ def main() -> None:
         help="Qualified product table name",
     )
     parser.add_argument(
-        "--model-database",
-        type=Path,
-        default=Path("data/taxonomy_classifier.sqlite"),
-        help="SQLite database for model storage",
+        "--results-schema",
+        default="padjective",
+        help="Schema where classifier results are stored",
     )
     parser.add_argument(
         "--output-dir",
@@ -748,6 +725,12 @@ def main() -> None:
         help="Number of top tags to display in HTML",
     )
     parser.add_argument(
+        "--top-tags-per-taxonomy",
+        type=int,
+        default=25,
+        help="Number of highest-weight tags to store per taxonomy",
+    )
+    parser.add_argument(
         "--hierarchical-base",
         type=float,
         default=1.1,
@@ -757,14 +740,16 @@ def main() -> None:
     args = parser.parse_args()
 
     # Load data
-    conn = db.get_connection(args.dsn)
-    features, labels, feature_names, metadata = load_training_data(
-        conn,
-        product_table=args.product_table,
-        min_tag_count=args.min_tag_count,
-        min_samples_per_taxonomy=args.min_samples_per_taxonomy,
-    )
-    conn.close()
+    data_conn = db.get_connection(args.dsn)
+    try:
+        features, labels, feature_names, metadata = load_training_data(
+            data_conn,
+            product_table=args.product_table,
+            min_tag_count=args.min_tag_count,
+            min_samples_per_taxonomy=args.min_samples_per_taxonomy,
+        )
+    finally:
+        data_conn.close()
 
     print(f"Loaded {len(labels)} products with {len(feature_names)} tags")
 
@@ -812,18 +797,62 @@ def main() -> None:
             np.std(cv_results.hierarchical_loss, ddof=0)
         )
 
-    # Compute summary
+    # Compute summary artefacts
     summary = compute_tag_coefficients(feature_names, model.classes_, model.coef_)
-
-    # Save
-    save_model_to_database(
-        args.model_database,
-        model,
-        stats,
-        feature_names,
-        summary,
-        cv_results,
+    taxonomy_path_lookup = {
+        str(taxonomy_id): " / ".join(path)
+        for taxonomy_id, path in taxonomy_paths.items()
+    }
+    summary["top_taxonomy_path"] = summary["top_taxonomy"].map(
+        lambda taxonomy_id: taxonomy_path_lookup.get(str(taxonomy_id))
     )
+
+    class_counts = metadata["taxonomy_id"].value_counts()
+    total_samples = float(len(metadata)) if len(metadata) else 1.0
+    class_distribution = pd.DataFrame(
+        [
+            {
+                "taxonomy_id": str(taxonomy_id),
+                "taxonomy_path": taxonomy_path_lookup.get(str(taxonomy_id)),
+                "sample_count": int(count),
+                "sample_fraction": float(count) / total_samples,
+            }
+            for taxonomy_id, count in class_counts.items()
+        ]
+    )
+    if not class_distribution.empty:
+        class_distribution.sort_values(
+            ["sample_fraction", "sample_count"], ascending=[False, False], inplace=True
+        )
+        class_distribution.reset_index(drop=True, inplace=True)
+
+    top_tags = compute_taxonomy_top_tags(
+        feature_names,
+        model.classes_,
+        model.coef_,
+        top_k=max(0, args.top_tags_per_taxonomy),
+    )
+    if not top_tags.empty:
+        top_tags["taxonomy_path"] = top_tags["taxonomy_id"].map(
+            lambda taxonomy_id: taxonomy_path_lookup.get(str(taxonomy_id))
+        )
+
+    # Persist to Postgres
+    results_conn = db.get_connection(args.dsn)
+    try:
+        model_id = save_model_to_database(
+            results_conn,
+            args.results_schema,
+            model,
+            stats,
+            summary,
+            class_distribution,
+            top_tags,
+            taxonomy_paths=taxonomy_path_lookup,
+            cv_results=cv_results,
+        )
+    finally:
+        results_conn.close()
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
     html_path = args.output_dir / "tag_coefficients.html"
@@ -862,7 +891,9 @@ def main() -> None:
         print(
             f"Cross-validated hierarchical loss (M={args.hierarchical_base:.2f}): {cv_text}"
         )
-    print(f"\nModel saved to {args.model_database}")
+    print(
+        f"\nModel saved to {args.results_schema}.taxonomy_lr_models as ID {model_id}"
+    )
     print(f"HTML report saved to {html_path}")
 
 

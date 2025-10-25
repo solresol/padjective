@@ -41,30 +41,42 @@ def test_build_site_includes_taxonomy_summary(tmp_path: Path, monkeypatch) -> No
             "taxonomies": 56,
             "unique_tags": 789,
             "training_accuracy": 0.88,
+            "training_f1": 0.76,
             "cross_validation": {
                 "folds": 5,
                 "mean_accuracy": 0.81,
                 "std_accuracy": 0.02,
+                "mean_f1": 0.73,
             },
         },
-        "taxonomy_priors": [
-            {"taxonomy_id": "123", "taxonomy_path": "Home / Decor", "prior": 0.12},
-            {"taxonomy_id": "456", "taxonomy_path": "Apparel / Tops", "prior": 0.08},
+        "class_distribution": [
+            {
+                "taxonomy_id": "123",
+                "taxonomy_path": "Home / Decor",
+                "sample_count": 120,
+                "sample_fraction": 0.12,
+            },
+            {
+                "taxonomy_id": "456",
+                "taxonomy_path": "Apparel / Tops",
+                "sample_count": 80,
+                "sample_fraction": 0.08,
+            },
         ],
         "top_tags": [
             {
                 "tag": "BLUE",
                 "top_taxonomy_id": "456",
                 "top_taxonomy_path": "Apparel / Tops",
-                "probability": 0.34,
-                "margin": 0.12,
+                "top_weight": 0.34,
+                "max_abs_weight": 0.48,
             }
         ],
     }
 
     monkeypatch.setattr(
-        "padjective.build_site._collect_taxonomy_nb_summary",
-        lambda _conn: taxonomy_summary,
+        "padjective.build_site._collect_taxonomy_classifier_summary",
+        lambda _conn, schema: taxonomy_summary,
     )
 
     monkeypatch.setattr(
