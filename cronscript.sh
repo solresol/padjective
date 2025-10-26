@@ -10,19 +10,16 @@ OUTPUT_DIR=${PADJECTIVE_SITE_DIR:-build/site}
 TASKS_DB=${PADJECTIVE_TASKS_DB:-data/holdout_tasks.sqlite}
 TOTAL_TASKS=${PADJECTIVE_TOTAL_HOLDOUT_TASKS:-5000}
 TASK_BATCH=${PADJECTIVE_TASK_BATCH:-250}
-TAXONOMY_NB_REPORT_DIR=${PADJECTIVE_TAXONOMY_NB_REPORT_DIR:-build/taxonomy_nb_classifier}
-TAXONOMY_CLASSIFIER_DB=${PADJECTIVE_TAXONOMY_CLASSIFIER_DB:-data/taxonomy_classifier.sqlite}
 TAXONOMY_CLASSIFIER_REPORT_DIR=${PADJECTIVE_TAXONOMY_CLASSIFIER_REPORT_DIR:-build/taxonomy_classifier}
 TAXONOMY_NN_CLASSIFIER_DB=${PADJECTIVE_TAXONOMY_NN_CLASSIFIER_DB:-data/taxonomy_nn_classifier.sqlite}
 TAXONOMY_NN_CLASSIFIER_REPORT_DIR=${PADJECTIVE_TAXONOMY_NN_CLASSIFIER_REPORT_DIR:-build/taxonomy_nn_classifier}
 TAGBATTLE_SCHEMA=${PADJECTIVE_TAGBATTLE_SCHEMA:-padjective}
+TAXONOMY_RESULTS_SCHEMA=${PADJECTIVE_TAXONOMY_RESULTS_SCHEMA:-padjective}
 TAGBATTLE_PRODUCT_TABLE=${PADJECTIVE_TAGBATTLE_PRODUCT_TABLE:-cantbuymelove.product}
 TAGBATTLE_BATCH_SIZE=${PADJECTIVE_TAGBATTLE_BATCH_SIZE:-2000}
 SHOPIFY_DSN=${PADJECTIVE_SHOPIFY_DSN:-}
 
 mkdir -p "$(dirname "$TASKS_DB")"
-mkdir -p "$TAXONOMY_NB_REPORT_DIR"
-mkdir -p "$(dirname "$TAXONOMY_CLASSIFIER_DB")"
 mkdir -p "$TAXONOMY_CLASSIFIER_REPORT_DIR"
 mkdir -p "$(dirname "$TAXONOMY_NN_CLASSIFIER_DB")"
 mkdir -p "$TAXONOMY_NN_CLASSIFIER_REPORT_DIR"
@@ -43,7 +40,7 @@ uv run padjective/tagbattle.py \
 uv run padjective/taxonomy_classifier.py \
     "${TAGBATTLE_DSN_ARGS[@]}" \
     --product-table "$TAGBATTLE_PRODUCT_TABLE" \
-    --model-database "$TAXONOMY_CLASSIFIER_DB" \
+    --results-schema "$TAXONOMY_RESULTS_SCHEMA" \
     --output-dir "$TAXONOMY_CLASSIFIER_REPORT_DIR"
 
 uv run padjective/taxonomy_nn_classifier.py \
@@ -57,11 +54,6 @@ uv run -m padjective.experiments --tasks-db "$TASKS_DB" init --total "$TOTAL_TAS
 uv run -m padjective.experiments --tasks-db "$TASKS_DB" run "${TAGBATTLE_DSN_ARGS[@]}" --schema "$TAGBATTLE_SCHEMA" --take "$TASK_BATCH"
 uv run -m padjective.build_site --output "$OUTPUT_DIR" "${TAGBATTLE_DSN_ARGS[@]}" --schema "$TAGBATTLE_SCHEMA" --tasks-db "$TASKS_DB"
 
-uv run padjective/taxonomy_nb_classifier.py \
-    "${TAGBATTLE_DSN_ARGS[@]}" \
-    --product-table "$TAGBATTLE_PRODUCT_TABLE" \
-    --output-dir "$TAXONOMY_NB_REPORT_DIR"
-
 REMOTE_SITE="padjective@merah.cassia.ifost.org.au:/var/www/vhosts/padjective.symmachus.org/htdocs/"
 rsync -avz --delete "$OUTPUT_DIR/" "$REMOTE_SITE"
 
@@ -72,10 +64,6 @@ fi
 
 if [ -d "$TAXONOMY_NN_CLASSIFIER_REPORT_DIR" ]; then
     rsync -avz "$TAXONOMY_NN_CLASSIFIER_REPORT_DIR/" "$REMOTE_SITE/taxonomy_nn_classifier/"
-fi
-
-if [ -d "$TAXONOMY_NB_REPORT_DIR" ]; then
-    rsync -avz "$TAXONOMY_NB_REPORT_DIR/" "$REMOTE_SITE/taxonomy_nb_classifier/"
 fi
 
 # Sync data dumps

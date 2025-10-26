@@ -96,7 +96,7 @@ uv run padjective/tag_features.py --output data/tags.npz --output-metadata data/
 
 # Train taxonomy classifiers
 uv run padjective/taxonomy_classifier.py \
-    --model-database data/taxonomy_classifier.sqlite \
+    --results-schema padjective \
     --output-dir build/taxonomy_classifier
 
 uv run padjective/taxonomy_nn_classifier.py \
@@ -117,14 +117,16 @@ This sequence:
 The taxonomy classifiers produce:
 
 ### Logistic Regression
-* **SQLite database** (`data/taxonomy_classifier.sqlite`) containing:
-  - Model metadata (samples, accuracy, CV scores)
-  - Per-taxonomy-per-tag coefficients
-  - Tag importance rankings
+* **Postgres schema** (`padjective.taxonomy_lr_*` tables) containing:
+  - Model metadata (samples, accuracy, F1, hierarchical loss, CV scores)
+  - Class distribution snapshots and per-tag weight summaries
+  - Per-taxonomy top-weighted tags and intercepts
 * **HTML report** (`build/taxonomy_classifier/tag_coefficients.html`) visualizing:
   - Tags with largest absolute coefficients
   - Tags with largest summed coefficients across all taxonomies
   - Model performance metrics
+* Ensure the tables exist by running
+  `uv run padjective/taxonomy_classifier_schema.py --schema padjective`
 
 ### Neural Network
 * **SQLite database** (`data/taxonomy_nn_classifier.sqlite`) containing:
@@ -133,13 +135,10 @@ The taxonomy classifiers produce:
   - Network architecture
   - Training and cross-validation performance
 
-### Complement Naive Bayes
-* **Postgres schema** (`padjective.taxonomy_nb_*` tables) storing:
-  - Model metadata, cross-validation scores, tag summaries, and taxonomy priors
-* **HTML & JSON reports** (`build/taxonomy_nb_classifier/`) providing:
-  - Tags with the highest affinity for each taxonomy
-  - Distribution of products across taxonomy paths
-  - Training and cross-validation accuracy metrics
+### Complement Naive Bayes (removed)
+The Complement Naive Bayes pipeline has been superseded by the logistic
+regression workflow above. The old `padjective.taxonomy_nb_*` tables and
+`padjective/taxonomy_nb_classifier.py` have been retired.
 
 ## Deprecated: WordNet Synset Classification
 

@@ -183,7 +183,7 @@ def _build_index_html(
     taxonomy_section = ""
     if taxonomy_summary:
         stats_block = taxonomy_summary.get("stats", {})
-        top_taxonomies = taxonomy_summary.get("taxonomy_priors", [])[:10]
+        class_distribution = taxonomy_summary.get("class_distribution", [])[:10]
         top_tags_rows = taxonomy_summary.get("top_tags", [])[:15]
         trained_at = taxonomy_summary.get("trained_at")
 
@@ -199,7 +199,17 @@ def _build_index_html(
         accuracy = stats_block.get("training_accuracy")
         if accuracy is not None:
             summary_items.append(
-                f"<li><strong>Training accuracy:</strong> {accuracy:.3f}</li>"
+                f"<li><strong>Training accuracy:</strong> {accuracy * 100:.2f}%</li>"
+            )
+        training_f1 = stats_block.get("training_f1")
+        if training_f1 is not None:
+            summary_items.append(
+                f"<li><strong>Training F1 (weighted):</strong> {training_f1 * 100:.2f}%</li>"
+            )
+        training_hier = stats_block.get("training_hierarchical_loss")
+        if training_hier is not None:
+            summary_items.append(
+                f"<li><strong>Training hierarchical loss:</strong> {training_hier:.3f}</li>"
             )
         cv_info = stats_block.get("cross_validation") or {}
         if cv_info:
@@ -209,9 +219,27 @@ def _build_index_html(
             if mean is not None and folds:
                 summary_items.append(
                     "<li><strong>Cross-validated accuracy:</strong> "
-                    f"{mean:.3f}"
-                    + (f" ± {std:.3f}" if std is not None else "")
+                    f"{mean * 100:.2f}%"
+                    + (f" ± {std * 100:.2f}%" if std is not None else "")
                     + f" ({folds} folds)</li>"
+                )
+            mean_f1 = cv_info.get("mean_f1")
+            if mean_f1 is not None:
+                std_f1 = cv_info.get("std_f1")
+                summary_items.append(
+                    "<li><strong>Cross-validated F1 (weighted):</strong> "
+                    f"{mean_f1 * 100:.2f}%"
+                    + (f" ± {std_f1 * 100:.2f}%" if std_f1 is not None else "")
+                    + "</li>"
+                )
+            mean_hier = cv_info.get("mean_hierarchical_loss")
+            if mean_hier is not None:
+                std_hier = cv_info.get("std_hierarchical_loss")
+                summary_items.append(
+                    "<li><strong>Cross-validated hierarchical loss:</strong> "
+                    f"{mean_hier:.3f}"
+                    + (f" ± {std_hier:.3f}" if std_hier is not None else "")
+                    + "</li>"
                 )
         if trained_at:
             summary_items.append(
@@ -220,19 +248,22 @@ def _build_index_html(
 
         summary_list = '<ul class="taxonomy-stats">' + "".join(summary_items) + "</ul>"
 
-        taxonomy_rows = "\n".join(
+        distribution_rows = "\n".join(
             "<tr>"
             f"<td>{html.escape(row.get('taxonomy_id') or '')}</td>"
             f"<td>{html.escape(row.get('taxonomy_path') or 'Unknown')}</td>"
-            f"<td>{row.get('prior', 0.0) * 100:.2f}%</td>"
+            f"<td>{row.get('sample_count', 0):,}</td>"
+            f"<td>{row.get('sample_fraction', 0.0) * 100:.2f}%</td>"
             "</tr>"
-            for row in top_taxonomies
+            for row in class_distribution
         )
-        taxonomy_body = taxonomy_rows or '<tr><td colspan="3">No taxonomy data</td></tr>'
+        distribution_body = (
+            distribution_rows or '<tr><td colspan="4">No taxonomy data</td></tr>'
+        )
         taxonomy_table = (
             '<table class="taxonomy-table">'
-            '<thead><tr><th>Taxonomy ID</th><th>Path</th><th>Estimated share</th></tr></thead>'
-            f"<tbody>{taxonomy_body}</tbody>"
+            '<thead><tr><th>Taxonomy ID</th><th>Path</th><th>Samples</th><th>Share</th></tr></thead>'
+            f"<tbody>{distribution_body}</tbody>"
             "</table>"
         )
 
@@ -241,15 +272,15 @@ def _build_index_html(
             f"<td>{html.escape(row.get('tag') or '')}</td>"
             f"<td>{html.escape(row.get('top_taxonomy_id') or '')}</td>"
             f"<td>{html.escape(row.get('top_taxonomy_path') or 'Unknown')}</td>"
-            f"<td>{row.get('probability', 0.0) * 100:.2f}%</td>"
-            f"<td>{row.get('margin', 0.0):.3f}</td>"
+            f"<td>{row.get('top_weight', 0.0):.4f}</td>"
+            f"<td>{row.get('max_abs_weight', 0.0):.4f}</td>"
             "</tr>"
             for row in top_tags_rows
         )
         tag_body = tag_rows or '<tr><td colspan="5">No tag signals available</td></tr>'
         tag_table = (
             '<table class="tag-taxonomy-table">'
-            '<thead><tr><th>Tag</th><th>Taxonomy ID</th><th>Path</th><th>Association</th><th>Margin</th></tr></thead>'
+            '<thead><tr><th>Tag</th><th>Taxonomy ID</th><th>Path</th><th>Weight</th><th>Max |weight|</th></tr></thead>'
             f"<tbody>{tag_body}</tbody>"
             "</table>"
         )
@@ -257,17 +288,17 @@ def _build_index_html(
         taxonomy_section = f"""
   <section class="taxonomy-classifier">
     <h2>Shopify taxonomy classification</h2>
-    <p>We train a Complement Naive Bayes model on Shopify tags to predict taxonomy IDs.</p>
+    <p>We train a logistic regression model on Shopify tags to predict taxonomy IDs.</p>
     {summary_list}
-    <div class="taxonomy-layout">
-      <div class="taxonomy-card">
-        <h3>Most common taxonomies</h3>
+    <div class="taxonomy-grid">
+      <section>
+        <h3>Largest taxonomy classes</h3>
         {taxonomy_table}
-      </div>
-      <div class="taxonomy-card">
-        <h3>Strongest tag signals</h3>
+      </section>
+      <section>
+        <h3>Tags with strongest signal</h3>
         {tag_table}
-      </div>
+      </section>
     </div>
   </section>
 """
@@ -354,26 +385,36 @@ def _build_index_html(
     (output_dir / "index.html").write_text(html_document, encoding="utf-8")
 
 
-def _collect_taxonomy_nb_summary(conn) -> Optional[Dict[str, Any]]:
-    """Fetch the latest ComplementNB taxonomy classifier summary from Postgres."""
+def _collect_taxonomy_classifier_summary(
+    conn, schema: str = "padjective"
+) -> Optional[Dict[str, Any]]:
+    """Fetch the latest logistic taxonomy classifier summary from Postgres."""
 
     with conn.cursor(row_factory=dict_row) as cur:
         cur.execute(
-            """
-            SELECT
-                id,
-                trained_at,
-                samples,
-                taxonomies,
-                unique_tags,
-                training_accuracy,
-                cv_folds,
-                cv_mean_accuracy,
-                cv_std_accuracy
-            FROM padjective.taxonomy_nb_models
-            ORDER BY trained_at DESC, id DESC
-            LIMIT 1
-            """
+            sql.SQL(
+                """
+                SELECT
+                    id,
+                    trained_at,
+                    samples,
+                    taxonomies,
+                    unique_tags,
+                    training_accuracy,
+                    training_f1,
+                    training_hierarchical_loss,
+                    cv_folds,
+                    cv_mean_accuracy,
+                    cv_std_accuracy,
+                    cv_mean_f1,
+                    cv_std_f1,
+                    cv_mean_hierarchical_loss,
+                    cv_std_hierarchical_loss
+                FROM {schema}.taxonomy_lr_models
+                ORDER BY trained_at DESC, id DESC
+                LIMIT 1
+                """
+            ).format(schema=sql.Identifier(schema))
         )
         model_row = cur.fetchone()
 
@@ -388,50 +429,90 @@ def _collect_taxonomy_nb_summary(conn) -> Optional[Dict[str, Any]]:
         "unique_tags": model_row["unique_tags"],
         "training_accuracy": model_row["training_accuracy"],
     }
+    if model_row.get("training_f1") is not None:
+        stats["training_f1"] = float(model_row["training_f1"])
+    if model_row.get("training_hierarchical_loss") is not None:
+        stats["training_hierarchical_loss"] = float(
+            model_row["training_hierarchical_loss"]
+        )
     if model_row.get("cv_folds"):
         stats["cross_validation"] = {
             "folds": model_row["cv_folds"],
             "mean_accuracy": model_row["cv_mean_accuracy"],
             "std_accuracy": model_row["cv_std_accuracy"],
+            "mean_f1": model_row.get("cv_mean_f1"),
+            "std_f1": model_row.get("cv_std_f1"),
+            "mean_hierarchical_loss": model_row.get("cv_mean_hierarchical_loss"),
+            "std_hierarchical_loss": model_row.get("cv_std_hierarchical_loss"),
         }
 
     with conn.cursor(row_factory=dict_row) as cur:
         cur.execute(
-            """
-            SELECT taxonomy_id, taxonomy_path, prior
-            FROM padjective.taxonomy_nb_priors
-            WHERE model_id = %s
-            ORDER BY prior DESC
-            """,
+            sql.SQL(
+                """
+                SELECT taxonomy_id, taxonomy_path, sample_count, sample_fraction
+                FROM {schema}.taxonomy_lr_class_distribution
+                WHERE model_id = %s
+                ORDER BY sample_fraction DESC, sample_count DESC, taxonomy_id
+                """
+            ).format(schema=sql.Identifier(schema)),
             (model_id,),
         )
-        taxonomy_priors = [
+        class_distribution = [
             {
                 "taxonomy_id": row["taxonomy_id"],
                 "taxonomy_path": row["taxonomy_path"],
-                "prior": float(row["prior"]),
+                "sample_count": int(row["sample_count"]),
+                "sample_fraction": float(row["sample_fraction"]),
             }
             for row in cur.fetchall()
         ]
 
     with conn.cursor(row_factory=dict_row) as cur:
         cur.execute(
-            """
-            SELECT tag, top_taxonomy_id, top_taxonomy_path, probability, margin
-            FROM padjective.taxonomy_nb_tag_summary
-            WHERE model_id = %s
-            ORDER BY margin DESC, probability DESC
-            LIMIT 200
-            """,
+            sql.SQL(
+                """
+                SELECT tag, top_taxonomy_id, top_taxonomy_path,
+                       top_weight, max_abs_weight, sum_abs_weight
+                FROM {schema}.taxonomy_lr_tag_summary
+                WHERE model_id = %s
+                ORDER BY max_abs_weight DESC, sum_abs_weight DESC, tag
+                LIMIT 200
+                """
+            ).format(schema=sql.Identifier(schema)),
             (model_id,),
         )
-        top_tags = [
+        tag_summary = [
             {
                 "tag": row["tag"],
                 "top_taxonomy_id": row["top_taxonomy_id"],
                 "top_taxonomy_path": row["top_taxonomy_path"],
-                "probability": float(row["probability"]),
-                "margin": float(row["margin"]),
+                "top_weight": float(row["top_weight"]),
+                "max_abs_weight": float(row["max_abs_weight"]),
+                "sum_abs_weight": float(row["sum_abs_weight"]),
+            }
+            for row in cur.fetchall()
+        ]
+
+    with conn.cursor(row_factory=dict_row) as cur:
+        cur.execute(
+            sql.SQL(
+                """
+                SELECT taxonomy_id, taxonomy_path, tag, weight, rank
+                FROM {schema}.taxonomy_lr_top_tags
+                WHERE model_id = %s
+                ORDER BY taxonomy_id, rank
+                """
+            ).format(schema=sql.Identifier(schema)),
+            (model_id,),
+        )
+        taxonomy_top_tags = [
+            {
+                "taxonomy_id": row["taxonomy_id"],
+                "taxonomy_path": row["taxonomy_path"],
+                "tag": row["tag"],
+                "weight": float(row["weight"]),
+                "rank": int(row["rank"]),
             }
             for row in cur.fetchall()
         ]
@@ -440,8 +521,9 @@ def _collect_taxonomy_nb_summary(conn) -> Optional[Dict[str, Any]]:
         "model_id": model_id,
         "trained_at": trained_at.isoformat(timespec="seconds") if trained_at else None,
         "stats": stats,
-        "taxonomy_priors": taxonomy_priors,
-        "top_tags": top_tags,
+        "class_distribution": class_distribution,
+        "top_tags": tag_summary,
+        "taxonomy_top_tags": taxonomy_top_tags,
     }
 def build_site(
     output_dir: Path,
@@ -541,7 +623,9 @@ footer {text-align: center; padding: 2rem 1.5rem 3rem; color: #6b7280;}
     if tasks_db is not None and tasks_db.exists():
         experiments_summary = experiments.task_status(tasks_db)
 
-    taxonomy_summary = _collect_taxonomy_nb_summary(precomputed_database)
+    taxonomy_summary = _collect_taxonomy_classifier_summary(
+        precomputed_database, schema=battle_schema
+    )
 
     _build_index_html(
         output_dir,
