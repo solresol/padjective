@@ -86,7 +86,7 @@ def ensure_table(
                 """
                 CREATE TABLE IF NOT EXISTS {schema}.{table} (
                     {columns}
-                ) TABLESPACE pg_default
+                )
                 """
             ).format(
                 schema=sql.Identifier(schema),
