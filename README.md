@@ -35,6 +35,11 @@ For each product retrieved from the Shopify stores Postgres database:
    - For each pair of tags which are somewhere in the title, record which one came first. Pretend that it's a competition, and record which tag won and which tag lost into
      the ``padjective.battles`` table (created on the ``pg_default`` tablespace)
 
+The recorded battle outcome is directional: the tag that starts later in the
+title is always stored as the ``winner_tag`` and the earlier one as the
+``loser_tag``. If two tags start at the same character we skip the pair so that
+we never arbitrarily credit the "leftmost" tag with a win.
+
 ## ranking.py
 
 Use the choix library and the Postgres ``padjective.battles`` table from tagbattle.py to produce ranking tables for each tag and persist them in ``padjective.tag_rankings``.

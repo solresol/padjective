@@ -80,7 +80,15 @@ def tag_positions(title: str, tags: Iterable[str]) -> Dict[str, int]:
 
 
 def build_battles(title: str, tag_string: str) -> List[Tuple[str, str]]:
-    """Return ordered tag pairs derived from ``title`` and ``tag_string``."""
+    """Return ordered tag pairs derived from ``title`` and ``tag_string``.
+
+    Each pair is represented as ``(winner_tag, loser_tag)`` where the winner is
+    the tag that appears *later* in the product title (after case-insensitive
+    matching and substring filtering). This means the "rightmost" tag wins every
+    battle, while the tag that is found earlier in the title is recorded as the
+    loser. Ties—where two tags start at the same character index—are ignored to
+    avoid assigning an arbitrary winner.
+    """
 
     tags = [t.strip() for t in tag_string.split(",") if t.strip()]
     tags = [t.upper() for t in filter_nested_tags(tags)]
@@ -95,7 +103,7 @@ def build_battles(title: str, tag_string: str) -> List[Tuple[str, str]]:
                 t1, t2 = ordered_tags[i], ordered_tags[j]
                 if positions[t1] == positions[t2]:
                     continue
-                if positions[t1] < positions[t2]:
+                if positions[t1] > positions[t2]:
                     pairs.append((t1, t2))
                 else:
                     pairs.append((t2, t1))
