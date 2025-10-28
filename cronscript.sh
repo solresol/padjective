@@ -37,18 +37,18 @@ uv run padjective/tagbattle.py \
     --batch-size "$TAGBATTLE_BATCH_SIZE"
 
 # Ensure taxonomy classifier schema exists
-uv run padjective/taxonomy_classifier_schema.py \
+uv run -m padjective.taxonomy_classifier_schema \
     "${TAGBATTLE_DSN_ARGS[@]}" \
     --schema "$TAXONOMY_RESULTS_SCHEMA"
 
 # Train taxonomy classifiers
-uv run padjective/taxonomy_classifier.py \
+uv run -m padjective.taxonomy_classifier \
     "${TAGBATTLE_DSN_ARGS[@]}" \
     --product-table "$TAGBATTLE_PRODUCT_TABLE" \
     --results-schema "$TAXONOMY_RESULTS_SCHEMA" \
     --output-dir "$TAXONOMY_CLASSIFIER_REPORT_DIR"
 
-uv run padjective/taxonomy_nn_classifier.py \
+uv run -m padjective.taxonomy_nn_classifier \
     "${TAGBATTLE_DSN_ARGS[@]}" \
     --product-table "$TAGBATTLE_PRODUCT_TABLE" \
     --model-database "$TAXONOMY_NN_CLASSIFIER_DB" \
