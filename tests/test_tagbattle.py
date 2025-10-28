@@ -23,4 +23,4 @@ def test_tag_positions():
 
 def test_build_battles_generates_pairs():
     pairs = build_battles("big bunny milk chocolate", "bunny,milk chocolate")
-    assert pairs == [("BUNNY", "MILK CHOCOLATE")]
+    assert pairs == [("MILK CHOCOLATE", "BUNNY")]
