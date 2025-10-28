@@ -75,28 +75,41 @@ def ensure_table(
     schema: str,
     table: str,
     columns_sql: Iterable[str],
-    indexes_sql: Iterable[str] | None = None,
+    indexes_sql: Iterable[object] | None = None,
+    table_tablespace: str = "pg_default",
+    index_tablespace: str | None = None,
 ) -> None:
     """Ensure a table exists using the provided column and index SQL fragments."""
 
     column_block = ",\n".join(columns_sql)
+    effective_index_tablespace = index_tablespace or table_tablespace
+
     with conn.cursor() as cur:
         cur.execute(
             sql.SQL(
                 """
                 CREATE TABLE IF NOT EXISTS {schema}.{table} (
                     {columns}
-                )
+                ) TABLESPACE {tablespace}
                 """
             ).format(
                 schema=sql.Identifier(schema),
                 table=sql.Identifier(table),
                 columns=sql.SQL(column_block),
+                tablespace=sql.Identifier(table_tablespace),
             )
         )
         if indexes_sql:
             for statement in indexes_sql:
-                cur.execute(statement)
+                if hasattr(statement, "as_string"):
+                    statement_text = statement.as_string(conn)
+                else:
+                    statement_text = str(statement)
+
+                if effective_index_tablespace and "TABLESPACE" not in statement_text.upper():
+                    statement_text = f"{statement_text} TABLESPACE {effective_index_tablespace}"
+
+                cur.execute(statement_text)
     conn.commit()
 
 
