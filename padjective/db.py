@@ -9,6 +9,9 @@ import psycopg
 from psycopg import sql
 
 
+DEFAULT_TABLESPACE = "pg_default"
+
+
 def get_connection(dsn: str | None = None) -> psycopg.Connection:
     """Return a psycopg connection using ``dsn`` or environment defaults.
 
@@ -76,15 +79,27 @@ def ensure_table(
     table: str,
     columns_sql: Iterable[str],
     indexes_sql: Iterable[object] | None = None,
-    table_tablespace: str = "pg_default",
+    table_tablespace: str = DEFAULT_TABLESPACE,
     index_tablespace: str | None = None,
 ) -> None:
     """Ensure a table exists using the provided column and index SQL fragments."""
 
     column_block = ",\n".join(columns_sql)
+
+    if table_tablespace != DEFAULT_TABLESPACE:
+        raise ValueError(
+            "table_tablespace must be pg_default to comply with deployment requirements"
+        )
+
+    if index_tablespace and index_tablespace != DEFAULT_TABLESPACE:
+        raise ValueError(
+            "index_tablespace must be pg_default to comply with deployment requirements"
+        )
+
     effective_index_tablespace = index_tablespace or table_tablespace
 
     with conn.cursor() as cur:
+        tablespace_identifier = sql.Identifier(DEFAULT_TABLESPACE)
         cur.execute(
             sql.SQL(
                 """
@@ -96,7 +111,7 @@ def ensure_table(
                 schema=sql.Identifier(schema),
                 table=sql.Identifier(table),
                 columns=sql.SQL(column_block),
-                tablespace=sql.Identifier(table_tablespace),
+                tablespace=tablespace_identifier,
             )
         )
         if indexes_sql:
@@ -107,7 +122,8 @@ def ensure_table(
                     statement_text = str(statement)
 
                 if effective_index_tablespace and "TABLESPACE" not in statement_text.upper():
-                    statement_text = f"{statement_text} TABLESPACE {effective_index_tablespace}"
+                    index_tablespace_sql = sql.Identifier(effective_index_tablespace).as_string(conn)
+                    statement_text = f"{statement_text} TABLESPACE {index_tablespace_sql}"
 
                 cur.execute(statement_text)
     conn.commit()
