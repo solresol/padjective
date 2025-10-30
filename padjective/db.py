@@ -99,21 +99,32 @@ def ensure_table(
     effective_index_tablespace = index_tablespace or table_tablespace
 
     with conn.cursor() as cur:
-        tablespace_identifier = sql.Identifier(DEFAULT_TABLESPACE)
         cur.execute(
-            sql.SQL(
-                """
-                CREATE TABLE IF NOT EXISTS {schema}.{table} (
-                    {columns}
-                ) TABLESPACE {tablespace}
-                """
-            ).format(
-                schema=sql.Identifier(schema),
-                table=sql.Identifier(table),
-                columns=sql.SQL(column_block),
-                tablespace=tablespace_identifier,
-            )
+            """
+            SELECT 1
+            FROM information_schema.tables
+            WHERE table_schema = %s AND table_name = %s
+            """,
+            (schema, table),
         )
+        table_exists = cur.fetchone() is not None
+
+        if not table_exists:
+            tablespace_identifier = sql.Identifier(DEFAULT_TABLESPACE)
+            cur.execute(
+                sql.SQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS {schema}.{table} (
+                        {columns}
+                    ) TABLESPACE {tablespace}
+                    """
+                ).format(
+                    schema=sql.Identifier(schema),
+                    table=sql.Identifier(table),
+                    columns=sql.SQL(column_block),
+                    tablespace=tablespace_identifier,
+                )
+            )
         if indexes_sql:
             for statement in indexes_sql:
                 if hasattr(statement, "as_string"):
