@@ -8,8 +8,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, Iterable, List, Sequence, Tuple
 
+import numpy as np
 from psycopg import sql
 from psycopg.rows import dict_row
+from sklearn.model_selection import StratifiedKFold
 
 if __package__ in {None, ""}:
     project_root = Path(__file__).resolve().parent.parent
@@ -27,6 +29,7 @@ class Battle:
     product_id: int | None
     winner_tag: str
     loser_tag: str
+    cv_fold: int | None = None
 
 
 def filter_nested_tags(tags: Iterable[str]) -> List[str]:
@@ -118,6 +121,7 @@ def ensure_storage(conn, schema: str) -> None:
         "product_id BIGINT",
         "winner_tag TEXT NOT NULL",
         "loser_tag TEXT NOT NULL",
+        "cv_fold INTEGER",
         "recorded_at TIMESTAMPTZ NOT NULL DEFAULT now()",
     )
     indexes = (
@@ -148,10 +152,10 @@ def insert_battles(conn, schema: str, battles: Sequence[Battle]) -> None:
     with conn.cursor() as cur:
         cur.executemany(
             sql.SQL(
-                "INSERT INTO {schema}.battles (product_id, winner_tag, loser_tag) "
-                "VALUES (%s, %s, %s)"
+                "INSERT INTO {schema}.battles (product_id, winner_tag, loser_tag, cv_fold) "
+                "VALUES (%s, %s, %s, %s)"
             ).format(schema=sql.Identifier(schema)),
-            [(b.product_id, b.winner_tag, b.loser_tag) for b in battles],
+            [(b.product_id, b.winner_tag, b.loser_tag, b.cv_fold) for b in battles],
         )
     conn.commit()
 
@@ -193,6 +197,66 @@ def stream_products(conn, product_table: str = "cantbuymelove.product"):
             yield row
 
 
+def calculate_cv_folds(
+    conn,
+    product_table: str = "cantbuymelove.product",
+    n_splits: int = 5,
+    random_state: int = 42,
+) -> Dict[int, int]:
+    """Calculate cross-validation fold assignments for products.
+
+    Uses StratifiedKFold to assign each product to a fold based on its taxonomy_id.
+    The same random_state ensures consistency with taxonomy classifier training.
+
+    Args:
+        conn: psycopg connection to the database
+        product_table: qualified name of the product table
+        n_splits: number of CV folds (default: 5)
+        random_state: random seed for reproducibility (default: 42)
+
+    Returns:
+        dict: Mapping from product_id to fold number (0-indexed)
+    """
+
+    product_identifier = db.qualified_identifier(product_table)
+    query = sql.SQL(
+        """
+        SELECT
+            p.id,
+            pt.taxonomy_id
+        FROM {products} AS p
+        JOIN cantbuymelove.product_taxonomy pt ON pt.product_id = p.id
+        WHERE p.product_title IS NOT NULL
+        ORDER BY p.id
+        """
+    ).format(
+        products=product_identifier,
+    )
+
+    product_ids = []
+    taxonomy_ids = []
+
+    with conn.cursor(row_factory=dict_row) as cur:
+        cur.execute(query)
+        for row in cur:
+            product_ids.append(row["id"])
+            taxonomy_ids.append(row["taxonomy_id"])
+
+    # Convert to numpy arrays for sklearn
+    product_ids_array = np.array(product_ids)
+    taxonomy_ids_array = np.array(taxonomy_ids)
+
+    # Calculate fold assignments using the same logic as taxonomy_classifier.py
+    cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=random_state)
+    fold_assignments = {}
+
+    for fold_idx, (_, test_idx) in enumerate(cv.split(product_ids_array, taxonomy_ids_array)):
+        for idx in test_idx:
+            fold_assignments[product_ids_array[idx]] = fold_idx
+
+    return fold_assignments
+
+
 def process_database(
     dsn: str | None,
     schema: str,
@@ -211,13 +275,22 @@ def process_database(
     conn = db.get_connection(dsn)
     ensure_storage(conn, schema)
 
+    # Calculate fold assignments once at the start
+    fold_assignments = calculate_cv_folds(conn, product_table)
+
     buffer: List[Battle] = []
     for row in stream_products(conn, product_table):
         title = row.get("title") or ""
         tag_string = row.get("tags") or ""
         product_id = row.get("id")
+        cv_fold = fold_assignments.get(product_id)
         for winner, loser in build_battles(title, tag_string):
-            buffer.append(Battle(product_id=product_id, winner_tag=winner, loser_tag=loser))
+            buffer.append(Battle(
+                product_id=product_id,
+                winner_tag=winner,
+                loser_tag=loser,
+                cv_fold=cv_fold
+            ))
         if len(buffer) >= batch_size:
             insert_battles(conn, schema, buffer)
             buffer.clear()

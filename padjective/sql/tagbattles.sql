@@ -7,6 +7,7 @@ CREATE TABLE IF NOT EXISTS padjective.battles (
     product_id BIGINT,
     winner_tag TEXT NOT NULL,
     loser_tag TEXT NOT NULL,
+    cv_fold INTEGER,
     recorded_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
