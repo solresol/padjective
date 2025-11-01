@@ -60,6 +60,25 @@ def _count_battles(pairs: Sequence[Tuple[str, str]]) -> int:
     return len(pairs)
 
 
+def _table_exists(conn, schema: str, table: str) -> bool:
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT 1
+                FROM information_schema.tables
+                WHERE table_schema = %s AND table_name = %s
+                """,
+                (schema, table),
+            )
+            fetchone = getattr(cur, "fetchone", None)
+            if fetchone is None:
+                return False
+            return fetchone() is not None
+    except Exception:
+        return False
+
+
 def _write_sql_dump(pairs: Sequence[Tuple[str, str]], dump_path: Path, schema: str) -> None:
     with dump_path.open("w", encoding="utf-8") as dump_file:
         dump_file.write("BEGIN;\n")
@@ -72,6 +91,169 @@ def _write_sql_dump(pairs: Sequence[Tuple[str, str]], dump_path: Path, schema: s
         dump_file.write("COMMIT;\n")
 
 
+def _load_umllr_results(conn, schema: str) -> Optional[Dict[str, Any]]:
+    required_tables = (
+        "umllr_fold_metrics",
+        "umllr_tag_coefficients",
+        "umllr_predictions",
+    )
+    if not all(_table_exists(conn, schema, table) for table in required_tables):
+        return None
+
+    with conn.cursor(row_factory=dict_row) as cur:
+        cur.execute(
+            sql.SQL(
+                """
+                SELECT cv_fold, loss, prime_base, max_digit
+                FROM {schema}.umllr_fold_metrics
+                ORDER BY cv_fold
+                """
+            ).format(schema=sql.Identifier(schema))
+        )
+        metrics_rows = cur.fetchall()
+
+    if not metrics_rows:
+        return None
+
+    metrics = [
+        {
+            "cv_fold": int(row["cv_fold"]),
+            "loss": float(row["loss"]),
+            "prime_base": int(row["prime_base"]),
+            "max_digit": int(row["max_digit"]),
+        }
+        for row in metrics_rows
+    ]
+
+    coefficients: Dict[int, list[Dict[str, Any]]] = {}
+    with conn.cursor(row_factory=dict_row) as cur:
+        cur.execute(
+            sql.SQL(
+                """
+                SELECT cv_fold, tag, coefficient, sequence
+                FROM {schema}.umllr_tag_coefficients
+                ORDER BY cv_fold, sequence, tag
+                """
+            ).format(schema=sql.Identifier(schema))
+        )
+        for row in cur:
+            fold = int(row["cv_fold"])
+            coefficients.setdefault(fold, []).append(
+                {
+                    "tag": row["tag"],
+                    "coefficient": int(row["coefficient"]),
+                    "sequence": int(row["sequence"]),
+                }
+            )
+
+    predictions: Dict[int, list[Dict[str, Any]]] = {}
+    with conn.cursor(row_factory=dict_row) as cur:
+        cur.execute(
+            sql.SQL(
+                """
+                SELECT cv_fold, product_id, true_value, predicted_value, loss
+                FROM {schema}.umllr_predictions
+                ORDER BY cv_fold, product_id
+                """
+            ).format(schema=sql.Identifier(schema))
+        )
+        for row in cur:
+            fold = int(row["cv_fold"])
+            predictions.setdefault(fold, []).append(
+                {
+                    "product_id": int(row["product_id"]),
+                    "true_value": int(row["true_value"]),
+                    "predicted_value": int(row["predicted_value"]),
+                    "loss": float(row["loss"]),
+                }
+            )
+
+    return {
+        "metrics": metrics,
+        "coefficients": coefficients,
+        "predictions": predictions,
+    }
+
+
+def _write_umllr_pages(output_dir: Path, summary: Dict[str, Any]) -> Dict[int, Path]:
+    pages: Dict[int, Path] = {}
+    metrics = summary.get("metrics", [])
+    if not metrics:
+        return pages
+
+    umllr_dir = output_dir / "umllr"
+    umllr_dir.mkdir(parents=True, exist_ok=True)
+
+    coefficients = summary.get("coefficients", {})
+    predictions = summary.get("predictions", {})
+
+    for metric in metrics:
+        fold = metric["cv_fold"]
+        coeff_rows = coefficients.get(fold, [])
+        prediction_rows = predictions.get(fold, [])
+
+        coeff_table_rows = "\n".join(
+            f"<tr><td>{html.escape(row['tag'])}</td><td>{row['coefficient']}</td><td>{row['sequence']}</td></tr>"
+            for row in coeff_rows
+        )
+        if not coeff_table_rows:
+            coeff_table_rows = '<tr><td colspan="3">No coefficients recorded for this fold.</td></tr>'
+
+        prediction_table_rows = "\n".join(
+            "<tr>"
+            f"<td>{row['product_id']}</td>"
+            f"<td>{row['true_value']}</td>"
+            f"<td>{row['predicted_value']}</td>"
+            f"<td>{row['loss']:.6f}</td>"
+            "</tr>"
+            for row in prediction_rows
+        )
+        if not prediction_table_rows:
+            prediction_table_rows = '<tr><td colspan="4">No test predictions available for this fold.</td></tr>'
+
+        page_contents = f"""
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>umllr fold {fold} results</title>
+  <link rel="stylesheet" href="../assets/styles.css" />
+</head>
+<body>
+  <section class="umllr-fold">
+    <h1>umllr fold {fold}</h1>
+    <p><a href="../index.html">Back to index</a></p>
+    <p><strong>Total p-adic loss:</strong> {metric['loss']:.6f} &middot; <strong>Prime base:</strong> {metric['prime_base']} &middot; <strong>Max digit:</strong> {metric['max_digit']}</p>
+    <h2>Tag coefficients</h2>
+    <table class="umllr-table">
+      <thead>
+        <tr><th>Tag</th><th>Coefficient</th><th>Order</th></tr>
+      </thead>
+      <tbody>
+        {coeff_table_rows}
+      </tbody>
+    </table>
+    <h2>Test predictions</h2>
+    <table class="umllr-table">
+      <thead>
+        <tr><th>Product ID</th><th>Ground truth</th><th>Prediction</th><th>p-adic loss</th></tr>
+      </thead>
+      <tbody>
+        {prediction_table_rows}
+      </tbody>
+    </table>
+  </section>
+</body>
+</html>
+"""
+
+        page_path = umllr_dir / f"fold_{fold}.html"
+        page_path.write_text(page_contents, encoding="utf-8")
+        pages[fold] = page_path
+
+    return pages
+
+
 
 
 def _build_index_html(
@@ -82,6 +264,7 @@ def _build_index_html(
     artifact_links: Dict[str, Path],
     experiments_summary: Optional[Dict[str, Any]] = None,
     taxonomy_summary: Optional[Dict[str, Any]] = None,
+    umllr_summary: Optional[Dict[str, Any]] = None,
 ) -> None:
     top_table = leaderboard.head(20).to_html(index=False, classes="leaderboard")
     bottom_table = (
@@ -303,6 +486,42 @@ def _build_index_html(
   </section>
 """
 
+    umllr_block = ""
+    if umllr_summary and umllr_summary.get("metrics"):
+        rows: list[str] = []
+        page_lookup = umllr_summary.get("pages", {})
+        for metric in umllr_summary.get("metrics", []):
+            fold = metric["cv_fold"]
+            link = page_lookup.get(fold)
+            if link:
+                details = f'<a href="{link}">View fold {fold}</a>'
+            else:
+                details = f"Fold {fold}"
+            rows.append(
+                "<tr>"
+                f"<td>{fold}</td>"
+                f"<td>{metric['loss']:.6f}</td>"
+                f"<td>{metric.get('prime_base')}</td>"
+                f"<td>{metric.get('max_digit')}</td>"
+                f"<td>{details}</td>"
+                "</tr>"
+            )
+        table_body = "\n".join(rows) or '<tr><td colspan="5">No cross-validation folds recorded.</td></tr>'
+        umllr_block = f"""
+  <section class="umllr">
+    <h2>umllr cross-validation</h2>
+    <p>The umllr trainer assigns p-adic coefficients to tags and evaluates them on held-out products.</p>
+    <table class="umllr-summary">
+      <thead>
+        <tr><th>Fold</th><th>Total loss</th><th>Prime base</th><th>Max digit</th><th>Details</th></tr>
+      </thead>
+      <tbody>
+        {table_body}
+      </tbody>
+    </table>
+  </section>
+"""
+
     html_document = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -353,6 +572,7 @@ def _build_index_html(
     </div>
   </section>
 
+  {umllr_block}
   {taxonomy_section}
 
   <section class="methodology">
@@ -604,6 +824,16 @@ table.taxonomy-table tbody tr:nth-child(even), table.tag-taxonomy-table tbody tr
 .experiments-table {width: calc(100% - 3rem); margin: 1rem 1.5rem; border-collapse: collapse;}
 .experiments-table th, .experiments-table td {border-bottom: 1px solid #e5e7eb; padding: 0.75rem 1rem; text-align: left;}
 .experiments-table thead {background: #f1f5f9;}
+.umllr {background: white; border-radius: 1rem; box-shadow: 0 12px 30px rgba(15, 23, 42, 0.12); margin-top: 2rem; padding: 2rem 1.5rem;}
+.umllr h2 {margin-top: 0;}
+.umllr-summary {width: 100%; border-collapse: collapse; margin-top: 1rem;}
+.umllr-summary th, .umllr-summary td {border-bottom: 1px solid #e2e8f0; padding: 0.75rem 1rem; text-align: left;}
+.umllr-summary thead {background: #f8fafc;}
+.umllr-fold {max-width: 70rem; margin: 0 auto; padding: 2rem 1.5rem;}
+.umllr-fold h1 {margin-top: 0;}
+.umllr-table {width: 100%; border-collapse: collapse; margin-bottom: 2rem; background: white;}
+.umllr-table th, .umllr-table td {border-bottom: 1px solid #e2e8f0; padding: 0.75rem 1rem; text-align: left;}
+.umllr-table thead {background: #f8fafc;}
 .downloads ul {list-style: none; padding: 0;}
 .downloads li {margin: 0.5rem 0;}
 .downloads a {color: #0b6ce3; text-decoration: none; font-weight: 600;}
@@ -627,6 +857,14 @@ footer {text-align: center; padding: 2rem 1.5rem 3rem; color: #6b7280;}
         precomputed_database, schema=battle_schema
     )
 
+    umllr_summary = _load_umllr_results(precomputed_database, battle_schema)
+    if umllr_summary:
+        pages = _write_umllr_pages(output_dir, umllr_summary)
+        umllr_summary["pages"] = {
+            fold: path.relative_to(output_dir).as_posix()
+            for fold, path in pages.items()
+        }
+
     _build_index_html(
         output_dir,
         stats,
@@ -635,6 +873,7 @@ footer {text-align: center; padding: 2rem 1.5rem 3rem; color: #6b7280;}
         artifact_links,
         experiments_summary,
         taxonomy_summary,
+        umllr_summary,
     )
 
     metadata = {
@@ -643,6 +882,7 @@ footer {text-align: center; padding: 2rem 1.5rem 3rem; color: #6b7280;}
         "artifacts": {label: str(path.relative_to(output_dir)) for label, path in artifact_links.items()},
         "experiments": experiments_summary,
         "taxonomy_classifier": taxonomy_summary,
+        "umllr": umllr_summary,
     }
     (output_dir / "metadata.json").write_text(
         json.dumps(metadata, indent=2) + "\n",
