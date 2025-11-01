@@ -8,18 +8,18 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, Iterable, List, Sequence, Tuple
 
-import numpy as np
 from psycopg import sql
 from psycopg.rows import dict_row
-from sklearn.model_selection import StratifiedKFold
 
 if __package__ in {None, ""}:
     project_root = Path(__file__).resolve().parent.parent
     if str(project_root) not in sys.path:
         sys.path.append(str(project_root))
     from padjective import db
+    from padjective.cv import calculate_cv_folds
 else:
     from . import db
+    from .cv import calculate_cv_folds
 
 
 @dataclass(frozen=True)
@@ -197,66 +197,6 @@ def stream_products(conn, product_table: str = "cantbuymelove.product"):
             yield row
 
 
-def calculate_cv_folds(
-    conn,
-    product_table: str = "cantbuymelove.product",
-    n_splits: int = 5,
-    random_state: int = 42,
-) -> Dict[int, int]:
-    """Calculate cross-validation fold assignments for products.
-
-    Uses StratifiedKFold to assign each product to a fold based on its taxonomy_id.
-    The same random_state ensures consistency with taxonomy classifier training.
-
-    Args:
-        conn: psycopg connection to the database
-        product_table: qualified name of the product table
-        n_splits: number of CV folds (default: 5)
-        random_state: random seed for reproducibility (default: 42)
-
-    Returns:
-        dict: Mapping from product_id to fold number (0-indexed)
-    """
-
-    product_identifier = db.qualified_identifier(product_table)
-    query = sql.SQL(
-        """
-        SELECT
-            p.id,
-            pt.taxonomy_id
-        FROM {products} AS p
-        JOIN cantbuymelove.product_taxonomy pt ON pt.product_id = p.id
-        WHERE p.product_title IS NOT NULL
-        ORDER BY p.id
-        """
-    ).format(
-        products=product_identifier,
-    )
-
-    product_ids = []
-    taxonomy_ids = []
-
-    with conn.cursor(row_factory=dict_row) as cur:
-        cur.execute(query)
-        for row in cur:
-            product_ids.append(row["id"])
-            taxonomy_ids.append(row["taxonomy_id"])
-
-    # Convert to numpy arrays for sklearn
-    product_ids_array = np.array(product_ids)
-    taxonomy_ids_array = np.array(taxonomy_ids)
-
-    # Calculate fold assignments using the same logic as taxonomy_classifier.py
-    cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=random_state)
-    fold_assignments = {}
-
-    for fold_idx, (_, test_idx) in enumerate(cv.split(product_ids_array, taxonomy_ids_array)):
-        for idx in test_idx:
-            fold_assignments[product_ids_array[idx]] = fold_idx
-
-    return fold_assignments
-
-
 def process_database(
     dsn: str | None,
     schema: str,
@@ -274,6 +214,7 @@ def process_database(
 
     conn = db.get_connection(dsn)
     ensure_storage(conn, schema)
+    db.truncate_table(conn, schema, "battles")
 
     # Calculate fold assignments once at the start
     fold_assignments = calculate_cv_folds(conn, product_table)

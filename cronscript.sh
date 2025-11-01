@@ -36,6 +36,11 @@ uv run padjective/tagbattle.py \
     --product-table "$TAGBATTLE_PRODUCT_TABLE" \
     --batch-size "$TAGBATTLE_BATCH_SIZE"
 
+uv run -m padjective.umllr \
+    "${TAGBATTLE_DSN_ARGS[@]}" \
+    --schema "$TAGBATTLE_SCHEMA" \
+    --product-table "$TAGBATTLE_PRODUCT_TABLE"
+
 # Ensure taxonomy classifier schema exists
 uv run -m padjective.taxonomy_classifier_schema \
     "${TAGBATTLE_DSN_ARGS[@]}" \
