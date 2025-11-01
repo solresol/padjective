@@ -10,7 +10,7 @@ import warnings
 import numpy as np
 from psycopg import sql
 from psycopg.rows import dict_row
-from sklearn.model_selection import StratifiedKFold
+from sklearn.model_selection import KFold, StratifiedKFold
 
 if __package__ in {None, ""}:
     project_root = Path(__file__).resolve().parent.parent
@@ -121,7 +121,23 @@ def calculate_cv_folds(
     product_ids_array = np.array(product_ids)
     taxonomy_labels_array = np.array(taxonomy_labels, dtype=object)
 
-    cv = StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=random_state)
+    unique_labels, counts = np.unique(taxonomy_labels_array, return_counts=True)
+    min_class_size = counts.min() if counts.size else 0
+    can_stratify = taxonomy_column is not None and min_class_size >= n_splits
+
+    if can_stratify:
+        cv = StratifiedKFold(
+            n_splits=n_splits, shuffle=True, random_state=random_state
+        )
+    else:
+        if taxonomy_column is not None:
+            warnings.warn(
+                "Taxonomy distribution too sparse for StratifiedKFold; falling back to "
+                "deterministic KFold splits.",
+                RuntimeWarning,
+                stacklevel=2,
+            )
+        cv = KFold(n_splits=n_splits, shuffle=True, random_state=random_state)
     fold_assignments: Dict[int, int] = {}
 
     for fold_idx, (_, test_idx) in enumerate(cv.split(product_ids_array, taxonomy_labels_array)):

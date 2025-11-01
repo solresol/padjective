@@ -88,3 +88,29 @@ def test_calculate_cv_folds_falls_back_to_taxonomy_path(monkeypatch):
     counts = np.bincount(list(folds.values()))
     assert counts.shape[0] == 3
     assert np.all(counts > 0)
+
+
+def test_calculate_cv_folds_degenerates_to_kfold_when_needed(monkeypatch):
+    """Ensure we fall back to simple KFold when stratification is impossible."""
+
+    info_schema_rows: List[Iterable] = []  # No taxonomy metadata available.
+    product_rows = [
+        {"id": idx, "taxonomy_label": idx} for idx in range(1, 9)
+    ]
+
+    fake_conn = FakeConnection(info_schema_rows, product_rows)
+
+    monkeypatch.setattr(cv, "dict_row", dict_identity)
+
+    class FailStratified:
+        def __init__(self, *_, **__):  # pragma: no cover - defensive
+            raise AssertionError("StratifiedKFold should not be used for unique labels")
+
+    monkeypatch.setattr(cv, "StratifiedKFold", FailStratified)
+
+    folds = cv.calculate_cv_folds(fake_conn, n_splits=4, random_state=0)
+
+    assert set(folds.keys()) == set(range(1, 9))
+    counts = np.bincount(list(folds.values()))
+    assert counts.shape[0] == 4
+    assert np.all(counts == 2)
