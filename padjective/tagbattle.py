@@ -239,8 +239,14 @@ def calculate_cv_folds(
     with conn.cursor(row_factory=dict_row) as cur:
         cur.execute(query)
         for row in cur:
+            taxonomy_id = row["taxonomy_id"]
+            if taxonomy_id is None:
+                # StratifiedKFold cannot operate on missing labels. Skip products
+                # without taxonomy assignments; they will be processed without a
+                # CV fold later on.
+                continue
             product_ids.append(row["id"])
-            taxonomy_ids.append(row["taxonomy_id"])
+            taxonomy_ids.append(str(taxonomy_id))
 
     # Convert to numpy arrays for sklearn
     product_ids_array = np.array(product_ids)
