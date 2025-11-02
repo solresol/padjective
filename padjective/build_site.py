@@ -470,7 +470,7 @@ def _build_index_html(
   <section class="leaderboard-section">
     <div class="leaderboard-text">
       <h2>Leaderboard</h2>
-      <p>The Elo-inspired model favours tags that consistently appear earlier in product titles when paired with others. Here are the current top contenders.</p>
+      <p>The Elo-inspired model favours tags that consistently appear later in product titles when paired with others. Here are the current top contenders.</p>
     </div>
     <div class="leaderboard-table">
       {top_table}
@@ -495,7 +495,7 @@ def _build_index_html(
     <h2>How the rankings work</h2>
     <ol>
       <li><strong>Battle generation</strong> &mdash; <code>tagbattle.py</code> scans each product title, comparing the order of every pair of tags.</li>
-      <li><strong>Elo-style scoring</strong> &mdash; <code>ranking.py</code> treats each ordering as a battle, rewarding tags that appear closer to the start.</li>
+      <li><strong>Elo-style scoring</strong> &mdash; <code>ranking.py</code> treats each ordering as a battle, rewarding tags that appear later in the title (rightmost position wins).</li>
       <li><strong>Visualisation</strong> &mdash; <code>display.py</code> turns the rankings into shareable tables and charts.</li>
     </ol>
     <p>Tags are grouped by connected component so isolated tag families get their own podium.</p>

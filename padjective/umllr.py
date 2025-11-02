@@ -73,7 +73,7 @@ def _ensure_storage(conn, schema: str) -> None:
     This function only verifies they exist.
     """
 
-    required_tables = ["umllr_tag_coefficients", "umllr_fold_metrics", "umllr_predictions"]
+    required_tables = ["umllr_tag_coefficients", "umllr_fold_metrics", "umllr_predictions", "umllr_taxonomy_encodings"]
 
     with conn.cursor() as cur:
         for table in required_tables:
@@ -96,6 +96,7 @@ def _truncate_outputs(conn, schema: str) -> None:
     db.truncate_table(conn, schema, "umllr_tag_coefficients")
     db.truncate_table(conn, schema, "umllr_fold_metrics")
     db.truncate_table(conn, schema, "umllr_predictions")
+    db.truncate_table(conn, schema, "umllr_taxonomy_encodings")
 
 
 def _parse_tags(tag_string: str | None) -> List[str]:
@@ -209,7 +210,7 @@ def _load_battles(conn, schema: str) -> List[BattleRecord]:
 
 def _load_products(
     conn, product_table: str, fold_assignments: Dict[int, int]
-) -> tuple[List[ProductRecord], int, int]:
+) -> tuple[List[ProductRecord], int, int, Dict[str, Tuple[str, int]]]:
     product_identifier = db.qualified_identifier(product_table)
 
     query = sql.SQL(
@@ -217,6 +218,7 @@ def _load_products(
         SELECT
             p.id,
             pd.product_detail->'product'->>'tags' AS tags,
+            pt.taxonomy_id,
             t.taxonomy_path
         FROM {products} AS p
         JOIN public.product_details pd ON (
@@ -234,7 +236,7 @@ def _load_products(
 
     records: List[ProductRecord] = []
     max_digit = 0
-    raw_entries: List[tuple[int, List[str], Tuple[int, ...], int]] = []
+    raw_entries: List[tuple[int, List[str], Tuple[int, ...], int, str, str]] = []
 
     with conn.cursor(row_factory=dict_row) as cur:
         cur.execute(query)
@@ -246,18 +248,23 @@ def _load_products(
             if cv_fold is None:
                 continue
             tags = _parse_tags(row.get("tags"))
-            digits = _parse_taxonomy_digits(row.get("taxonomy_path"))
+            taxonomy_id = row.get("taxonomy_id") or ""
+            taxonomy_path = row.get("taxonomy_path") or ""
+            digits = _parse_taxonomy_digits(taxonomy_path)
             if digits:
                 max_digit = max(max_digit, max(digits))
-            raw_entries.append((product_id, tags, digits, cv_fold))
+            raw_entries.append((product_id, tags, digits, cv_fold, taxonomy_id, taxonomy_path))
 
     prime_base = _next_prime(max_digit)
+    taxonomy_encodings: Dict[str, Tuple[str, int]] = {}
 
-    for product_id, tags, digits, cv_fold in raw_entries:
+    for product_id, tags, digits, cv_fold, taxonomy_id, taxonomy_path in raw_entries:
         encoded = _encode_path(digits, prime_base)
         records.append(ProductRecord(product_id, tags, encoded, cv_fold))
+        if taxonomy_id and taxonomy_id not in taxonomy_encodings:
+            taxonomy_encodings[taxonomy_id] = (taxonomy_path, encoded)
 
-    return records, prime_base, max_digit
+    return records, prime_base, max_digit, taxonomy_encodings
 
 
 def _tag_order(
@@ -337,10 +344,13 @@ def _save_results(
     results: Sequence[FoldResult],
     prime_base: int,
     max_digit: int,
+    taxonomy_encodings: Dict[str, Tuple[str, int]],
+    cv_splits: int,
 ) -> None:
     coeff_rows: List[Tuple[int, str, int, int]] = []
     prediction_rows: List[Tuple[int, int, int, int, float]] = []
     metrics_rows: List[Tuple[int, float, int, int]] = []
+    encoding_rows: List[Tuple[int, str, str, int]] = []
 
     for result in results:
         metrics_rows.append((result.cv_fold, result.loss, prime_base, max_digit))
@@ -356,6 +366,11 @@ def _save_results(
                     prediction.loss,
                 )
             )
+
+    # Save taxonomy encodings for each fold
+    for fold in range(cv_splits):
+        for taxonomy_id, (taxonomy_path, encoded_value) in taxonomy_encodings.items():
+            encoding_rows.append((fold, taxonomy_id, taxonomy_path, encoded_value))
 
     with conn.cursor() as cur:
         if coeff_rows:
@@ -382,6 +397,14 @@ def _save_results(
                 ).format(schema=sql.Identifier(schema)),
                 prediction_rows,
             )
+        if encoding_rows:
+            cur.executemany(
+                sql.SQL(
+                    "INSERT INTO {schema}.umllr_taxonomy_encodings (cv_fold, taxonomy_id, taxonomy_path, encoded_value) "
+                    "VALUES (%s, %s, %s, %s)"
+                ).format(schema=sql.Identifier(schema)),
+                encoding_rows,
+            )
     conn.commit()
 
 
@@ -400,7 +423,7 @@ def process_database(
         if not fold_assignments:
             return
 
-        records, prime_base, max_digit = _load_products(conn, product_table, fold_assignments)
+        records, prime_base, max_digit, taxonomy_encodings = _load_products(conn, product_table, fold_assignments)
         if not records:
             return
 
@@ -410,7 +433,7 @@ def process_database(
             for fold in range(cv_splits)
         ]
 
-        _save_results(conn, schema, results, prime_base, max_digit)
+        _save_results(conn, schema, results, prime_base, max_digit, taxonomy_encodings, cv_splits)
     finally:
         conn.close()
 

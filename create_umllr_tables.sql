@@ -42,6 +42,20 @@ CREATE TABLE IF NOT EXISTS padjective.umllr_predictions (
 CREATE INDEX IF NOT EXISTS padjective_umllr_predictions_fold_idx
     ON padjective.umllr_predictions (cv_fold);
 
+-- Create umllr_taxonomy_encodings table
+CREATE TABLE IF NOT EXISTS padjective.umllr_taxonomy_encodings (
+    cv_fold INTEGER NOT NULL,
+    taxonomy_id TEXT NOT NULL,
+    taxonomy_path TEXT NOT NULL,
+    encoded_value NUMERIC NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (cv_fold, taxonomy_id)
+);
+
+-- Create index for umllr_taxonomy_encodings
+CREATE INDEX IF NOT EXISTS padjective_umllr_taxonomy_encodings_fold_idx
+    ON padjective.umllr_taxonomy_encodings (cv_fold);
+
 -- Grant all privileges on schema and tables to padjective user
 GRANT USAGE ON SCHEMA padjective TO padjective;
 GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA padjective TO padjective;
