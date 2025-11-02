@@ -7,9 +7,6 @@ cd "$(dirname "$0")"
 git pull -q
 
 OUTPUT_DIR=${PADJECTIVE_SITE_DIR:-build/site}
-TASKS_DB=${PADJECTIVE_TASKS_DB:-data/holdout_tasks.sqlite}
-TOTAL_TASKS=${PADJECTIVE_TOTAL_HOLDOUT_TASKS:-5000}
-TASK_BATCH=${PADJECTIVE_TASK_BATCH:-250}
 TAXONOMY_CLASSIFIER_REPORT_DIR=${PADJECTIVE_TAXONOMY_CLASSIFIER_REPORT_DIR:-build/taxonomy_classifier}
 TAXONOMY_NN_CLASSIFIER_DB=${PADJECTIVE_TAXONOMY_NN_CLASSIFIER_DB:-data/taxonomy_nn_classifier.sqlite}
 TAXONOMY_NN_CLASSIFIER_REPORT_DIR=${PADJECTIVE_TAXONOMY_NN_CLASSIFIER_REPORT_DIR:-build/taxonomy_nn_classifier}
@@ -19,7 +16,6 @@ TAGBATTLE_PRODUCT_TABLE=${PADJECTIVE_TAGBATTLE_PRODUCT_TABLE:-cantbuymelove.prod
 TAGBATTLE_BATCH_SIZE=${PADJECTIVE_TAGBATTLE_BATCH_SIZE:-2000}
 SHOPIFY_DSN=${PADJECTIVE_SHOPIFY_DSN:-}
 
-mkdir -p "$(dirname "$TASKS_DB")"
 mkdir -p "$TAXONOMY_CLASSIFIER_REPORT_DIR"
 mkdir -p "$(dirname "$TAXONOMY_NN_CLASSIFIER_DB")"
 mkdir -p "$TAXONOMY_NN_CLASSIFIER_REPORT_DIR"
@@ -60,9 +56,7 @@ uv run -m padjective.taxonomy_nn_classifier \
     --output-dir "$TAXONOMY_NN_CLASSIFIER_REPORT_DIR" \
     --hidden-layers "100,50"
 
-uv run -m padjective.experiments --tasks-db "$TASKS_DB" init --total "$TOTAL_TASKS"
-uv run -m padjective.experiments --tasks-db "$TASKS_DB" run "${TAGBATTLE_DSN_ARGS[@]}" --schema "$TAGBATTLE_SCHEMA" --take "$TASK_BATCH"
-uv run -m padjective.build_site --output "$OUTPUT_DIR" "${TAGBATTLE_DSN_ARGS[@]}" --schema "$TAGBATTLE_SCHEMA" --tasks-db "$TASKS_DB"
+uv run -m padjective.build_site --output "$OUTPUT_DIR" "${TAGBATTLE_DSN_ARGS[@]}" --schema "$TAGBATTLE_SCHEMA"
 
 REMOTE_SITE="padjective@merah.cassia.ifost.org.au:/var/www/vhosts/padjective.symmachus.org/htdocs/"
 rsync -avz --delete "$OUTPUT_DIR/" "$REMOTE_SITE"

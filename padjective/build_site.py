@@ -14,7 +14,7 @@ import pandas as pd
 from psycopg import sql
 from psycopg.rows import dict_row
 
-from . import db, display, experiments, ranking, tagbattle
+from . import db, display, ranking, tagbattle
 
 
 def _ensure_clean_directory(path: Path) -> None:
@@ -262,7 +262,6 @@ def _build_index_html(
     leaderboard: pd.DataFrame,
     chart_path: Path,
     artifact_links: Dict[str, Path],
-    experiments_summary: Optional[Dict[str, Any]] = None,
     taxonomy_summary: Optional[Dict[str, Any]] = None,
     umllr_summary: Optional[Dict[str, Any]] = None,
 ) -> None:
@@ -279,89 +278,6 @@ def _build_index_html(
         for label, path in artifact_links.items()
     )
 
-    experiments_block = ""
-    if experiments_summary and experiments_summary.get("total"):
-        counts = experiments_summary.get("counts", {})
-        completed = experiments_summary.get("completed_tasks", 0)
-        total = experiments_summary.get("total", 0)
-        mean_accuracy = experiments_summary.get("mean_accuracy")
-        mean_coverage = experiments_summary.get("mean_coverage")
-        recent_rows = experiments_summary.get("recent", [])
-
-        mean_accuracy_text = (
-            f"{mean_accuracy * 100:.2f}%" if mean_accuracy is not None else "n/a"
-        )
-        mean_coverage_text = (
-            f"{mean_coverage * 100:.2f}%" if mean_coverage is not None else "n/a"
-        )
-        test_fraction = experiments_summary.get("test_fraction") or 0.0
-
-        recent_items_list = []
-        for row in recent_rows:
-            accuracy_cell = (
-                f"<td>{row['accuracy'] * 100:.2f}%</td>"
-                if row.get("accuracy") is not None
-                else "<td>n/a</td>"
-            )
-            coverage_cell = (
-                f"<td>{row['coverage'] * 100:.2f}%</td>"
-                if row.get("coverage") is not None
-                else "<td>n/a</td>"
-            )
-            recent_items_list.append(
-                "<tr>"
-                f"<td>{row['id']}</td>"
-                f"<td>{row['seed']}</td>"
-                f"<td>{row['evaluated_pairs'] or 0}</td>"
-                f"{accuracy_cell}"
-                f"{coverage_cell}"
-                f"<td>{row['completed_at'] or ''}</td>"
-                "</tr>"
-            )
-        recent_items = "\n".join(recent_items_list)
-        if not recent_items:
-            recent_items = '<tr><td colspan="6">No completed evaluations yet.</td></tr>'
-
-        experiments_block = f"""
-  <section class="experiments">
-    <h2>Hold-out experiments</h2>
-    <p>We randomly reserve {test_fraction:.0%} of recorded tag battles and check whether the rankings predict the correct ordering.</p>
-    <div class="experiments-metrics">
-      <div class="metric">
-        <span class="value">{completed:,} / {total:,}</span>
-        <span class="label">Tasks completed</span>
-      </div>
-      <div class="metric">
-        <span class="value">{counts.get('pending', 0):,}</span>
-        <span class="label">Pending tasks</span>
-      </div>
-      <div class="metric">
-        <span class="value">{counts.get('running', 0):,}</span>
-        <span class="label">Running tasks</span>
-      </div>
-      <div class="metric">
-        <span class="value">{counts.get('error', 0):,}</span>
-        <span class="label">Errors</span>
-      </div>
-    </div>
-    <p class="experiments-accuracy">Average accuracy across completed tasks: {mean_accuracy_text} (coverage {mean_coverage_text}).</p>
-    <table class="experiments-table">
-      <thead>
-        <tr>
-          <th>Task</th>
-          <th>Seed</th>
-          <th>Evaluated battles</th>
-          <th>Accuracy</th>
-          <th>Coverage</th>
-          <th>Completed</th>
-        </tr>
-      </thead>
-      <tbody>
-        {recent_items}
-      </tbody>
-    </table>
-  </section>
-"""
 
     taxonomy_section = ""
     if taxonomy_summary:
@@ -593,8 +509,6 @@ def _build_index_html(
     <p>Historical SQL dumps are synchronised to <a href="https://datadumps.ifost.org.au/padjective/">datadumps.ifost.org.au</a>.</p>
   </section>
 
-  {experiments_block}
-
   <footer>
     <p>Rankings sourced from the Shopify Postgres battle records. Source available on <a href="https://github.com/IFost-Sydney-Uni/padjective">GitHub</a>.</p>
   </footer>
@@ -750,7 +664,6 @@ def build_site(
     *,
     precomputed_database: Optional[Any] = None,
     battle_schema: str = "padjective",
-    tasks_db: Optional[Path] = None,
 ) -> Dict[str, Any]:
     _ensure_clean_directory(output_dir)
 
@@ -849,10 +762,6 @@ footer {text-align: center; padding: 2rem 1.5rem 3rem; color: #6b7280;}
         "Top tags chart": chart_path,
     }
 
-    experiments_summary: Optional[Dict[str, Any]] = None
-    if tasks_db is not None and tasks_db.exists():
-        experiments_summary = experiments.task_status(tasks_db)
-
     taxonomy_summary = _collect_taxonomy_classifier_summary(
         precomputed_database, schema=battle_schema
     )
@@ -871,7 +780,6 @@ footer {text-align: center; padding: 2rem 1.5rem 3rem; color: #6b7280;}
         leaderboard,
         chart_path,
         artifact_links,
-        experiments_summary,
         taxonomy_summary,
         umllr_summary,
     )
@@ -880,7 +788,6 @@ footer {text-align: center; padding: 2rem 1.5rem 3rem; color: #6b7280;}
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "stats": stats,
         "artifacts": {label: str(path.relative_to(output_dir)) for label, path in artifact_links.items()},
-        "experiments": experiments_summary,
         "taxonomy_classifier": taxonomy_summary,
         "umllr": umllr_summary,
     }
@@ -911,12 +818,6 @@ def main() -> None:
         default="padjective",
         help="Schema containing battles and output tables.",
     )
-    parser.add_argument(
-        "--tasks-db",
-        type=Path,
-        default=None,
-        help="Optional experiments task database for progress reporting",
-    )
     args = parser.parse_args()
 
     conn = db.get_connection(args.dsn)
@@ -925,7 +826,6 @@ def main() -> None:
             args.output,
             precomputed_database=conn,
             battle_schema=args.schema,
-            tasks_db=args.tasks_db,
         )
     finally:
         conn.close()
