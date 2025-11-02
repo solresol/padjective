@@ -10,6 +10,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Optional, Sequence, Tuple
 
+import matplotlib
+matplotlib.use('Agg')  # Use non-interactive backend
+import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
 import pandas as pd
 from psycopg import sql
 from psycopg.rows import dict_row
@@ -269,6 +273,24 @@ def _write_umllr_pages(output_dir: Path, summary: Dict[str, Any]) -> Dict[int, P
 
 
 
+def _build_trends_section(trends_chart_path: Optional[Path], output_dir: Path) -> str:
+    """Build HTML section for historical trends chart."""
+    if not trends_chart_path:
+        return ""
+
+    chart_rel_path = trends_chart_path.relative_to(output_dir).as_posix()
+    return f"""
+  <section style="max-width: 70rem; margin: 2rem auto; background: white; border-radius: 1rem; box-shadow: 0 12px 30px rgba(15, 23, 42, 0.12); padding: 2rem 1.5rem;">
+    <h2 style="margin-top: 0;">Historical Performance Trends</h2>
+    <p style="color: #64748b; margin-bottom: 1.5rem;">
+      Tracking model performance and dataset growth over time. Lower p-adic loss indicates better predictions.
+    </p>
+    <figure class="chart">
+      <img src="{chart_rel_path}" alt="Historical model performance trends" />
+    </figure>
+  </section>"""
+
+
 def _build_index_html(
     output_dir: Path,
     stats: Dict[str, int],
@@ -279,6 +301,7 @@ def _build_index_html(
     umllr_summary: Optional[Dict[str, Any]] = None,
     taxonomy_fold_results: Optional[list[Dict[str, Any]]] = None,
     taxonomy_nn_fold_results: Optional[list[Dict[str, Any]]] = None,
+    trends_chart_path: Optional[Path] = None,
 ) -> None:
     generated = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
 
@@ -456,6 +479,8 @@ def _build_index_html(
   <div class="model-cards">
 {models_grid}
   </div>
+
+  {_build_trends_section(trends_chart_path, output_dir)}
 
   <footer>
     <p>Source available on <a href="https://github.com/IFost-Sydney-Uni/padjective">GitHub</a></p>
@@ -1051,6 +1076,76 @@ def _load_taxonomy_nn_fold_results(conn, schema: str = "padjective") -> Optional
     return results if results else None
 
 
+def _generate_historical_trends_chart(conn, output_path: Path, schema: str = "padjective") -> Optional[Path]:
+    """Generate a chart showing historical model performance trends.
+
+    Returns:
+        Path to generated chart, or None if no historical data exists
+    """
+    if not _table_exists(conn, schema, "model_performance_history"):
+        return None
+
+    with conn.cursor() as cur:
+        cur.execute(
+            sql.SQL(
+                """
+                SELECT snapshot_date, num_products, num_tags, num_taxonomies,
+                       umllr_mean_padic_loss, lr_mean_padic_loss, nn_mean_padic_loss
+                FROM {schema}.model_performance_history
+                ORDER BY snapshot_date
+                """
+            ).format(schema=sql.Identifier(schema))
+        )
+        rows = cur.fetchall()
+
+    if not rows or len(rows) < 2:
+        # Need at least 2 data points to show a trend
+        return None
+
+    # Convert to lists for plotting
+    dates = [row[0] for row in rows]
+    num_products = [row[1] for row in rows]
+    umllr_loss = [row[4] if row[4] is not None else None for row in rows]
+    lr_loss = [row[5] if row[5] is not None else None for row in rows]
+    nn_loss = [row[6] if row[6] is not None else None for row in rows]
+
+    # Create figure with two subplots
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8), sharex=True)
+
+    # Plot p-adic loss trends
+    if any(umllr_loss):
+        ax1.plot(dates, umllr_loss, 'o-', label='umllr', color='#0b6ce3', linewidth=2, markersize=6)
+    if any(lr_loss):
+        ax1.plot(dates, lr_loss, 's-', label='Logistic Regression', color='#10b981', linewidth=2, markersize=6)
+    if any(nn_loss):
+        ax1.plot(dates, nn_loss, '^-', label='Neural Network', color='#f59e0b', linewidth=2, markersize=6)
+
+    ax1.set_ylabel('P-adic Loss (lower is better)', fontsize=12, fontweight='bold')
+    ax1.set_title('Model Performance Over Time', fontsize=14, fontweight='bold', pad=15)
+    ax1.legend(loc='best', frameon=True, shadow=True)
+    ax1.grid(True, alpha=0.3, linestyle='--')
+    ax1.set_ylim(bottom=0)
+
+    # Plot dataset growth
+    ax2.plot(dates, num_products, 'o-', color='#6366f1', linewidth=2, markersize=6)
+    ax2.set_xlabel('Date', fontsize=12, fontweight='bold')
+    ax2.set_ylabel('Number of Products', fontsize=12, fontweight='bold')
+    ax2.set_title('Dataset Growth', fontsize=14, fontweight='bold', pad=15)
+    ax2.grid(True, alpha=0.3, linestyle='--')
+    ax2.set_ylim(bottom=0)
+
+    # Format x-axis dates
+    ax2.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d'))
+    ax2.xaxis.set_major_locator(mdates.AutoDateLocator())
+    plt.setp(ax2.xaxis.get_majorticklabels(), rotation=45, ha='right')
+
+    plt.tight_layout()
+    plt.savefig(output_path, dpi=150, bbox_inches='tight')
+    plt.close()
+
+    return output_path
+
+
 def build_site(
     output_dir: Path,
     *,
@@ -1188,6 +1283,13 @@ footer {text-align: center; padding: 2rem 1.5rem 3rem; color: #6b7280;}
         precomputed_database, schema=battle_schema
     )
 
+    # Generate historical trends chart
+    trends_chart_path = _generate_historical_trends_chart(
+        precomputed_database,
+        assets_dir / "historical_trends.png",
+        schema=battle_schema
+    )
+
     _build_index_html(
         output_dir,
         stats,
@@ -1198,6 +1300,7 @@ footer {text-align: center; padding: 2rem 1.5rem 3rem; color: #6b7280;}
         umllr_summary,
         taxonomy_lr_fold_results,
         taxonomy_nn_fold_results,
+        trends_chart_path,
     )
 
     metadata = {

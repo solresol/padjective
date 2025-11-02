@@ -373,6 +373,41 @@ def _save_results(
             encoding_rows.append((fold, taxonomy_id, taxonomy_path, encoded_value))
 
     with conn.cursor() as cur:
+        # Clean up old data before inserting new results
+        # This ensures cronscript can be re-run without conflicts
+        fold_list = list(range(cv_splits))
+
+        if fold_list:
+            # Delete old coefficients for all folds
+            cur.execute(
+                sql.SQL("DELETE FROM {schema}.umllr_tag_coefficients WHERE cv_fold = ANY(%s)").format(
+                    schema=sql.Identifier(schema)
+                ),
+                (fold_list,)
+            )
+            # Delete old metrics for all folds
+            cur.execute(
+                sql.SQL("DELETE FROM {schema}.umllr_fold_metrics WHERE cv_fold = ANY(%s)").format(
+                    schema=sql.Identifier(schema)
+                ),
+                (fold_list,)
+            )
+            # Delete old predictions for all folds
+            cur.execute(
+                sql.SQL("DELETE FROM {schema}.umllr_predictions WHERE cv_fold = ANY(%s)").format(
+                    schema=sql.Identifier(schema)
+                ),
+                (fold_list,)
+            )
+            # Delete old encodings for all folds
+            cur.execute(
+                sql.SQL("DELETE FROM {schema}.umllr_taxonomy_encodings WHERE cv_fold = ANY(%s)").format(
+                    schema=sql.Identifier(schema)
+                ),
+                (fold_list,)
+            )
+
+        # Insert new results
         if coeff_rows:
             cur.executemany(
                 sql.SQL(

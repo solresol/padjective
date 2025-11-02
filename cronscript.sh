@@ -69,6 +69,12 @@ for fold in 0 1 2 3 4; do
         --fold "$fold"
 done
 
+# Snapshot current metrics for historical tracking
+uv run -m padjective.snapshot_metrics \
+    "${TAGBATTLE_DSN_ARGS[@]}" \
+    --product-table "$TAGBATTLE_PRODUCT_TABLE" \
+    --schema "$TAGBATTLE_SCHEMA"
+
 uv run -m padjective.build_site --output "$OUTPUT_DIR" "${TAGBATTLE_DSN_ARGS[@]}" --schema "$TAGBATTLE_SCHEMA"
 
 REMOTE_SITE="padjective@merah.cassia.ifost.org.au:/var/www/vhosts/padjective.symmachus.org/htdocs/"
