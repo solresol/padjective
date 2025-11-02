@@ -908,6 +908,9 @@ def main() -> None:
         save_conn = db.get_connection(args.dsn)
         try:
             with save_conn.cursor() as cur:
+                # Override default tablespace temporarily to avoid permission issues
+                cur.execute("SET LOCAL default_tablespace = ''")
+
                 # Create table if it doesn't exist
                 cur.execute(
                     """
