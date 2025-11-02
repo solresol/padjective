@@ -278,6 +278,7 @@ def _build_index_html(
     taxonomy_summary: Optional[Dict[str, Any]] = None,
     umllr_summary: Optional[Dict[str, Any]] = None,
     taxonomy_fold_results: Optional[list[Dict[str, Any]]] = None,
+    taxonomy_nn_fold_results: Optional[list[Dict[str, Any]]] = None,
 ) -> None:
     generated = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
 
@@ -337,12 +338,27 @@ def _build_index_html(
     <a href="{umllr_page.relative_to(output_dir).as_posix()}" class="card-link">View model →</a>
   </div>"""
 
+    nn_card = ""
+    if taxonomy_nn_fold_results:
+        avg_loss = sum(r["padic_loss_mean"] for r in taxonomy_nn_fold_results) / len(taxonomy_nn_fold_results)
+        nn_card = f"""
+  <div class="model-card">
+    <h3>Neural Network Classifier</h3>
+    <p>PyTorch neural network predicting taxonomy from tags</p>
+    <div class="card-metric">
+      <span class="value">{avg_loss:.4f}</span>
+      <span class="label">Avg p-adic loss</span>
+    </div>
+  </div>"""
+
     # Combine model cards
     all_cards = [elo_card]
     if taxonomy_card:
         all_cards.append(taxonomy_card)
     if umllr_card:
         all_cards.append(umllr_card)
+    if nn_card:
+        all_cards.append(nn_card)
     models_grid = "\n".join(all_cards)
 
     html_document = f"""<!DOCTYPE html>
@@ -999,6 +1015,42 @@ def _load_taxonomy_lr_fold_results(conn, schema: str = "padjective") -> Optional
     return results if results else None
 
 
+def _load_taxonomy_nn_fold_results(conn, schema: str = "padjective") -> Optional[list[Dict[str, Any]]]:
+    """Load taxonomy neural network fold-based results."""
+    if not _table_exists(conn, schema, "taxonomy_nn_fold_results"):
+        return None
+
+    with conn.cursor(row_factory=dict_row) as cur:
+        cur.execute(
+            sql.SQL(
+                """
+                SELECT cv_fold, test_accuracy, test_f1, test_hierarchical_loss,
+                       padic_loss_total, padic_loss_mean, prime_base,
+                       num_train_samples, num_test_samples, hidden_layers, max_tags
+                FROM {schema}.taxonomy_nn_fold_results
+                ORDER BY cv_fold
+                """
+            ).format(schema=sql.Identifier(schema))
+        )
+        results = []
+        for row in cur:
+            results.append({
+                "cv_fold": int(row["cv_fold"]),
+                "test_accuracy": float(row["test_accuracy"]),
+                "test_f1": float(row["test_f1"]),
+                "test_hierarchical_loss": float(row["test_hierarchical_loss"]),
+                "padic_loss_total": float(row["padic_loss_total"]),
+                "padic_loss_mean": float(row["padic_loss_mean"]),
+                "prime_base": int(row["prime_base"]),
+                "num_train_samples": int(row["num_train_samples"]),
+                "num_test_samples": int(row["num_test_samples"]),
+                "hidden_layers": str(row["hidden_layers"]),
+                "max_tags": int(row["max_tags"]) if row["max_tags"] is not None else None,
+            })
+
+    return results if results else None
+
+
 def build_site(
     output_dir: Path,
     *,
@@ -1132,6 +1184,10 @@ footer {text-align: center; padding: 2rem 1.5rem 3rem; color: #6b7280;}
         umllr_page = _write_umllr_overview_page(output_dir, umllr_summary)
         umllr_summary["overview_page"] = umllr_page.relative_to(output_dir).as_posix()
 
+    taxonomy_nn_fold_results = _load_taxonomy_nn_fold_results(
+        precomputed_database, schema=battle_schema
+    )
+
     _build_index_html(
         output_dir,
         stats,
@@ -1141,6 +1197,7 @@ footer {text-align: center; padding: 2rem 1.5rem 3rem; color: #6b7280;}
         taxonomy_summary,
         umllr_summary,
         taxonomy_lr_fold_results,
+        taxonomy_nn_fold_results,
     )
 
     metadata = {

@@ -43,6 +43,90 @@ else:
         hierarchical_loss_score,
     )
 
+try:
+    from psycopg2 import sql
+except ImportError:
+    try:
+        from psycopg import sql
+    except ImportError:
+        sql = None
+
+
+def _padic_valuation(n: int, p: int) -> int:
+    """Calculate p-adic valuation of n (how many times p divides n)."""
+    if n == 0:
+        return float('inf')
+    v = 0
+    while n % p == 0:
+        n //= p
+        v += 1
+    return v
+
+
+def _padic_distance(a: int, b: int, p: int) -> float:
+    """Calculate p-adic distance between two integers."""
+    if a == b:
+        return 0.0
+    diff = abs(a - b)
+    v = _padic_valuation(diff, p)
+    return p ** (-v)
+
+
+def _load_padic_encodings(conn, cv_fold: int) -> tuple[dict[str, int], int]:
+    """Load p-adic encodings for a specific CV fold.
+
+    Returns:
+        tuple: (taxonomy_id -> encoded_value mapping, prime_base)
+    """
+    with conn.cursor() as cur:
+        # Get prime base
+        cur.execute(
+            sql.SQL("SELECT prime_base FROM padjective.umllr_fold_metrics WHERE cv_fold = %s"),
+            (cv_fold,)
+        )
+        row = cur.fetchone()
+        if not row:
+            raise ValueError(f"No umllr fold metrics found for cv_fold={cv_fold}")
+        prime_base = int(row[0])
+
+        # Get encodings
+        cur.execute(
+            sql.SQL(
+                "SELECT taxonomy_id, encoded_value FROM padjective.umllr_taxonomy_encodings WHERE cv_fold = %s"
+            ),
+            (cv_fold,)
+        )
+        encodings = {str(row[0]): int(row[1]) for row in cur.fetchall()}
+
+    return encodings, prime_base
+
+
+def calculate_padic_loss(
+    y_true: np.ndarray,
+    y_pred: np.ndarray,
+    encodings: dict[str, int],
+    prime_base: int,
+) -> tuple[float, list[float]]:
+    """Calculate p-adic loss for predictions.
+
+    Args:
+        y_true: True taxonomy IDs
+        y_pred: Predicted taxonomy IDs
+        encodings: Mapping from taxonomy_id to p-adic encoding
+        prime_base: Prime base for p-adic distance
+
+    Returns:
+        tuple: (total_loss, per_sample_losses)
+    """
+    losses = []
+    for true_id, pred_id in zip(y_true, y_pred):
+        true_enc = encodings.get(true_id, 0)
+        pred_enc = encodings.get(pred_id, 0)
+        loss = _padic_distance(true_enc, pred_enc, prime_base)
+        losses.append(loss)
+
+    return sum(losses), losses
+
 
 @dataclass(slots=True)
 class TrainingStats:
@@ -190,6 +274,38 @@ def load_training_data(
     labels = encoded_labels.astype(np.int32, copy=False)
 
     return features, labels, feature_names, metadata
+
+
+def select_top_tags(
+    features: sparse.csr_matrix,
+    feature_names: list[str],
+    max_tags: int,
+) -> tuple[sparse.csr_matrix, list[str]]:
+    """Select the top N most common tags and filter the feature matrix.
+
+    Args:
+        features: Sparse feature matrix (n_samples x n_features)
+        feature_names: List of tag names
+        max_tags: Maximum number of tags to keep
+
+    Returns:
+        tuple: (filtered_features, filtered_feature_names)
+    """
+    if max_tags >= len(feature_names):
+        return features, feature_names
+
+    # Count occurrences of each tag (column sums)
+    tag_counts = np.array(features.sum(axis=0)).flatten()
+
+    # Get indices of top N most common tags
+    top_indices = np.argsort(tag_counts)[::-1][:max_tags]
+    top_indices = np.sort(top_indices)  # Keep in original order
+
+    # Filter features and feature names
+    filtered_features = features[:, top_indices]
+    filtered_feature_names = [feature_names[i] for i in top_indices]
+
+    return filtered_features, filtered_feature_names
 
 
 def train_nn_classifier(
@@ -677,6 +793,18 @@ def main() -> None:
         default=1.1,
         help="Base M used for hierarchical loss (loss = M^{-T})",
     )
+    parser.add_argument(
+        "--max-tags",
+        type=int,
+        default=None,
+        help="Maximum number of most common tags to use (for fair comparison with umllr)",
+    )
+    parser.add_argument(
+        "--fold",
+        type=int,
+        default=None,
+        help="Train on specific CV fold (0-4). Uses umllr fold assignments. If not specified, runs full cross-validation.",
+    )
 
     args = parser.parse_args()
 
@@ -693,11 +821,139 @@ def main() -> None:
     )
     conn.close()
 
+    # Apply max-tags constraint if specified
+    if args.max_tags is not None and args.max_tags < len(feature_names):
+        features, feature_names = select_top_tags(features, feature_names, args.max_tags)
+        print(f"Selected top {len(feature_names)} most common tags (--max-tags={args.max_tags})")
+
     print(f"Loaded {len(labels)} products with {len(feature_names)} tags")
     print(f"Architecture: {len(feature_names)} -> {hidden_layer_sizes} -> {len(np.unique(labels))}")
 
     taxonomy_paths = build_taxonomy_path_map(metadata, id_column="taxonomy_index")
     ensure_taxonomy_paths_cover_labels(np.unique(labels), taxonomy_paths)
+
+    # Handle fold-based training if --fold is specified
+    if args.fold is not None:
+        # Filter data by cv_fold
+        cv_fold_data = metadata["cv_fold"].to_numpy()
+        has_fold = ~pd.isna(cv_fold_data)
+
+        if not has_fold.any():
+            raise ValueError("No cv_fold data found. Run umllr first to generate fold assignments.")
+
+        # Only use products with fold assignments
+        features = features[has_fold]
+        labels = labels[has_fold]
+        metadata = metadata[has_fold].reset_index(drop=True)
+        cv_fold_data = cv_fold_data[has_fold]
+
+        # Split train/test
+        test_mask = cv_fold_data == args.fold
+        train_mask = ~test_mask
+
+        X_train, X_test = features[train_mask], features[test_mask]
+        y_train, y_test = labels[train_mask], labels[test_mask]
+
+        print(f"\nFold {args.fold}: Training on {len(y_train)} products, testing on {len(y_test)} products")
+
+        # Train model
+        model, stats = train_nn_classifier(
+            X_train,
+            y_train,
+            hidden_layer_sizes=hidden_layer_sizes,
+            max_iter=args.max_iter,
+        )
+
+        # Predict on test set
+        test_dataset = _to_tensor_dataset(X_test, y_test)
+        y_true, y_pred = _collect_predictions(model, test_dataset)
+
+        # Calculate metrics
+        test_accuracy = float(np.mean(y_pred == y_true))
+        test_f1 = float(f1_score(y_true, y_pred, average="weighted"))
+        test_hierarchical = float(hierarchical_loss_score(
+            y_true,
+            y_pred,
+            taxonomy_paths,
+            base=args.hierarchical_base,
+        ))
+
+        # Calculate p-adic loss
+        # Need to map predictions back to taxonomy_id
+        original_taxonomy_ids = metadata.iloc[test_mask.nonzero()[0]]["taxonomy_id"].tolist()
+
+        padic_conn = db.get_connection(args.dsn)
+        try:
+            encodings, prime_base = _load_padic_encodings(padic_conn, args.fold)
+
+            # Map encoded labels back to taxonomy IDs
+            taxonomy_id_by_index = metadata.drop_duplicates(subset=["taxonomy_index"]).set_index("taxonomy_index")["taxonomy_id"].to_dict()
+            y_true_taxonomy = np.array([taxonomy_id_by_index.get(idx, "") for idx in y_true])
+            y_pred_taxonomy = np.array([taxonomy_id_by_index.get(idx, "") for idx in y_pred])
+
+            padic_loss, _ = calculate_padic_loss(y_true_taxonomy, y_pred_taxonomy, encodings, prime_base)
+            padic_loss_mean = padic_loss / len(y_test) if len(y_test) > 0 else 0.0
+        finally:
+            padic_conn.close()
+
+        print(f"\nFold {args.fold} Results:")
+        print(f"  Test accuracy: {test_accuracy:.4f}")
+        print(f"  Test F1 (weighted): {test_f1:.4f}")
+        print(f"  Test hierarchical loss (M={args.hierarchical_base:.2f}): {test_hierarchical:.4f}")
+        print(f"  P-adic loss (total): {padic_loss:.4f}")
+        print(f"  P-adic loss (mean): {padic_loss_mean:.6f}")
+        print(f"  Prime base: {prime_base}")
+
+        # Save fold results to database
+        save_conn = db.get_connection(args.dsn)
+        try:
+            with save_conn.cursor() as cur:
+                # Create table if it doesn't exist
+                cur.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS padjective.taxonomy_nn_fold_results (
+                        cv_fold INTEGER PRIMARY KEY,
+                        test_accuracy REAL NOT NULL,
+                        test_f1 REAL NOT NULL,
+                        test_hierarchical_loss REAL NOT NULL,
+                        padic_loss_total REAL NOT NULL,
+                        padic_loss_mean REAL NOT NULL,
+                        prime_base INTEGER NOT NULL,
+                        num_train_samples INTEGER NOT NULL,
+                        num_test_samples INTEGER NOT NULL,
+                        hidden_layers TEXT NOT NULL,
+                        max_tags INTEGER
+                    )
+                    """
+                )
+
+                # Delete existing results for this fold
+                cur.execute(
+                    "DELETE FROM padjective.taxonomy_nn_fold_results WHERE cv_fold = %s",
+                    (args.fold,)
+                )
+
+                # Insert new results
+                hidden_layers_str = ",".join(str(x) for x in hidden_layer_sizes)
+                cur.execute(
+                    """
+                    INSERT INTO padjective.taxonomy_nn_fold_results
+                    (cv_fold, test_accuracy, test_f1, test_hierarchical_loss,
+                     padic_loss_total, padic_loss_mean, prime_base,
+                     num_train_samples, num_test_samples, hidden_layers, max_tags)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    """,
+                    (args.fold, test_accuracy, test_f1, test_hierarchical,
+                     padic_loss, padic_loss_mean, prime_base,
+                     len(y_train), len(y_test), hidden_layers_str, args.max_tags)
+                )
+            save_conn.commit()
+            print(f"\nResults saved to padjective.taxonomy_nn_fold_results")
+        finally:
+            save_conn.close()
+
+        # Skip the rest of the normal workflow
+        return
 
     # Cross-validate (optional)
     cv_results: CrossValidationResults | None = None

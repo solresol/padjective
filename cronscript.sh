@@ -55,12 +55,19 @@ for fold in 0 1 2 3 4; do
         --max-tags 109
 done
 
-uv run -m padjective.taxonomy_nn_classifier \
-    "${TAGBATTLE_DSN_ARGS[@]}" \
-    --product-table "$TAGBATTLE_PRODUCT_TABLE" \
-    --model-database "$TAXONOMY_NN_CLASSIFIER_DB" \
-    --output-dir "$TAXONOMY_NN_CLASSIFIER_REPORT_DIR" \
-    --hidden-layers "100,50"
+# Train neural network classifiers (once per fold)
+# Use --max-tags 109 and --hidden-layers 49 for fair comparison with umllr (~10,000 parameters)
+for fold in 0 1 2 3 4; do
+    echo "Training neural network classifier for fold $fold..."
+    uv run -m padjective.taxonomy_nn_classifier \
+        "${TAGBATTLE_DSN_ARGS[@]}" \
+        --product-table "$TAGBATTLE_PRODUCT_TABLE" \
+        --model-database "$TAXONOMY_NN_CLASSIFIER_DB" \
+        --output-dir "$TAXONOMY_NN_CLASSIFIER_REPORT_DIR" \
+        --hidden-layers "49" \
+        --max-tags 109 \
+        --fold "$fold"
+done
 
 uv run -m padjective.build_site --output "$OUTPUT_DIR" "${TAGBATTLE_DSN_ARGS[@]}" --schema "$TAGBATTLE_SCHEMA"
 
