@@ -168,6 +168,16 @@ def _load_umllr_results(conn, schema: str) -> Optional[Dict[str, Any]]:
                 }
             )
 
+    # Calculate mean loss per fold from predictions
+    for metric in metrics:
+        fold = metric["cv_fold"]
+        fold_predictions = predictions.get(fold, [])
+        if fold_predictions:
+            mean_loss = sum(p["loss"] for p in fold_predictions) / len(fold_predictions)
+            metric["mean_loss"] = mean_loss
+        else:
+            metric["mean_loss"] = 0.0
+
     return {
         "metrics": metrics,
         "coefficients": coefficients,
@@ -211,6 +221,9 @@ def _write_umllr_pages(output_dir: Path, summary: Dict[str, Any]) -> Dict[int, P
         if not prediction_table_rows:
             prediction_table_rows = '<tr><td colspan="4">No test predictions available for this fold.</td></tr>'
 
+        mean_loss = metric.get("mean_loss", 0)
+        num_predictions = len(prediction_rows)
+
         page_contents = f"""
 <!DOCTYPE html>
 <html lang="en">
@@ -223,7 +236,7 @@ def _write_umllr_pages(output_dir: Path, summary: Dict[str, Any]) -> Dict[int, P
   <section class="umllr-fold">
     <h1>umllr fold {fold}</h1>
     <p><a href="../index.html">Back to index</a></p>
-    <p><strong>Total p-adic loss:</strong> {metric['loss']:.6f} &middot; <strong>Prime base:</strong> {metric['prime_base']} &middot; <strong>Max digit:</strong> {metric['max_digit']}</p>
+    <p><strong>P-adic loss (mean):</strong> {mean_loss:.6f} &middot; <strong>Test samples:</strong> {num_predictions:,} &middot; <strong>Prime base:</strong> {metric['prime_base']} &middot; <strong>Max digit:</strong> {metric['max_digit']}</p>
     <h2>Tag coefficients</h2>
     <table class="umllr-table">
       <thead>
@@ -311,7 +324,8 @@ def _build_index_html(
     umllr_card = ""
     if umllr_summary and umllr_page and umllr_summary.get("metrics"):
         metrics = umllr_summary.get("metrics", [])
-        avg_loss = sum(m["loss"] for m in metrics) / len(metrics) if metrics else 0
+        # Use mean_loss (per-prediction average) not total loss
+        avg_loss = sum(m["mean_loss"] for m in metrics) / len(metrics) if metrics else 0
         umllr_card = f"""
   <div class="model-card">
     <h3>umllr P-adic Regression</h3>
@@ -584,7 +598,8 @@ def _write_umllr_overview_page(
     page_lookup = umllr_summary.get("pages", {})
 
     if metrics:
-        avg_loss = sum(m["loss"] for m in metrics) / len(metrics)
+        # Use mean_loss (per-prediction average) not total loss
+        avg_loss = sum(m.get("mean_loss", 0) for m in metrics) / len(metrics)
         prime_base = metrics[0].get("prime_base", 0)
         max_digit = metrics[0].get("max_digit", 0)
     else:
@@ -600,10 +615,11 @@ def _write_umllr_overview_page(
             link_text = f'<a href="{Path(link).name}">View details →</a>'
         else:
             link_text = "—"
+        mean_loss = metric.get("mean_loss", 0)
         fold_rows.append(
             f"<tr>"
             f"<td>{fold}</td>"
-            f"<td>{metric['loss']:.6f}</td>"
+            f"<td>{mean_loss:.6f}</td>"
             f"<td>{link_text}</td>"
             f"</tr>"
         )
@@ -647,7 +663,7 @@ def _write_umllr_overview_page(
     <h2>Cross-validation results</h2>
     <table class="umllr-summary">
       <thead>
-        <tr><th>Fold</th><th>Total p-adic loss</th><th>Details</th></tr>
+        <tr><th>Fold</th><th>P-adic loss (mean)</th><th>Details</th></tr>
       </thead>
       <tbody>
         {table_body}
@@ -1108,11 +1124,12 @@ footer {text-align: center; padding: 2rem 1.5rem 3rem; color: #6b7280;}
     umllr_page = None
     if umllr_summary:
         fold_pages = _write_umllr_pages(output_dir, umllr_summary)
-        umllr_page = _write_umllr_overview_page(output_dir, umllr_summary)
+        # Add pages to summary before creating overview page so links work
         umllr_summary["pages"] = {
             fold: path.relative_to(output_dir).as_posix()
             for fold, path in fold_pages.items()
         }
+        umllr_page = _write_umllr_overview_page(output_dir, umllr_summary)
         umllr_summary["overview_page"] = umllr_page.relative_to(output_dir).as_posix()
 
     _build_index_html(

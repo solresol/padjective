@@ -43,6 +43,7 @@ uv run -m padjective.taxonomy_classifier_schema \
     --schema "$TAXONOMY_RESULTS_SCHEMA"
 
 # Train taxonomy classifiers (once per fold)
+# Use --max-tags 109 for fair comparison with umllr (~10,000 parameters)
 for fold in 0 1 2 3 4; do
     echo "Training taxonomy classifier for fold $fold..."
     uv run -m padjective.taxonomy_classifier \
@@ -50,7 +51,8 @@ for fold in 0 1 2 3 4; do
         --product-table "$TAGBATTLE_PRODUCT_TABLE" \
         --results-schema "$TAXONOMY_RESULTS_SCHEMA" \
         --output-dir "$TAXONOMY_CLASSIFIER_REPORT_DIR" \
-        --fold "$fold"
+        --fold "$fold" \
+        --max-tags 109
 done
 
 uv run -m padjective.taxonomy_nn_classifier \
