@@ -150,6 +150,38 @@ class CrossValidationResults:
         return len(self.accuracy)
 
 
+def select_top_tags(
+    features: sparse.csr_matrix,
+    feature_names: list[str],
+    max_tags: int,
+) -> tuple[sparse.csr_matrix, list[str]]:
+    """Select the top N most common tags and filter the feature matrix.
+
+    Args:
+        features: Sparse feature matrix (n_samples x n_features)
+        feature_names: List of tag names
+        max_tags: Maximum number of tags to keep
+
+    Returns:
+        tuple: (filtered_features, filtered_feature_names)
+    """
+    if max_tags >= len(feature_names):
+        return features, feature_names
+
+    # Count occurrences of each tag (column sums)
+    tag_counts = np.array(features.sum(axis=0)).flatten()
+
+    # Get indices of top N most common tags
+    top_indices = np.argsort(tag_counts)[::-1][:max_tags]
+    top_indices = np.sort(top_indices)  # Keep in original order
+
+    # Filter features and feature names
+    filtered_features = features[:, top_indices]
+    filtered_feature_names = [feature_names[i] for i in top_indices]
+
+    return filtered_features, filtered_feature_names
+
+
 def load_training_data(
     conn,
     product_table: str = "cantbuymelove.product",
@@ -777,6 +809,12 @@ def main() -> None:
         help="Minimum tag occurrences to include",
     )
     parser.add_argument(
+        "--max-tags",
+        type=int,
+        default=None,
+        help="Maximum number of most common tags to use (for fair comparison with umllr)",
+    )
+    parser.add_argument(
         "--min-samples-per-taxonomy",
         type=int,
         default=5,
@@ -834,6 +872,11 @@ def main() -> None:
         data_conn.close()
 
     print(f"Loaded {len(labels)} products with {len(feature_names)} tags")
+
+    # Apply max-tags constraint if specified
+    if args.max_tags is not None and args.max_tags < len(feature_names):
+        features, feature_names = select_top_tags(features, feature_names, args.max_tags)
+        print(f"Selected top {len(feature_names)} most common tags (--max-tags={args.max_tags})")
 
     taxonomy_paths = build_taxonomy_path_map(metadata)
     ensure_taxonomy_paths_cover_labels(np.unique(labels), taxonomy_paths)
