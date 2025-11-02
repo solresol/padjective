@@ -67,55 +67,29 @@ class FoldResult:
 
 
 def _ensure_storage(conn, schema: str) -> None:
-    """Create Postgres tables required for umllr outputs."""
+    """Verify Postgres tables required for umllr outputs exist.
 
-    coeff_columns = (
-        "cv_fold INTEGER NOT NULL",
-        "tag TEXT NOT NULL",
-        "coefficient NUMERIC NOT NULL",
-        "sequence INTEGER NOT NULL",
-        "updated_at TIMESTAMPTZ NOT NULL DEFAULT now()",
-        "PRIMARY KEY (cv_fold, tag)",
-    )
-    coeff_indexes = (
-        sql.SQL(
-            "CREATE INDEX IF NOT EXISTS {name} ON {schema}.umllr_tag_coefficients (sequence) TABLESPACE pg_default"
-        ).format(
-            name=sql.Identifier(f"{schema}_umllr_coeff_sequence_idx"),
-            schema=sql.Identifier(schema),
-        ),
-    )
+    Tables must be created by an admin using create_umllr_tables.sql.
+    This function only verifies they exist.
+    """
 
-    metrics_columns = (
-        "cv_fold INTEGER PRIMARY KEY",
-        "loss DOUBLE PRECISION NOT NULL",
-        "prime_base INTEGER NOT NULL",
-        "max_digit INTEGER NOT NULL",
-        "updated_at TIMESTAMPTZ NOT NULL DEFAULT now()",
-    )
+    required_tables = ["umllr_tag_coefficients", "umllr_fold_metrics", "umllr_predictions"]
 
-    predictions_columns = (
-        "cv_fold INTEGER NOT NULL",
-        "product_id BIGINT NOT NULL",
-        "true_value NUMERIC NOT NULL",
-        "predicted_value NUMERIC NOT NULL",
-        "loss DOUBLE PRECISION NOT NULL",
-        "updated_at TIMESTAMPTZ NOT NULL DEFAULT now()",
-        "PRIMARY KEY (cv_fold, product_id)",
-    )
-    predictions_indexes = (
-        sql.SQL(
-            "CREATE INDEX IF NOT EXISTS {name} ON {schema}.umllr_predictions (cv_fold) TABLESPACE pg_default"
-        ).format(
-            name=sql.Identifier(f"{schema}_umllr_predictions_fold_idx"),
-            schema=sql.Identifier(schema),
-        ),
-    )
-
-    db.ensure_schema(conn, schema)
-    db.ensure_table(conn, schema, "umllr_tag_coefficients", coeff_columns, coeff_indexes)
-    db.ensure_table(conn, schema, "umllr_fold_metrics", metrics_columns, ())
-    db.ensure_table(conn, schema, "umllr_predictions", predictions_columns, predictions_indexes)
+    with conn.cursor() as cur:
+        for table in required_tables:
+            cur.execute(
+                """
+                SELECT 1
+                FROM information_schema.tables
+                WHERE table_schema = %s AND table_name = %s
+                """,
+                (schema, table),
+            )
+            if not cur.fetchone():
+                raise RuntimeError(
+                    f"Table {schema}.{table} does not exist. "
+                    f"Please run create_umllr_tables.sql with admin privileges first."
+                )
 
 
 def _truncate_outputs(conn, schema: str) -> None:
