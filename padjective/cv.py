@@ -121,6 +121,11 @@ def calculate_cv_folds(
     product_ids_array = np.array(product_ids)
     taxonomy_labels_array = np.array(taxonomy_labels, dtype=object)
 
+    # Replace None values with a placeholder to allow numpy to sort/compare
+    taxonomy_labels_array = np.where(
+        taxonomy_labels_array == None, "__UNKNOWN__", taxonomy_labels_array
+    )
+
     unique_labels, counts = np.unique(taxonomy_labels_array, return_counts=True)
     min_class_size = counts.min() if counts.size else 0
     can_stratify = taxonomy_column is not None and min_class_size >= n_splits
