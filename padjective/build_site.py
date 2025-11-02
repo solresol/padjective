@@ -264,6 +264,7 @@ def _build_index_html(
     umllr_page: Optional[Path],
     taxonomy_summary: Optional[Dict[str, Any]] = None,
     umllr_summary: Optional[Dict[str, Any]] = None,
+    taxonomy_fold_results: Optional[list[Dict[str, Any]]] = None,
 ) -> None:
     generated = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
 
@@ -281,21 +282,28 @@ def _build_index_html(
 
     taxonomy_card = ""
     if taxonomy_summary and taxonomy_page:
-        stats_block = taxonomy_summary.get("stats", {})
-        cv_info = stats_block.get("cross_validation") or {}
-        cv_accuracy = cv_info.get("mean_accuracy")
-        if cv_accuracy is not None:
-            accuracy_display = f"{cv_accuracy * 100:.1f}%"
+        # Prefer showing p-adic loss from fold results if available
+        if taxonomy_fold_results:
+            avg_padic_loss = sum(fold["padic_loss_mean"] for fold in taxonomy_fold_results) / len(taxonomy_fold_results)
+            metric_display = f"{avg_padic_loss:.4f}"
+            metric_label = "Avg p-adic loss"
         else:
-            accuracy_display = "—"
+            stats_block = taxonomy_summary.get("stats", {})
+            cv_info = stats_block.get("cross_validation") or {}
+            cv_accuracy = cv_info.get("mean_accuracy")
+            if cv_accuracy is not None:
+                metric_display = f"{cv_accuracy * 100:.1f}%"
+            else:
+                metric_display = "—"
+            metric_label = "CV accuracy"
 
         taxonomy_card = f"""
   <div class="model-card">
     <h3>Taxonomy Classifier</h3>
     <p>Logistic regression model predicting Shopify taxonomy from tags</p>
     <div class="card-metric">
-      <span class="value">{accuracy_display}</span>
-      <span class="label">CV accuracy</span>
+      <span class="value">{metric_display}</span>
+      <span class="label">{metric_label}</span>
     </div>
     <a href="{taxonomy_page.relative_to(output_dir).as_posix()}" class="card-link">View model →</a>
   </div>"""
@@ -504,6 +512,66 @@ def _write_elo_rankings_page(
     return page_path
 
 
+def _write_taxonomy_lr_fold_pages(
+    output_dir: Path,
+    fold_results: list[Dict[str, Any]],
+) -> Dict[int, Path]:
+    """Write individual pages for each taxonomy classifier fold."""
+    pages: Dict[int, Path] = {}
+    if not fold_results:
+        return pages
+
+    tax_dir = output_dir / "taxonomy_classifier"
+    tax_dir.mkdir(parents=True, exist_ok=True)
+
+    for fold_data in fold_results:
+        fold = fold_data["cv_fold"]
+
+        page_contents = f"""
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Taxonomy Classifier Fold {fold} Results</title>
+  <link rel="stylesheet" href="../assets/styles.css" />
+</head>
+<body>
+  <section class="umllr-fold">
+    <h1>Taxonomy Classifier Fold {fold}</h1>
+    <p><a href="index.html">Back to taxonomy classifier overview</a> &middot; <a href="../index.html">Back to main index</a></p>
+
+    <h2>Fold metrics</h2>
+    <table class="umllr-table">
+      <thead>
+        <tr><th>Metric</th><th>Value</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Test accuracy</td><td>{fold_data['test_accuracy'] * 100:.2f}%</td></tr>
+        <tr><td>Test F1 score</td><td>{fold_data['test_f1']:.4f}</td></tr>
+        <tr><td>Hierarchical loss</td><td>{fold_data['test_hierarchical_loss']:.6f}</td></tr>
+        <tr><td>P-adic loss (total)</td><td>{fold_data['padic_loss_total']:.6f}</td></tr>
+        <tr><td>P-adic loss (mean)</td><td>{fold_data['padic_loss_mean']:.6f}</td></tr>
+        <tr><td>Prime base</td><td>{fold_data['prime_base']}</td></tr>
+        <tr><td>Training samples</td><td>{fold_data['num_train_samples']:,}</td></tr>
+        <tr><td>Test samples</td><td>{fold_data['num_test_samples']:,}</td></tr>
+        <tr><td>Trained at</td><td>{html.escape(fold_data['trained_at'] or 'Unknown')}</td></tr>
+      </tbody>
+    </table>
+
+    <h2>About p-adic loss</h2>
+    <p>P-adic loss measures the distance between predicted and true taxonomy using p-adic metric (base {fold_data['prime_base']}). Lower values indicate closer predictions in the taxonomy hierarchy. This metric is shared with the umllr model for comparison.</p>
+  </section>
+</body>
+</html>
+"""
+
+        page_path = tax_dir / f"fold_{fold}.html"
+        page_path.write_text(page_contents, encoding="utf-8")
+        pages[fold] = page_path
+
+    return pages
+
+
 def _write_umllr_overview_page(
     output_dir: Path,
     umllr_summary: Dict[str, Any],
@@ -601,6 +669,8 @@ def _write_umllr_overview_page(
 def _write_taxonomy_classifier_page(
     output_dir: Path,
     taxonomy_summary: Dict[str, Any],
+    fold_results: Optional[list[Dict[str, Any]]] = None,
+    fold_pages: Optional[Dict[int, Path]] = None,
 ) -> Path:
     """Write a dedicated page for taxonomy classifier results."""
     tax_dir = output_dir / "taxonomy_classifier"
@@ -626,6 +696,41 @@ def _write_taxonomy_classifier_page(
         summary_metrics.append(f'<div class="metric"><span class="value">{mean_acc * 100:.1f}% ± {std_acc * 100:.1f}%</span><span class="label">CV accuracy</span></div>')
 
     metrics_html = "\n".join(summary_metrics)
+
+    # Build fold results table
+    fold_results_html = ""
+    if fold_results and fold_pages:
+        avg_padic_loss = sum(fold["padic_loss_mean"] for fold in fold_results) / len(fold_results)
+        fold_rows = []
+        for fold_data in fold_results:
+            fold = fold_data["cv_fold"]
+            link = fold_pages.get(fold)
+            if link:
+                link_text = f'<a href="{Path(link).name}">View details →</a>'
+            else:
+                link_text = "—"
+            fold_rows.append(
+                f"<tr>"
+                f"<td>{fold}</td>"
+                f"<td>{fold_data['test_accuracy'] * 100:.2f}%</td>"
+                f"<td>{fold_data['test_f1']:.4f}</td>"
+                f"<td>{fold_data['padic_loss_mean']:.6f}</td>"
+                f"<td>{link_text}</td>"
+                f"</tr>"
+            )
+        fold_table_body = "\n".join(fold_rows)
+        fold_results_html = f"""
+    <h2>Cross-validation fold results</h2>
+    <p>Average p-adic loss across all folds: <strong>{avg_padic_loss:.6f}</strong></p>
+    <table class="umllr-summary">
+      <thead>
+        <tr><th>Fold</th><th>Test Accuracy</th><th>F1 Score</th><th>P-adic Loss (mean)</th><th>Details</th></tr>
+      </thead>
+      <tbody>
+        {fold_table_body}
+      </tbody>
+    </table>
+"""
 
     # Build class distribution table
     distribution_rows = "\n".join(
@@ -674,6 +779,8 @@ def _write_taxonomy_classifier_page(
     <div class="metrics">
       {metrics_html}
     </div>
+
+    {fold_results_html}
 
     <h2>Largest taxonomy classes</h2>
     <table class="taxonomy-table">
@@ -839,6 +946,43 @@ def _collect_taxonomy_classifier_summary(
         "top_tags": tag_summary,
         "taxonomy_top_tags": taxonomy_top_tags,
     }
+
+
+def _load_taxonomy_lr_fold_results(conn, schema: str = "padjective") -> Optional[list[Dict[str, Any]]]:
+    """Load taxonomy logistic regression fold-based results."""
+    if not _table_exists(conn, schema, "taxonomy_lr_fold_results"):
+        return None
+
+    with conn.cursor(row_factory=dict_row) as cur:
+        cur.execute(
+            sql.SQL(
+                """
+                SELECT cv_fold, test_accuracy, test_f1, test_hierarchical_loss,
+                       padic_loss_total, padic_loss_mean, prime_base,
+                       num_train_samples, num_test_samples, trained_at
+                FROM {schema}.taxonomy_lr_fold_results
+                ORDER BY cv_fold
+                """
+            ).format(schema=sql.Identifier(schema))
+        )
+        results = []
+        for row in cur:
+            results.append({
+                "cv_fold": int(row["cv_fold"]),
+                "test_accuracy": float(row["test_accuracy"]),
+                "test_f1": float(row["test_f1"]),
+                "test_hierarchical_loss": float(row["test_hierarchical_loss"]),
+                "padic_loss_total": float(row["padic_loss_total"]),
+                "padic_loss_mean": float(row["padic_loss_mean"]),
+                "prime_base": int(row["prime_base"]),
+                "num_train_samples": int(row["num_train_samples"]),
+                "num_test_samples": int(row["num_test_samples"]),
+                "trained_at": row["trained_at"].isoformat(timespec="seconds") if row["trained_at"] else None,
+            })
+
+    return results if results else None
+
+
 def build_site(
     output_dir: Path,
     *,
@@ -948,9 +1092,17 @@ footer {text-align: center; padding: 2rem 1.5rem 3rem; color: #6b7280;}
     taxonomy_summary = _collect_taxonomy_classifier_summary(
         precomputed_database, schema=battle_schema
     )
+    taxonomy_lr_fold_results = _load_taxonomy_lr_fold_results(
+        precomputed_database, schema=battle_schema
+    )
     taxonomy_page = None
+    taxonomy_fold_pages = {}
     if taxonomy_summary:
-        taxonomy_page = _write_taxonomy_classifier_page(output_dir, taxonomy_summary)
+        if taxonomy_lr_fold_results:
+            taxonomy_fold_pages = _write_taxonomy_lr_fold_pages(output_dir, taxonomy_lr_fold_results)
+        taxonomy_page = _write_taxonomy_classifier_page(
+            output_dir, taxonomy_summary, taxonomy_lr_fold_results, taxonomy_fold_pages
+        )
 
     umllr_summary = _load_umllr_results(precomputed_database, battle_schema)
     umllr_page = None
@@ -971,6 +1123,7 @@ footer {text-align: center; padding: 2rem 1.5rem 3rem; color: #6b7280;}
         umllr_page,
         taxonomy_summary,
         umllr_summary,
+        taxonomy_lr_fold_results,
     )
 
     metadata = {
