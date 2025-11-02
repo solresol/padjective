@@ -42,6 +42,82 @@ else:
     )
 
 
+def _load_padic_encodings(conn, cv_fold: int) -> tuple[dict[str, int], int]:
+    """Load p-adic encodings for a specific CV fold.
+
+    Returns:
+        tuple: (taxonomy_id -> encoded_value mapping, prime_base)
+    """
+    with conn.cursor() as cur:
+        # Get prime base
+        cur.execute(
+            sql.SQL("SELECT prime_base FROM padjective.umllr_fold_metrics WHERE cv_fold = %s"),
+            (cv_fold,)
+        )
+        row = cur.fetchone()
+        if not row:
+            raise ValueError(f"No umllr fold metrics found for cv_fold={cv_fold}")
+        prime_base = int(row[0])
+
+        # Get encodings
+        cur.execute(
+            sql.SQL(
+                "SELECT taxonomy_id, encoded_value FROM padjective.umllr_taxonomy_encodings WHERE cv_fold = %s"
+            ),
+            (cv_fold,)
+        )
+        encodings = {row[0]: int(row[1]) for row in cur.fetchall()}
+
+    return encodings, prime_base
+
+
+def _padic_valuation(n: int, p: int) -> int:
+    """Calculate p-adic valuation of n (how many times p divides n)."""
+    if n == 0:
+        return float('inf')
+    v = 0
+    while n % p == 0:
+        n //= p
+        v += 1
+    return v
+
+
+def _padic_distance(a: int, b: int, p: int) -> float:
+    """Calculate p-adic distance between two integers."""
+    if a == b:
+        return 0.0
+    diff = abs(a - b)
+    v = _padic_valuation(diff, p)
+    return p ** (-v)
+
+
+def calculate_padic_loss(
+    y_true: np.ndarray,
+    y_pred: np.ndarray,
+    encodings: dict[str, int],
+    prime_base: int,
+) -> tuple[float, list[float]]:
+    """Calculate p-adic loss for predictions.
+
+    Args:
+        y_true: True taxonomy IDs
+        y_pred: Predicted taxonomy IDs
+        encodings: Mapping from taxonomy_id to p-adic encoding
+        prime_base: Prime base for p-adic distance
+
+    Returns:
+        tuple: (total_loss, per_sample_losses)
+    """
+    losses = []
+    for true_id, pred_id in zip(y_true, y_pred):
+        true_enc = encodings.get(true_id, 0)
+        pred_enc = encodings.get(pred_id, 0)
+        loss = _padic_distance(true_enc, pred_enc, prime_base)
+        losses.append(loss)
+
+    return sum(losses), losses
+
+
 @dataclass(slots=True)
 class TrainingStats:
     """Metadata about the trained classifier."""
@@ -713,6 +789,12 @@ def main() -> None:
         help="Number of cross-validation folds",
     )
     parser.add_argument(
+        "--fold",
+        type=int,
+        default=None,
+        help="Train on specific CV fold (0-4). Uses umllr fold assignments. If not specified, runs full cross-validation.",
+    )
+    parser.add_argument(
         "--max-iter",
         type=int,
         default=1000,
@@ -755,6 +837,70 @@ def main() -> None:
 
     taxonomy_paths = build_taxonomy_path_map(metadata)
     ensure_taxonomy_paths_cover_labels(np.unique(labels), taxonomy_paths)
+
+    # Handle fold-based training if --fold is specified
+    if args.fold is not None:
+        # Filter data by cv_fold
+        cv_fold_data = metadata["cv_fold"].to_numpy()
+        has_fold = ~pd.isna(cv_fold_data)
+
+        if not has_fold.any():
+            raise ValueError("No cv_fold data found. Run umllr first to generate fold assignments.")
+
+        # Only use products with fold assignments
+        features = features[has_fold]
+        labels = labels[has_fold]
+        metadata = metadata[has_fold].reset_index(drop=True)
+        cv_fold_data = cv_fold_data[has_fold]
+
+        # Split train/test
+        test_mask = cv_fold_data == args.fold
+        train_mask = ~test_mask
+
+        X_train, X_test = features[train_mask], features[test_mask]
+        y_train, y_test = labels[train_mask], labels[test_mask]
+
+        print(f"\nFold {args.fold}: Training on {len(y_train)} products, testing on {len(y_test)} products")
+
+        # Train model
+        model, stats = train_logistic_classifier(
+            X_train,
+            y_train,
+            max_iter=args.max_iter,
+        )
+
+        # Predict on test set
+        y_pred = model.predict(X_test)
+
+        # Calculate metrics
+        test_accuracy = float(np.mean(y_pred == y_test))
+        test_f1 = float(f1_score(y_test, y_pred, average="weighted"))
+        test_hierarchical = float(hierarchical_loss_score(
+            y_test,
+            y_pred,
+            taxonomy_paths,
+            base=args.hierarchical_base,
+        ))
+
+        # Calculate p-adic loss
+        padic_conn = db.get_connection(args.dsn)
+        try:
+            encodings, prime_base = _load_padic_encodings(padic_conn, args.fold)
+            padic_loss, _ = calculate_padic_loss(y_test, y_pred, encodings, prime_base)
+            padic_loss_mean = padic_loss / len(y_test) if len(y_test) > 0 else 0.0
+        finally:
+            padic_conn.close()
+
+        print(f"\nFold {args.fold} Results:")
+        print(f"  Test accuracy: {test_accuracy:.4f}")
+        print(f"  Test F1 (weighted): {test_f1:.4f}")
+        print(f"  Test hierarchical loss (M={args.hierarchical_base:.2f}): {test_hierarchical:.4f}")
+        print(f"  P-adic loss (total): {padic_loss:.4f}")
+        print(f"  P-adic loss (mean): {padic_loss_mean:.6f}")
+        print(f"  Prime base: {prime_base}")
+
+        # Skip the rest of the normal workflow
+        return
 
     # Cross-validate
     cv_results = cross_validate_classifier(

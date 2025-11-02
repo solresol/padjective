@@ -42,12 +42,16 @@ uv run -m padjective.taxonomy_classifier_schema \
     "${TAGBATTLE_DSN_ARGS[@]}" \
     --schema "$TAXONOMY_RESULTS_SCHEMA"
 
-# Train taxonomy classifiers
-uv run -m padjective.taxonomy_classifier \
-    "${TAGBATTLE_DSN_ARGS[@]}" \
-    --product-table "$TAGBATTLE_PRODUCT_TABLE" \
-    --results-schema "$TAXONOMY_RESULTS_SCHEMA" \
-    --output-dir "$TAXONOMY_CLASSIFIER_REPORT_DIR"
+# Train taxonomy classifiers (once per fold)
+for fold in 0 1 2 3 4; do
+    echo "Training taxonomy classifier for fold $fold..."
+    uv run -m padjective.taxonomy_classifier \
+        "${TAGBATTLE_DSN_ARGS[@]}" \
+        --product-table "$TAGBATTLE_PRODUCT_TABLE" \
+        --results-schema "$TAXONOMY_RESULTS_SCHEMA" \
+        --output-dir "$TAXONOMY_CLASSIFIER_REPORT_DIR" \
+        --fold "$fold"
+done
 
 uv run -m padjective.taxonomy_nn_classifier \
     "${TAGBATTLE_DSN_ARGS[@]}" \

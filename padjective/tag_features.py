@@ -84,7 +84,8 @@ def stream_product_tags(
                 p.product_title AS title,
                 pd.product_detail->'product'->>'tags' AS tags,
                 pt.taxonomy_id,
-                t.taxonomy_path
+                t.taxonomy_path,
+                up.cv_fold
             FROM {products} AS p
             JOIN public.product_details pd ON
                 p.myshopify_domain = pd.myshopify_domain
@@ -92,6 +93,7 @@ def stream_product_tags(
                 AND p.product_handle = pd.product_handle
             JOIN cantbuymelove.product_taxonomy pt ON pt.product_id = p.id
             JOIN cantbuymelove.taxonomy t ON t.taxonomy_id = pt.taxonomy_id
+            LEFT JOIN padjective.umllr_predictions up ON up.product_id = p.id
             WHERE p.product_title IS NOT NULL
             ORDER BY p.id
             """
@@ -149,6 +151,7 @@ def extract_tag_features(
         title = row.get("title", "")
         tags_str = row.get("tags", "")
         taxonomy_id = row.get("taxonomy_id")
+        cv_fold = row.get("cv_fold")
 
         tags = parse_tags(tags_str)
 
@@ -159,6 +162,7 @@ def extract_tag_features(
         if include_taxonomy:
             product_record["taxonomy_id"] = taxonomy_id
             product_record["taxonomy_path"] = row.get("taxonomy_path")
+            product_record["cv_fold"] = cv_fold
 
         products.append(product_record)
         product_tags_list.append(tags)
@@ -197,7 +201,7 @@ def extract_tag_features(
     if include_taxonomy:
         metadata_df = pd.DataFrame(
             products,
-            columns=["product_id", "title", "taxonomy_id", "taxonomy_path"],
+            columns=["product_id", "title", "taxonomy_id", "taxonomy_path", "cv_fold"],
         )
     else:
         metadata_df = pd.DataFrame(products, columns=["product_id", "title"])
