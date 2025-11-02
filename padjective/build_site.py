@@ -452,12 +452,26 @@ def _build_index_html(
 .model-card .card-link:hover {{
   background: #dbeafe;
 }}
+.hero .data-note {{
+  margin-top: 0.75rem;
+  color: #475569;
+  font-size: 0.95rem;
+}}
+.hero .data-note a {{
+  color: #0b6ce3;
+  text-decoration: none;
+  font-weight: 600;
+}}
+.hero .data-note a:hover {{
+  text-decoration: underline;
+}}
   </style>
 </head>
 <body>
   <header class="hero">
     <h1>Padjective Tag Hierarchy</h1>
     <p class="tagline">Machine learning insights into Shopify product tag organization</p>
+    <p class="data-note">Data sourced from <a href="https://cantbuymelove.industrial-linguistics.com/">cantbuymelove.industrial-linguistics.com</a> powering Shopify taxonomy classification and filtered to taxonomies with at least five products.</p>
     <p class="timestamp">Last updated {generated}</p>
   </header>
 
@@ -1105,6 +1119,8 @@ def _generate_historical_trends_chart(conn, output_path: Path, schema: str = "pa
     # Convert to lists for plotting
     dates = [row[0] for row in rows]
     num_products = [row[1] for row in rows]
+    num_tags = [row[2] for row in rows]
+    num_taxonomies = [row[3] for row in rows]
     umllr_loss = [row[4] if row[4] is not None else None for row in rows]
     lr_loss = [row[5] if row[5] is not None else None for row in rows]
     nn_loss = [row[6] if row[6] is not None else None for row in rows]
@@ -1127,12 +1143,16 @@ def _generate_historical_trends_chart(conn, output_path: Path, schema: str = "pa
     ax1.set_ylim(bottom=0)
 
     # Plot dataset growth
-    ax2.plot(dates, num_products, 'o-', color='#6366f1', linewidth=2, markersize=6)
+    ax2.plot(dates, num_products, 'o-', label='Products', color='#6366f1', linewidth=2, markersize=6)
+    ax2.plot(dates, num_taxonomies, 's-', label='Active taxonomies', color='#0ea5e9', linewidth=2, markersize=6)
+    if any(value is not None for value in num_tags):
+        ax2.plot(dates, num_tags, '^-', label='Distinct tags', color='#f97316', linewidth=2, markersize=6)
     ax2.set_xlabel('Date', fontsize=12, fontweight='bold')
-    ax2.set_ylabel('Number of Products', fontsize=12, fontweight='bold')
+    ax2.set_ylabel('Dataset Counts', fontsize=12, fontweight='bold')
     ax2.set_title('Dataset Growth', fontsize=14, fontweight='bold', pad=15)
     ax2.grid(True, alpha=0.3, linestyle='--')
     ax2.set_ylim(bottom=0)
+    ax2.legend(loc='best', frameon=True, shadow=True)
 
     # Format x-axis dates
     ax2.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d'))
