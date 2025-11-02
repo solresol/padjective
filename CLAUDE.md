@@ -1,0 +1,1 @@
+- After every chunk of work, do a git add, commit and push
