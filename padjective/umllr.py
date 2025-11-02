@@ -210,24 +210,40 @@ def _load_battles(conn, schema: str) -> List[BattleRecord]:
 def _load_products(
     conn, product_table: str, fold_assignments: Dict[int, int]
 ) -> tuple[List[ProductRecord], int, int]:
+    from . import cv
+
     product_identifier = db.qualified_identifier(product_table)
+
+    # Determine which taxonomy column is available
+    taxonomy_column = cv._resolve_taxonomy_label_column(conn)
+
+    # Build the SELECT expression for taxonomy
+    if taxonomy_column:
+        taxonomy_select = sql.SQL("pt.{col}").format(col=sql.Identifier(taxonomy_column))
+    else:
+        # No taxonomy column available, use NULL
+        taxonomy_select = sql.SQL("NULL")
+
     query = sql.SQL(
         """
         SELECT
             p.id,
             pd.product_detail->'product'->>'tags' AS tags,
-            pt.taxonomy_path
+            {taxonomy_select} AS taxonomy_path
         FROM {products} AS p
         JOIN public.product_details pd ON (
             p.myshopify_domain = pd.myshopify_domain
             AND p.run_name = pd.run_name
             AND p.product_handle = pd.product_handle
         )
-        JOIN cantbuymelove.product_taxonomy pt ON pt.product_id = p.id
+        LEFT JOIN cantbuymelove.product_taxonomy pt ON pt.product_id = p.id
         WHERE p.product_title IS NOT NULL
         ORDER BY p.id
         """
-    ).format(products=product_identifier)
+    ).format(
+        products=product_identifier,
+        taxonomy_select=taxonomy_select
+    )
 
     records: List[ProductRecord] = []
     max_digit = 0
