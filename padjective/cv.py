@@ -112,6 +112,9 @@ def calculate_cv_folds(
     with conn.cursor(row_factory=dict_row) as cur:
         cur.execute(query)
         for row in cur:
+            # Exclude products without taxonomy labels
+            if row["taxonomy_label"] is None:
+                continue
             product_ids.append(row["id"])
             taxonomy_labels.append(row["taxonomy_label"])
 
@@ -120,11 +123,6 @@ def calculate_cv_folds(
 
     product_ids_array = np.array(product_ids)
     taxonomy_labels_array = np.array(taxonomy_labels, dtype=object)
-
-    # Replace None values with a placeholder to allow numpy to sort/compare
-    taxonomy_labels_array = np.where(
-        taxonomy_labels_array == None, "__UNKNOWN__", taxonomy_labels_array
-    )
 
     unique_labels, counts = np.unique(taxonomy_labels_array, return_counts=True)
     min_class_size = counts.min() if counts.size else 0
