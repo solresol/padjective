@@ -899,6 +899,38 @@ def main() -> None:
         print(f"  P-adic loss (mean): {padic_loss_mean:.6f}")
         print(f"  Prime base: {prime_base}")
 
+        # Save fold results to database
+        save_conn = db.get_connection(args.dsn)
+        try:
+            with save_conn.cursor() as cur:
+                # Delete existing results for this fold
+                cur.execute(
+                    sql.SQL("DELETE FROM {schema}.taxonomy_lr_fold_results WHERE cv_fold = %s").format(
+                        schema=sql.Identifier(args.results_schema)
+                    ),
+                    (args.fold,)
+                )
+
+                # Insert new results
+                cur.execute(
+                    sql.SQL(
+                        """
+                        INSERT INTO {schema}.taxonomy_lr_fold_results
+                        (cv_fold, test_accuracy, test_f1, test_hierarchical_loss,
+                         padic_loss_total, padic_loss_mean, prime_base,
+                         num_train_samples, num_test_samples)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        """
+                    ).format(schema=sql.Identifier(args.results_schema)),
+                    (args.fold, test_accuracy, test_f1, test_hierarchical,
+                     padic_loss, padic_loss_mean, prime_base,
+                     len(y_train), len(y_test))
+                )
+            save_conn.commit()
+            print(f"\nResults saved to {args.results_schema}.taxonomy_lr_fold_results")
+        finally:
+            save_conn.close()
+
         # Skip the rest of the normal workflow
         return
 
