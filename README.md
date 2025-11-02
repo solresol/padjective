@@ -45,6 +45,115 @@ The project uses the simplified `cantbuymelove` schema:
 
 Products are joined to `public.product_details` to extract tags from the JSONB `product_detail` field.
 
+### Taxonomy Table Structure
+
+The `cantbuymelove.taxonomy` table provides the complete mapping between taxonomy identifiers and human-readable category names:
+
+```sql
+Table: cantbuymelove.taxonomy
+Columns:
+  taxonomy_id   TEXT PRIMARY KEY  -- Shopify GID (e.g., "gid://shopify/TaxonomyCategory/aa-1-10-2-1")
+  taxonomy_name TEXT UNIQUE       -- Full hierarchical name (e.g., "Apparel & Accessories > Clothing > Outerwear > Coats & Jackets > Bolero Jackets")
+  taxonomy_path TEXT              -- Numeric path (e.g., "1.1.10.2.1")
+```
+
+**Example queries:**
+
+```sql
+-- Get the human-readable name for a taxonomy ID
+SELECT taxonomy_name FROM cantbuymelove.taxonomy
+WHERE taxonomy_id = 'gid://shopify/TaxonomyCategory/aa-1-10-2-1';
+-- Returns: "Apparel & Accessories > Clothing > Outerwear > Coats & Jackets > Bolero Jackets"
+
+-- Find all taxonomies in a category
+SELECT taxonomy_id, taxonomy_name FROM cantbuymelove.taxonomy
+WHERE taxonomy_name LIKE 'Apparel & Accessories > Clothing > Outerwear%'
+ORDER BY taxonomy_path;
+```
+
+The table contains **393 total categories**, of which **390** appear in the current product dataset.
+
+### P-adic Encoding Tables (umllr)
+
+The umllr (Universal Machine Learning Linear Regression) module stores p-adic encodings of taxonomy paths for cross-validation. These tables enable calculating p-adic loss across different models.
+
+#### `padjective.umllr_fold_metrics`
+
+Stores the prime base (p) and metadata for each CV fold:
+
+```sql
+Table: padjective.umllr_fold_metrics
+Columns:
+  cv_fold    INTEGER PRIMARY KEY  -- Cross-validation fold number (0-4)
+  loss       DOUBLE PRECISION     -- Total p-adic loss for this fold
+  prime_base INTEGER              -- Prime p used for encoding (e.g., 83)
+  max_digit  INTEGER              -- Largest digit in any taxonomy path (e.g., 80)
+  updated_at TIMESTAMPTZ          -- Last update timestamp
+```
+
+The **prime base** is computed as the smallest prime greater than `max_digit`. All folds use the same prime since they encode the same taxonomy paths.
+
+**Example query:**
+
+```sql
+SELECT cv_fold, prime_base, loss FROM padjective.umllr_fold_metrics;
+-- cv_fold | prime_base | loss
+-- --------|------------|--------
+--    0    |     83     | 191.11
+--    1    |     83     | 194.09
+--    ...
+```
+
+#### `padjective.umllr_taxonomy_encodings`
+
+Maps each taxonomy ID to its p-adic integer encoding for each CV fold:
+
+```sql
+Table: padjective.umllr_taxonomy_encodings
+Columns:
+  cv_fold       INTEGER              -- Cross-validation fold number
+  taxonomy_id   TEXT                 -- Shopify taxonomy GID
+  taxonomy_path TEXT                 -- Numeric path (e.g., "1.1.10.2.17")
+  encoded_value NUMERIC              -- P-adic integer encoding (base p)
+  updated_at    TIMESTAMPTZ          -- Last update timestamp
+  PRIMARY KEY (cv_fold, taxonomy_id)
+```
+
+The **encoded_value** represents the taxonomy path as a p-adic integer in base `prime_base`. For example, with path "1.1.10.2.17" and base 83:
+```
+encoded_value = 1×83⁰ + 1×83¹ + 10×83² + 2×83³ + 17×83⁴ = 808,004,005
+```
+
+**Example queries:**
+
+```sql
+-- Get the p-adic encoding for a specific taxonomy
+SELECT cv_fold, encoded_value
+FROM padjective.umllr_taxonomy_encodings
+WHERE taxonomy_id = 'gid://shopify/TaxonomyCategory/aa-1-10-2-17';
+
+-- Join with taxonomy names to see readable labels
+SELECT
+  e.cv_fold,
+  t.taxonomy_name,
+  e.taxonomy_path,
+  e.encoded_value
+FROM padjective.umllr_taxonomy_encodings e
+JOIN cantbuymelove.taxonomy t ON e.taxonomy_id = t.taxonomy_id
+WHERE e.cv_fold = 0 AND e.encoded_value != 0
+ORDER BY e.encoded_value DESC
+LIMIT 10;
+```
+
+**Using p-adic encodings for model evaluation:**
+
+Any model that predicts `taxonomy_id` can calculate p-adic loss by:
+1. Looking up the predicted taxonomy's `encoded_value` from `umllr_taxonomy_encodings`
+2. Looking up the true taxonomy's `encoded_value`
+3. Computing p-adic distance: `distance = prime_base^(-v)` where `v` is the p-adic valuation of `|predicted - true|`
+
+This enables comparing taxonomy classifiers (logistic regression, neural networks) using the same p-adic metric as umllr.
+
 ## Method & Implementation
 
 ### tagbattle.py
