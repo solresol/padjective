@@ -259,184 +259,69 @@ def _write_umllr_pages(output_dir: Path, summary: Dict[str, Any]) -> Dict[int, P
 def _build_index_html(
     output_dir: Path,
     stats: Dict[str, int],
-    leaderboard: pd.DataFrame,
-    chart_path: Path,
-    artifact_links: Dict[str, Path],
+    elo_page: Path,
+    taxonomy_page: Optional[Path],
+    umllr_page: Optional[Path],
     taxonomy_summary: Optional[Dict[str, Any]] = None,
     umllr_summary: Optional[Dict[str, Any]] = None,
 ) -> None:
-    top_table = leaderboard.head(20).to_html(index=False, classes="leaderboard")
-    bottom_table = (
-        leaderboard.sort_values("score", ascending=True)
-        .head(20)
-        .to_html(index=False, classes=["leaderboard", "leaderboard-bottom-table"])
-    )
     generated = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
 
-    downloads_list_items = "\n".join(
-        f'<li><a href="{path.relative_to(output_dir).as_posix()}">{label}</a></li>'
-        for label, path in artifact_links.items()
-    )
-
-
-    taxonomy_section = ""
-    if taxonomy_summary:
-        stats_block = taxonomy_summary.get("stats", {})
-        class_distribution = taxonomy_summary.get("class_distribution", [])[:10]
-        top_tags_rows = taxonomy_summary.get("top_tags", [])[:15]
-        trained_at = taxonomy_summary.get("trained_at")
-
-        summary_items = []
-        samples = stats_block.get("samples")
-        if samples is not None:
-            summary_items.append(f"<li><strong>Samples:</strong> {samples:,}</li>")
-        taxonomies_count = stats_block.get("taxonomies")
-        if taxonomies_count is not None:
-            summary_items.append(
-                f"<li><strong>Taxonomy classes:</strong> {taxonomies_count:,}</li>"
-            )
-        accuracy = stats_block.get("training_accuracy")
-        if accuracy is not None:
-            summary_items.append(
-                f"<li><strong>Training accuracy:</strong> {accuracy * 100:.2f}%</li>"
-            )
-        training_f1 = stats_block.get("training_f1")
-        if training_f1 is not None:
-            summary_items.append(
-                f"<li><strong>Training F1 (weighted):</strong> {training_f1 * 100:.2f}%</li>"
-            )
-        training_hier = stats_block.get("training_hierarchical_loss")
-        if training_hier is not None:
-            summary_items.append(
-                f"<li><strong>Training hierarchical loss:</strong> {training_hier:.3f}</li>"
-            )
-        cv_info = stats_block.get("cross_validation") or {}
-        if cv_info:
-            mean = cv_info.get("mean_accuracy")
-            std = cv_info.get("std_accuracy")
-            folds = cv_info.get("folds")
-            if mean is not None and folds:
-                summary_items.append(
-                    "<li><strong>Cross-validated accuracy:</strong> "
-                    f"{mean * 100:.2f}%"
-                    + (f" ± {std * 100:.2f}%" if std is not None else "")
-                    + f" ({folds} folds)</li>"
-                )
-            mean_f1 = cv_info.get("mean_f1")
-            if mean_f1 is not None:
-                std_f1 = cv_info.get("std_f1")
-                summary_items.append(
-                    "<li><strong>Cross-validated F1 (weighted):</strong> "
-                    f"{mean_f1 * 100:.2f}%"
-                    + (f" ± {std_f1 * 100:.2f}%" if std_f1 is not None else "")
-                    + "</li>"
-                )
-            mean_hier = cv_info.get("mean_hierarchical_loss")
-            if mean_hier is not None:
-                std_hier = cv_info.get("std_hierarchical_loss")
-                summary_items.append(
-                    "<li><strong>Cross-validated hierarchical loss:</strong> "
-                    f"{mean_hier:.3f}"
-                    + (f" ± {std_hier:.3f}" if std_hier is not None else "")
-                    + "</li>"
-                )
-        if trained_at:
-            summary_items.append(
-                f"<li><strong>Trained:</strong> {html.escape(trained_at)}</li>"
-            )
-
-        summary_list = '<ul class="taxonomy-stats">' + "".join(summary_items) + "</ul>"
-
-        distribution_rows = "\n".join(
-            "<tr>"
-            f"<td>{html.escape(row.get('taxonomy_id') or '')}</td>"
-            f"<td>{html.escape(row.get('taxonomy_path') or 'Unknown')}</td>"
-            f"<td>{row.get('sample_count', 0):,}</td>"
-            f"<td>{row.get('sample_fraction', 0.0) * 100:.2f}%</td>"
-            "</tr>"
-            for row in class_distribution
-        )
-        distribution_body = (
-            distribution_rows or '<tr><td colspan="4">No taxonomy data</td></tr>'
-        )
-        taxonomy_table = (
-            '<table class="taxonomy-table">'
-            '<thead><tr><th>Taxonomy ID</th><th>Path</th><th>Samples</th><th>Share</th></tr></thead>'
-            f"<tbody>{distribution_body}</tbody>"
-            "</table>"
-        )
-
-        tag_rows = "\n".join(
-            "<tr>"
-            f"<td>{html.escape(row.get('tag') or '')}</td>"
-            f"<td>{html.escape(row.get('top_taxonomy_id') or '')}</td>"
-            f"<td>{html.escape(row.get('top_taxonomy_path') or 'Unknown')}</td>"
-            f"<td>{row.get('top_weight', 0.0):.4f}</td>"
-            f"<td>{row.get('max_abs_weight', 0.0):.4f}</td>"
-            "</tr>"
-            for row in top_tags_rows
-        )
-        tag_body = tag_rows or '<tr><td colspan="5">No tag signals available</td></tr>'
-        tag_table = (
-            '<table class="tag-taxonomy-table">'
-            '<thead><tr><th>Tag</th><th>Taxonomy ID</th><th>Path</th><th>Weight</th><th>Max |weight|</th></tr></thead>'
-            f"<tbody>{tag_body}</tbody>"
-            "</table>"
-        )
-
-        taxonomy_section = f"""
-  <section class="taxonomy-classifier">
-    <h2>Shopify taxonomy classification</h2>
-    <p>We train a logistic regression model on Shopify tags to predict taxonomy IDs.</p>
-    {summary_list}
-    <div class="taxonomy-grid">
-      <section>
-        <h3>Largest taxonomy classes</h3>
-        {taxonomy_table}
-      </section>
-      <section>
-        <h3>Tags with strongest signal</h3>
-        {tag_table}
-      </section>
+    # Build model cards
+    elo_card = f"""
+  <div class="model-card">
+    <h3>ELO-Inspired Rankings</h3>
+    <p>Battle-tested tag hierarchy from product title positions</p>
+    <div class="card-metric">
+      <span class="value">{stats.get('battles', 0):,}</span>
+      <span class="label">Tag battles</span>
     </div>
-  </section>
-"""
+    <a href="{elo_page.relative_to(output_dir).as_posix()}" class="card-link">View rankings →</a>
+  </div>"""
 
-    umllr_block = ""
-    if umllr_summary and umllr_summary.get("metrics"):
-        rows: list[str] = []
-        page_lookup = umllr_summary.get("pages", {})
-        for metric in umllr_summary.get("metrics", []):
-            fold = metric["cv_fold"]
-            link = page_lookup.get(fold)
-            if link:
-                details = f'<a href="{link}">View fold {fold}</a>'
-            else:
-                details = f"Fold {fold}"
-            rows.append(
-                "<tr>"
-                f"<td>{fold}</td>"
-                f"<td>{metric['loss']:.6f}</td>"
-                f"<td>{metric.get('prime_base')}</td>"
-                f"<td>{metric.get('max_digit')}</td>"
-                f"<td>{details}</td>"
-                "</tr>"
-            )
-        table_body = "\n".join(rows) or '<tr><td colspan="5">No cross-validation folds recorded.</td></tr>'
-        umllr_block = f"""
-  <section class="umllr">
-    <h2>umllr cross-validation</h2>
-    <p>The umllr trainer assigns p-adic coefficients to tags and evaluates them on held-out products.</p>
-    <table class="umllr-summary">
-      <thead>
-        <tr><th>Fold</th><th>Total loss</th><th>Prime base</th><th>Max digit</th><th>Details</th></tr>
-      </thead>
-      <tbody>
-        {table_body}
-      </tbody>
-    </table>
-  </section>
-"""
+    taxonomy_card = ""
+    if taxonomy_summary and taxonomy_page:
+        stats_block = taxonomy_summary.get("stats", {})
+        cv_info = stats_block.get("cross_validation") or {}
+        cv_accuracy = cv_info.get("mean_accuracy")
+        if cv_accuracy is not None:
+            accuracy_display = f"{cv_accuracy * 100:.1f}%"
+        else:
+            accuracy_display = "—"
+
+        taxonomy_card = f"""
+  <div class="model-card">
+    <h3>Taxonomy Classifier</h3>
+    <p>Logistic regression model predicting Shopify taxonomy from tags</p>
+    <div class="card-metric">
+      <span class="value">{accuracy_display}</span>
+      <span class="label">CV accuracy</span>
+    </div>
+    <a href="{taxonomy_page.relative_to(output_dir).as_posix()}" class="card-link">View model →</a>
+  </div>"""
+
+    umllr_card = ""
+    if umllr_summary and umllr_page and umllr_summary.get("metrics"):
+        metrics = umllr_summary.get("metrics", [])
+        avg_loss = sum(m["loss"] for m in metrics) / len(metrics) if metrics else 0
+        umllr_card = f"""
+  <div class="model-card">
+    <h3>umllr P-adic Regression</h3>
+    <p>P-adic coefficients assigned to tags to predict taxonomy</p>
+    <div class="card-metric">
+      <span class="value">{avg_loss:.4f}</span>
+      <span class="label">Avg p-adic loss</span>
+    </div>
+    <a href="{umllr_page.relative_to(output_dir).as_posix()}" class="card-link">View model →</a>
+  </div>"""
+
+    # Combine model cards
+    all_cards = [elo_card]
+    if taxonomy_card:
+        all_cards.append(taxonomy_card)
+    if umllr_card:
+        all_cards.append(umllr_card)
+    models_grid = "\n".join(all_cards)
 
     html_document = f"""<!DOCTYPE html>
 <html lang="en">
@@ -444,79 +329,374 @@ def _build_index_html(
   <meta charset="utf-8" />
   <title>Padjective Tag Hierarchy</title>
   <link rel="stylesheet" href="assets/styles.css" />
+  <style>
+.model-cards {{
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr));
+  gap: 1.5rem;
+  padding: 2rem 1.5rem;
+  max-width: 70rem;
+  margin: 0 auto;
+}}
+.model-card {{
+  background: white;
+  border-radius: 1rem;
+  padding: 2rem;
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.12);
+  display: flex;
+  flex-direction: column;
+}}
+.model-card h3 {{
+  margin: 0 0 0.5rem;
+  font-size: 1.5rem;
+  color: #0b6ce3;
+}}
+.model-card p {{
+  margin: 0 0 1.5rem;
+  color: #64748b;
+  flex-grow: 1;
+}}
+.model-card .card-metric {{
+  text-align: center;
+  padding: 1rem;
+  background: #f8fafc;
+  border-radius: 0.75rem;
+  margin-bottom: 1.5rem;
+}}
+.model-card .card-metric .value {{
+  display: block;
+  font-size: 2rem;
+  font-weight: 700;
+  color: #0b6ce3;
+}}
+.model-card .card-metric .label {{
+  display: block;
+  font-size: 0.9rem;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-top: 0.25rem;
+}}
+.model-card .card-link {{
+  display: inline-block;
+  color: #0b6ce3;
+  text-decoration: none;
+  font-weight: 600;
+  padding: 0.75rem 1.5rem;
+  background: #eff6ff;
+  border-radius: 0.5rem;
+  text-align: center;
+  transition: background 0.2s;
+}}
+.model-card .card-link:hover {{
+  background: #dbeafe;
+}}
+  </style>
 </head>
 <body>
   <header class="hero">
     <h1>Padjective Tag Hierarchy</h1>
-    <p class="tagline">Daily insights into how Shopify product tags outrank one another.</p>
+    <p class="tagline">Machine learning insights into Shopify product tag organization</p>
     <p class="timestamp">Last updated {generated}</p>
   </header>
 
   <section class="metrics">
     <div class="metric">
-      <span class="value">{stats['products']:,}</span>
+      <span class="value">{stats.get('products', 0):,}</span>
       <span class="label">Products analysed</span>
     </div>
     <div class="metric">
-      <span class="value">{stats['unique_tags']:,}</span>
-      <span class="label">Distinct tags observed</span>
+      <span class="value">{stats.get('unique_tags', 0):,}</span>
+      <span class="label">Distinct tags</span>
     </div>
     <div class="metric">
-      <span class="value">{stats['battles']:,}</span>
-      <span class="label">Tag battles recorded</span>
+      <span class="value">{stats.get('battles', 0):,}</span>
+      <span class="label">Tag battles</span>
     </div>
   </section>
 
-  <section class="leaderboard-section">
-    <div class="leaderboard-text">
-      <h2>Leaderboard</h2>
-      <p>The Elo-inspired model favours tags that consistently appear later in product titles when paired with others. Here are the current top contenders.</p>
-    </div>
-    <div class="leaderboard-table">
-      {top_table}
-    </div>
-    <figure class="chart">
-      <img src="assets/{chart_path.name}" alt="Top tags bar chart" />
-      <figcaption>Top 20 tags by inferred depth.</figcaption>
-    </figure>
-    <div class="leaderboard-bottom">
-      <h3>Biggest losers</h3>
-      <p>Tags that our model predicts are most likely to be pushed to the end of product titles.</p>
-      <div class="leaderboard-table">
-        {bottom_table}
-      </div>
-    </div>
-  </section>
-
-  {umllr_block}
-  {taxonomy_section}
-
-  <section class="methodology">
-    <h2>How the rankings work</h2>
-    <ol>
-      <li><strong>Battle generation</strong> &mdash; <code>tagbattle.py</code> scans each product title, comparing the order of every pair of tags.</li>
-      <li><strong>Elo-style scoring</strong> &mdash; <code>ranking.py</code> treats each ordering as a battle, rewarding tags that appear later in the title (rightmost position wins).</li>
-      <li><strong>Visualisation</strong> &mdash; <code>display.py</code> turns the rankings into shareable tables and charts.</li>
-    </ol>
-    <p>Tags are grouped by connected component so isolated tag families get their own podium.</p>
-  </section>
-
-  <section class="downloads">
-    <h2>Download the data</h2>
-    <ul>
-      {downloads_list_items}
-    </ul>
-    <p>Historical SQL dumps are synchronised to <a href="https://datadumps.ifost.org.au/padjective/">datadumps.ifost.org.au</a>.</p>
-  </section>
+  <div class="model-cards">
+{models_grid}
+  </div>
 
   <footer>
-    <p>Rankings sourced from the Shopify Postgres battle records. Source available on <a href="https://github.com/IFost-Sydney-Uni/padjective">GitHub</a>.</p>
+    <p>Source available on <a href="https://github.com/IFost-Sydney-Uni/padjective">GitHub</a></p>
   </footer>
 </body>
 </html>
 """
 
     (output_dir / "index.html").write_text(html_document, encoding="utf-8")
+
+
+def _write_elo_rankings_page(
+    output_dir: Path,
+    leaderboard: pd.DataFrame,
+    chart_path: Path,
+    stats: Dict[str, int],
+) -> Path:
+    """Write a dedicated page for ELO rankings."""
+    elo_dir = output_dir / "elo"
+    elo_dir.mkdir(parents=True, exist_ok=True)
+
+    top_table = leaderboard.head(20).to_html(index=False, classes="leaderboard")
+    bottom_table = (
+        leaderboard.sort_values("score", ascending=True)
+        .head(20)
+        .to_html(index=False, classes=["leaderboard", "leaderboard-bottom-table"])
+    )
+
+    page_html = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>ELO-Inspired Tag Rankings</title>
+  <link rel="stylesheet" href="../assets/styles.css" />
+</head>
+<body>
+  <header class="hero">
+    <h1>ELO-Inspired Tag Rankings</h1>
+    <p class="tagline">Battle-tested tag hierarchy from product titles</p>
+  </header>
+
+  <section>
+    <p><a href="../index.html">← Back to index</a></p>
+
+    <h2>How it works</h2>
+    <p>Tags that appear <strong>later (rightmost position)</strong> in product titles consistently win battles against tags that appear earlier. We use an ELO-style ranking system to score each tag based on its positional dominance.</p>
+
+    <div class="metrics">
+      <div class="metric">
+        <span class="value">{stats.get('battles', 0):,}</span>
+        <span class="label">Tag battles recorded</span>
+      </div>
+      <div class="metric">
+        <span class="value">{stats.get('components', 0):,}</span>
+        <span class="label">Connected components</span>
+      </div>
+    </div>
+
+    <h2>Top contenders</h2>
+    <div class="leaderboard-table">
+      {top_table}
+    </div>
+
+    <figure class="chart">
+      <img src="../assets/{chart_path.name}" alt="Top tags bar chart" />
+      <figcaption>Top 20 tags by inferred depth.</figcaption>
+    </figure>
+
+    <h2>Biggest losers</h2>
+    <p>Tags that our model predicts are most likely to be pushed to the end of product titles.</p>
+    <div class="leaderboard-table">
+      {bottom_table}
+    </div>
+  </section>
+
+  <footer>
+    <p><a href="../index.html">← Back to index</a></p>
+  </footer>
+</body>
+</html>"""
+
+    page_path = elo_dir / "index.html"
+    page_path.write_text(page_html, encoding="utf-8")
+    return page_path
+
+
+def _write_umllr_overview_page(
+    output_dir: Path,
+    umllr_summary: Dict[str, Any],
+) -> Path:
+    """Write a main overview page for umllr p-adic regression results."""
+    umllr_dir = output_dir / "umllr"
+    umllr_dir.mkdir(parents=True, exist_ok=True)
+
+    metrics = umllr_summary.get("metrics", [])
+    page_lookup = umllr_summary.get("pages", {})
+
+    if metrics:
+        avg_loss = sum(m["loss"] for m in metrics) / len(metrics)
+        prime_base = metrics[0].get("prime_base", 0)
+        max_digit = metrics[0].get("max_digit", 0)
+    else:
+        avg_loss = 0
+        prime_base = 0
+        max_digit = 0
+
+    fold_rows = []
+    for metric in metrics:
+        fold = metric["cv_fold"]
+        link = page_lookup.get(fold)
+        if link:
+            link_text = f'<a href="{Path(link).name}">View details →</a>'
+        else:
+            link_text = "—"
+        fold_rows.append(
+            f"<tr>"
+            f"<td>{fold}</td>"
+            f"<td>{metric['loss']:.6f}</td>"
+            f"<td>{link_text}</td>"
+            f"</tr>"
+        )
+
+    table_body = "\n".join(fold_rows) or '<tr><td colspan="3">No cross-validation folds recorded.</td></tr>'
+
+    page_html = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>umllr P-adic Tag Regression</title>
+  <link rel="stylesheet" href="../assets/styles.css" />
+</head>
+<body>
+  <header class="hero">
+    <h1>umllr P-adic Tag Regression</h1>
+    <p class="tagline">Using p-adic coefficients to predict taxonomy from tags</p>
+  </header>
+
+  <section>
+    <p><a href="../index.html">← Back to index</a></p>
+
+    <h2>Overview</h2>
+    <p>The umllr (Universal Machine Learning Linear Regression) model assigns p-adic integer coefficients to product tags and uses them to predict taxonomy encodings. Each taxonomy path is encoded as a p-adic integer (base {prime_base}), and tags are fitted to minimize p-adic distance on training data.</p>
+
+    <div class="metrics">
+      <div class="metric">
+        <span class="value">{len(metrics)}</span>
+        <span class="label">CV folds</span>
+      </div>
+      <div class="metric">
+        <span class="value">{avg_loss:.4f}</span>
+        <span class="label">Average p-adic loss</span>
+      </div>
+      <div class="metric">
+        <span class="value">{prime_base}</span>
+        <span class="label">Prime base</span>
+      </div>
+    </div>
+
+    <h2>Cross-validation results</h2>
+    <table class="umllr-summary">
+      <thead>
+        <tr><th>Fold</th><th>Total p-adic loss</th><th>Details</th></tr>
+      </thead>
+      <tbody>
+        {table_body}
+      </tbody>
+    </table>
+  </section>
+
+  <footer>
+    <p><a href="../index.html">← Back to index</a></p>
+  </footer>
+</body>
+</html>"""
+
+    page_path = umllr_dir / "index.html"
+    page_path.write_text(page_html, encoding="utf-8")
+    return page_path
+
+
+def _write_taxonomy_classifier_page(
+    output_dir: Path,
+    taxonomy_summary: Dict[str, Any],
+) -> Path:
+    """Write a dedicated page for taxonomy classifier results."""
+    tax_dir = output_dir / "taxonomy_classifier"
+    tax_dir.mkdir(parents=True, exist_ok=True)
+
+    stats_block = taxonomy_summary.get("stats", {})
+    class_distribution = taxonomy_summary.get("class_distribution", [])[:20]
+    top_tags_rows = taxonomy_summary.get("top_tags", [])[:30]
+    trained_at = taxonomy_summary.get("trained_at", "Unknown")
+
+    # Build summary metrics
+    summary_metrics = []
+    if (samples := stats_block.get("samples")) is not None:
+        summary_metrics.append(f'<div class="metric"><span class="value">{samples:,}</span><span class="label">Training samples</span></div>')
+    if (taxonomies := stats_block.get("taxonomies")) is not None:
+        summary_metrics.append(f'<div class="metric"><span class="value">{taxonomies:,}</span><span class="label">Taxonomy classes</span></div>')
+    if (accuracy := stats_block.get("training_accuracy")) is not None:
+        summary_metrics.append(f'<div class="metric"><span class="value">{accuracy * 100:.1f}%</span><span class="label">Training accuracy</span></div>')
+
+    cv_info = stats_block.get("cross_validation") or {}
+    if (mean_acc := cv_info.get("mean_accuracy")) is not None:
+        std_acc = cv_info.get("std_accuracy", 0)
+        summary_metrics.append(f'<div class="metric"><span class="value">{mean_acc * 100:.1f}% ± {std_acc * 100:.1f}%</span><span class="label">CV accuracy</span></div>')
+
+    metrics_html = "\n".join(summary_metrics)
+
+    # Build class distribution table
+    distribution_rows = "\n".join(
+        f"<tr>"
+        f"<td>{html.escape(row.get('taxonomy_id') or '')}</td>"
+        f"<td>{html.escape(row.get('taxonomy_path') or 'Unknown')}</td>"
+        f"<td>{row.get('sample_count', 0):,}</td>"
+        f"<td>{row.get('sample_fraction', 0.0) * 100:.2f}%</td>"
+        f"</tr>"
+        for row in class_distribution
+    )
+    distribution_body = distribution_rows or '<tr><td colspan="4">No taxonomy data</td></tr>'
+
+    # Build tag table
+    tag_rows = "\n".join(
+        f"<tr>"
+        f"<td>{html.escape(row.get('tag') or '')}</td>"
+        f"<td>{html.escape(row.get('top_taxonomy_id') or '')}</td>"
+        f"<td>{html.escape(row.get('top_taxonomy_path') or 'Unknown')}</td>"
+        f"<td>{row.get('top_weight', 0.0):.4f}</td>"
+        f"<td>{row.get('max_abs_weight', 0.0):.4f}</td>"
+        f"</tr>"
+        for row in top_tags_rows
+    )
+    tag_body = tag_rows or '<tr><td colspan="5">No tag signals available</td></tr>'
+
+    page_html = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Taxonomy Classifier (Logistic Regression)</title>
+  <link rel="stylesheet" href="../assets/styles.css" />
+</head>
+<body>
+  <header class="hero">
+    <h1>Taxonomy Classifier</h1>
+    <p class="tagline">Predicting Shopify taxonomy from product tags using logistic regression</p>
+  </header>
+
+  <section>
+    <p><a href="../index.html">← Back to index</a></p>
+
+    <h2>Model summary</h2>
+    <p>This logistic regression model predicts taxonomy IDs from product tags. Trained at: {html.escape(str(trained_at))}</p>
+
+    <div class="metrics">
+      {metrics_html}
+    </div>
+
+    <h2>Largest taxonomy classes</h2>
+    <table class="taxonomy-table">
+      <thead><tr><th>Taxonomy ID</th><th>Path</th><th>Samples</th><th>Share</th></tr></thead>
+      <tbody>{distribution_body}</tbody>
+    </table>
+
+    <h2>Tags with strongest signal</h2>
+    <table class="tag-taxonomy-table">
+      <thead><tr><th>Tag</th><th>Taxonomy ID</th><th>Path</th><th>Weight</th><th>Max |weight|</th></tr></thead>
+      <tbody>{tag_body}</tbody>
+    </table>
+  </section>
+
+  <footer>
+    <p><a href="../index.html">← Back to index</a></p>
+  </footer>
+</body>
+</html>"""
+
+    page_path = tax_dir / "index.html"
+    page_path.write_text(page_html, encoding="utf-8")
+    return page_path
 
 
 def _collect_taxonomy_classifier_summary(
@@ -762,24 +942,33 @@ footer {text-align: center; padding: 2rem 1.5rem 3rem; color: #6b7280;}
         "Top tags chart": chart_path,
     }
 
+    # Write separate model pages
+    elo_page = _write_elo_rankings_page(output_dir, leaderboard, chart_path, stats)
+
     taxonomy_summary = _collect_taxonomy_classifier_summary(
         precomputed_database, schema=battle_schema
     )
+    taxonomy_page = None
+    if taxonomy_summary:
+        taxonomy_page = _write_taxonomy_classifier_page(output_dir, taxonomy_summary)
 
     umllr_summary = _load_umllr_results(precomputed_database, battle_schema)
+    umllr_page = None
     if umllr_summary:
-        pages = _write_umllr_pages(output_dir, umllr_summary)
+        fold_pages = _write_umllr_pages(output_dir, umllr_summary)
+        umllr_page = _write_umllr_overview_page(output_dir, umllr_summary)
         umllr_summary["pages"] = {
             fold: path.relative_to(output_dir).as_posix()
-            for fold, path in pages.items()
+            for fold, path in fold_pages.items()
         }
+        umllr_summary["overview_page"] = umllr_page.relative_to(output_dir).as_posix()
 
     _build_index_html(
         output_dir,
         stats,
-        leaderboard,
-        chart_path,
-        artifact_links,
+        elo_page,
+        taxonomy_page,
+        umllr_page,
         taxonomy_summary,
         umllr_summary,
     )
