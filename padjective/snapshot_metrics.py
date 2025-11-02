@@ -64,6 +64,10 @@ def get_dataset_stats(conn, product_table: str) -> tuple[int, int, int]:
         tuple: (num_products, num_tags, num_taxonomies)
     """
     with conn.cursor() as cur:
+        # Get schema and table name from product_table
+        schema, table = product_table.split(".")
+        product_identifier = sql.Identifier(schema, table)
+
         # Count products with taxonomy
         cur.execute(
             sql.SQL(
@@ -74,10 +78,13 @@ def get_dataset_stats(conn, product_table: str) -> tuple[int, int, int]:
                     p.myshopify_domain = pd.myshopify_domain
                     AND p.run_name = pd.run_name
                     AND p.product_handle = pd.product_handle
-                LEFT JOIN public.product_taxonomy pt ON p.id = pt.product_id
+                JOIN {schema}.product_taxonomy pt ON pt.product_id = p.id
                 WHERE pt.taxonomy_id IS NOT NULL
                 """
-            ).format(product_table=sql.Identifier(*product_table.split("."))),
+            ).format(
+                product_table=product_identifier,
+                schema=sql.Identifier(schema)
+            ),
         )
         num_products = cur.fetchone()[0]
 
@@ -93,7 +100,7 @@ def get_dataset_stats(conn, product_table: str) -> tuple[int, int, int]:
                         p.myshopify_domain = pd.myshopify_domain
                         AND p.run_name = pd.run_name
                         AND p.product_handle = pd.product_handle
-                    LEFT JOIN public.product_taxonomy pt ON p.id = pt.product_id
+                    JOIN {schema}.product_taxonomy pt ON pt.product_id = p.id
                     WHERE pt.taxonomy_id IS NOT NULL
                 )
                 SELECT COUNT(DISTINCT TRIM(tag))
@@ -102,7 +109,10 @@ def get_dataset_stats(conn, product_table: str) -> tuple[int, int, int]:
                 GROUP BY TRIM(tag)
                 HAVING COUNT(*) >= 2
                 """
-            ).format(product_table=sql.Identifier(*product_table.split("."))),
+            ).format(
+                product_table=product_identifier,
+                schema=sql.Identifier(schema)
+            ),
         )
         num_tags = len(cur.fetchall())
 
@@ -112,10 +122,13 @@ def get_dataset_stats(conn, product_table: str) -> tuple[int, int, int]:
                 """
                 SELECT COUNT(DISTINCT pt.taxonomy_id)
                 FROM {product_table} AS p
-                LEFT JOIN public.product_taxonomy pt ON p.id = pt.product_id
+                JOIN {schema}.product_taxonomy pt ON pt.product_id = p.id
                 WHERE pt.taxonomy_id IS NOT NULL
                 """
-            ).format(product_table=sql.Identifier(*product_table.split("."))),
+            ).format(
+                product_table=product_identifier,
+                schema=sql.Identifier(schema)
+            ),
         )
         num_taxonomies = cur.fetchone()[0]
 
