@@ -297,6 +297,7 @@ def _build_index_html(
     elo_page: Path,
     taxonomy_page: Optional[Path],
     umllr_page: Optional[Path],
+    taxonomy_nn_page: Optional[Path],
     taxonomy_summary: Optional[Dict[str, Any]] = None,
     umllr_summary: Optional[Dict[str, Any]] = None,
     taxonomy_fold_results: Optional[list[Dict[str, Any]]] = None,
@@ -306,17 +307,6 @@ def _build_index_html(
     generated = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
 
     # Build model cards
-    elo_card = f"""
-  <div class="model-card">
-    <h3>ELO-Inspired Rankings</h3>
-    <p>Battle-tested tag hierarchy from product title positions</p>
-    <div class="card-metric">
-      <span class="value">{stats.get('battles', 0):,}</span>
-      <span class="label">Tag battles</span>
-    </div>
-    <a href="{elo_page.relative_to(output_dir).as_posix()}" class="card-link">View rankings →</a>
-  </div>"""
-
     taxonomy_card = ""
     if taxonomy_summary and taxonomy_page:
         # Prefer showing p-adic loss from fold results if available
@@ -362,6 +352,12 @@ def _build_index_html(
   </div>"""
 
     nn_card = ""
+    taxonomy_nn_link = ""
+    if taxonomy_nn_page:
+        taxonomy_nn_link = (
+            f'<a href="{taxonomy_nn_page.relative_to(output_dir).as_posix()}" class="card-link">View model →</a>'
+        )
+
     if taxonomy_nn_fold_results:
         avg_loss = sum(r["padic_loss_mean"] for r in taxonomy_nn_fold_results) / len(taxonomy_nn_fold_results)
         nn_card = f"""
@@ -372,17 +368,69 @@ def _build_index_html(
       <span class="value">{avg_loss:.4f}</span>
       <span class="label">Avg p-adic loss</span>
     </div>
+    {taxonomy_nn_link or '<span class="card-link disabled">No report available</span>'}
   </div>"""
 
     # Combine model cards
-    all_cards = [elo_card]
-    if taxonomy_card:
-        all_cards.append(taxonomy_card)
+    all_cards: list[str] = []
     if umllr_card:
         all_cards.append(umllr_card)
     if nn_card:
         all_cards.append(nn_card)
+    if taxonomy_card:
+        all_cards.append(taxonomy_card)
+    elo_card = f"""
+  <div class="model-card">
+    <h3>ELO-Inspired Rankings</h3>
+    <p>Battle-tested tag hierarchy from product title positions</p>
+    <div class="card-metric">
+      <span class="value">{stats.get('battles', 0):,}</span>
+      <span class="label">Tag battles</span>
+    </div>
+    <a href="{elo_page.relative_to(output_dir).as_posix()}" class="card-link">View rankings →</a>
+  </div>"""
+    all_cards.append(elo_card)
     models_grid = "\n".join(all_cards)
+
+    taxonomy_overview_html = ""
+    if taxonomy_summary:
+        class_distribution = taxonomy_summary.get("class_distribution", [])[:5]
+        top_tags = taxonomy_summary.get("top_tags", [])[:5]
+
+        class_rows = "\n".join(
+            f"<tr><td>{html.escape(row.get('taxonomy_path') or 'Unknown')}</td><td>{row.get('sample_count', 0):,}</td><td>{row.get('sample_fraction', 0.0) * 100:.1f}%</td></tr>"
+            for row in class_distribution
+        )
+        if not class_rows:
+            class_rows = '<tr><td colspan="3">No taxonomy class data available</td></tr>'
+
+        tag_rows = "\n".join(
+            f"<tr><td>{html.escape(row.get('tag') or '')}</td><td>{html.escape(row.get('top_taxonomy_path') or 'Unknown')}</td><td>{row.get('top_weight', 0.0):.3f}</td></tr>"
+            for row in top_tags
+        )
+        if not tag_rows:
+            tag_rows = '<tr><td colspan="3">No tag signal data available</td></tr>'
+
+        taxonomy_overview_html = f"""
+  <section class="taxonomy-classifier">
+    <h2>Taxonomy classifier highlights</h2>
+    <div class="taxonomy-layout">
+      <div class="taxonomy-card">
+        <h3>Largest taxonomy classes</h3>
+        <table class="taxonomy-table">
+          <thead><tr><th>Path</th><th>Samples</th><th>Share</th></tr></thead>
+          <tbody>{class_rows}</tbody>
+        </table>
+      </div>
+      <div class="taxonomy-card">
+        <h3>Tags with strongest signals</h3>
+        <table class="taxonomy-table">
+          <thead><tr><th>Tag</th><th>Top taxonomy</th><th>Weight</th></tr></thead>
+          <tbody>{tag_rows}</tbody>
+        </table>
+      </div>
+    </div>
+  </section>"""
 
     html_document = f"""<!DOCTYPE html>
 <html lang="en">
@@ -449,6 +497,12 @@ def _build_index_html(
   text-align: center;
   transition: background 0.2s;
 }}
+.model-card .card-link.disabled {{
+  color: #94a3b8;
+  background: #e2e8f0;
+  cursor: default;
+  pointer-events: none;
+}}
 .model-card .card-link:hover {{
   background: #dbeafe;
 }}
@@ -493,6 +547,8 @@ def _build_index_html(
   <div class="model-cards">
 {models_grid}
   </div>
+
+  {taxonomy_overview_html}
 
   {_build_trends_section(trends_chart_path, output_dir)}
 
@@ -873,6 +929,149 @@ def _write_taxonomy_classifier_page(
 </html>"""
 
     page_path = tax_dir / "index.html"
+    page_path.write_text(page_html, encoding="utf-8")
+    return page_path
+
+
+def _write_taxonomy_nn_page(
+    output_dir: Path, fold_results: list[Dict[str, Any]]
+) -> Path:
+    """Write a report page for the taxonomy neural network classifier."""
+
+    nn_dir = output_dir / "taxonomy_nn_classifier"
+    nn_dir.mkdir(parents=True, exist_ok=True)
+
+    num_folds = len(fold_results)
+    avg_accuracy = sum(row["test_accuracy"] for row in fold_results) / num_folds
+    avg_f1 = sum(row["test_f1"] for row in fold_results) / num_folds
+    avg_padic_loss = sum(row["padic_loss_mean"] for row in fold_results) / num_folds
+
+    total_train = sum(row["num_train_samples"] for row in fold_results)
+    total_test = sum(row["num_test_samples"] for row in fold_results)
+
+    prime_bases = sorted({row["prime_base"] for row in fold_results})
+    hidden_layers = sorted({row["hidden_layers"] for row in fold_results})
+    max_tags_values = sorted({row["max_tags"] for row in fold_results if row.get("max_tags") is not None})
+
+    hyperparameters_items = [
+        f"<li><strong>Prime base(s):</strong> {', '.join(str(base) for base in prime_bases)}</li>",
+        "<li><strong>Hidden layers:</strong> {}</li>".format(
+            ", ".join(html.escape(layer) for layer in hidden_layers)
+        ),
+    ]
+    if max_tags_values:
+        hyperparameters_items.append(
+            f"<li><strong>Max tags used:</strong> {', '.join(str(value) for value in max_tags_values)}</li>"
+        )
+
+    fold_rows = []
+    for row in fold_results:
+        max_tags = row.get("max_tags")
+        fold_rows.append(
+            """
+        <tr>
+          <td>{cv_fold}</td>
+          <td>{accuracy:.2f}%</td>
+          <td>{f1:.4f}</td>
+          <td>{hierarchical_loss:.6f}</td>
+          <td>{padic_loss:.6f}</td>
+          <td>{prime_base}</td>
+          <td>{train_samples:,}</td>
+          <td>{test_samples:,}</td>
+          <td>{hidden_layers}</td>
+          <td>{max_tags}</td>
+        </tr>
+        """.strip().format(
+                cv_fold=row["cv_fold"],
+                accuracy=row["test_accuracy"] * 100,
+                f1=row["test_f1"],
+                hierarchical_loss=row["test_hierarchical_loss"],
+                padic_loss=row["padic_loss_mean"],
+                prime_base=row["prime_base"],
+                train_samples=row["num_train_samples"],
+                test_samples=row["num_test_samples"],
+                hidden_layers=html.escape(row["hidden_layers"]),
+                max_tags="—" if max_tags is None else max_tags,
+            )
+        )
+
+    fold_table_body = "\n".join(fold_rows)
+
+    page_html = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Taxonomy Neural Network Classifier</title>
+  <link rel="stylesheet" href="../assets/styles.css" />
+</head>
+<body>
+  <header class="hero">
+    <h1>Taxonomy Neural Network Classifier</h1>
+    <p class="tagline">Cross-validated PyTorch model predicting taxonomy IDs from tags</p>
+  </header>
+
+  <section>
+    <p><a href="../index.html">← Back to index</a></p>
+
+    <h2>Model overview</h2>
+    <div class="metrics">
+      <div class="metric">
+        <span class="value">{num_folds}</span>
+        <span class="label">CV folds</span>
+      </div>
+      <div class="metric">
+        <span class="value">{avg_accuracy * 100:.2f}%</span>
+        <span class="label">Mean accuracy</span>
+      </div>
+      <div class="metric">
+        <span class="value">{avg_f1:.4f}</span>
+        <span class="label">Mean F1</span>
+      </div>
+      <div class="metric">
+        <span class="value">{avg_padic_loss:.6f}</span>
+        <span class="label">Mean p-adic loss</span>
+      </div>
+    </div>
+
+    <ul class="taxonomy-stats">
+      <li><strong>Total train samples:</strong> {total_train:,}</li>
+      <li><strong>Total test samples:</strong> {total_test:,}</li>
+    </ul>
+
+    <h3>Key hyperparameters</h3>
+    <ul class="taxonomy-stats">
+      {''.join(hyperparameters_items)}
+    </ul>
+
+    <h2>Cross-validation fold results</h2>
+    <table class="taxonomy-table">
+      <thead>
+        <tr>
+          <th>Fold</th>
+          <th>Accuracy</th>
+          <th>F1 (weighted)</th>
+          <th>Hierarchical loss</th>
+          <th>P-adic loss (mean)</th>
+          <th>Prime base</th>
+          <th>Train samples</th>
+          <th>Test samples</th>
+          <th>Hidden layers</th>
+          <th>Max tags</th>
+        </tr>
+      </thead>
+      <tbody>
+        {fold_table_body}
+      </tbody>
+    </table>
+  </section>
+
+  <footer>
+    <p><a href="../index.html">← Back to index</a></p>
+  </footer>
+</body>
+</html>"""
+
+    page_path = nn_dir / "index.html"
     page_path.write_text(page_html, encoding="utf-8")
     return page_path
 
@@ -1302,6 +1501,9 @@ footer {text-align: center; padding: 2rem 1.5rem 3rem; color: #6b7280;}
     taxonomy_nn_fold_results = _load_taxonomy_nn_fold_results(
         precomputed_database, schema=battle_schema
     )
+    taxonomy_nn_page = None
+    if taxonomy_nn_fold_results:
+        taxonomy_nn_page = _write_taxonomy_nn_page(output_dir, taxonomy_nn_fold_results)
 
     # Generate historical trends chart
     trends_chart_path = _generate_historical_trends_chart(
@@ -1316,6 +1518,7 @@ footer {text-align: center; padding: 2rem 1.5rem 3rem; color: #6b7280;}
         elo_page,
         taxonomy_page,
         umllr_page,
+        taxonomy_nn_page,
         taxonomy_summary,
         umllr_summary,
         taxonomy_lr_fold_results,

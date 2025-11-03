@@ -4,7 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 import sys
-from typing import Dict, Set
+from collections.abc import Iterable
+from typing import Any, Dict, Set
 import warnings
 
 import numpy as np
@@ -20,6 +21,53 @@ if __package__ in {None, ""}:
 else:  # pragma: no cover - imported as a module
     from . import db
 
+
+
+def _safe_row_value(row: Any, key: str) -> Any:
+    """Return ``row[key]`` handling ``dict`` and ``psycopg.Row`` alike."""
+
+    if isinstance(row, dict):
+        return row.get(key)
+
+    try:
+        return row[key]  # type: ignore[index]
+    except (KeyError, IndexError, TypeError):
+        if hasattr(row, "get"):
+            try:
+                return row.get(key)
+            except Exception:  # pragma: no cover - defensive fallback
+                return None
+        return None
+
+
+def _gather_taxonomy_columns(conn) -> Set[str]:
+    """Return column names available on ``cantbuymelove.taxonomy``."""
+
+    columns: Set[str] = set()
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT column_name
+                FROM information_schema.columns
+                WHERE table_schema = %s AND table_name = %s
+                ORDER BY ordinal_position
+                """,
+                ("cantbuymelove", "taxonomy"),
+            )
+            for column_row in cur:  # ``FakeCursor`` yields tuples; psycopg returns sequences
+                if isinstance(column_row, dict):
+                    name = column_row.get("column_name")
+                elif isinstance(column_row, Iterable) and not isinstance(column_row, (str, bytes)):
+                    name = next(iter(column_row), None)
+                else:
+                    name = getattr(column_row, "column_name", None)
+                if name:
+                    columns.add(str(name))
+    except Exception:  # pragma: no cover - metadata lookup is best-effort
+        return set()
+
+    return columns
 
 
 def calculate_cv_folds(
@@ -39,11 +87,28 @@ def calculate_cv_folds(
 
     product_identifier = db.qualified_identifier(product_table)
 
+    available_columns = _gather_taxonomy_columns(conn)
+    taxonomy_column_order = [
+        column
+        for column in (
+            "taxonomy_path",
+            "taxonomy_label",
+            "raw_output",
+        )
+        if column in available_columns
+    ]
+    # Always include sensible fallbacks even if metadata lookup fails.
+    for fallback_column in ("taxonomy_path", "taxonomy_label", "raw_output"):
+        if fallback_column not in taxonomy_column_order:
+            taxonomy_column_order.append(fallback_column)
+
+    taxonomy_column_sql = sql.SQL("t.") + sql.Identifier(taxonomy_column_order[0])
+
     query = sql.SQL(
         """
         SELECT
             p.id,
-            t.taxonomy_path
+            {taxonomy_column}
         FROM {products} AS p
         JOIN cantbuymelove.product_taxonomy pt ON pt.product_id = p.id
         JOIN cantbuymelove.taxonomy t ON t.taxonomy_id = pt.taxonomy_id
@@ -51,7 +116,7 @@ def calculate_cv_folds(
           AND pt.taxonomy_id IS NOT NULL
         ORDER BY p.id
         """
-    ).format(products=product_identifier)
+    ).format(products=product_identifier, taxonomy_column=taxonomy_column_sql)
 
     product_ids = []
     taxonomy_paths = []
@@ -59,8 +124,21 @@ def calculate_cv_folds(
     with conn.cursor(row_factory=dict_row) as cur:
         cur.execute(query)
         for row in cur:
-            product_ids.append(row["id"])
-            taxonomy_paths.append(row["taxonomy_path"])
+            product_id = _safe_row_value(row, "id")
+            if product_id is None:
+                continue
+
+            taxonomy_value = None
+            for column in taxonomy_column_order:
+                taxonomy_value = _safe_row_value(row, column)
+                if taxonomy_value not in (None, ""):
+                    break
+
+            if taxonomy_value in (None, ""):
+                continue
+
+            product_ids.append(int(product_id))
+            taxonomy_paths.append(str(taxonomy_value))
 
     if not product_ids:
         return {}
