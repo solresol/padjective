@@ -35,6 +35,8 @@ REQUIRED_TABLES=(
   "padjective.taxonomy_lr_tag_summary"
   "padjective.taxonomy_lr_class_distribution"
   "padjective.taxonomy_lr_top_tags"
+  "padjective.taxonomy_lr_ignored_products"
+  "padjective.taxonomy_lr_excluded_taxonomies"
   "padjective.taxonomy_lr_fold_results"
   "padjective.taxonomy_nn_fold_results"
   "padjective.model_performance_history"

@@ -39,11 +39,36 @@ def calculate_cv_folds(
 
     product_identifier = db.qualified_identifier(product_table)
 
+    taxonomy_column_name = "taxonomy_path"
+    column_query = sql.SQL(
+        """
+        SELECT column_name
+        FROM information_schema.columns
+        WHERE table_schema = %s AND table_name = %s
+        """
+    )
+
+    with conn.cursor(row_factory=dict_row) as cur:
+        cur.execute(column_query, ("cantbuymelove", "taxonomy"))
+        available_columns: Set[str] = set()
+        for row in cur.fetchall():
+            if isinstance(row, dict):
+                column_name = row.get("column_name")
+            else:
+                column_name = row[0]
+            if column_name:
+                available_columns.add(str(column_name))
+
+    if "taxonomy_path" in available_columns:
+        taxonomy_column_name = "taxonomy_path"
+    elif "taxonomy_label" in available_columns:
+        taxonomy_column_name = "taxonomy_label"
+
     query = sql.SQL(
         """
         SELECT
             p.id,
-            t.taxonomy_path
+            t.{taxonomy_column} AS taxonomy_value
         FROM {products} AS p
         JOIN cantbuymelove.product_taxonomy pt ON pt.product_id = p.id
         JOIN cantbuymelove.taxonomy t ON t.taxonomy_id = pt.taxonomy_id
@@ -51,7 +76,10 @@ def calculate_cv_folds(
           AND pt.taxonomy_id IS NOT NULL
         ORDER BY p.id
         """
-    ).format(products=product_identifier)
+    ).format(
+        products=product_identifier,
+        taxonomy_column=sql.Identifier(taxonomy_column_name),
+    )
 
     product_ids = []
     taxonomy_paths = []
@@ -59,8 +87,26 @@ def calculate_cv_folds(
     with conn.cursor(row_factory=dict_row) as cur:
         cur.execute(query)
         for row in cur:
-            product_ids.append(row["id"])
-            taxonomy_paths.append(row["taxonomy_path"])
+            if isinstance(row, dict):
+                product_id = row.get("id")
+                taxonomy_value = row.get("taxonomy_value")
+                if taxonomy_value is None:
+                    taxonomy_value = row.get(taxonomy_column_name)
+                if taxonomy_value is None:
+                    taxonomy_value = row.get("taxonomy_path")
+                if taxonomy_value is None:
+                    taxonomy_value = row.get("taxonomy_label")
+            else:  # pragma: no cover - defensive fallback for tuple rows
+                if len(row) >= 2:
+                    product_id, taxonomy_value = row[0], row[1]
+                else:
+                    continue
+
+            if product_id is None or taxonomy_value is None:
+                continue
+
+            product_ids.append(product_id)
+            taxonomy_paths.append(taxonomy_value)
 
     if not product_ids:
         return {}

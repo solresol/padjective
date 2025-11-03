@@ -16,6 +16,8 @@ EXPECTED_TABLES: tuple[str, ...] = (
     "taxonomy_lr_tag_summary",
     "taxonomy_lr_top_tags",
     "taxonomy_lr_intercepts",
+    "taxonomy_lr_ignored_products",
+    "taxonomy_lr_excluded_taxonomies",
 )
 
 

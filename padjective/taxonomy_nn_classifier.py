@@ -242,26 +242,32 @@ def load_training_data(
         min_tag_count=min_tag_count,
     )
 
-    # Filter out products without taxonomy
-    has_taxonomy = metadata["taxonomy_id"].notna()
-    taxonomy_mask = has_taxonomy.to_numpy(dtype=bool, copy=False)
-    features = features[taxonomy_mask]
-    metadata = metadata.loc[has_taxonomy].copy().reset_index(drop=True)
+    features, metadata, ignored_products, excluded_taxonomies = (
+        tag_features.filter_taxonomy_training_samples(
+            features,
+            metadata,
+            min_samples_per_taxonomy=min_samples_per_taxonomy,
+        )
+    )
 
     if len(metadata) == 0:
-        raise ValueError("No products with taxonomy classifications found")
-
-    # Filter taxonomies by minimum sample count
-    taxonomy_counts = metadata["taxonomy_id"].value_counts()
-    valid_taxonomies = taxonomy_counts[taxonomy_counts >= min_samples_per_taxonomy].index
-    mask = metadata["taxonomy_id"].isin(valid_taxonomies)
-    taxonomy_filter = mask.to_numpy(dtype=bool, copy=False)
-    features = features[taxonomy_filter]
-    metadata = metadata.loc[mask].copy().reset_index(drop=True)
-
-    if len(metadata) == 0:
+        if not excluded_taxonomies.empty and ignored_products.empty:
+            raise ValueError(
+                f"No taxonomies with at least {min_samples_per_taxonomy} samples found"
+            )
+        if not ignored_products.empty and excluded_taxonomies.empty:
+            raise ValueError("No products with valid taxonomy paths found")
         raise ValueError(
-            f"No taxonomies with at least {min_samples_per_taxonomy} samples found"
+            "No products with taxonomy classifications available after filtering"
+        )
+
+    if not ignored_products.empty:
+        print(
+            f"Ignored {len(ignored_products)} products with taxonomy paths missing '.'"
+        )
+    if not excluded_taxonomies.empty:
+        print(
+            f"Excluded {len(excluded_taxonomies)} taxonomies below {min_samples_per_taxonomy} samples"
         )
 
     # Encode taxonomy labels as integers for compatibility with PyTorch loss

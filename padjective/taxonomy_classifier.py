@@ -150,6 +150,18 @@ class CrossValidationResults:
         return len(self.accuracy)
 
 
+@dataclass(slots=True)
+class TrainingDataLoadResult:
+    """Container for training data and filtering diagnostics."""
+
+    features: sparse.csr_matrix
+    labels: np.ndarray
+    feature_names: list[str]
+    metadata: pd.DataFrame
+    invalid_taxonomy_products: pd.DataFrame
+    excluded_taxonomies: pd.DataFrame
+
+
 def select_top_tags(
     features: sparse.csr_matrix,
     feature_names: list[str],
@@ -187,18 +199,9 @@ def load_training_data(
     product_table: str = "cantbuymelove.product",
     min_tag_count: int = 2,
     min_samples_per_taxonomy: int = 5,
-) -> tuple[sparse.csr_matrix, np.ndarray, list[str], pd.DataFrame]:
-    """Load product tags and taxonomy labels for training.
+) -> TrainingDataLoadResult:
+    """Load product tags and taxonomy labels for training."""
 
-    Args:
-        conn: Database connection
-        product_table: Qualified product table name
-        min_tag_count: Minimum occurrences for a tag to be included
-        min_samples_per_taxonomy: Minimum samples per taxonomy to include
-
-    Returns:
-        tuple: (features, labels, feature_names, metadata)
-    """
     features, metadata, feature_names = tag_features.extract_tag_features(
         conn,
         product_table=product_table,
@@ -206,33 +209,35 @@ def load_training_data(
         min_tag_count=min_tag_count,
     )
 
-    # Filter out products without taxonomy
-    has_taxonomy = metadata["taxonomy_id"].notna()
-    taxonomy_mask = has_taxonomy.to_numpy(dtype=bool, copy=False)
-    features = features[taxonomy_mask]
-    metadata = metadata[taxonomy_mask].copy().reset_index(drop=True)
+    features, metadata, ignored_products, excluded_taxonomies = (
+        tag_features.filter_taxonomy_training_samples(
+            features,
+            metadata,
+            min_samples_per_taxonomy=min_samples_per_taxonomy,
+        )
+    )
 
     if len(metadata) == 0:
-        raise ValueError("No products with taxonomy classifications found")
-
-    # Filter taxonomies by minimum sample count
-    taxonomy_counts = metadata["taxonomy_id"].value_counts()
-    valid_taxonomies = taxonomy_counts[taxonomy_counts >= min_samples_per_taxonomy].index
-    mask = metadata["taxonomy_id"].isin(valid_taxonomies)
-    valid_taxonomy_mask = mask.to_numpy(dtype=bool, copy=False)
-    features = features[valid_taxonomy_mask]
-    metadata = metadata[valid_taxonomy_mask].copy().reset_index(drop=True)
-
-    if len(metadata) == 0:
+        if not excluded_taxonomies.empty and ignored_products.empty:
+            raise ValueError(
+                f"No taxonomies with at least {min_samples_per_taxonomy} samples found"
+            )
+        if not ignored_products.empty and excluded_taxonomies.empty:
+            raise ValueError("No products with valid taxonomy paths found")
         raise ValueError(
-            f"No taxonomies with at least {min_samples_per_taxonomy} samples found"
+            "No products with taxonomy classifications available after filtering"
         )
 
-    if "taxonomy_path" not in metadata.columns:
-        raise ValueError("taxonomy_path column is required in metadata")
-
     labels = metadata["taxonomy_id"].to_numpy()
-    return features, labels, feature_names, metadata
+
+    return TrainingDataLoadResult(
+        features=features,
+        labels=labels,
+        feature_names=feature_names,
+        metadata=metadata,
+        invalid_taxonomy_products=ignored_products,
+        excluded_taxonomies=excluded_taxonomies,
+    )
 
 
 
@@ -448,6 +453,8 @@ def save_model_to_database(
     *,
     taxonomy_paths: Mapping[str, str] | None = None,
     cv_results: CrossValidationResults | None = None,
+    invalid_products: pd.DataFrame | None = None,
+    excluded_taxonomies: pd.DataFrame | None = None,
 ) -> int:
     """Persist model weights and metadata to Postgres."""
 
@@ -626,6 +633,108 @@ def save_model_to_database(
                     """
                 ).format(schema=sql.Identifier(schema)),
                 top_tag_rows,
+            )
+
+    if invalid_products is not None and not invalid_products.empty:
+        ignored_rows = []
+        for row in invalid_products.to_dict("records"):
+            product_id = row.get("product_id")
+            if pd.isna(product_id):
+                product_id_value = None
+            else:
+                product_id_value = int(product_id)
+
+            title = row.get("title")
+            if title is not None and pd.isna(title):
+                title = None
+
+            taxonomy_id_value = row.get("taxonomy_id")
+            if pd.isna(taxonomy_id_value):
+                taxonomy_id_value = None
+            else:
+                taxonomy_id_value = str(taxonomy_id_value)
+
+            taxonomy_path_value = row.get("taxonomy_path")
+            if pd.isna(taxonomy_path_value):
+                taxonomy_path_value = None
+            else:
+                taxonomy_path_value = str(taxonomy_path_value)
+
+            reason_value = row.get("reason") or "missing_taxonomy_dot"
+
+            ignored_rows.append(
+                (
+                    model_id,
+                    product_id_value,
+                    title,
+                    taxonomy_id_value,
+                    taxonomy_path_value,
+                    reason_value,
+                )
+            )
+
+        with conn.cursor() as cur:
+            cur.executemany(
+                sql.SQL(
+                    """
+                    INSERT INTO {schema}.taxonomy_lr_ignored_products (
+                        model_id, product_id, title, taxonomy_id, taxonomy_path, reason
+                    ) VALUES (%s, %s, %s, %s, %s, %s)
+                    """
+                ).format(schema=sql.Identifier(schema)),
+                ignored_rows,
+            )
+
+    if excluded_taxonomies is not None and not excluded_taxonomies.empty:
+        excluded_rows = []
+        for row in excluded_taxonomies.to_dict("records"):
+            taxonomy_id_value = row.get("taxonomy_id")
+            if pd.isna(taxonomy_id_value):
+                taxonomy_id_value = None
+            else:
+                taxonomy_id_value = str(taxonomy_id_value)
+
+            taxonomy_path_value = row.get("taxonomy_path")
+            if pd.isna(taxonomy_path_value):
+                taxonomy_path_value = None
+            else:
+                taxonomy_path_value = str(taxonomy_path_value)
+
+            sample_count_value = row.get("sample_count")
+            if pd.isna(sample_count_value):
+                sample_count_value = 0
+            else:
+                sample_count_value = int(sample_count_value)
+
+            threshold_value = row.get("threshold")
+            if pd.isna(threshold_value):
+                threshold_value = None
+            else:
+                threshold_value = int(threshold_value)
+
+            reason_value = row.get("reason") or "min_samples"
+
+            excluded_rows.append(
+                (
+                    model_id,
+                    taxonomy_id_value,
+                    taxonomy_path_value,
+                    sample_count_value,
+                    threshold_value,
+                    reason_value,
+                )
+            )
+
+        with conn.cursor() as cur:
+            cur.executemany(
+                sql.SQL(
+                    """
+                    INSERT INTO {schema}.taxonomy_lr_excluded_taxonomies (
+                        model_id, taxonomy_id, taxonomy_path, sample_count, threshold, reason
+                    ) VALUES (%s, %s, %s, %s, %s, %s)
+                    """
+                ).format(schema=sql.Identifier(schema)),
+                excluded_rows,
             )
 
     conn.commit()
@@ -862,7 +971,7 @@ def main() -> None:
     # Load data
     data_conn = db.get_connection(args.dsn)
     try:
-        features, labels, feature_names, metadata = load_training_data(
+        dataset = load_training_data(
             data_conn,
             product_table=args.product_table,
             min_tag_count=args.min_tag_count,
@@ -870,6 +979,20 @@ def main() -> None:
         )
     finally:
         data_conn.close()
+
+    features = dataset.features
+    labels = dataset.labels
+    feature_names = dataset.feature_names
+    metadata = dataset.metadata
+
+    if not dataset.invalid_taxonomy_products.empty:
+        print(
+            f"Ignored {len(dataset.invalid_taxonomy_products)} products with taxonomy paths missing '.'"
+        )
+    if not dataset.excluded_taxonomies.empty:
+        print(
+            f"Excluded {len(dataset.excluded_taxonomies)} taxonomies below {args.min_samples_per_taxonomy} samples"
+        )
 
     print(f"Loaded {len(labels)} products with {len(feature_names)} tags")
 
@@ -1071,6 +1194,8 @@ def main() -> None:
             top_tags,
             taxonomy_paths=taxonomy_path_lookup,
             cv_results=cv_results,
+            invalid_products=dataset.invalid_taxonomy_products,
+            excluded_taxonomies=dataset.excluded_taxonomies,
         )
     finally:
         results_conn.close()

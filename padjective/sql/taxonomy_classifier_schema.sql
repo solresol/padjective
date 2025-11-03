@@ -88,7 +88,35 @@ CREATE TABLE IF NOT EXISTS padjective.taxonomy_lr_intercepts (
 CREATE INDEX IF NOT EXISTS taxonomy_lr_intercepts_model_idx
     ON padjective.taxonomy_lr_intercepts (model_id);
 
--- 8. Grant padjective role access to the schema, tables, and sequences.
+-- 8. Record products ignored because of malformed taxonomy paths.
+CREATE TABLE IF NOT EXISTS padjective.taxonomy_lr_ignored_products (
+    model_id BIGINT NOT NULL,
+    product_id BIGINT,
+    title TEXT,
+    taxonomy_id TEXT,
+    taxonomy_path TEXT,
+    reason TEXT NOT NULL,
+    FOREIGN KEY (model_id) REFERENCES padjective.taxonomy_lr_models(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS taxonomy_lr_ignored_products_model_idx
+    ON padjective.taxonomy_lr_ignored_products (model_id);
+
+-- 9. Record taxonomies excluded for failing the minimum sample requirement.
+CREATE TABLE IF NOT EXISTS padjective.taxonomy_lr_excluded_taxonomies (
+    model_id BIGINT NOT NULL,
+    taxonomy_id TEXT,
+    taxonomy_path TEXT,
+    sample_count BIGINT NOT NULL,
+    threshold INTEGER,
+    reason TEXT NOT NULL,
+    FOREIGN KEY (model_id) REFERENCES padjective.taxonomy_lr_models(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS taxonomy_lr_excluded_taxonomies_model_idx
+    ON padjective.taxonomy_lr_excluded_taxonomies (model_id);
+
+-- 10. Grant padjective role access to the schema, tables, and sequences.
 GRANT USAGE ON SCHEMA padjective TO padjective;
 
 GRANT SELECT, INSERT, UPDATE, DELETE ON
@@ -97,7 +125,9 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON
     padjective.taxonomy_lr_class_distribution,
     padjective.taxonomy_lr_tag_summary,
     padjective.taxonomy_lr_top_tags,
-    padjective.taxonomy_lr_intercepts
+    padjective.taxonomy_lr_intercepts,
+    padjective.taxonomy_lr_ignored_products,
+    padjective.taxonomy_lr_excluded_taxonomies
 TO padjective;
 
 GRANT USAGE, SELECT ON SEQUENCE padjective.taxonomy_lr_models_id_seq TO padjective;

@@ -249,7 +249,10 @@ def _load_products(
                 continue
             tags = _parse_tags(row.get("tags"))
             taxonomy_id = row.get("taxonomy_id") or ""
-            taxonomy_path = row.get("taxonomy_path") or ""
+            taxonomy_path_raw = row.get("taxonomy_path") or ""
+            if "." not in str(taxonomy_path_raw):
+                continue
+            taxonomy_path = str(taxonomy_path_raw)
             digits = _parse_taxonomy_digits(taxonomy_path)
             if digits:
                 max_digit = max(max_digit, max(digits))

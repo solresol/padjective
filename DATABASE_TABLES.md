@@ -29,11 +29,18 @@ All tables are created automatically by the Python programs when they run, using
 
 ### 3. Logistic Regression Classifier Tables
 
-**SQL Script:** `create_taxonomy_lr_fold_tables.sql`  
+**SQL Script:** `create_taxonomy_lr_fold_tables.sql`
 **Created by:** `padjective/taxonomy_classifier.py`
 
-- `taxonomy_lr_fold_results` - Per-fold test metrics (accuracy, F1, hierarchical loss, p-adic loss)
 - `taxonomy_lr_models` - Full training metadata and cross-validation results
+- `taxonomy_lr_cv_scores` - Per-fold accuracy, F1, and hierarchical loss metrics
+- `taxonomy_lr_class_distribution` - Class balance for the training set
+- `taxonomy_lr_tag_summary` - Top-weighted taxonomy assignments per tag
+- `taxonomy_lr_top_tags` - Highest-weighted tags for each taxonomy
+- `taxonomy_lr_intercepts` - Per-class intercept terms for the logistic model
+- `taxonomy_lr_ignored_products` - Products excluded because their taxonomy path lacked a dot
+- `taxonomy_lr_excluded_taxonomies` - Taxonomies filtered out for failing the minimum sample count
+- `taxonomy_lr_fold_results` - Per-fold test metrics (accuracy, F1, hierarchical loss, p-adic loss)
 
 **Schema Creation:** `padjective/taxonomy_classifier_schema.py`
 

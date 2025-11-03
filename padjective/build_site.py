@@ -297,6 +297,7 @@ def _build_index_html(
     elo_page: Path,
     taxonomy_page: Optional[Path],
     umllr_page: Optional[Path],
+    ignored_page: Optional[Path],
     taxonomy_summary: Optional[Dict[str, Any]] = None,
     umllr_summary: Optional[Dict[str, Any]] = None,
     taxonomy_fold_results: Optional[list[Dict[str, Any]]] = None,
@@ -383,6 +384,45 @@ def _build_index_html(
     if nn_card:
         all_cards.append(nn_card)
     models_grid = "\n".join(all_cards)
+
+    taxonomy_preview_section = ""
+    if taxonomy_summary and taxonomy_page:
+        preview_rows = taxonomy_summary.get("class_distribution", [])[:3]
+        top_tag_rows = taxonomy_summary.get("top_tags", [])[:5]
+        if preview_rows or top_tag_rows:
+            preview_items = "\n".join(
+                f"<li><strong>{html.escape(row.get('taxonomy_path') or row.get('taxonomy_id') or 'Unknown')}</strong> — {row.get('sample_count', 0):,} products</li>"
+                for row in preview_rows
+            ) or "<li>No taxonomy distribution available</li>"
+            tag_items = "\n".join(
+                f"<li><strong>{html.escape(tag.get('tag') or '')}</strong> → {html.escape(tag.get('top_taxonomy_path') or tag.get('top_taxonomy_id') or 'Unknown')}</li>"
+                for tag in top_tag_rows
+            ) or "<li>No tag signals available</li>"
+            taxonomy_preview_section = f"""
+  <section class=\"taxonomy-classifier\">
+    <div class=\"taxonomy-card\">
+      <h2>Taxonomy snapshot</h2>
+      <div class=\"taxonomy-layout\">
+        <div class=\"taxonomy-card\">
+          <h3>Top classes</h3>
+          <ul>{preview_items}</ul>
+        </div>
+        <div class=\"taxonomy-card\">
+          <h3>Influential tags</h3>
+          <ul>{tag_items}</ul>
+        </div>
+      </div>
+      <p><a href=\"{taxonomy_page.relative_to(output_dir).as_posix()}\">View taxonomy classifier →</a></p>
+    </div>
+  </section>
+"""
+
+    ignored_link_html = ""
+    if ignored_page:
+        ignored_link_html = (
+            " "
+            + f'<a href="{ignored_page.relative_to(output_dir).as_posix()}">Review ignored records →</a>'
+        )
 
     html_document = f"""<!DOCTYPE html>
 <html lang="en">
@@ -471,7 +511,7 @@ def _build_index_html(
   <header class="hero">
     <h1>Padjective Tag Hierarchy</h1>
     <p class="tagline">Machine learning insights into Shopify product tag organization</p>
-    <p class="data-note">Data sourced from <a href="https://cantbuymelove.industrial-linguistics.com/">cantbuymelove.industrial-linguistics.com</a> powering Shopify taxonomy classification and filtered to taxonomies with at least five products.</p>
+    <p class="data-note">Data sourced from <a href="https://cantbuymelove.industrial-linguistics.com/">cantbuymelove.industrial-linguistics.com</a> powering Shopify taxonomy classification and filtered to taxonomies meeting minimum sample thresholds.{ignored_link_html}</p>
     <p class="timestamp">Last updated {generated}</p>
   </header>
 
@@ -493,6 +533,8 @@ def _build_index_html(
   <div class="model-cards">
 {models_grid}
   </div>
+
+  {taxonomy_preview_section}
 
   {_build_trends_section(trends_chart_path, output_dir)}
 
@@ -877,6 +919,135 @@ def _write_taxonomy_classifier_page(
     return page_path
 
 
+def _write_ignored_taxonomy_page(
+    output_dir: Path,
+    ignored_products: Sequence[Dict[str, Any]],
+    excluded_taxonomies: Sequence[Dict[str, Any]],
+) -> Path:
+    """Write a page summarising ignored products and taxonomies."""
+
+    page_path = output_dir / "ignored.html"
+
+    if ignored_products:
+        product_rows = "\n".join(
+            """
+        <tr>
+          <td>{product_id}</td>
+          <td>{title}</td>
+          <td>{taxonomy_id}</td>
+          <td>{taxonomy_path}</td>
+          <td>{reason}</td>
+        </tr>
+        """.format(
+                product_id=html.escape(str(entry.get("product_id")))
+                if entry.get("product_id") is not None
+                else "—",
+                title=html.escape(entry.get("title") or ""),
+                taxonomy_id=html.escape(entry.get("taxonomy_id") or ""),
+                taxonomy_path=html.escape(entry.get("taxonomy_path") or ""),
+                reason=html.escape(entry.get("reason") or ""),
+            )
+            for entry in ignored_products
+        )
+        ignored_section = f"""
+  <section class=\"taxonomy-card\">
+    <h2>Products ignored for invalid taxonomy paths</h2>
+    <p>The following products were removed before training because their taxonomy path lacked a dot.</p>
+    <table class=\"taxonomy-table\">
+      <thead>
+        <tr><th>Product ID</th><th>Title</th><th>Taxonomy ID</th><th>Taxonomy Path</th><th>Reason</th></tr>
+      </thead>
+      <tbody>
+        {product_rows}
+      </tbody>
+    </table>
+  </section>
+        """
+    else:
+        ignored_section = """
+  <section class=\"taxonomy-card\">
+    <h2>Products ignored for invalid taxonomy paths</h2>
+    <p>No products were excluded for missing taxonomy dots in the latest training run.</p>
+  </section>
+        """
+
+    if excluded_taxonomies:
+        taxonomy_rows = "\n".join(
+            """
+        <tr>
+          <td>{taxonomy_id}</td>
+          <td>{taxonomy_path}</td>
+          <td>{sample_count}</td>
+          <td>{threshold}</td>
+          <td>{reason}</td>
+        </tr>
+        """.format(
+                taxonomy_id=html.escape(entry.get("taxonomy_id") or ""),
+                taxonomy_path=html.escape(entry.get("taxonomy_path") or ""),
+                sample_count=html.escape(
+                    "—"
+                    if entry.get("sample_count") is None
+                    else f"{entry.get('sample_count'):,}"
+                ),
+                threshold=html.escape(
+                    "—" if entry.get("threshold") is None else str(entry.get("threshold"))
+                ),
+                reason=html.escape(entry.get("reason") or ""),
+            )
+            for entry in excluded_taxonomies
+        )
+        excluded_section = f"""
+  <section class=\"taxonomy-card\">
+    <h2>Taxonomies excluded for insufficient samples</h2>
+    <p>Taxonomies must have at least the configured minimum number of products to be included in training.</p>
+    <table class=\"taxonomy-table\">
+      <thead>
+        <tr><th>Taxonomy ID</th><th>Taxonomy Path</th><th>Sample Count</th><th>Threshold</th><th>Reason</th></tr>
+      </thead>
+      <tbody>
+        {taxonomy_rows}
+      </tbody>
+    </table>
+  </section>
+        """
+    else:
+        excluded_section = """
+  <section class=\"taxonomy-card\">
+    <h2>Taxonomies excluded for insufficient samples</h2>
+    <p>All taxonomies met the minimum sample threshold in the latest training run.</p>
+  </section>
+        """
+
+    page_html = f"""<!DOCTYPE html>
+<html lang=\"en\">
+<head>
+  <meta charset=\"utf-8\" />
+  <title>Ignored taxonomy data</title>
+  <link rel=\"stylesheet\" href=\"assets/styles.css\" />
+</head>
+<body>
+  <header class=\"hero\">
+    <h1>Ignored taxonomy records</h1>
+    <p class=\"tagline\">Products and taxonomies excluded prior to training</p>
+    <p><a href=\"index.html\">← Back to main index</a></p>
+  </header>
+
+  <section class=\"taxonomy-classifier\">
+    {ignored_section}
+    {excluded_section}
+  </section>
+
+  <footer>
+    <p><a href=\"index.html\">← Back to main index</a></p>
+  </footer>
+</body>
+</html>
+    """
+
+    page_path.write_text(page_html, encoding="utf-8")
+    return page_path
+
+
 def _collect_taxonomy_classifier_summary(
     conn, schema: str = "padjective"
 ) -> Optional[Dict[str, Any]]:
@@ -1009,6 +1180,59 @@ def _collect_taxonomy_classifier_summary(
             for row in cur.fetchall()
         ]
 
+    ignored_products: list[Dict[str, Any]] = []
+    if _table_exists(conn, schema, "taxonomy_lr_ignored_products"):
+        with conn.cursor(row_factory=dict_row) as cur:
+            cur.execute(
+                sql.SQL(
+                    """
+                    SELECT product_id, title, taxonomy_id, taxonomy_path, reason
+                    FROM {schema}.taxonomy_lr_ignored_products
+                    WHERE model_id = %s
+                    ORDER BY reason, product_id
+                    """
+                ).format(schema=sql.Identifier(schema)),
+                (model_id,),
+            )
+            for row in cur.fetchall():
+                product_id = row.get("product_id")
+                ignored_products.append(
+                    {
+                        "product_id": int(product_id) if product_id is not None else None,
+                        "title": row.get("title"),
+                        "taxonomy_id": row.get("taxonomy_id"),
+                        "taxonomy_path": row.get("taxonomy_path"),
+                        "reason": row.get("reason"),
+                    }
+                )
+
+    excluded_taxonomies: list[Dict[str, Any]] = []
+    if _table_exists(conn, schema, "taxonomy_lr_excluded_taxonomies"):
+        with conn.cursor(row_factory=dict_row) as cur:
+            cur.execute(
+                sql.SQL(
+                    """
+                    SELECT taxonomy_id, taxonomy_path, sample_count, threshold, reason
+                    FROM {schema}.taxonomy_lr_excluded_taxonomies
+                    WHERE model_id = %s
+                    ORDER BY sample_count ASC, taxonomy_id
+                    """
+                ).format(schema=sql.Identifier(schema)),
+                (model_id,),
+            )
+            for row in cur.fetchall():
+                sample_count = row.get("sample_count")
+                threshold = row.get("threshold")
+                excluded_taxonomies.append(
+                    {
+                        "taxonomy_id": row.get("taxonomy_id"),
+                        "taxonomy_path": row.get("taxonomy_path"),
+                        "sample_count": int(sample_count) if sample_count is not None else None,
+                        "threshold": int(threshold) if threshold is not None else None,
+                        "reason": row.get("reason"),
+                    }
+                )
+
     return {
         "model_id": model_id,
         "trained_at": trained_at.isoformat(timespec="seconds") if trained_at else None,
@@ -1016,6 +1240,8 @@ def _collect_taxonomy_classifier_summary(
         "class_distribution": class_distribution,
         "top_tags": tag_summary,
         "taxonomy_top_tags": taxonomy_top_tags,
+        "ignored_products": ignored_products,
+        "excluded_taxonomies": excluded_taxonomies,
     }
 
 
@@ -1280,11 +1506,17 @@ footer {text-align: center; padding: 2rem 1.5rem 3rem; color: #6b7280;}
     )
     taxonomy_page = None
     taxonomy_fold_pages = {}
+    ignored_page = None
     if taxonomy_summary:
         if taxonomy_lr_fold_results:
             taxonomy_fold_pages = _write_taxonomy_lr_fold_pages(output_dir, taxonomy_lr_fold_results)
         taxonomy_page = _write_taxonomy_classifier_page(
             output_dir, taxonomy_summary, taxonomy_lr_fold_results, taxonomy_fold_pages
+        )
+        ignored_page = _write_ignored_taxonomy_page(
+            output_dir,
+            taxonomy_summary.get("ignored_products", []),
+            taxonomy_summary.get("excluded_taxonomies", []),
         )
 
     umllr_summary = _load_umllr_results(precomputed_database, battle_schema)
@@ -1316,6 +1548,7 @@ footer {text-align: center; padding: 2rem 1.5rem 3rem; color: #6b7280;}
         elo_page,
         taxonomy_page,
         umllr_page,
+        ignored_page,
         taxonomy_summary,
         umllr_summary,
         taxonomy_lr_fold_results,

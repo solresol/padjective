@@ -209,6 +209,96 @@ def extract_tag_features(
     return sparse_matrix, metadata_df, feature_names
 
 
+def filter_taxonomy_training_samples(
+    features: sparse.csr_matrix,
+    metadata_df: pd.DataFrame,
+    *,
+    min_samples_per_taxonomy: int,
+) -> tuple[sparse.csr_matrix, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    """Filter taxonomy training samples and record ignored entries.
+
+    Args:
+        features: Sparse feature matrix aligned with ``metadata_df`` rows.
+        metadata_df: Product metadata including ``taxonomy_id`` and ``taxonomy_path``.
+        min_samples_per_taxonomy: Minimum number of samples a taxonomy must have.
+
+    Returns:
+        tuple containing the filtered feature matrix, filtered metadata, a
+        dataframe of ignored products (missing taxonomy path dots), and a
+        dataframe of excluded taxonomies that failed the minimum sample count.
+    """
+
+    if "taxonomy_id" not in metadata_df.columns:
+        raise ValueError("metadata_df must include a taxonomy_id column")
+
+    has_taxonomy_mask = metadata_df["taxonomy_id"].notna().to_numpy(dtype=bool, copy=False)
+    features = features[has_taxonomy_mask]
+    metadata = metadata_df.loc[has_taxonomy_mask].copy().reset_index(drop=True)
+
+    path_series = metadata.get("taxonomy_path")
+    if path_series is None:
+        raise ValueError("metadata_df must include a taxonomy_path column")
+
+    path_strings = path_series.fillna("").astype(str)
+    valid_path_mask = path_strings.str.contains(".", regex=False)
+
+    ignored_products = metadata.loc[
+        ~valid_path_mask,
+        ["product_id", "title", "taxonomy_id", "taxonomy_path", "cv_fold"],
+    ].copy()
+    if not ignored_products.empty:
+        ignored_products["reason"] = "missing_taxonomy_dot"
+
+    features = features[valid_path_mask.to_numpy(dtype=bool, copy=False)]
+    metadata = metadata.loc[valid_path_mask].copy().reset_index(drop=True)
+
+    if len(metadata) == 0:
+        empty_excluded = pd.DataFrame(
+            columns=["taxonomy_id", "taxonomy_path", "sample_count", "threshold", "reason"]
+        )
+        ignored_products = ignored_products.reindex(
+            columns=["product_id", "title", "taxonomy_id", "taxonomy_path", "cv_fold", "reason"]
+        )
+        return features, metadata, ignored_products, empty_excluded
+
+    taxonomy_counts = metadata["taxonomy_id"].value_counts()
+    valid_taxonomies = taxonomy_counts[taxonomy_counts >= min_samples_per_taxonomy].index
+    excluded_taxonomies = taxonomy_counts[taxonomy_counts < min_samples_per_taxonomy]
+
+    excluded_records: list[dict] = []
+    if not excluded_taxonomies.empty:
+        taxonomy_lookup = (
+            metadata.drop_duplicates(subset=["taxonomy_id"])
+            .set_index("taxonomy_id")
+            .get("taxonomy_path")
+        )
+        for taxonomy_id, count in excluded_taxonomies.items():
+            excluded_records.append(
+                {
+                    "taxonomy_id": taxonomy_id,
+                    "taxonomy_path": taxonomy_lookup.get(taxonomy_id),
+                    "sample_count": int(count),
+                    "threshold": int(min_samples_per_taxonomy),
+                    "reason": "min_samples",
+                }
+            )
+
+    excluded_df = pd.DataFrame(
+        excluded_records,
+        columns=["taxonomy_id", "taxonomy_path", "sample_count", "threshold", "reason"],
+    )
+
+    mask = metadata["taxonomy_id"].isin(valid_taxonomies)
+    features = features[mask.to_numpy(dtype=bool, copy=False)]
+    metadata = metadata.loc[mask].copy().reset_index(drop=True)
+
+    ignored_products = ignored_products.reindex(
+        columns=["product_id", "title", "taxonomy_id", "taxonomy_path", "cv_fold", "reason"]
+    )
+
+    return features, metadata, ignored_products, excluded_df
+
+
 def create_dense_dataframe(
     sparse_matrix: sparse.csr_matrix,
     metadata_df: pd.DataFrame,
