@@ -15,9 +15,9 @@ if __package__ in {None, ""}:
     project_root = Path(__file__).resolve().parent.parent
     if str(project_root) not in sys.path:
         sys.path.append(str(project_root))
-    from padjective import db
+    from padjective import data_access, db
 else:
-    from . import db
+    from . import data_access, db
 
 try:
     from psycopg2 import sql
@@ -57,80 +57,29 @@ def create_history_table(conn, schema: str = "padjective") -> None:
     conn.commit()
 
 
-def get_dataset_stats(conn, product_table: str) -> tuple[int, int, int]:
+def get_dataset_stats(
+    conn,
+    product_table: str,
+    *,
+    min_tag_count: int = 2,
+    min_samples_per_taxonomy: int = 5,
+) -> tuple[int, int, int]:
     """Get current dataset statistics.
 
     Returns:
         tuple: (num_products, num_tags, num_taxonomies)
     """
-    with conn.cursor() as cur:
-        # Get schema and table name from product_table
-        schema, table = product_table.split(".")
-        product_identifier = sql.Identifier(schema, table)
+    dataset = data_access.build_feature_dataset(
+        conn,
+        product_table=product_table,
+        require_taxonomy=True,
+        min_tag_count=min_tag_count,
+        min_samples_per_taxonomy=min_samples_per_taxonomy,
+    )
 
-        # Count products with taxonomy
-        cur.execute(
-            sql.SQL(
-                """
-                SELECT COUNT(DISTINCT p.id)
-                FROM {product_table} AS p
-                JOIN public.product_details pd ON
-                    p.myshopify_domain = pd.myshopify_domain
-                    AND p.run_name = pd.run_name
-                    AND p.product_handle = pd.product_handle
-                JOIN {schema}.product_taxonomy pt ON pt.product_id = p.id
-                WHERE pt.taxonomy_id IS NOT NULL
-                """
-            ).format(
-                product_table=product_identifier,
-                schema=sql.Identifier(schema)
-            ),
-        )
-        num_products = cur.fetchone()[0]
-
-        # Count distinct tags (tags that appear at least twice)
-        cur.execute(
-            sql.SQL(
-                """
-                WITH product_tags AS (
-                    SELECT p.id,
-                           UNNEST(string_to_array(pd.product_detail->'product'->>'tags', ',')) AS tag
-                    FROM {product_table} AS p
-                    JOIN public.product_details pd ON
-                        p.myshopify_domain = pd.myshopify_domain
-                        AND p.run_name = pd.run_name
-                        AND p.product_handle = pd.product_handle
-                    JOIN {schema}.product_taxonomy pt ON pt.product_id = p.id
-                    WHERE pt.taxonomy_id IS NOT NULL
-                )
-                SELECT COUNT(DISTINCT TRIM(tag))
-                FROM product_tags
-                WHERE TRIM(tag) != ''
-                GROUP BY TRIM(tag)
-                HAVING COUNT(*) >= 2
-                """
-            ).format(
-                product_table=product_identifier,
-                schema=sql.Identifier(schema)
-            ),
-        )
-        num_tags = len(cur.fetchall())
-
-        # Count distinct taxonomies
-        cur.execute(
-            sql.SQL(
-                """
-                SELECT COUNT(DISTINCT pt.taxonomy_id)
-                FROM {product_table} AS p
-                JOIN {schema}.product_taxonomy pt ON pt.product_id = p.id
-                WHERE pt.taxonomy_id IS NOT NULL
-                """
-            ).format(
-                product_table=product_identifier,
-                schema=sql.Identifier(schema)
-            ),
-        )
-        num_taxonomies = cur.fetchone()[0]
+    num_products = dataset.product_count
+    num_tags = len(dataset.feature_names)
+    num_taxonomies = dataset.taxonomy_count
 
     return num_products, num_tags, num_taxonomies
 

@@ -1,8 +1,7 @@
 """Utilities for extracting product tags as sparse feature matrices.
 
-This module provides functionality to extract tags from products stored in the
-Shopify database and convert them into sparse dataframes suitable for machine
-learning tasks like taxonomy classification.
+The heavy lifting is delegated to :mod:`padjective.data_access`, ensuring every
+consumer works from the same normalised dataset.
 """
 
 from __future__ import annotations
@@ -10,115 +9,20 @@ from __future__ import annotations
 import argparse
 import sys
 from pathlib import Path
-from typing import Iterable, Iterator
 
 import pandas as pd
-from psycopg import sql
-from psycopg.rows import dict_row
 from scipy import sparse
 
 if __package__ in {None, ""}:
     project_root = Path(__file__).resolve().parent.parent
     if str(project_root) not in sys.path:
         sys.path.append(str(project_root))
-    from padjective import db
+    from padjective import data_access, db
 else:
-    from . import db
+    from . import data_access, db
 
-
-def normalize_tag(tag: str) -> str:
-    """Normalize a tag to uppercase and strip whitespace.
-
-    Args:
-        tag: Raw tag string
-
-    Returns:
-        Normalized tag string
-    """
-    return tag.strip().upper()
-
-
-def parse_tags(tag_string: str | None) -> list[str]:
-    """Parse a comma-separated tag string into a list of normalized tags.
-
-    Args:
-        tag_string: Comma-separated tag string (or None)
-
-    Returns:
-        List of normalized, non-empty tags
-    """
-    if not tag_string:
-        return []
-
-    tags = []
-    for tag in tag_string.split(","):
-        normalized = normalize_tag(tag)
-        if normalized:
-            tags.append(normalized)
-    return tags
-
-
-def stream_product_tags(
-    conn,
-    product_table: str = "cantbuymelove.product",
-    include_taxonomy: bool = True,
-) -> Iterator[dict]:
-    """Stream products with their tags and optional taxonomy information.
-
-    Args:
-        conn: psycopg connection to the database
-        product_table: Qualified name of the product table
-        include_taxonomy: Whether to join with taxonomy table
-
-    Yields:
-        dict: Product records with id, title, tags, and optionally taxonomy_id
-        and taxonomy_path
-    """
-    product_identifier = db.qualified_identifier(product_table)
-
-    if include_taxonomy:
-        query = sql.SQL(
-            """
-            SELECT
-                p.id,
-                p.product_title AS title,
-                pd.product_detail->'product'->>'tags' AS tags,
-                pt.taxonomy_id,
-                t.taxonomy_path,
-                up.cv_fold
-            FROM {products} AS p
-            JOIN public.product_details pd ON
-                p.myshopify_domain = pd.myshopify_domain
-                AND p.run_name = pd.run_name
-                AND p.product_handle = pd.product_handle
-            JOIN cantbuymelove.product_taxonomy pt ON pt.product_id = p.id
-            JOIN cantbuymelove.taxonomy t ON t.taxonomy_id = pt.taxonomy_id
-            LEFT JOIN padjective.umllr_predictions up ON up.product_id = p.id
-            WHERE p.product_title IS NOT NULL
-            ORDER BY p.id
-            """
-        ).format(products=product_identifier)
-    else:
-        query = sql.SQL(
-            """
-            SELECT
-                p.id,
-                p.product_title AS title,
-                pd.product_detail->'product'->>'tags' AS tags
-            FROM {products} AS p
-            JOIN public.product_details pd ON
-                p.myshopify_domain = pd.myshopify_domain
-                AND p.run_name = pd.run_name
-                AND p.product_handle = pd.product_handle
-            WHERE p.product_title IS NOT NULL
-            ORDER BY p.id
-            """
-        ).format(products=product_identifier)
-
-    with conn.cursor(row_factory=dict_row) as cur:
-        cur.execute(query)
-        for row in cur:
-            yield row
+normalize_tag = data_access.normalize_tag
+parse_tags = data_access.parse_tags
 
 
 def extract_tag_features(
@@ -141,72 +45,19 @@ def extract_tag_features(
             - metadata_df: DataFrame with product_id, title, and optionally taxonomy_id
             - feature_names: List of tag names corresponding to matrix columns
     """
-    # First pass: collect all products and tags
-    products = []
-    product_tags_list = []
-    tag_counts = {}
-
-    for row in stream_product_tags(conn, product_table, include_taxonomy):
-        product_id = row["id"]
-        title = row.get("title", "")
-        tags_str = row.get("tags", "")
-        taxonomy_id = row.get("taxonomy_id")
-        cv_fold = row.get("cv_fold")
-
-        tags = parse_tags(tags_str)
-
-        product_record = {
-            "product_id": product_id,
-            "title": title,
-        }
-        if include_taxonomy:
-            product_record["taxonomy_id"] = taxonomy_id
-            product_record["taxonomy_path"] = row.get("taxonomy_path")
-            product_record["cv_fold"] = cv_fold
-
-        products.append(product_record)
-        product_tags_list.append(tags)
-
-        # Count tag occurrences
-        for tag in tags:
-            tag_counts[tag] = tag_counts.get(tag, 0) + 1
-
-    # Filter tags by minimum count
-    valid_tags = {tag for tag, count in tag_counts.items() if count >= min_tag_count}
-    feature_names = sorted(valid_tags)
-    tag_to_index = {tag: idx for idx, tag in enumerate(feature_names)}
-
-    # Build sparse matrix
-    n_products = len(products)
-    n_features = len(feature_names)
-
-    rows = []
-    cols = []
-    data = []
-
-    for product_idx, tags in enumerate(product_tags_list):
-        for tag in tags:
-            if tag in tag_to_index:
-                rows.append(product_idx)
-                cols.append(tag_to_index[tag])
-                data.append(1.0)
-
-    sparse_matrix = sparse.csr_matrix(
-        (data, (rows, cols)),
-        shape=(n_products, n_features),
-        dtype=float,
+    dataset = data_access.build_feature_dataset(
+        conn,
+        product_table=product_table,
+        require_taxonomy=include_taxonomy,
+        min_tag_count=min_tag_count,
+        min_samples_per_taxonomy=None,
     )
 
-    # Create metadata DataFrame
-    if include_taxonomy:
-        metadata_df = pd.DataFrame(
-            products,
-            columns=["product_id", "title", "taxonomy_id", "taxonomy_path", "cv_fold"],
-        )
-    else:
-        metadata_df = pd.DataFrame(products, columns=["product_id", "title"])
+    metadata = dataset.metadata.copy()
+    if not include_taxonomy:
+        metadata = metadata[["product_id", "title", "tags", "tag_count", "valid_tag_count"]]
 
-    return sparse_matrix, metadata_df, feature_names
+    return dataset.features, metadata, dataset.feature_names
 
 
 def create_dense_dataframe(
