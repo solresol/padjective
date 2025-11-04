@@ -17,12 +17,12 @@ if __package__ in {None, ""}:
     project_root = Path(__file__).resolve().parent.parent
     if str(project_root) not in sys.path:
         sys.path.append(str(project_root))
-    from padjective import db
+    from padjective import data_access, db
     from padjective.cv import calculate_cv_folds
     from padjective.metrics import parse_taxonomy_path
     from padjective.tagbattle import filter_nested_tags
 else:  # pragma: no cover - imported as a package
-    from . import db
+    from . import data_access, db
     from .cv import calculate_cv_folds
     from .metrics import parse_taxonomy_path
     from .tagbattle import filter_nested_tags
@@ -209,51 +209,36 @@ def _load_battles(conn, schema: str) -> List[BattleRecord]:
 
 
 def _load_products(
-    conn, product_table: str, fold_assignments: Dict[int, int]
-) -> tuple[List[ProductRecord], int, int, Dict[str, Tuple[str, int]]]:
-    product_identifier = db.qualified_identifier(product_table)
-
-    query = sql.SQL(
-        """
-        SELECT
-            p.id,
-            pd.product_detail->'product'->>'tags' AS tags,
-            pt.taxonomy_id,
-            t.taxonomy_path
-        FROM {products} AS p
-        JOIN public.product_details pd ON (
-            p.myshopify_domain = pd.myshopify_domain
-            AND p.run_name = pd.run_name
-            AND p.product_handle = pd.product_handle
-        )
-        JOIN cantbuymelove.product_taxonomy pt ON pt.product_id = p.id
-        JOIN cantbuymelove.taxonomy t ON t.taxonomy_id = pt.taxonomy_id
-        WHERE p.product_title IS NOT NULL
-          AND pt.taxonomy_id IS NOT NULL
-        ORDER BY p.id
-        """
-    ).format(products=product_identifier)
+    conn,
+    product_table: str,
+    fold_assignments: Dict[int, int],
+    *,
+    min_tag_count: int = 2,
+    min_samples_per_taxonomy: int = 5,
+) -> tuple[List[ProductRecord], int, int, Dict[str, Tuple[str, int]], data_access.ProductDataset]:
+    dataset = data_access.build_feature_dataset(
+        conn,
+        product_table=product_table,
+        require_taxonomy=True,
+        min_tag_count=min_tag_count,
+        min_samples_per_taxonomy=min_samples_per_taxonomy,
+    )
 
     records: List[ProductRecord] = []
     max_digit = 0
     raw_entries: List[tuple[int, List[str], Tuple[int, ...], int, str, str]] = []
 
-    with conn.cursor(row_factory=dict_row) as cur:
-        cur.execute(query)
-        for row in cur:
-            product_id = row.get("id")
-            if product_id is None:
-                continue
-            cv_fold = fold_assignments.get(product_id)
-            if cv_fold is None:
-                continue
-            tags = _parse_tags(row.get("tags"))
-            taxonomy_id = row.get("taxonomy_id") or ""
-            taxonomy_path = row.get("taxonomy_path") or ""
-            digits = _parse_taxonomy_digits(taxonomy_path)
-            if digits:
-                max_digit = max(max_digit, max(digits))
-            raw_entries.append((product_id, tags, digits, cv_fold, taxonomy_id, taxonomy_path))
+    for record in dataset.records:
+        cv_fold = fold_assignments.get(record.product_id)
+        if cv_fold is None:
+            continue
+        filtered_tags = [tag.upper() for tag in filter_nested_tags(record.tags)]
+        taxonomy_id = record.taxonomy_id or ""
+        taxonomy_path = record.taxonomy_path or ""
+        digits = _parse_taxonomy_digits(taxonomy_path)
+        if digits:
+            max_digit = max(max_digit, max(digits))
+        raw_entries.append((record.product_id, filtered_tags, digits, cv_fold, taxonomy_id, taxonomy_path))
 
     prime_base = _next_prime(max_digit)
     taxonomy_encodings: Dict[str, Tuple[str, int]] = {}
@@ -264,7 +249,7 @@ def _load_products(
         if taxonomy_id and taxonomy_id not in taxonomy_encodings:
             taxonomy_encodings[taxonomy_id] = (taxonomy_path, encoded)
 
-    return records, prime_base, max_digit, taxonomy_encodings
+    return records, prime_base, max_digit, taxonomy_encodings, dataset
 
 
 def _tag_order(
@@ -448,6 +433,8 @@ def process_database(
     schema: str,
     product_table: str = "cantbuymelove.product",
     cv_splits: int = 5,
+    min_tag_count: int = 2,
+    min_samples_per_taxonomy: int = 5,
 ) -> None:
     conn = db.get_connection(dsn)
     try:
@@ -458,7 +445,19 @@ def process_database(
         if not fold_assignments:
             return
 
-        records, prime_base, max_digit, taxonomy_encodings = _load_products(conn, product_table, fold_assignments)
+        (
+            records,
+            prime_base,
+            max_digit,
+            taxonomy_encodings,
+            dataset,
+        ) = _load_products(
+            conn,
+            product_table,
+            fold_assignments,
+            min_tag_count=min_tag_count,
+            min_samples_per_taxonomy=min_samples_per_taxonomy,
+        )
         if not records:
             return
 
@@ -500,6 +499,18 @@ def main() -> None:
         default=5,
         help="Number of cross-validation folds to evaluate.",
     )
+    parser.add_argument(
+        "--min-tag-count",
+        type=int,
+        default=2,
+        help="Minimum occurrences required for a tag to participate in training.",
+    )
+    parser.add_argument(
+        "--min-samples-per-taxonomy",
+        type=int,
+        default=5,
+        help="Minimum number of products per taxonomy required for training.",
+    )
     args = parser.parse_args()
 
     process_database(
@@ -507,6 +518,8 @@ def main() -> None:
         schema=args.schema,
         product_table=args.product_table,
         cv_splits=args.cv_splits,
+        min_tag_count=args.min_tag_count,
+        min_samples_per_taxonomy=args.min_samples_per_taxonomy,
     )
 
 

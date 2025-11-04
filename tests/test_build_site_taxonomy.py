@@ -1,6 +1,8 @@
 from pathlib import Path
 from typing import Any
 
+import pandas as pd
+
 from padjective.build_site import build_site
 
 
@@ -32,6 +34,34 @@ class _FakeConnection:
 def test_build_site_includes_taxonomy_summary(tmp_path: Path, monkeypatch) -> None:
     pairs = [("TAG1", "TAG2"), ("TAG1", "TAG3"), ("TAG3", "TAG2")]
     fake_conn = _FakeConnection(pairs)
+
+    class _FakeDataset:
+        def __init__(self) -> None:
+            self.product_count = 3
+            self.feature_names = ["ALPHA", "BETA"]
+            self.taxonomy_count = 2
+            self.metadata = pd.DataFrame(
+                [
+                    {
+                        "product_id": 1,
+                        "title": "Sample",
+                        "taxonomy_name": "Example",
+                        "taxonomy_id": "123",
+                        "taxonomy_path": "Example",
+                        "tags": "ALPHA, BETA",
+                        "tag_count": 2,
+                        "valid_tag_count": 2,
+                        "cv_fold": 0,
+                    }
+                ]
+            )
+            self.discarded_products = []
+            self.discarded_tags = []
+
+    monkeypatch.setattr(
+        "padjective.build_site.data_access.build_feature_dataset",
+        lambda *_, **__: _FakeDataset(),
+    )
 
     taxonomy_summary = {
         "model_id": 42,
@@ -95,11 +125,13 @@ def test_build_site_includes_taxonomy_summary(tmp_path: Path, monkeypatch) -> No
     assert "Shopify taxonomy classification" in index_html
     assert "Apparel / Tops" in index_html
     assert "BLUE" in index_html
+    assert "Explore the full dataset" in index_html
 
     metadata_json = (output_dir / "metadata.json").read_text(encoding="utf-8")
     assert "taxonomy_classifier" in metadata
     assert metadata["taxonomy_classifier"]["model_id"] == 42
     assert "Home / Decor" in metadata_json
+    assert "dataset" in metadata
 
 
 def test_build_site_links_to_umllr_pages(tmp_path: Path, monkeypatch) -> None:

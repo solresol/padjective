@@ -18,7 +18,7 @@ import pandas as pd
 from psycopg import sql
 from psycopg.rows import dict_row
 
-from . import db, display, ranking, tagbattle
+from . import data_access, db, display, ranking, tagbattle
 
 
 def _ensure_clean_directory(path: Path) -> None:
@@ -93,6 +93,102 @@ def _write_sql_dump(pairs: Sequence[Tuple[str, str]], dump_path: Path, schema: s
                 f"INSERT INTO {schema}.battles (winner_tag, loser_tag) VALUES ('{safe_winner}', '{safe_loser}');\n"
             )
         dump_file.write("COMMIT;\n")
+
+
+def _write_dataset_page(output_dir: Path, dataset: data_access.ProductDataset) -> Path:
+    page_path = output_dir / "dataset.html"
+
+    included_df = dataset.metadata.copy()
+    included_columns = [
+        "product_id",
+        "title",
+        "taxonomy_name",
+        "taxonomy_id",
+        "taxonomy_path",
+        "tags",
+        "tag_count",
+        "valid_tag_count",
+        "cv_fold",
+    ]
+    included_df = included_df.reindex(columns=included_columns).fillna("")
+    included_table = included_df.to_html(index=False, classes=["dataset-table", "included-table"])
+
+    discarded_rows: list[dict[str, Any]] = []
+    for discarded in dataset.discarded_products:
+        record = discarded.record
+        discarded_rows.append(
+            {
+                "product_id": record.product_id,
+                "title": record.title,
+                "taxonomy_name": record.taxonomy_name or "",
+                "taxonomy_id": record.taxonomy_id or "",
+                "taxonomy_path": record.taxonomy_path or "",
+                "tags": ", ".join(record.tags),
+                "reason": discarded.reason,
+            }
+        )
+    if discarded_rows:
+        discarded_df = pd.DataFrame(discarded_rows)
+        discarded_table = discarded_df.to_html(index=False, classes=["dataset-table", "discarded-table"])
+    else:
+        discarded_table = "<p>No products were discarded by the current preprocessing rules.</p>"
+
+    discarded_tags_rows = [
+        {"tag": entry.tag, "count": entry.count}
+        for entry in sorted(dataset.discarded_tags, key=lambda e: e.count, reverse=True)
+    ]
+    if discarded_tags_rows:
+        discarded_tags_df = pd.DataFrame(discarded_tags_rows)
+        discarded_tags_table = discarded_tags_df.to_html(index=False, classes=["dataset-table", "discarded-tags-table"])
+    else:
+        discarded_tags_table = "<p>All tags met the minimum frequency requirement.</p>"
+
+    page_html = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Dataset coverage</title>
+  <link rel="stylesheet" href="assets/styles.css" />
+</head>
+<body class="dataset-page">
+  <header class="hero">
+    <h1>Training dataset</h1>
+    <p class="tagline">Every product, tag, and taxonomy considered by the models</p>
+  </header>
+
+  <section>
+    <p><a href="index.html">← Back to index</a></p>
+    <h2>Products used for training</h2>
+    <p>The table lists every product that survived preprocessing along with its taxonomy details.</p>
+    <div class="table-wrapper">
+      {included_table}
+    </div>
+  </section>
+
+  <section>
+    <h2>Discarded products</h2>
+    <p>Products can be dropped when they lack taxonomy information or when their taxonomy has fewer than the minimum required samples.</p>
+    <div class="table-wrapper">
+      {discarded_table}
+    </div>
+  </section>
+
+  <section>
+    <h2>Discarded tags</h2>
+    <p>Tags appearing in fewer than the minimum number of products are removed to keep the feature matrix manageable.</p>
+    <div class="table-wrapper">
+      {discarded_tags_table}
+    </div>
+  </section>
+
+  <footer>
+    <p><a href="index.html">← Back to index</a></p>
+  </footer>
+</body>
+</html>"""
+
+    page_path.write_text(page_html, encoding="utf-8")
+    return page_path
 
 
 def _load_umllr_results(conn, schema: str) -> Optional[Dict[str, Any]]:
@@ -294,6 +390,8 @@ def _build_trends_section(trends_chart_path: Optional[Path], output_dir: Path) -
 def _build_index_html(
     output_dir: Path,
     stats: Dict[str, int],
+    dataset_stats: Dict[str, int],
+    dataset_page: Optional[Path],
     elo_page: Path,
     taxonomy_page: Optional[Path],
     umllr_page: Optional[Path],
@@ -305,6 +403,20 @@ def _build_index_html(
     trends_chart_path: Optional[Path] = None,
 ) -> None:
     generated = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+
+    discard_note = ""
+    discarded_products = dataset_stats.get("discarded_products")
+    if discarded_products:
+        discard_note = (
+            f"<span class=\"discard-note\">{discarded_products:,} products were discarded due to "
+            "missing or sparse taxonomy labels.</span>"
+        )
+
+    dataset_link = ""
+    if dataset_page:
+        dataset_link = (
+            f'<a href="{dataset_page.relative_to(output_dir).as_posix()}">Explore the full dataset →</a>'
+        )
 
     # Build model cards
     taxonomy_card = ""
@@ -531,17 +643,32 @@ def _build_index_html(
 
   <section class="metrics">
     <div class="metric">
-      <span class="value">{stats.get('products', 0):,}</span>
-      <span class="label">Products analysed</span>
+      <span class="value">{dataset_stats.get('products', 0):,}</span>
+      <span class="label">Products used</span>
     </div>
     <div class="metric">
-      <span class="value">{stats.get('unique_tags', 0):,}</span>
+      <span class="value">{dataset_stats.get('taxonomies', 0):,}</span>
+      <span class="label">Taxonomies covered</span>
+    </div>
+    <div class="metric">
+      <span class="value">{dataset_stats.get('unique_tags', 0):,}</span>
       <span class="label">Distinct tags</span>
     </div>
     <div class="metric">
       <span class="value">{stats.get('battles', 0):,}</span>
       <span class="label">Tag battles</span>
     </div>
+  </section>
+
+  <section class="dataset-overview">
+    <h2>Dataset coverage</h2>
+    <p>
+      Training data spans <strong>{dataset_stats.get('products', 0):,}</strong> products across
+      <strong>{dataset_stats.get('taxonomies', 0):,}</strong> taxonomies and
+      <strong>{dataset_stats.get('unique_tags', 0):,}</strong> tags.
+      {discard_note}
+      {dataset_link}
+    </p>
   </section>
 
   <div class="model-cards">
@@ -1370,6 +1497,9 @@ def build_site(
     *,
     precomputed_database: Optional[Any] = None,
     battle_schema: str = "padjective",
+    product_table: str = "cantbuymelove.product",
+    min_tag_count: int = 2,
+    min_samples_per_taxonomy: int = 5,
 ) -> Dict[str, Any]:
     _ensure_clean_directory(output_dir)
 
@@ -1382,6 +1512,23 @@ def build_site(
     if precomputed_database is None:
         raise ValueError("A Postgres connection is required to build the site")
 
+    dataset = data_access.build_feature_dataset(
+        precomputed_database,
+        product_table=product_table,
+        require_taxonomy=True,
+        min_tag_count=min_tag_count,
+        min_samples_per_taxonomy=min_samples_per_taxonomy,
+    )
+    dataset_stats = {
+        "products": dataset.product_count,
+        "unique_tags": len(dataset.feature_names),
+        "taxonomies": dataset.taxonomy_count,
+        "discarded_products": len(dataset.discarded_products),
+        "discarded_tags": len(dataset.discarded_tags),
+    }
+
+    dataset_page = _write_dataset_page(output_dir, dataset)
+
     pairs = ranking.load_pairs(precomputed_database, battle_schema)
     leaderboard = ranking.compute_rankings(pairs)
 
@@ -1392,6 +1539,9 @@ def build_site(
     stats = _collect_database_stats(precomputed_database, battle_schema)
     stats["battles"] = _count_battles(pairs)
     stats["components"] = int(leaderboard["component"].nunique()) if not leaderboard.empty else 0
+    stats["products"] = dataset_stats["products"]
+    stats["unique_tags"] = dataset_stats["unique_tags"]
+    stats["taxonomies"] = dataset_stats["taxonomies"]
 
     dump_path = datadumps_dir / "battles.sql"
     _write_sql_dump(pairs, dump_path, battle_schema)
@@ -1409,6 +1559,17 @@ section {padding: 2rem 1.5rem; max-width: 70rem; margin: 0 auto;}
 .metric {background: white; border-radius: 0.75rem; padding: 1.5rem; flex: 1 1 12rem; text-align: center; box-shadow: 0 12px 30px rgba(11, 108, 227, 0.1);}
 .metric .value {display: block; font-size: 2rem; font-weight: 700; color: #0b6ce3;}
 .metric .label {font-size: 0.95rem; text-transform: uppercase; letter-spacing: 0.08em; color: #555;}
+.dataset-overview {background: white; border-radius: 1rem; box-shadow: 0 12px 30px rgba(15, 23, 42, 0.1); margin: 2rem auto; padding: 1.5rem;}
+.dataset-overview h2 {margin-top: 0;}
+.dataset-overview p {margin: 0; line-height: 1.6; color: #1f2937;}
+.dataset-overview .discard-note {display: block; margin-top: 0.75rem; color: #b91c1c;}
+.table-wrapper {overflow-x: auto;}
+.dataset-table {width: 100%; border-collapse: collapse; background: white;}
+.dataset-table th, .dataset-table td {padding: 0.6rem 0.75rem; border-bottom: 1px solid #e5e7eb; text-align: left;}
+.dataset-table thead {background: #f1f5f9;}
+.dataset-table tbody tr:nth-child(even) {background: #f8fafc;}
+.dataset-page {background: #f7f7fb; color: #1f2937;}
+.dataset-page section {max-width: 90rem;}
 .leaderboard-section {background: white; border-radius: 1rem; box-shadow: 0 12px 30px rgba(15, 23, 42, 0.12);}
 .leaderboard-section .leaderboard-text {padding-bottom: 1rem;}
 .leaderboard-table {overflow-x: auto; padding: 0 1rem 2rem;}
@@ -1515,6 +1676,8 @@ footer {text-align: center; padding: 2rem 1.5rem 3rem; color: #6b7280;}
     _build_index_html(
         output_dir,
         stats,
+        dataset_stats,
+        dataset_page,
         elo_page,
         taxonomy_page,
         umllr_page,
@@ -1529,6 +1692,10 @@ footer {text-align: center; padding: 2rem 1.5rem 3rem; color: #6b7280;}
     metadata = {
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "stats": stats,
+        "dataset": {
+            **dataset_stats,
+            "page": dataset_page.relative_to(output_dir).as_posix(),
+        },
         "artifacts": {label: str(path.relative_to(output_dir)) for label, path in artifact_links.items()},
         "taxonomy_classifier": taxonomy_summary,
         "umllr": umllr_summary,
@@ -1560,6 +1727,23 @@ def main() -> None:
         default="padjective",
         help="Schema containing battles and output tables.",
     )
+    parser.add_argument(
+        "--product-table",
+        default="cantbuymelove.product",
+        help="Qualified product table to read training data from.",
+    )
+    parser.add_argument(
+        "--min-tag-count",
+        type=int,
+        default=2,
+        help="Minimum occurrences required for a tag to be included in the dataset.",
+    )
+    parser.add_argument(
+        "--min-samples-per-taxonomy",
+        type=int,
+        default=5,
+        help="Minimum products required per taxonomy for inclusion in the dataset.",
+    )
     args = parser.parse_args()
 
     conn = db.get_connection(args.dsn)
@@ -1568,6 +1752,9 @@ def main() -> None:
             args.output,
             precomputed_database=conn,
             battle_schema=args.schema,
+            product_table=args.product_table,
+            min_tag_count=args.min_tag_count,
+            min_samples_per_taxonomy=args.min_samples_per_taxonomy,
         )
     finally:
         conn.close()

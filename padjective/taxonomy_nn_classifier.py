@@ -29,14 +29,14 @@ if __package__ in {None, ""}:
     project_root = Path(__file__).resolve().parent.parent
     if str(project_root) not in sys.path:
         sys.path.append(str(project_root))
-    from padjective import db, tag_features
+    from padjective import data_access, db, tag_features
     from padjective.metrics import (
         build_taxonomy_path_map,
         ensure_taxonomy_paths_cover_labels,
         hierarchical_loss_score,
     )
 else:
-    from . import db, tag_features
+    from . import data_access, db, tag_features
     from .metrics import (
         build_taxonomy_path_map,
         ensure_taxonomy_paths_cover_labels,
@@ -219,7 +219,13 @@ def load_training_data(
     product_table: str = "cantbuymelove.product",
     min_tag_count: int = 2,
     min_samples_per_taxonomy: int = 5,
-) -> tuple[sparse.csr_matrix, np.ndarray, list[str], pd.DataFrame]:
+) -> tuple[
+    sparse.csr_matrix,
+    np.ndarray,
+    list[str],
+    pd.DataFrame,
+    data_access.ProductDataset,
+]:
     """Load product tags and taxonomy labels for training.
 
     Args:
@@ -235,34 +241,17 @@ def load_training_data(
         ``metadata`` retains the original ``taxonomy_id`` values and includes a
         ``taxonomy_index`` column that maps each product to its encoded label.
     """
-    features, metadata, feature_names = tag_features.extract_tag_features(
+    dataset = data_access.build_feature_dataset(
         conn,
         product_table=product_table,
-        include_taxonomy=True,
+        require_taxonomy=True,
         min_tag_count=min_tag_count,
+        min_samples_per_taxonomy=min_samples_per_taxonomy,
     )
 
-    # Filter out products without taxonomy
-    has_taxonomy = metadata["taxonomy_id"].notna()
-    taxonomy_mask = has_taxonomy.to_numpy(dtype=bool, copy=False)
-    features = features[taxonomy_mask]
-    metadata = metadata.loc[has_taxonomy].copy().reset_index(drop=True)
-
-    if len(metadata) == 0:
+    metadata = dataset.metadata.copy()
+    if metadata.empty:
         raise ValueError("No products with taxonomy classifications found")
-
-    # Filter taxonomies by minimum sample count
-    taxonomy_counts = metadata["taxonomy_id"].value_counts()
-    valid_taxonomies = taxonomy_counts[taxonomy_counts >= min_samples_per_taxonomy].index
-    mask = metadata["taxonomy_id"].isin(valid_taxonomies)
-    taxonomy_filter = mask.to_numpy(dtype=bool, copy=False)
-    features = features[taxonomy_filter]
-    metadata = metadata.loc[mask].copy().reset_index(drop=True)
-
-    if len(metadata) == 0:
-        raise ValueError(
-            f"No taxonomies with at least {min_samples_per_taxonomy} samples found"
-        )
 
     # Encode taxonomy labels as integers for compatibility with PyTorch loss
     # functions. Some taxonomy identifiers are strings/UUIDs which can cause
@@ -273,7 +262,7 @@ def load_training_data(
     metadata["taxonomy_index"] = encoded_labels
     labels = encoded_labels.astype(np.int32, copy=False)
 
-    return features, labels, feature_names, metadata
+    return dataset.features, labels, dataset.feature_names, metadata, dataset
 
 
 def select_top_tags(
@@ -813,7 +802,7 @@ def main() -> None:
 
     # Load data
     conn = db.get_connection(args.dsn)
-    features, labels, feature_names, metadata = load_training_data(
+    features, labels, feature_names, metadata, dataset = load_training_data(
         conn,
         product_table=args.product_table,
         min_tag_count=args.min_tag_count,

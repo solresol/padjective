@@ -27,14 +27,14 @@ if __package__ in {None, ""}:
     project_root = Path(__file__).resolve().parent.parent
     if str(project_root) not in sys.path:
         sys.path.append(str(project_root))
-    from padjective import db, tag_features
+    from padjective import data_access, db, tag_features
     from padjective.metrics import (
         build_taxonomy_path_map,
         ensure_taxonomy_paths_cover_labels,
         hierarchical_loss_score,
     )
 else:
-    from . import db, tag_features
+    from . import data_access, db, tag_features
     from .metrics import (
         build_taxonomy_path_map,
         ensure_taxonomy_paths_cover_labels,
@@ -187,7 +187,13 @@ def load_training_data(
     product_table: str = "cantbuymelove.product",
     min_tag_count: int = 2,
     min_samples_per_taxonomy: int = 5,
-) -> tuple[sparse.csr_matrix, np.ndarray, list[str], pd.DataFrame]:
+) -> tuple[
+    sparse.csr_matrix,
+    np.ndarray,
+    list[str],
+    pd.DataFrame,
+    data_access.ProductDataset,
+]:
     """Load product tags and taxonomy labels for training.
 
     Args:
@@ -199,40 +205,23 @@ def load_training_data(
     Returns:
         tuple: (features, labels, feature_names, metadata)
     """
-    features, metadata, feature_names = tag_features.extract_tag_features(
+    dataset = data_access.build_feature_dataset(
         conn,
         product_table=product_table,
-        include_taxonomy=True,
+        require_taxonomy=True,
         min_tag_count=min_tag_count,
+        min_samples_per_taxonomy=min_samples_per_taxonomy,
     )
 
-    # Filter out products without taxonomy
-    has_taxonomy = metadata["taxonomy_id"].notna()
-    taxonomy_mask = has_taxonomy.to_numpy(dtype=bool, copy=False)
-    features = features[taxonomy_mask]
-    metadata = metadata[taxonomy_mask].copy().reset_index(drop=True)
-
-    if len(metadata) == 0:
+    metadata = dataset.metadata.copy()
+    if metadata.empty:
         raise ValueError("No products with taxonomy classifications found")
-
-    # Filter taxonomies by minimum sample count
-    taxonomy_counts = metadata["taxonomy_id"].value_counts()
-    valid_taxonomies = taxonomy_counts[taxonomy_counts >= min_samples_per_taxonomy].index
-    mask = metadata["taxonomy_id"].isin(valid_taxonomies)
-    valid_taxonomy_mask = mask.to_numpy(dtype=bool, copy=False)
-    features = features[valid_taxonomy_mask]
-    metadata = metadata[valid_taxonomy_mask].copy().reset_index(drop=True)
-
-    if len(metadata) == 0:
-        raise ValueError(
-            f"No taxonomies with at least {min_samples_per_taxonomy} samples found"
-        )
 
     if "taxonomy_path" not in metadata.columns:
         raise ValueError("taxonomy_path column is required in metadata")
 
     labels = metadata["taxonomy_id"].to_numpy()
-    return features, labels, feature_names, metadata
+    return dataset.features, labels, dataset.feature_names, metadata, dataset
 
 
 
@@ -862,7 +851,7 @@ def main() -> None:
     # Load data
     data_conn = db.get_connection(args.dsn)
     try:
-        features, labels, feature_names, metadata = load_training_data(
+        features, labels, feature_names, metadata, dataset = load_training_data(
             data_conn,
             product_table=args.product_table,
             min_tag_count=args.min_tag_count,
