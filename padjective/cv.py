@@ -88,21 +88,12 @@ def calculate_cv_folds(
     product_identifier = db.qualified_identifier(product_table)
 
     available_columns = _gather_taxonomy_columns(conn)
-    taxonomy_column_order = [
-        column
-        for column in (
-            "taxonomy_path",
-            "taxonomy_label",
-            "raw_output",
+    if "taxonomy_path" not in available_columns:
+        raise RuntimeError(
+            "cantbuymelove.taxonomy.taxonomy_path must be present for CV folds"
         )
-        if column in available_columns
-    ]
-    # Always include sensible fallbacks even if metadata lookup fails.
-    for fallback_column in ("taxonomy_path", "taxonomy_label", "raw_output"):
-        if fallback_column not in taxonomy_column_order:
-            taxonomy_column_order.append(fallback_column)
 
-    taxonomy_column_sql = sql.SQL("t.") + sql.Identifier(taxonomy_column_order[0])
+    taxonomy_column_sql = sql.SQL("t.") + sql.Identifier("taxonomy_path")
 
     query = sql.SQL(
         """
@@ -128,12 +119,7 @@ def calculate_cv_folds(
             if product_id is None:
                 continue
 
-            taxonomy_value = None
-            for column in taxonomy_column_order:
-                taxonomy_value = _safe_row_value(row, column)
-                if taxonomy_value not in (None, ""):
-                    break
-
+            taxonomy_value = _safe_row_value(row, "taxonomy_path")
             if taxonomy_value in (None, ""):
                 continue
 
