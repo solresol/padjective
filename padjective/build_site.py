@@ -21,6 +21,47 @@ from psycopg.rows import dict_row
 from . import data_access, db, display, ranking, tagbattle
 
 
+def _format_padic_expansion(value: int, base: int) -> str:
+    """Return a human-readable base-``base`` expansion for ``value``."""
+
+    if base <= 1:
+        return f"{value} ({value})"
+
+    sign = "-" if value < 0 else ""
+    n = abs(value)
+    digits: list[int] = []
+    while n:
+        digits.append(n % base)
+        n //= base
+    if not digits:
+        digits = [0]
+
+    digits_msd = list(reversed(digits))
+    digits_str = ".".join(str(d) for d in digits_msd)
+
+    terms: list[str] = []
+    for idx, digit in enumerate(digits_msd):
+        if digit == 0:
+            continue
+        power = len(digits_msd) - idx - 1
+        if power == 0:
+            term = str(digit)
+        elif digit == 1:
+            term = str(base ** power)
+        elif power == 1:
+            term = f"{digit}*{base}"
+        else:
+            term = f"{digit}*{base}^{power}"
+        terms.append(term)
+
+    expression = " + ".join(terms) if terms else "0"
+    if sign:
+        digits_str = f"-{digits_str}"
+        if expression != "0":
+            expression = f"-({expression})"
+    return f"{digits_str} ({expression})"
+
+
 def _ensure_clean_directory(path: Path) -> None:
     if path.exists():
         shutil.rmtree(path)
@@ -62,6 +103,21 @@ def _collect_database_stats(conn, schema: str) -> Dict[str, int]:
 
 def _count_battles(pairs: Sequence[Tuple[str, str]]) -> int:
     return len(pairs)
+
+
+def _build_tag_rank_lookup(leaderboard: pd.DataFrame) -> Dict[str, int]:
+    """Return a lookup of tagbattle rankings keyed by uppercase tag."""
+
+    if leaderboard is None or leaderboard.empty:
+        return {}
+
+    sorted_board = (
+        leaderboard.sort_values("score", ascending=False, kind="mergesort")
+        .drop_duplicates(subset="tag", keep="first")
+        .reset_index(drop=True)
+    )
+
+    return {str(row["tag"]).upper(): int(idx) + 1 for idx, row in sorted_board.iterrows()}
 
 
 def _table_exists(conn, schema: str, table: str) -> bool:
@@ -296,18 +352,54 @@ def _write_umllr_pages(output_dir: Path, summary: Dict[str, Any]) -> Dict[int, P
 
     coefficients = summary.get("coefficients", {})
     predictions = summary.get("predictions", {})
+    tag_rankings: Dict[str, int] = summary.get("tag_rankings", {})
 
     for metric in metrics:
         fold = metric["cv_fold"]
         coeff_rows = coefficients.get(fold, [])
         prediction_rows = predictions.get(fold, [])
+        prime_base = metric.get("prime_base", 0)
 
-        coeff_table_rows = "\n".join(
-            f"<tr><td>{html.escape(row['tag'])}</td><td>{row['coefficient']}</td><td>{row['sequence']}</td></tr>"
-            for row in coeff_rows
-        )
+        non_zero_rows: list[str] = []
+        zero_coeff_tags: list[str] = []
+        for row in coeff_rows:
+            coefficient = row["coefficient"]
+            tag = row["tag"]
+            if coefficient == 0:
+                zero_coeff_tags.append(tag)
+                continue
+            expansion = _format_padic_expansion(coefficient, prime_base)
+            non_zero_rows.append(
+                "<tr>"
+                f"<td>{html.escape(tag)}</td>"
+                f"<td>{coefficient}</td>"
+                f"<td>{html.escape(expansion)}</td>"
+                f"<td>{row['sequence']}</td>"
+                "</tr>"
+            )
+
+        coeff_table_rows = "\n".join(non_zero_rows)
         if not coeff_table_rows:
-            coeff_table_rows = '<tr><td colspan="3">No coefficients recorded for this fold.</td></tr>'
+            coeff_table_rows = (
+                '<tr><td colspan="4">No non-zero coefficients recorded for this fold.</td></tr>'
+            )
+
+        zero_paragraph = ""
+        if zero_coeff_tags:
+            zero_entries = []
+            for tag in zero_coeff_tags:
+                rank_value = tag_rankings.get(tag.upper())
+                rank_label = str(rank_value) if rank_value is not None else "unranked"
+                zero_entries.append(f"{html.escape(tag)} ({rank_label})")
+            joined_entries = "; ".join(zero_entries)
+            zero_paragraph = (
+                "\n    <p class=\"zero-coefficients\"><strong>Zero coefficients:</strong> "
+                f"{joined_entries}</p>"
+            )
+
+        expansion_header = (
+            f"Base-{prime_base} expansion" if prime_base and prime_base > 1 else "Base expansion"
+        )
 
         prediction_table_rows = "\n".join(
             "<tr>"
@@ -340,12 +432,13 @@ def _write_umllr_pages(output_dir: Path, summary: Dict[str, Any]) -> Dict[int, P
     <h2>Tag coefficients</h2>
     <table class="umllr-table">
       <thead>
-        <tr><th>Tag</th><th>Coefficient</th><th>Order</th></tr>
+        <tr><th>Tag</th><th>Coefficient</th><th>{expansion_header}</th><th>Order</th></tr>
       </thead>
       <tbody>
         {coeff_table_rows}
       </tbody>
     </table>
+{zero_paragraph}
     <h2>Test predictions</h2>
     <table class="umllr-table">
       <thead>
@@ -1531,6 +1624,7 @@ def build_site(
 
     pairs = ranking.load_pairs(precomputed_database, battle_schema)
     leaderboard = ranking.compute_rankings(pairs)
+    tag_rank_lookup = _build_tag_rank_lookup(leaderboard)
 
     rankings_html = downloads_dir / "tag_rankings_table.html"
     chart_path = assets_dir / "top_tags.png"
@@ -1650,6 +1744,7 @@ footer {text-align: center; padding: 2rem 1.5rem 3rem; color: #6b7280;}
     umllr_summary = _load_umllr_results(precomputed_database, battle_schema)
     umllr_page = None
     if umllr_summary:
+        umllr_summary["tag_rankings"] = tag_rank_lookup
         fold_pages = _write_umllr_pages(output_dir, umllr_summary)
         # Add pages to summary before creating overview page so links work
         umllr_summary["pages"] = {
