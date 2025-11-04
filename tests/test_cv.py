@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Iterable, List
 
 import numpy as np
+import pytest
 
 from padjective import cv
 
@@ -58,21 +59,35 @@ def dict_identity(row):
     return row
 
 
-def test_calculate_cv_folds_falls_back_to_taxonomy_path(monkeypatch):
-    """Ensure CV splits succeed when only ``taxonomy_path`` is available."""
+def test_calculate_cv_folds_requires_taxonomy_path(monkeypatch):
+    """We surface upstream issues if ``taxonomy_path`` is missing."""
+
+    info_schema_rows = [("taxonomy_label",), ("raw_output",)]
+    product_rows: List[Iterable] = []
+
+    fake_conn = FakeConnection(info_schema_rows, product_rows)
+
+    monkeypatch.setattr(cv, "dict_row", dict_identity)
+
+    with pytest.raises(RuntimeError, match="taxonomy_path"):
+        cv.calculate_cv_folds(fake_conn, n_splits=3, random_state=0)
+
+
+def test_calculate_cv_folds_uses_taxonomy_path(monkeypatch):
+    """Ensure CV splits succeed when ``taxonomy_path`` data is available."""
 
     # ``calculate_cv_folds`` requests table columns first and then streams rows.
-    info_schema_rows = [("taxonomy_path",), ("raw_output",)]
+    info_schema_rows = [("taxonomy_path",)]
     product_rows = [
-        {"id": 1, "taxonomy_label": "A/B"},
-        {"id": 2, "taxonomy_label": "A/B"},
-        {"id": 3, "taxonomy_label": "A/B"},
-        {"id": 4, "taxonomy_label": "C/D"},
-        {"id": 5, "taxonomy_label": "C/D"},
-        {"id": 6, "taxonomy_label": "C/D"},
-        {"id": 7, "taxonomy_label": "E/F"},
-        {"id": 8, "taxonomy_label": "E/F"},
-        {"id": 9, "taxonomy_label": "E/F"},
+        {"id": 1, "taxonomy_path": "A/B"},
+        {"id": 2, "taxonomy_path": "A/B"},
+        {"id": 3, "taxonomy_path": "A/B"},
+        {"id": 4, "taxonomy_path": "C/D"},
+        {"id": 5, "taxonomy_path": "C/D"},
+        {"id": 6, "taxonomy_path": "C/D"},
+        {"id": 7, "taxonomy_path": "E/F"},
+        {"id": 8, "taxonomy_path": "E/F"},
+        {"id": 9, "taxonomy_path": "E/F"},
     ]
 
     fake_conn = FakeConnection(info_schema_rows, product_rows)
@@ -93,9 +108,9 @@ def test_calculate_cv_folds_falls_back_to_taxonomy_path(monkeypatch):
 def test_calculate_cv_folds_degenerates_to_kfold_when_needed(monkeypatch):
     """Ensure we fall back to simple KFold when stratification is impossible."""
 
-    info_schema_rows: List[Iterable] = []  # No taxonomy metadata available.
+    info_schema_rows = [("taxonomy_path",)]
     product_rows = [
-        {"id": idx, "taxonomy_label": idx} for idx in range(1, 9)
+        {"id": idx, "taxonomy_path": f"{idx}"} for idx in range(1, 9)
     ]
 
     fake_conn = FakeConnection(info_schema_rows, product_rows)

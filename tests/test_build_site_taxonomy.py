@@ -100,3 +100,57 @@ def test_build_site_includes_taxonomy_summary(tmp_path: Path, monkeypatch) -> No
     assert "taxonomy_classifier" in metadata
     assert metadata["taxonomy_classifier"]["model_id"] == 42
     assert "Home / Decor" in metadata_json
+
+
+def test_build_site_links_to_umllr_pages(tmp_path: Path, monkeypatch) -> None:
+    fake_conn = _FakeConnection([])
+
+    taxonomy_summary = {
+        "model_id": 99,
+        "trained_at": "2024-03-01T12:00:00",
+        "stats": {
+            "samples": 100,
+            "taxonomies": 10,
+            "unique_tags": 50,
+            "training_accuracy": 0.9,
+        },
+        "class_distribution": [],
+        "top_tags": [],
+    }
+
+    umllr_summary = {
+        "metrics": [
+            {
+                "cv_fold": 1,
+                "loss": 0.2,
+                "mean_loss": 0.2,
+                "prime_base": 3,
+                "max_digit": 7,
+            }
+        ],
+        "coefficients": {1: []},
+        "predictions": {1: []},
+    }
+
+    monkeypatch.setattr(
+        "padjective.build_site._collect_taxonomy_classifier_summary",
+        lambda _conn, schema: taxonomy_summary,
+    )
+    monkeypatch.setattr(
+        "padjective.build_site._collect_database_stats",
+        lambda _conn, _schema: {"products": 0, "unique_tags": 0},
+    )
+    monkeypatch.setattr(
+        "padjective.build_site._load_umllr_results",
+        lambda _conn, _schema: umllr_summary,
+    )
+
+    output_dir = tmp_path / "site"
+    build_site(
+        output_dir,
+        precomputed_database=fake_conn,
+        battle_schema="padjective",
+    )
+
+    index_html = (output_dir / "index.html").read_text(encoding="utf-8")
+    assert "href=\"umllr/index.html\"" in index_html
