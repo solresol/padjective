@@ -123,7 +123,11 @@ def stream_products(
 
     with conn.cursor(row_factory=dict_row) as cur:
         cur.execute(query)
-        for row in cur:
+        try:
+            row_iterator = iter(cur)
+        except TypeError:
+            row_iterator = iter(cur.fetchall())
+        for row in row_iterator:
             product_id = row.get("id")
             if product_id is None:
                 continue
