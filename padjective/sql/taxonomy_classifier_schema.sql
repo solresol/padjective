@@ -88,7 +88,45 @@ CREATE TABLE IF NOT EXISTS padjective.taxonomy_lr_intercepts (
 CREATE INDEX IF NOT EXISTS taxonomy_lr_intercepts_model_idx
     ON padjective.taxonomy_lr_intercepts (model_id);
 
--- 8. Grant padjective role access to the schema, tables, and sequences.
+-- 8. Create the taxonomy_lr_predictions table for individual test predictions per fold.
+CREATE TABLE IF NOT EXISTS padjective.taxonomy_lr_predictions (
+    cv_fold INTEGER NOT NULL,
+    product_id INTEGER NOT NULL,
+    true_taxonomy_id TEXT NOT NULL,
+    predicted_taxonomy_id TEXT NOT NULL,
+    loss DOUBLE PRECISION NOT NULL,
+    PRIMARY KEY (cv_fold, product_id)
+);
+
+CREATE INDEX IF NOT EXISTS taxonomy_lr_predictions_fold_idx
+    ON padjective.taxonomy_lr_predictions (cv_fold);
+
+-- 9. Create the taxonomy_lr_coefficients table storing tag coefficients per taxonomy per fold.
+CREATE TABLE IF NOT EXISTS padjective.taxonomy_lr_coefficients (
+    cv_fold INTEGER NOT NULL,
+    taxonomy_id TEXT NOT NULL,
+    tag TEXT NOT NULL,
+    coefficient DOUBLE PRECISION NOT NULL,
+    PRIMARY KEY (cv_fold, taxonomy_id, tag)
+);
+
+CREATE INDEX IF NOT EXISTS taxonomy_lr_coefficients_fold_idx
+    ON padjective.taxonomy_lr_coefficients (cv_fold);
+
+-- 10. Create the taxonomy_nn_predictions table for individual test predictions per fold.
+CREATE TABLE IF NOT EXISTS padjective.taxonomy_nn_predictions (
+    cv_fold INTEGER NOT NULL,
+    product_id INTEGER NOT NULL,
+    true_taxonomy_id TEXT NOT NULL,
+    predicted_taxonomy_id TEXT NOT NULL,
+    loss DOUBLE PRECISION NOT NULL,
+    PRIMARY KEY (cv_fold, product_id)
+);
+
+CREATE INDEX IF NOT EXISTS taxonomy_nn_predictions_fold_idx
+    ON padjective.taxonomy_nn_predictions (cv_fold);
+
+-- 11. Grant padjective role access to the schema, tables, and sequences.
 GRANT USAGE ON SCHEMA padjective TO padjective;
 
 GRANT SELECT, INSERT, UPDATE, DELETE ON
@@ -97,7 +135,10 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON
     padjective.taxonomy_lr_class_distribution,
     padjective.taxonomy_lr_tag_summary,
     padjective.taxonomy_lr_top_tags,
-    padjective.taxonomy_lr_intercepts
+    padjective.taxonomy_lr_intercepts,
+    padjective.taxonomy_lr_predictions,
+    padjective.taxonomy_lr_coefficients,
+    padjective.taxonomy_nn_predictions
 TO padjective;
 
 GRANT USAGE, SELECT ON SEQUENCE padjective.taxonomy_lr_models_id_seq TO padjective;
