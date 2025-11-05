@@ -1685,19 +1685,46 @@ def _write_taxonomy_classifier_page(
 
     # Build summary metrics
     summary_metrics = []
-    if (samples := stats_block.get("samples")) is not None:
-        summary_metrics.append(f'<div class="metric"><span class="value">{samples:,}</span><span class="label">Training samples</span></div>')
+
+    # If we have fold results, use them to compute aggregate statistics
+    if fold_results:
+        num_folds = len(fold_results)
+        total_train = sum(row["num_train_samples"] for row in fold_results)
+        total_test = sum(row["num_test_samples"] for row in fold_results)
+        avg_accuracy = sum(row["test_accuracy"] for row in fold_results) / num_folds
+
+        summary_metrics.append(f'<div class="metric"><span class="value">{num_folds}</span><span class="label">CV folds</span></div>')
+        summary_metrics.append(f'<div class="metric"><span class="value">{avg_accuracy * 100:.2f}%</span><span class="label">Mean test accuracy</span></div>')
+    else:
+        # Fallback to old stats if no fold results available
+        if (samples := stats_block.get("samples")) is not None:
+            summary_metrics.append(f'<div class="metric"><span class="value">{samples:,}</span><span class="label">Training samples</span></div>')
+        if (accuracy := stats_block.get("training_accuracy")) is not None:
+            summary_metrics.append(f'<div class="metric"><span class="value">{accuracy * 100:.1f}%</span><span class="label">Training accuracy</span></div>')
+
+    # Always show taxonomies if available
     if (taxonomies := stats_block.get("taxonomies")) is not None:
         summary_metrics.append(f'<div class="metric"><span class="value">{taxonomies:,}</span><span class="label">Taxonomy classes</span></div>')
-    if (accuracy := stats_block.get("training_accuracy")) is not None:
-        summary_metrics.append(f'<div class="metric"><span class="value">{accuracy * 100:.1f}%</span><span class="label">Training accuracy</span></div>')
-
-    cv_info = stats_block.get("cross_validation") or {}
-    if (mean_acc := cv_info.get("mean_accuracy")) is not None:
-        std_acc = cv_info.get("std_accuracy", 0)
-        summary_metrics.append(f'<div class="metric"><span class="value">{mean_acc * 100:.1f}% ± {std_acc * 100:.1f}%</span><span class="label">CV accuracy</span></div>')
 
     metrics_html = "\n".join(summary_metrics)
+
+    # Build fold-specific details section if available
+    fold_details_html = ""
+    if fold_results:
+        total_train = sum(row["num_train_samples"] for row in fold_results)
+        total_test = sum(row["num_test_samples"] for row in fold_results)
+        avg_f1 = sum(row["test_f1"] for row in fold_results) / len(fold_results)
+        avg_padic_loss = sum(row["padic_loss_mean"] for row in fold_results) / len(fold_results)
+
+        fold_details_html = f"""
+    <h3>Aggregate statistics</h3>
+    <ul class="taxonomy-stats">
+      <li><strong>Total train samples:</strong> {total_train:,}</li>
+      <li><strong>Total test samples:</strong> {total_test:,}</li>
+      <li><strong>Mean F1 (weighted):</strong> {avg_f1:.4f}</li>
+      <li><strong>Mean p-adic loss:</strong> {avg_padic_loss:.6f}</li>
+    </ul>
+"""
 
     # Build fold results table
     fold_results_html = ""
@@ -1781,6 +1808,8 @@ def _write_taxonomy_classifier_page(
     <div class="metrics">
       {metrics_html}
     </div>
+
+    {fold_details_html}
 
     {fold_results_html}
 
