@@ -618,7 +618,8 @@ def _write_prediction_detail_page(
     fold: int,
     product_id: int,
     detail: Dict[str, Any],
-    taxonomy_info: Dict[str, Dict[str, str]],
+    taxonomy_info_by_path: Dict[str, Dict[str, str]],
+    taxonomy_info_by_id: Dict[str, Dict[str, str]],
     prime_base: int,
 ) -> None:
     """Write a detailed prediction page for a single product."""
@@ -656,7 +657,7 @@ def _write_prediction_detail_page(
         pred_path, pred_expansion = _format_padic_expansion(pred_value, prime_base)
         # Reverse to get database format
         reversed_pred_path = ".".join(reversed(pred_path.split(".")))
-        pred_info = taxonomy_info.get(reversed_pred_path, {})
+        pred_info = taxonomy_info_by_path.get(reversed_pred_path, {})
         pred_tax_id = pred_info.get("taxonomy_id", "")
         pred_tax_name = pred_info.get("taxonomy_name", "")
 
@@ -674,7 +675,7 @@ def _write_prediction_detail_page(
     lr_pred = predictions.get("lr", {})
     if lr_pred:
         pred_tax_id = lr_pred.get("predicted_taxonomy_id", "")
-        pred_info = taxonomy_info.get(pred_tax_id, {})
+        pred_info = taxonomy_info_by_id.get(pred_tax_id, {})
         pred_tax_path = pred_info.get("taxonomy_path", pred_tax_id)
         pred_tax_name = pred_info.get("taxonomy_name", "")
 
@@ -692,7 +693,7 @@ def _write_prediction_detail_page(
     nn_pred = predictions.get("nn", {})
     if nn_pred:
         pred_tax_id = nn_pred.get("predicted_taxonomy_id", "")
-        pred_info = taxonomy_info.get(pred_tax_id, {})
+        pred_info = taxonomy_info_by_id.get(pred_tax_id, {})
         pred_tax_path = pred_info.get("taxonomy_path", pred_tax_id)
         pred_tax_name = pred_info.get("taxonomy_name", "")
 
@@ -736,7 +737,7 @@ def _write_prediction_detail_page(
             tag_path, tag_expansion = _format_padic_expansion(coef, prime_base)
             # Reverse to get database format
             reversed_tag_path = ".".join(reversed(tag_path.split(".")))
-            tag_info = taxonomy_info.get(reversed_tag_path, {})
+            tag_info = taxonomy_info_by_path.get(reversed_tag_path, {})
             tag_tax_name = tag_info.get("taxonomy_name", "")
 
             umllr_tag_rows.append(f"""
@@ -776,7 +777,7 @@ def _write_prediction_detail_page(
 
             # Build rows for this tag
             for tax_id, coef in sorted(tag_coeffs.items(), key=lambda x: -x[1]):
-                tax_info = taxonomy_info.get(tax_id, {})
+                tax_info = taxonomy_info_by_id.get(tax_id, {})
                 tax_path = tax_info.get("taxonomy_path", tax_id)
                 tax_name = tax_info.get("taxonomy_name", "")
 
@@ -930,8 +931,9 @@ def _write_umllr_pages(output_dir: Path, summary: Dict[str, Any], conn=None, sch
     tag_rankings: Dict[str, int] = summary.get("tag_rankings", {})
     taxonomy_names: Dict[str, str] = summary.get("taxonomy_names", {})
 
-    # Load taxonomy info for detail pages (reverse mapping: path -> info)
+    # Load taxonomy info for detail pages (both by path and by id)
     taxonomy_info_by_path: Dict[str, Dict[str, str]] = {}
+    taxonomy_info_by_id: Dict[str, Dict[str, str]] = {}
     if conn:
         with conn.cursor(row_factory=dict_row) as cur:
             cur.execute(
@@ -943,12 +945,16 @@ def _write_umllr_pages(output_dir: Path, summary: Dict[str, Any], conn=None, sch
             )
             for row in cur:
                 path = row["taxonomy_path"]
+                tid = row["taxonomy_id"]
+                info = {
+                    "taxonomy_id": tid,
+                    "taxonomy_name": row["taxonomy_name"] or "",
+                    "taxonomy_path": path or "",
+                }
                 if path:
-                    taxonomy_info_by_path[path] = {
-                        "taxonomy_id": row["taxonomy_id"],
-                        "taxonomy_name": row["taxonomy_name"] or "",
-                        "taxonomy_path": path,
-                    }
+                    taxonomy_info_by_path[path] = info
+                if tid:
+                    taxonomy_info_by_id[tid] = info
 
     for metric in metrics:
         fold = metric["cv_fold"]
@@ -1026,6 +1032,7 @@ def _write_umllr_pages(output_dir: Path, summary: Dict[str, Any], conn=None, sch
                         product_id,
                         detail,
                         taxonomy_info_by_path,
+                        taxonomy_info_by_id,
                         prime_base
                     )
             except Exception as e:
