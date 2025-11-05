@@ -21,11 +21,17 @@ from psycopg.rows import dict_row
 from . import data_access, db, display, ranking, tagbattle
 
 
-def _format_padic_expansion(value: int, base: int) -> str:
-    """Return a human-readable base-``base`` expansion for ``value``."""
+def _format_padic_expansion(value: int, base: int) -> tuple[str, str]:
+    """Return both taxonomy_path and base-expansion for ``value``.
+
+    Returns:
+        tuple: (taxonomy_path, expansion) where:
+            - taxonomy_path: least-significant-first dotted notation (e.g., "1.1.10.2.8")
+            - expansion: most-significant-first with algebraic expression
+    """
 
     if base <= 1:
-        return f"{value} ({value})"
+        return (f"{value}", f"{value} ({value})")
 
     sign = "-" if value < 0 else ""
     n = abs(value)
@@ -36,6 +42,12 @@ def _format_padic_expansion(value: int, base: int) -> str:
     if not digits:
         digits = [0]
 
+    # taxonomy_path: least-significant-first (natural p-adic order)
+    taxonomy_path = ".".join(str(d) for d in digits)
+    if sign:
+        taxonomy_path = f"-{taxonomy_path}"
+
+    # Base expansion: most-significant-first for readability
     digits_msd = list(reversed(digits))
     digits_str = ".".join(str(d) for d in digits_msd)
 
@@ -59,7 +71,9 @@ def _format_padic_expansion(value: int, base: int) -> str:
         digits_str = f"-{digits_str}"
         if expression != "0":
             expression = f"-({expression})"
-    return f"{digits_str} ({expression})"
+
+    expansion = f"{digits_str} ({expression})"
+    return (taxonomy_path, expansion)
 
 
 def _ensure_clean_directory(path: Path) -> None:
@@ -432,11 +446,12 @@ def _write_umllr_pages(output_dir: Path, summary: Dict[str, Any]) -> Dict[int, P
             if coefficient == 0:
                 zero_coeff_tags.append(tag)
                 continue
-            expansion = _format_padic_expansion(coefficient, prime_base)
+            taxonomy_path, expansion = _format_padic_expansion(coefficient, prime_base)
             non_zero_rows.append(
                 "<tr>"
                 f"<td>{html.escape(tag)}</td>"
                 f"<td>{coefficient}</td>"
+                f"<td>{html.escape(taxonomy_path)}</td>"
                 f"<td>{html.escape(expansion)}</td>"
                 f"<td>{row['sequence']}</td>"
                 "</tr>"
@@ -445,7 +460,7 @@ def _write_umllr_pages(output_dir: Path, summary: Dict[str, Any]) -> Dict[int, P
         coeff_table_rows = "\n".join(non_zero_rows)
         if not coeff_table_rows:
             coeff_table_rows = (
-                '<tr><td colspan="4">No non-zero coefficients recorded for this fold.</td></tr>'
+                '<tr><td colspan="5">No non-zero coefficients recorded for this fold.</td></tr>'
             )
 
         zero_paragraph = ""
@@ -496,7 +511,7 @@ def _write_umllr_pages(output_dir: Path, summary: Dict[str, Any]) -> Dict[int, P
     <h2>Tag coefficients</h2>
     <table class="umllr-table">
       <thead>
-        <tr><th>Tag</th><th>Coefficient</th><th>{expansion_header}</th><th>Order</th></tr>
+        <tr><th>Tag</th><th>Coefficient</th><th>taxonomy_path</th><th>{expansion_header}</th><th>Order</th></tr>
       </thead>
       <tbody>
         {coeff_table_rows}
