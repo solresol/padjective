@@ -151,6 +151,70 @@ def _write_sql_dump(pairs: Sequence[Tuple[str, str]], dump_path: Path, schema: s
         dump_file.write("COMMIT;\n")
 
 
+def _write_defective_taxonomy_page(output_dir: Path, dataset: data_access.ProductDataset) -> Path:
+    """Create a dedicated page showing products with defective taxonomy labels."""
+    page_path = output_dir / "defective_taxonomy.html"
+
+    defective_rows: list[dict[str, Any]] = []
+    for discarded in dataset.discarded_products:
+        if discarded.reason == "defective_taxonomy_path":
+            record = discarded.record
+            defective_rows.append(
+                {
+                    "product_id": record.product_id,
+                    "title": record.title,
+                    "taxonomy_id": record.taxonomy_id or "",
+                    "taxonomy_path": record.taxonomy_path or "",
+                    "taxonomy_name": record.taxonomy_name or "",
+                    "tags": ", ".join(record.tags),
+                }
+            )
+
+    if defective_rows:
+        defective_df = pd.DataFrame(defective_rows)
+        defective_table = defective_df.to_html(index=False, classes=["dataset-table", "defective-table"])
+        count_msg = f"<p>{len(defective_rows)} products have defective taxonomy paths containing hierarchical separators when they should be numeric codes.</p>"
+    else:
+        defective_table = "<p>No products with defective taxonomy paths found.</p>"
+        count_msg = "<p>All products have valid numeric taxonomy paths.</p>"
+
+    page_html = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Defective taxonomy labels</title>
+  <link rel="stylesheet" href="assets/styles.css" />
+</head>
+<body class="dataset-page">
+  <header class="hero">
+    <h1>Products with defective taxonomy labels</h1>
+    <p class="tagline">Products excluded due to invalid taxonomy paths</p>
+  </header>
+
+  <section>
+    <p><a href="index.html">← Back to index</a></p>
+    <h2>Defective taxonomy paths</h2>
+    {count_msg}
+    <p>These products have taxonomy_path fields incorrectly populated with hierarchical names
+    (like "Apparel &amp; Accessories / Clothing / T-Shirts") instead of the proper numeric
+    codes (like "1.1.4"). The taxonomy_path field should contain only numeric hierarchical codes,
+    while the human-readable hierarchical names belong in the taxonomy_name field. These products
+    are excluded from model training to ensure data quality and consistency.</p>
+    <div class="table-wrapper">
+      {defective_table}
+    </div>
+  </section>
+
+  <footer>
+    <p><a href="index.html">← Back to index</a> | <a href="dataset.html">View full dataset details</a></p>
+  </footer>
+</body>
+</html>"""
+
+    page_path.write_text(page_html, encoding="utf-8")
+    return page_path
+
+
 def _write_dataset_page(output_dir: Path, dataset: data_access.ProductDataset) -> Path:
     page_path = output_dir / "dataset.html"
 
@@ -238,7 +302,7 @@ def _write_dataset_page(output_dir: Path, dataset: data_access.ProductDataset) -
   </section>
 
   <footer>
-    <p><a href="index.html">← Back to index</a></p>
+    <p><a href="index.html">← Back to index</a> | <a href="defective_taxonomy.html">View defective taxonomy labels</a></p>
   </footer>
 </body>
 </html>"""
@@ -485,6 +549,7 @@ def _build_index_html(
     stats: Dict[str, int],
     dataset_stats: Dict[str, int],
     dataset_page: Optional[Path],
+    defective_taxonomy_page: Optional[Path],
     elo_page: Path,
     taxonomy_page: Optional[Path],
     umllr_page: Optional[Path],
@@ -509,6 +574,12 @@ def _build_index_html(
     if dataset_page:
         dataset_link = (
             f'<a href="{dataset_page.relative_to(output_dir).as_posix()}">Explore the full dataset →</a>'
+        )
+    if defective_taxonomy_page:
+        if dataset_link:
+            dataset_link += " | "
+        dataset_link += (
+            f'<a href="{defective_taxonomy_page.relative_to(output_dir).as_posix()}">View defective taxonomy labels →</a>'
         )
 
     # Build model cards
@@ -1364,6 +1435,7 @@ def _collect_taxonomy_classifier_summary(
                 SELECT taxonomy_id, taxonomy_path, sample_count, sample_fraction
                 FROM {schema}.taxonomy_lr_class_distribution
                 WHERE model_id = %s
+                  AND taxonomy_path !~ '[>/|]'
                 ORDER BY sample_fraction DESC, sample_count DESC, taxonomy_id
                 """
             ).format(schema=sql.Identifier(schema)),
@@ -1387,6 +1459,7 @@ def _collect_taxonomy_classifier_summary(
                        top_weight, max_abs_weight, sum_abs_weight
                 FROM {schema}.taxonomy_lr_tag_summary
                 WHERE model_id = %s
+                  AND top_taxonomy_path !~ '[>/|]'
                 ORDER BY max_abs_weight DESC, sum_abs_weight DESC, tag
                 LIMIT 200
                 """
@@ -1621,6 +1694,7 @@ def build_site(
     }
 
     dataset_page = _write_dataset_page(output_dir, dataset)
+    defective_taxonomy_page = _write_defective_taxonomy_page(output_dir, dataset)
 
     pairs = ranking.load_pairs(precomputed_database, battle_schema)
     leaderboard = ranking.compute_rankings(pairs)
@@ -1773,6 +1847,7 @@ footer {text-align: center; padding: 2rem 1.5rem 3rem; color: #6b7280;}
         stats,
         dataset_stats,
         dataset_page,
+        defective_taxonomy_page,
         elo_page,
         taxonomy_page,
         umllr_page,

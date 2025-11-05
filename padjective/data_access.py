@@ -10,6 +10,7 @@ the raw inputs for reporting purposes.
 
 from __future__ import annotations
 
+import re
 from collections import Counter
 from dataclasses import dataclass
 from typing import Dict, Iterator, List, Optional, Tuple
@@ -20,6 +21,29 @@ from psycopg.rows import dict_row
 from scipy import sparse
 
 from . import db
+
+# Regex pattern to match taxonomy hierarchical separators
+_TAXONOMY_SEPARATOR_RE = re.compile(r"[>/|]")
+
+
+def is_valid_taxonomy_path(path: Optional[str]) -> bool:
+    """Check if a taxonomy path is a valid numeric path.
+
+    Valid taxonomy paths are numeric hierarchical codes like "1.1.4" or "13.3.2.9.6".
+    Invalid/defective paths contain hierarchical separators (/, >, |) indicating the
+    field was incorrectly populated with taxonomy_name data instead of the numeric path.
+
+    Args:
+        path: Taxonomy path string to validate
+
+    Returns:
+        True if the path is numeric (no hierarchical separators), False if it
+        contains separators that indicate it's actually a taxonomy_name
+    """
+    if not path:
+        return False
+    # Valid paths should NOT contain hierarchical separators - they should be numeric like "1.1.4"
+    return not bool(_TAXONOMY_SEPARATOR_RE.search(path))
 
 
 @dataclass(frozen=True)
@@ -195,6 +219,9 @@ def build_feature_dataset(
     for record in eligible_records:
         if require_taxonomy and not record.taxonomy_id:
             discarded_products.append(DiscardedProduct(record, "missing_taxonomy"))
+            continue
+        if require_taxonomy and not is_valid_taxonomy_path(record.taxonomy_path):
+            discarded_products.append(DiscardedProduct(record, "defective_taxonomy_path"))
             continue
         if require_taxonomy and valid_taxonomies is not None:
             if record.taxonomy_id not in valid_taxonomies:
