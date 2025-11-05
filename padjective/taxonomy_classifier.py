@@ -970,8 +970,8 @@ def main() -> None:
 
                 for idx in range(len(y_test)):
                     product_id = int(test_metadata.iloc[idx]["product_id"])
-                    true_tax_id = label_encoder.inverse_transform([y_test[idx]])[0]
-                    pred_tax_id = label_encoder.inverse_transform([y_pred[idx]])[0]
+                    true_tax_id = y_test[idx]  # Already taxonomy_id string
+                    pred_tax_id = y_pred[idx]  # Already taxonomy_id string
 
                     # Calculate individual p-adic loss
                     true_encoding = encodings.get(true_tax_id, 0)
