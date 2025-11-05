@@ -1671,10 +1671,17 @@ def _write_umllr_overview_page(
 def _write_taxonomy_classifier_page(
     output_dir: Path,
     taxonomy_summary: Dict[str, Any],
-    fold_results: Optional[list[Dict[str, Any]]] = None,
-    fold_pages: Optional[Dict[int, Path]] = None,
+    fold_results: list[Dict[str, Any]],
+    fold_pages: Dict[int, Path],
 ) -> Path:
-    """Write a dedicated page for taxonomy classifier results."""
+    """Write a dedicated page for taxonomy classifier results.
+
+    Args:
+        output_dir: Directory for output files
+        taxonomy_summary: Legacy summary data (still used for class distribution and top tags)
+        fold_results: Required fold-level results with training statistics
+        fold_pages: Required mapping of fold numbers to their detail page paths
+    """
     tax_dir = output_dir / "taxonomy_classifier"
     tax_dir.mkdir(parents=True, exist_ok=True)
 
@@ -1683,24 +1690,21 @@ def _write_taxonomy_classifier_page(
     top_tags_rows = taxonomy_summary.get("top_tags", [])[:30]
     trained_at = taxonomy_summary.get("trained_at", "Unknown")
 
-    # Build summary metrics
-    summary_metrics = []
+    # Build summary metrics from fold results
+    if not fold_results:
+        raise ValueError("fold_results is required for taxonomy classifier page")
 
-    # If we have fold results, use them to compute aggregate statistics
-    if fold_results:
-        num_folds = len(fold_results)
-        total_train = sum(row["num_train_samples"] for row in fold_results)
-        total_test = sum(row["num_test_samples"] for row in fold_results)
-        avg_accuracy = sum(row["test_accuracy"] for row in fold_results) / num_folds
+    num_folds = len(fold_results)
+    total_train = sum(row["num_train_samples"] for row in fold_results)
+    total_test = sum(row["num_test_samples"] for row in fold_results)
+    avg_accuracy = sum(row["test_accuracy"] for row in fold_results) / num_folds
+    avg_f1 = sum(row["test_f1"] for row in fold_results) / num_folds
+    avg_padic_loss = sum(row["padic_loss_mean"] for row in fold_results) / num_folds
 
-        summary_metrics.append(f'<div class="metric"><span class="value">{num_folds}</span><span class="label">CV folds</span></div>')
-        summary_metrics.append(f'<div class="metric"><span class="value">{avg_accuracy * 100:.2f}%</span><span class="label">Mean test accuracy</span></div>')
-    else:
-        # Fallback to old stats if no fold results available
-        if (samples := stats_block.get("samples")) is not None:
-            summary_metrics.append(f'<div class="metric"><span class="value">{samples:,}</span><span class="label">Training samples</span></div>')
-        if (accuracy := stats_block.get("training_accuracy")) is not None:
-            summary_metrics.append(f'<div class="metric"><span class="value">{accuracy * 100:.1f}%</span><span class="label">Training accuracy</span></div>')
+    summary_metrics = [
+        f'<div class="metric"><span class="value">{num_folds}</span><span class="label">CV folds</span></div>',
+        f'<div class="metric"><span class="value">{avg_accuracy * 100:.2f}%</span><span class="label">Mean test accuracy</span></div>',
+    ]
 
     # Always show taxonomies if available
     if (taxonomies := stats_block.get("taxonomies")) is not None:
@@ -1708,15 +1712,8 @@ def _write_taxonomy_classifier_page(
 
     metrics_html = "\n".join(summary_metrics)
 
-    # Build fold-specific details section if available
-    fold_details_html = ""
-    if fold_results:
-        total_train = sum(row["num_train_samples"] for row in fold_results)
-        total_test = sum(row["num_test_samples"] for row in fold_results)
-        avg_f1 = sum(row["test_f1"] for row in fold_results) / len(fold_results)
-        avg_padic_loss = sum(row["padic_loss_mean"] for row in fold_results) / len(fold_results)
-
-        fold_details_html = f"""
+    # Build fold-specific details section
+    fold_details_html = f"""
     <h3>Aggregate statistics</h3>
     <ul class="taxonomy-stats">
       <li><strong>Total train samples:</strong> {total_train:,}</li>
@@ -1727,28 +1724,28 @@ def _write_taxonomy_classifier_page(
 """
 
     # Build fold results table
-    fold_results_html = ""
-    if fold_results and fold_pages:
-        avg_padic_loss = sum(fold["padic_loss_mean"] for fold in fold_results) / len(fold_results)
-        fold_rows = []
-        for fold_data in fold_results:
-            fold = fold_data["cv_fold"]
-            link = fold_pages.get(fold)
-            if link:
-                link_text = f'<a href="{Path(link).name}">View details →</a>'
-            else:
-                link_text = "—"
-            fold_rows.append(
-                f"<tr>"
-                f"<td>{fold}</td>"
-                f"<td>{fold_data['test_accuracy'] * 100:.2f}%</td>"
-                f"<td>{fold_data['test_f1']:.4f}</td>"
-                f"<td>{fold_data['padic_loss_mean']:.6f}</td>"
-                f"<td>{link_text}</td>"
-                f"</tr>"
-            )
-        fold_table_body = "\n".join(fold_rows)
-        fold_results_html = f"""
+    if not fold_pages:
+        raise ValueError("fold_pages is required for taxonomy classifier page")
+
+    fold_rows = []
+    for fold_data in fold_results:
+        fold = fold_data["cv_fold"]
+        link = fold_pages.get(fold)
+        if link:
+            link_text = f'<a href="{Path(link).name}">View details →</a>'
+        else:
+            link_text = "—"
+        fold_rows.append(
+            f"<tr>"
+            f"<td>{fold}</td>"
+            f"<td>{fold_data['test_accuracy'] * 100:.2f}%</td>"
+            f"<td>{fold_data['test_f1']:.4f}</td>"
+            f"<td>{fold_data['padic_loss_mean']:.6f}</td>"
+            f"<td>{link_text}</td>"
+            f"</tr>"
+        )
+    fold_table_body = "\n".join(fold_rows)
+    fold_results_html = f"""
     <h2>Cross-validation fold results</h2>
     <p>Average p-adic loss across all folds: <strong>{avg_padic_loss:.6f}</strong></p>
     <table class="umllr-summary">
