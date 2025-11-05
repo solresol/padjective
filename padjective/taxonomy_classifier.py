@@ -958,6 +958,61 @@ def main() -> None:
                      padic_loss, padic_loss_mean, prime_base,
                      len(y_train), len(y_test))
                 )
+
+                # Save individual predictions
+                test_metadata = metadata[test_mask].reset_index(drop=True)
+                cur.execute(
+                    sql.SQL("DELETE FROM {schema}.taxonomy_lr_predictions WHERE cv_fold = %s").format(
+                        schema=sql.Identifier(args.results_schema)
+                    ),
+                    (args.fold,)
+                )
+
+                for idx in range(len(y_test)):
+                    product_id = int(test_metadata.iloc[idx]["product_id"])
+                    true_tax_id = label_encoder.inverse_transform([y_test[idx]])[0]
+                    pred_tax_id = label_encoder.inverse_transform([y_pred[idx]])[0]
+
+                    # Calculate individual p-adic loss
+                    true_encoding = encodings.get(true_tax_id, 0)
+                    pred_encoding = encodings.get(pred_tax_id, 0)
+                    ind_loss = _padic_distance(true_encoding, pred_encoding, prime_base)
+
+                    cur.execute(
+                        sql.SQL(
+                            """
+                            INSERT INTO {schema}.taxonomy_lr_predictions
+                            (cv_fold, product_id, true_taxonomy_id, predicted_taxonomy_id, loss)
+                            VALUES (%s, %s, %s, %s, %s)
+                            """
+                        ).format(schema=sql.Identifier(args.results_schema)),
+                        (args.fold, product_id, true_tax_id, pred_tax_id, ind_loss)
+                    )
+
+                # Save coefficients
+                cur.execute(
+                    sql.SQL("DELETE FROM {schema}.taxonomy_lr_coefficients WHERE cv_fold = %s").format(
+                        schema=sql.Identifier(args.results_schema)
+                    ),
+                    (args.fold,)
+                )
+
+                # Get feature names and coefficients
+                for class_idx, taxonomy_id in enumerate(model.classes_):
+                    for feature_idx, coef in enumerate(model.coef_[class_idx]):
+                        if coef != 0:  # Only save non-zero coefficients
+                            tag = feature_names[feature_idx]
+                            cur.execute(
+                                sql.SQL(
+                                    """
+                                    INSERT INTO {schema}.taxonomy_lr_coefficients
+                                    (cv_fold, taxonomy_id, tag, coefficient)
+                                    VALUES (%s, %s, %s, %s)
+                                    """
+                                ).format(schema=sql.Identifier(args.results_schema)),
+                                (args.fold, taxonomy_id, tag, float(coef))
+                            )
+
             save_conn.commit()
             print(f"\nResults saved to {args.results_schema}.taxonomy_lr_fold_results")
         finally:

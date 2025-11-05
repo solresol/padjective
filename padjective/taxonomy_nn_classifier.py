@@ -939,6 +939,33 @@ def main() -> None:
                      padic_loss, padic_loss_mean, prime_base,
                      len(y_train), len(y_test), hidden_layers_str, args.max_tags)
                 )
+
+                # Save individual predictions
+                test_metadata = metadata[test_mask].reset_index(drop=True)
+                cur.execute(
+                    "DELETE FROM padjective.taxonomy_nn_predictions WHERE cv_fold = %s",
+                    (args.fold,)
+                )
+
+                for idx in range(len(y_test)):
+                    product_id = int(test_metadata.iloc[idx]["product_id"])
+                    true_tax_id = y_true_taxonomy[idx]
+                    pred_tax_id = y_pred_taxonomy[idx]
+
+                    # Calculate individual p-adic loss
+                    true_encoding = encodings.get(true_tax_id, 0)
+                    pred_encoding = encodings.get(pred_tax_id, 0)
+                    ind_loss = _padic_distance(true_encoding, pred_encoding, prime_base)
+
+                    cur.execute(
+                        """
+                        INSERT INTO padjective.taxonomy_nn_predictions
+                        (cv_fold, product_id, true_taxonomy_id, predicted_taxonomy_id, loss)
+                        VALUES (%s, %s, %s, %s, %s)
+                        """,
+                        (args.fold, product_id, true_tax_id, pred_tax_id, ind_loss)
+                    )
+
             save_conn.commit()
             print(f"\nResults saved to padjective.taxonomy_nn_fold_results")
         finally:
