@@ -613,6 +613,261 @@ def _load_prediction_details(conn, fold: int, schema: str) -> Dict[int, Dict[str
     return details
 
 
+def _write_prediction_detail_page(
+    page_path: Path,
+    fold: int,
+    product_id: int,
+    detail: Dict[str, Any],
+    taxonomy_info: Dict[str, Dict[str, str]],
+    prime_base: int,
+) -> None:
+    """Write a detailed prediction page for a single product."""
+
+    title = detail.get("title", f"Product {product_id}")
+    tags = detail.get("tags", [])
+    ground_truth = detail.get("ground_truth", {})
+    predictions = detail.get("predictions", {})
+    umllr_coeffs = detail.get("umllr_coefficients", {})
+    lr_coeffs = detail.get("lr_coefficients", {})
+
+    # Ground truth section
+    gt_taxonomy_id = ground_truth.get("taxonomy_id", "Unknown")
+    gt_taxonomy_name = ground_truth.get("taxonomy_name", "Unknown")
+    gt_taxonomy_path = ground_truth.get("taxonomy_path", "Unknown")
+
+    ground_truth_html = f"""
+    <div class="detail-section">
+      <h2>Ground Truth</h2>
+      <table class="detail-table">
+        <tr><th>Taxonomy ID</th><td>{html.escape(gt_taxonomy_id)}</td></tr>
+        <tr><th>Taxonomy Name</th><td>{html.escape(gt_taxonomy_name)}</td></tr>
+        <tr><th>Taxonomy Path</th><td>{html.escape(gt_taxonomy_path)}</td></tr>
+      </table>
+    </div>
+    """
+
+    # Predictions section
+    predictions_rows = []
+
+    # umllr prediction
+    umllr_pred = predictions.get("umllr", {})
+    if umllr_pred:
+        pred_value = umllr_pred.get("predicted_value", 0)
+        pred_path, pred_expansion = _format_padic_expansion(pred_value, prime_base)
+        # Reverse to get database format
+        reversed_pred_path = ".".join(reversed(pred_path.split(".")))
+        pred_info = taxonomy_info.get(reversed_pred_path, {})
+        pred_tax_id = pred_info.get("taxonomy_id", "")
+        pred_tax_name = pred_info.get("taxonomy_name", "")
+
+        predictions_rows.append(f"""
+        <tr>
+          <td>umllr</td>
+          <td>{html.escape(pred_path)}</td>
+          <td>{html.escape(pred_tax_id)}</td>
+          <td>{html.escape(pred_tax_name)}</td>
+          <td>{umllr_pred.get("loss", 0.0):.6f}</td>
+        </tr>
+        """)
+
+    # LR prediction
+    lr_pred = predictions.get("lr", {})
+    if lr_pred:
+        pred_tax_id = lr_pred.get("predicted_taxonomy_id", "")
+        pred_info = taxonomy_info.get(pred_tax_id, {})
+        pred_tax_path = pred_info.get("taxonomy_path", pred_tax_id)
+        pred_tax_name = pred_info.get("taxonomy_name", "")
+
+        predictions_rows.append(f"""
+        <tr>
+          <td>Logistic Regression</td>
+          <td>{html.escape(pred_tax_path)}</td>
+          <td>{html.escape(pred_tax_id)}</td>
+          <td>{html.escape(pred_tax_name)}</td>
+          <td>{lr_pred.get("loss", 0.0):.6f}</td>
+        </tr>
+        """)
+
+    # NN prediction
+    nn_pred = predictions.get("nn", {})
+    if nn_pred:
+        pred_tax_id = nn_pred.get("predicted_taxonomy_id", "")
+        pred_info = taxonomy_info.get(pred_tax_id, {})
+        pred_tax_path = pred_info.get("taxonomy_path", pred_tax_id)
+        pred_tax_name = pred_info.get("taxonomy_name", "")
+
+        predictions_rows.append(f"""
+        <tr>
+          <td>Neural Network</td>
+          <td>{html.escape(pred_tax_path)}</td>
+          <td>{html.escape(pred_tax_id)}</td>
+          <td>{html.escape(pred_tax_name)}</td>
+          <td>{nn_pred.get("loss", 0.0):.6f}</td>
+        </tr>
+        """)
+
+    predictions_html = f"""
+    <div class="detail-section">
+      <h2>Model Predictions</h2>
+      <table class="detail-table">
+        <thead>
+          <tr><th>Model</th><th>Taxonomy Path</th><th>Taxonomy ID</th><th>Taxonomy Name</th><th>P-adic Loss</th></tr>
+        </thead>
+        <tbody>
+          {"".join(predictions_rows)}
+        </tbody>
+      </table>
+    </div>
+    """
+
+    # Product tags section
+    tags_html = f"""
+    <div class="detail-section">
+      <h2>Product Tags</h2>
+      <p>{", ".join(html.escape(tag) for tag in tags)}</p>
+    </div>
+    """
+
+    # umllr detailed section
+    umllr_tag_rows = []
+    for tag in tags:
+        coef = umllr_coeffs.get(tag, 0)
+        if coef != 0:
+            tag_path, tag_expansion = _format_padic_expansion(coef, prime_base)
+            # Reverse to get database format
+            reversed_tag_path = ".".join(reversed(tag_path.split(".")))
+            tag_info = taxonomy_info.get(reversed_tag_path, {})
+            tag_tax_name = tag_info.get("taxonomy_name", "")
+
+            umllr_tag_rows.append(f"""
+            <tr>
+              <td>{html.escape(tag)}</td>
+              <td>{coef}</td>
+              <td>{html.escape(tag_path)}</td>
+              <td>{html.escape(tag_expansion)}</td>
+              <td>{html.escape(tag_tax_name)}</td>
+            </tr>
+            """)
+
+    umllr_detail_html = ""
+    if umllr_tag_rows:
+        umllr_detail_html = f"""
+        <div class="detail-section">
+          <h2>umllr Tag Contributions</h2>
+          <table class="detail-table">
+            <thead>
+              <tr><th>Tag</th><th>Coefficient</th><th>Taxonomy Path</th><th>Expansion</th><th>Taxonomy Name</th></tr>
+            </thead>
+            <tbody>
+              {"".join(umllr_tag_rows)}
+            </tbody>
+          </table>
+        </div>
+        """
+
+    # LR detailed section - show coefficients for each tag across all taxonomies
+    lr_detail_rows = []
+    for tag in tags:
+        tag_coeffs = lr_coeffs.get(tag, {})
+        if tag_coeffs:
+            # Find the taxonomy with the highest coefficient (log odds)
+            max_taxonomy = max(tag_coeffs.items(), key=lambda x: x[1])
+            max_tax_id = max_taxonomy[0]
+
+            # Build rows for this tag
+            for tax_id, coef in sorted(tag_coeffs.items(), key=lambda x: -x[1]):
+                tax_info = taxonomy_info.get(tax_id, {})
+                tax_path = tax_info.get("taxonomy_path", tax_id)
+                tax_name = tax_info.get("taxonomy_name", "")
+
+                highlight_class = ' class="highlight"' if tax_id == max_tax_id else ''
+                lr_detail_rows.append(f"""
+                <tr{highlight_class}>
+                  <td>{html.escape(tag)}</td>
+                  <td>{html.escape(tax_path)}</td>
+                  <td>{html.escape(tax_name)}</td>
+                  <td>{coef:.6f}</td>
+                </tr>
+                """)
+
+    lr_detail_html = ""
+    if lr_detail_rows:
+        lr_detail_html = f"""
+        <div class="detail-section">
+          <h2>Logistic Regression Coefficients</h2>
+          <p>Tag coefficients for each taxonomy class (highest coefficient per tag is highlighted)</p>
+          <table class="detail-table">
+            <thead>
+              <tr><th>Tag</th><th>Taxonomy Path</th><th>Taxonomy Name</th><th>Coefficient</th></tr>
+            </thead>
+            <tbody>
+              {"".join(lr_detail_rows)}
+            </tbody>
+          </table>
+        </div>
+        """
+
+    # Complete page
+    page_contents = f"""
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Prediction Detail - Product {product_id} - Fold {fold}</title>
+  <link rel="stylesheet" href="../../assets/styles.css" />
+  <style>
+    .detail-section {{
+      margin: 2rem 0;
+      background: white;
+      padding: 1.5rem;
+      border-radius: 0.5rem;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }}
+    .detail-table {{
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 1rem;
+    }}
+    .detail-table th, .detail-table td {{
+      padding: 0.75rem;
+      text-align: left;
+      border-bottom: 1px solid #e2e8f0;
+    }}
+    .detail-table th {{
+      background: #f8fafc;
+      font-weight: 600;
+      color: #475569;
+    }}
+    .detail-table tr.highlight {{
+      background: #fef3c7;
+      font-weight: 600;
+    }}
+    .product-title {{
+      font-size: 1.5rem;
+      font-weight: 600;
+      margin-bottom: 0.5rem;
+    }}
+  </style>
+</head>
+<body>
+  <section class="umllr-fold">
+    <h1>Prediction Detail - Fold {fold}</h1>
+    <p><a href="../fold_{fold}.html">Back to fold {fold}</a> | <a href="../../index.html">Back to index</a></p>
+    <div class="product-title">{html.escape(title)}</div>
+    <p><strong>Product ID:</strong> {product_id}</p>
+
+    {ground_truth_html}
+    {predictions_html}
+    {tags_html}
+    {umllr_detail_html}
+    {lr_detail_html}
+  </section>
+</body>
+</html>
+"""
+    page_path.write_text(page_contents, encoding="utf-8")
+
+
 def _write_zero_coefficients_page(
     page_path: Path,
     fold: int,
@@ -661,7 +916,7 @@ def _write_zero_coefficients_page(
     page_path.write_text(page_contents, encoding="utf-8")
 
 
-def _write_umllr_pages(output_dir: Path, summary: Dict[str, Any]) -> Dict[int, Path]:
+def _write_umllr_pages(output_dir: Path, summary: Dict[str, Any], conn=None, schema: str = "padjective") -> Dict[int, Path]:
     pages: Dict[int, Path] = {}
     metrics = summary.get("metrics", [])
     if not metrics:
@@ -674,6 +929,26 @@ def _write_umllr_pages(output_dir: Path, summary: Dict[str, Any]) -> Dict[int, P
     predictions = summary.get("predictions", {})
     tag_rankings: Dict[str, int] = summary.get("tag_rankings", {})
     taxonomy_names: Dict[str, str] = summary.get("taxonomy_names", {})
+
+    # Load taxonomy info for detail pages (reverse mapping: path -> info)
+    taxonomy_info_by_path: Dict[str, Dict[str, str]] = {}
+    if conn:
+        with conn.cursor(row_factory=dict_row) as cur:
+            cur.execute(
+                """
+                SELECT taxonomy_id, taxonomy_name, taxonomy_path
+                FROM cantbuymelove.taxonomy
+                WHERE taxonomy_path !~ '[>/|]'
+                """
+            )
+            for row in cur:
+                path = row["taxonomy_path"]
+                if path:
+                    taxonomy_info_by_path[path] = {
+                        "taxonomy_id": row["taxonomy_id"],
+                        "taxonomy_name": row["taxonomy_name"] or "",
+                        "taxonomy_path": path,
+                    }
 
     for metric in metrics:
         fold = metric["cv_fold"]
@@ -732,15 +1007,50 @@ def _write_umllr_pages(output_dir: Path, summary: Dict[str, Any]) -> Dict[int, P
             f"Base-{prime_base} expansion" if prime_base and prime_base > 1 else "Base expansion"
         )
 
-        prediction_table_rows = "\n".join(
-            "<tr>"
-            f"<td>{row['product_id']}</td>"
-            f"<td>{row['true_value']}</td>"
-            f"<td>{row['predicted_value']}</td>"
-            f"<td>{row['loss']:.6f}</td>"
-            "</tr>"
-            for row in prediction_rows
-        )
+        # Generate prediction detail pages if conn is available
+        prediction_details = {}
+        if conn:
+            try:
+                prediction_details = _load_prediction_details(conn, fold, schema)
+
+                # Create prediction directory for this fold
+                pred_dir = umllr_dir / f"prediction/{fold}"
+                pred_dir.mkdir(parents=True, exist_ok=True)
+
+                # Generate detail pages for each product
+                for product_id, detail in prediction_details.items():
+                    detail_path = pred_dir / f"{product_id}.html"
+                    _write_prediction_detail_page(
+                        detail_path,
+                        fold,
+                        product_id,
+                        detail,
+                        taxonomy_info_by_path,
+                        prime_base
+                    )
+            except Exception as e:
+                print(f"Warning: Could not generate prediction detail pages for fold {fold}: {e}")
+
+        # Build prediction table rows with links to detail pages
+        prediction_table_rows_list = []
+        for row in prediction_rows:
+            product_id = row['product_id']
+            if product_id in prediction_details:
+                # Link to detail page
+                product_id_cell = f'<a href="prediction/{fold}/{product_id}.html">{product_id}</a>'
+            else:
+                product_id_cell = str(product_id)
+
+            prediction_table_rows_list.append(
+                "<tr>"
+                f"<td>{product_id_cell}</td>"
+                f"<td>{row['true_value']}</td>"
+                f"<td>{row['predicted_value']}</td>"
+                f"<td>{row['loss']:.6f}</td>"
+                "</tr>"
+            )
+
+        prediction_table_rows = "\n".join(prediction_table_rows_list)
         if not prediction_table_rows:
             prediction_table_rows = '<tr><td colspan="4">No test predictions available for this fold.</td></tr>'
 
@@ -2086,7 +2396,7 @@ footer {text-align: center; padding: 2rem 1.5rem 3rem; color: #6b7280;}
     umllr_page = None
     if umllr_summary:
         umllr_summary["tag_rankings"] = tag_rank_lookup
-        fold_pages = _write_umllr_pages(output_dir, umllr_summary)
+        fold_pages = _write_umllr_pages(output_dir, umllr_summary, conn=precomputed_database, schema=battle_schema)
         # Add pages to summary before creating overview page so links work
         umllr_summary["pages"] = {
             fold: path.relative_to(output_dir).as_posix()
