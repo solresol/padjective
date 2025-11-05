@@ -438,6 +438,181 @@ def _load_umllr_results(conn, schema: str) -> Optional[Dict[str, Any]]:
     }
 
 
+def _load_prediction_details(conn, fold: int, schema: str) -> Dict[int, Dict[str, Any]]:
+    """Load detailed prediction data for a specific fold.
+
+    Returns a dict mapping product_id to prediction details including:
+    - ground_truth: {taxonomy_id, taxonomy_name, taxonomy_path}
+    - predictions: {umllr: {...}, lr: {...}, nn: {...}}
+    - tags: [list of tags]
+    - umllr_coefficients: {tag: coefficient}
+    - lr_coefficients: {tag: {taxonomy_id: coefficient}}
+    """
+    details: Dict[int, Dict[str, Any]] = {}
+
+    # Load taxonomy name mappings
+    taxonomy_info: Dict[str, Dict[str, str]] = {}
+    with conn.cursor(row_factory=dict_row) as cur:
+        cur.execute(
+            """
+            SELECT taxonomy_id, taxonomy_name, taxonomy_path
+            FROM cantbuymelove.taxonomy
+            WHERE taxonomy_path !~ '[>/|]'
+            """
+        )
+        for row in cur:
+            tid = row["taxonomy_id"]
+            taxonomy_info[tid] = {
+                "taxonomy_id": tid,
+                "taxonomy_name": row["taxonomy_name"] or "",
+                "taxonomy_path": row["taxonomy_path"] or "",
+            }
+
+    # Load umllr predictions and coefficients
+    umllr_predictions: Dict[int, Dict[str, Any]] = {}
+    with conn.cursor(row_factory=dict_row) as cur:
+        cur.execute(
+            sql.SQL(
+                """
+                SELECT product_id, true_value, predicted_value, loss
+                FROM {schema}.umllr_predictions
+                WHERE cv_fold = %s
+                """
+            ).format(schema=sql.Identifier(schema)),
+            (fold,)
+        )
+        for row in cur:
+            pid = row["product_id"]
+            umllr_predictions[pid] = {
+                "true_value": row["true_value"],
+                "predicted_value": row["predicted_value"],
+                "loss": row["loss"],
+            }
+
+    # Load umllr coefficients for this fold
+    umllr_tag_coeffs: Dict[str, int] = {}
+    with conn.cursor(row_factory=dict_row) as cur:
+        cur.execute(
+            sql.SQL(
+                """
+                SELECT tag, coefficient
+                FROM {schema}.umllr_tag_coefficients
+                WHERE cv_fold = %s
+                """
+            ).format(schema=sql.Identifier(schema)),
+            (fold,)
+        )
+        for row in cur:
+            umllr_tag_coeffs[row["tag"]] = row["coefficient"]
+
+    # Load LR predictions
+    lr_predictions: Dict[int, Dict[str, Any]] = {}
+    with conn.cursor(row_factory=dict_row) as cur:
+        cur.execute(
+            sql.SQL(
+                """
+                SELECT product_id, true_taxonomy_id, predicted_taxonomy_id, loss
+                FROM {schema}.taxonomy_lr_predictions
+                WHERE cv_fold = %s
+                """
+            ).format(schema=sql.Identifier(schema)),
+            (fold,)
+        )
+        for row in cur:
+            pid = row["product_id"]
+            lr_predictions[pid] = {
+                "true_taxonomy_id": row["true_taxonomy_id"],
+                "predicted_taxonomy_id": row["predicted_taxonomy_id"],
+                "loss": row["loss"],
+            }
+
+    # Load LR coefficients for this fold
+    lr_coeffs: Dict[str, Dict[str, float]] = {}  # tag -> {taxonomy_id: coef}
+    with conn.cursor(row_factory=dict_row) as cur:
+        cur.execute(
+            sql.SQL(
+                """
+                SELECT taxonomy_id, tag, coefficient
+                FROM {schema}.taxonomy_lr_coefficients
+                WHERE cv_fold = %s
+                """
+            ).format(schema=sql.Identifier(schema)),
+            (fold,)
+        )
+        for row in cur:
+            tag = row["tag"]
+            tid = row["taxonomy_id"]
+            coef = row["coefficient"]
+            if tag not in lr_coeffs:
+                lr_coeffs[tag] = {}
+            lr_coeffs[tag][tid] = coef
+
+    # Load NN predictions
+    nn_predictions: Dict[int, Dict[str, Any]] = {}
+    with conn.cursor(row_factory=dict_row) as cur:
+        cur.execute(
+            sql.SQL(
+                """
+                SELECT product_id, true_taxonomy_id, predicted_taxonomy_id, loss
+                FROM {schema}.taxonomy_nn_predictions
+                WHERE cv_fold = %s
+                """
+            ).format(schema=sql.Identifier(schema)),
+            (fold,)
+        )
+        for row in cur:
+            pid = row["product_id"]
+            nn_predictions[pid] = {
+                "true_taxonomy_id": row["true_taxonomy_id"],
+                "predicted_taxonomy_id": row["predicted_taxonomy_id"],
+                "loss": row["loss"],
+            }
+
+    # Load product tags and ground truth
+    with conn.cursor(row_factory=dict_row) as cur:
+        cur.execute(
+            """
+            SELECT
+                p.id AS product_id,
+                p.product_title AS title,
+                pd.product_detail->'product'->>'tags' AS tags,
+                pt.taxonomy_id,
+                up.cv_fold
+            FROM cantbuymelove.product p
+            JOIN public.product_details pd ON (
+                p.myshopify_domain = pd.myshopify_domain
+                AND p.run_name = pd.run_name
+                AND p.product_handle = pd.product_handle
+            )
+            LEFT JOIN cantbuymelove.product_taxonomy pt ON pt.product_id = p.id
+            LEFT JOIN padjective.umllr_predictions up ON up.product_id = p.id
+            WHERE up.cv_fold = %s
+            """,
+            (fold,)
+        )
+        for row in cur:
+            pid = row["product_id"]
+            taxonomy_id = row["taxonomy_id"]
+            tags_str = row["tags"] or ""
+            tags = [t.strip().upper() for t in tags_str.split(",") if t.strip()]
+
+            details[pid] = {
+                "product_id": pid,
+                "title": row["title"] or "",
+                "tags": tags,
+                "ground_truth": taxonomy_info.get(taxonomy_id, {}),
+                "predictions": {
+                    "umllr": umllr_predictions.get(pid, {}),
+                    "lr": lr_predictions.get(pid, {}),
+                    "nn": nn_predictions.get(pid, {}),
+                },
+                "umllr_coefficients": {tag: umllr_tag_coeffs.get(tag, 0) for tag in tags},
+                "lr_coefficients": {tag: lr_coeffs.get(tag, {}) for tag in tags},
+            }
+
+    return details
+
+
 def _write_zero_coefficients_page(
     page_path: Path,
     fold: int,
