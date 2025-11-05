@@ -412,10 +412,29 @@ def _load_umllr_results(conn, schema: str) -> Optional[Dict[str, Any]]:
         else:
             metric["mean_loss"] = 0.0
 
+    # Load taxonomy name mappings for display
+    taxonomy_names: Dict[str, str] = {}
+    with conn.cursor(row_factory=dict_row) as cur:
+        cur.execute(
+            """
+            SELECT taxonomy_path, taxonomy_name
+            FROM cantbuymelove.taxonomy
+            WHERE taxonomy_path IS NOT NULL
+              AND taxonomy_name IS NOT NULL
+              AND taxonomy_path !~ '[>/|]'
+            """
+        )
+        for row in cur:
+            path = row.get("taxonomy_path")
+            name = row.get("taxonomy_name")
+            if path and name:
+                taxonomy_names[str(path)] = str(name)
+
     return {
         "metrics": metrics,
         "coefficients": coefficients,
         "predictions": predictions,
+        "taxonomy_names": taxonomy_names,
     }
 
 
@@ -431,6 +450,7 @@ def _write_umllr_pages(output_dir: Path, summary: Dict[str, Any]) -> Dict[int, P
     coefficients = summary.get("coefficients", {})
     predictions = summary.get("predictions", {})
     tag_rankings: Dict[str, int] = summary.get("tag_rankings", {})
+    taxonomy_names: Dict[str, str] = summary.get("taxonomy_names", {})
 
     for metric in metrics:
         fold = metric["cv_fold"]
@@ -447,12 +467,18 @@ def _write_umllr_pages(output_dir: Path, summary: Dict[str, Any]) -> Dict[int, P
                 zero_coeff_tags.append(tag)
                 continue
             taxonomy_path, expansion = _format_padic_expansion(coefficient, prime_base)
+            # Reverse taxonomy_path to match database format for lookup
+            # taxonomy_path is "1.1.10.2.8" (least-significant-first)
+            # database has "8.2.10.1.1" (most-significant-first)
+            reversed_path = ".".join(reversed(taxonomy_path.split(".")))
+            taxonomy_name = taxonomy_names.get(reversed_path, "")
             non_zero_rows.append(
                 "<tr>"
                 f"<td>{html.escape(tag)}</td>"
                 f"<td>{coefficient}</td>"
                 f"<td>{html.escape(taxonomy_path)}</td>"
                 f"<td>{html.escape(expansion)}</td>"
+                f"<td>{html.escape(taxonomy_name)}</td>"
                 f"<td>{row['sequence']}</td>"
                 "</tr>"
             )
@@ -460,7 +486,7 @@ def _write_umllr_pages(output_dir: Path, summary: Dict[str, Any]) -> Dict[int, P
         coeff_table_rows = "\n".join(non_zero_rows)
         if not coeff_table_rows:
             coeff_table_rows = (
-                '<tr><td colspan="5">No non-zero coefficients recorded for this fold.</td></tr>'
+                '<tr><td colspan="6">No non-zero coefficients recorded for this fold.</td></tr>'
             )
 
         zero_paragraph = ""
@@ -511,7 +537,7 @@ def _write_umllr_pages(output_dir: Path, summary: Dict[str, Any]) -> Dict[int, P
     <h2>Tag coefficients</h2>
     <table class="umllr-table">
       <thead>
-        <tr><th>Tag</th><th>Coefficient</th><th>taxonomy_path</th><th>{expansion_header}</th><th>Order</th></tr>
+        <tr><th>Tag</th><th>Coefficient</th><th>taxonomy_path</th><th>{expansion_header}</th><th>Taxonomy Name</th><th>Tag Battle Ranking</th></tr>
       </thead>
       <tbody>
         {coeff_table_rows}
