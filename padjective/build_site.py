@@ -438,6 +438,54 @@ def _load_umllr_results(conn, schema: str) -> Optional[Dict[str, Any]]:
     }
 
 
+def _write_zero_coefficients_page(
+    page_path: Path,
+    fold: int,
+    zero_coeff_tags: list[str],
+    tag_rankings: Dict[str, int],
+) -> None:
+    """Write a separate page for zero coefficient tags."""
+    zero_rows: list[str] = []
+    for tag in zero_coeff_tags:
+        rank_value = tag_rankings.get(tag.upper())
+        rank_label = str(rank_value) if rank_value is not None else "unranked"
+        zero_rows.append(
+            "<tr>"
+            f"<td>{html.escape(tag)}</td>"
+            f"<td>{rank_label}</td>"
+            "</tr>"
+        )
+
+    zero_table_rows = "\n".join(zero_rows)
+
+    page_contents = f"""
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>umllr fold {fold} - Zero coefficients</title>
+  <link rel="stylesheet" href="../assets/styles.css" />
+</head>
+<body>
+  <section class="umllr-fold">
+    <h1>umllr fold {fold} - Zero coefficients</h1>
+    <p><a href="fold_{fold}.html">Back to fold {fold}</a> | <a href="../index.html">Back to index</a></p>
+    <p>Tags with zero coefficients ({len(zero_coeff_tags)} total)</p>
+    <table class="umllr-table">
+      <thead>
+        <tr><th>Tag</th><th>Tag Battle Ranking</th></tr>
+      </thead>
+      <tbody>
+        {zero_table_rows}
+      </tbody>
+    </table>
+  </section>
+</body>
+</html>
+"""
+    page_path.write_text(page_contents, encoding="utf-8")
+
+
 def _write_umllr_pages(output_dir: Path, summary: Dict[str, Any]) -> Dict[int, Path]:
     pages: Dict[int, Path] = {}
     metrics = summary.get("metrics", [])
@@ -489,17 +537,20 @@ def _write_umllr_pages(output_dir: Path, summary: Dict[str, Any]) -> Dict[int, P
                 '<tr><td colspan="6">No non-zero coefficients recorded for this fold.</td></tr>'
             )
 
-        zero_paragraph = ""
+        # Create separate page for zero coefficients if any exist
+        zero_coeff_link = ""
         if zero_coeff_tags:
-            zero_entries = []
-            for tag in zero_coeff_tags:
-                rank_value = tag_rankings.get(tag.upper())
-                rank_label = str(rank_value) if rank_value is not None else "unranked"
-                zero_entries.append(f"{html.escape(tag)} ({rank_label})")
-            joined_entries = "; ".join(zero_entries)
-            zero_paragraph = (
-                "\n    <p class=\"zero-coefficients\"><strong>Zero coefficients:</strong> "
-                f"{joined_entries}</p>"
+            zero_page_path = umllr_dir / f"fold_{fold}_zero_coefficients.html"
+            _write_zero_coefficients_page(
+                zero_page_path,
+                fold,
+                zero_coeff_tags,
+                tag_rankings
+            )
+            zero_coeff_link = (
+                f"\n    <p class=\"zero-coefficients\"><strong>Zero coefficients:</strong> "
+                f"{len(zero_coeff_tags)} tags &middot; "
+                f'<a href="fold_{fold}_zero_coefficients.html">View zero coefficient tags</a></p>'
             )
 
         expansion_header = (
@@ -543,7 +594,7 @@ def _write_umllr_pages(output_dir: Path, summary: Dict[str, Any]) -> Dict[int, P
         {coeff_table_rows}
       </tbody>
     </table>
-{zero_paragraph}
+{zero_coeff_link}
     <h2>Test predictions</h2>
     <table class="umllr-table">
       <thead>
