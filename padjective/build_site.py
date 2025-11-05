@@ -853,7 +853,7 @@ def _write_prediction_detail_page(
 <body>
   <section class="umllr-fold">
     <h1>Prediction Detail - Fold {fold}</h1>
-    <p><a href="../fold_{fold}.html">Back to fold {fold}</a> | <a href="../../index.html">Back to index</a></p>
+    <p><a href="../../umllr/fold_{fold}.html">Back to fold {fold}</a> | <a href="../../index.html">Back to index</a></p>
     <div class="product-title">{html.escape(title)}</div>
     <p><strong>Product ID:</strong> {product_id}</p>
 
@@ -1013,14 +1013,14 @@ def _write_umllr_pages(output_dir: Path, summary: Dict[str, Any], conn=None, sch
             f"Base-{prime_base} expansion" if prime_base and prime_base > 1 else "Base expansion"
         )
 
-        # Generate prediction detail pages if conn is available
+        # Generate prediction detail pages if conn is available (stored at output_dir level)
         prediction_details = {}
         if conn:
             try:
                 prediction_details = _load_prediction_details(conn, fold, schema)
 
-                # Create prediction directory for this fold
-                pred_dir = umllr_dir / f"prediction/{fold}"
+                # Create prediction directory for this fold at output_dir level
+                pred_dir = output_dir / f"prediction/{fold}"
                 pred_dir.mkdir(parents=True, exist_ok=True)
 
                 # Generate detail pages for each product
@@ -1043,8 +1043,8 @@ def _write_umllr_pages(output_dir: Path, summary: Dict[str, Any], conn=None, sch
         for row in prediction_rows:
             product_id = row['product_id']
             if product_id in prediction_details:
-                # Link to detail page
-                product_id_cell = f'<a href="prediction/{fold}/{product_id}.html">{product_id}</a>'
+                # Link to detail page (relative to umllr directory)
+                product_id_cell = f'<a href="../prediction/{fold}/{product_id}.html">{product_id}</a>'
             else:
                 product_id_cell = str(product_id)
 
