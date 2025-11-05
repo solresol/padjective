@@ -54,8 +54,24 @@ Table: cantbuymelove.taxonomy
 Columns:
   taxonomy_id   TEXT PRIMARY KEY  -- Shopify GID (e.g., "gid://shopify/TaxonomyCategory/aa-1-10-2-1")
   taxonomy_name TEXT UNIQUE       -- Full hierarchical name (e.g., "Apparel & Accessories > Clothing > Outerwear > Coats & Jackets > Bolero Jackets")
-  taxonomy_path TEXT              -- Numeric path (e.g., "1.1.10.2.1")
+  taxonomy_path TEXT              -- Either a taxonomy_code OR hierarchical text (see below)
 ```
+
+#### Taxonomy Data Types
+
+The `taxonomy_path` column contains one of two formats:
+
+1. **taxonomy_code** (numeric hierarchical code): Dot-separated numeric codes representing the hierarchical position
+   - Example: `"1.1.10.2.1"` corresponds to "Apparel & Accessories > Clothing > Outerwear > Coats & Jackets > Bolero Jackets"
+   - Each number represents a level in the hierarchy
+   - Used for p-adic encoding (see below)
+   - The taxonomy_id suffix often mirrors this code (e.g., `aa-1-10-2-1`)
+
+2. **Hierarchical text path**: Same format as `taxonomy_name`, using `>` separators
+   - Example: `"Media > Sheet Music"`
+   - Duplicates the information in taxonomy_name for some categories
+
+Both formats are valid. The numeric taxonomy_code is essential for p-adic distance calculations and compact hierarchical representation.
 
 **Example queries:**
 
@@ -64,6 +80,12 @@ Columns:
 SELECT taxonomy_name FROM cantbuymelove.taxonomy
 WHERE taxonomy_id = 'gid://shopify/TaxonomyCategory/aa-1-10-2-1';
 -- Returns: "Apparel & Accessories > Clothing > Outerwear > Coats & Jackets > Bolero Jackets"
+
+-- Get taxonomy_code (numeric) for a category
+SELECT taxonomy_id, taxonomy_name, taxonomy_path FROM cantbuymelove.taxonomy
+WHERE taxonomy_path ~ '^[0-9.]+$' AND taxonomy_name LIKE '%Outerwear%'
+ORDER BY taxonomy_path;
+-- Shows categories with numeric taxonomy_code
 
 -- Find all taxonomies in a category
 SELECT taxonomy_id, taxonomy_name FROM cantbuymelove.taxonomy
@@ -113,13 +135,13 @@ Table: padjective.umllr_taxonomy_encodings
 Columns:
   cv_fold       INTEGER              -- Cross-validation fold number
   taxonomy_id   TEXT                 -- Shopify taxonomy GID
-  taxonomy_path TEXT                 -- Numeric path (e.g., "1.1.10.2.17")
+  taxonomy_path TEXT                 -- taxonomy_code (e.g., "1.1.10.2.17")
   encoded_value NUMERIC              -- P-adic integer encoding (base p)
   updated_at    TIMESTAMPTZ          -- Last update timestamp
   PRIMARY KEY (cv_fold, taxonomy_id)
 ```
 
-The **encoded_value** represents the taxonomy path as a p-adic integer in base `prime_base`. For example, with path "1.1.10.2.17" and base 83:
+The **encoded_value** represents the taxonomy_code as a p-adic integer in base `prime_base`. For example, with taxonomy_code "1.1.10.2.17" and base 83:
 ```
 encoded_value = 1×83⁰ + 1×83¹ + 10×83² + 2×83³ + 17×83⁴ = 808,004,005
 ```

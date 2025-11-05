@@ -10,7 +10,6 @@ the raw inputs for reporting purposes.
 
 from __future__ import annotations
 
-import re
 from collections import Counter
 from dataclasses import dataclass
 from typing import Dict, Iterator, List, Optional, Tuple
@@ -21,28 +20,6 @@ from psycopg.rows import dict_row
 from scipy import sparse
 
 from . import db
-
-# Regex pattern to match taxonomy hierarchical separators
-_TAXONOMY_SEPARATOR_RE = re.compile(r"[>/|]")
-
-
-def is_valid_taxonomy_path(path: Optional[str]) -> bool:
-    """Check if a taxonomy path contains hierarchical separators.
-
-    Valid paths contain "/" or ">" or "|" separators, indicating a proper
-    hierarchical structure like "Apparel & Accessories / Clothing / T-Shirts".
-    Invalid paths are typically just numeric codes like "1.1.4" that haven't
-    been resolved to their human-readable form.
-
-    Args:
-        path: Taxonomy path string to validate
-
-    Returns:
-        True if the path contains hierarchical separators, False otherwise
-    """
-    if not path:
-        return False
-    return bool(_TAXONOMY_SEPARATOR_RE.search(path))
 
 
 @dataclass(frozen=True)
@@ -218,9 +195,6 @@ def build_feature_dataset(
     for record in eligible_records:
         if require_taxonomy and not record.taxonomy_id:
             discarded_products.append(DiscardedProduct(record, "missing_taxonomy"))
-            continue
-        if require_taxonomy and not is_valid_taxonomy_path(record.taxonomy_path):
-            discarded_products.append(DiscardedProduct(record, "defective_taxonomy_path"))
             continue
         if require_taxonomy and valid_taxonomies is not None:
             if record.taxonomy_id not in valid_taxonomies:
