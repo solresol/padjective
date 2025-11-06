@@ -881,6 +881,10 @@ def _load_prediction_details(conn, fold: int, schema: str) -> Dict[int, Dict[str
             tags_str = row["tags"] or ""
             tags = [t.strip().upper() for t in tags_str.split(",") if t.strip()]
 
+            # Skip products with no tags
+            if not tags:
+                continue
+
             details[pid] = {
                 "product_id": pid,
                 "title": row["title"] or "",
