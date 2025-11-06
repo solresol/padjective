@@ -664,7 +664,7 @@ def render_report_html(
         f"<li><strong>Training samples:</strong> {stats.samples:,}</li>",
         f"<li><strong>Taxonomies:</strong> {stats.taxonomies:,}</li>",
         f"<li><strong>Input features (tags):</strong> {stats.unique_tags:,}</li>",
-        f"<li><strong>Hidden layers:</strong> {stats.hidden_layers}</li>",
+        f"<li><strong>Hidden layer sizes:</strong> {stats.hidden_layers}</li>",
         f"<li><strong>Training accuracy:</strong> {stats.training_accuracy:.3f}</li>",
     ]
 

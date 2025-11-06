@@ -2272,7 +2272,7 @@ def _write_taxonomy_nn_fold_pages(
         <tr><td>P-adic loss (total)</td><td>{fold_data['padic_loss_total']:.6f}</td></tr>
         <tr><td>P-adic loss (mean)</td><td>{fold_data['padic_loss_mean']:.6f}</td></tr>
         <tr><td>Prime base</td><td>{fold_data['prime_base']}</td></tr>
-        <tr><td>Hidden layers</td><td>{html.escape(fold_data['hidden_layers'])}</td></tr>
+        <tr><td>Hidden layer size</td><td>{html.escape(fold_data['hidden_layers'])}</td></tr>
         {max_tags_row}
         <tr><td>Training samples</td><td>{fold_data['num_train_samples']:,}</td></tr>
         <tr><td>Test samples</td><td>{fold_data['num_test_samples']:,}</td></tr>
@@ -2321,7 +2321,7 @@ def _write_taxonomy_nn_overview_page(
 
     hyperparameters_items = [
         f"<li><strong>Prime base(s):</strong> {', '.join(str(base) for base in prime_bases)}</li>",
-        "<li><strong>Hidden layers:</strong> {}</li>".format(
+        "<li><strong>Hidden layer sizes:</strong> {}</li>".format(
             ", ".join(html.escape(layer) for layer in hidden_layers)
         ),
     ]
