@@ -95,13 +95,46 @@ jobs:
               )
               cur.execute(
                 """
+                CREATE TABLE cantbuymelove.taxonomy (
+                  taxonomy_id TEXT PRIMARY KEY,
+                  taxonomy_path TEXT NOT NULL
+                ) TABLESPACE pg_default
+                """
+              )
+              cur.execute(
+                """
                 CREATE TABLE cantbuymelove.product_taxonomy (
-                  product_id BIGINT PRIMARY KEY
+                  product_id BIGINT PRIMARY KEY,
+                  taxonomy_id TEXT NOT NULL
                 ) TABLESPACE pg_default
                 """
               )
 
+            # Insert sample taxonomy records
+            with conn.cursor() as cur:
+              sample_taxonomies = [
+                ("gid://shopify/TaxonomyCategory/aa-1-1", "1.1.1"),
+                ("gid://shopify/TaxonomyCategory/aa-1-2", "1.1.2"),
+                ("gid://shopify/TaxonomyCategory/aa-1-3", "1.1.3"),
+                ("gid://shopify/TaxonomyCategory/aa-2-1", "1.2.1"),
+                ("gid://shopify/TaxonomyCategory/aa-2-2", "1.2.2"),
+                ("gid://shopify/TaxonomyCategory/aa-3-1", "1.3.1"),
+              ]
+              for taxonomy_id, taxonomy_path in sample_taxonomies:
+                cur.execute(
+                  "INSERT INTO cantbuymelove.taxonomy (taxonomy_id, taxonomy_path) VALUES (%s, %s)",
+                  (taxonomy_id, taxonomy_path),
+                )
+
             with conn.cursor() as cur, csv_path.open(newline="", encoding="utf-8") as handle:
+              sample_taxonomy_ids = [
+                "gid://shopify/TaxonomyCategory/aa-1-1",
+                "gid://shopify/TaxonomyCategory/aa-1-2",
+                "gid://shopify/TaxonomyCategory/aa-1-3",
+                "gid://shopify/TaxonomyCategory/aa-2-1",
+                "gid://shopify/TaxonomyCategory/aa-2-2",
+                "gid://shopify/TaxonomyCategory/aa-3-1",
+              ]
               reader = csv.DictReader(handle)
               for idx, row in enumerate(reader, start=1):
                 if idx > max_rows:
@@ -109,6 +142,8 @@ jobs:
 
                 product_handle = f"product-{idx}"
                 product_detail = json.dumps({"product": {"tags": row["tags"]}})
+                # Assign taxonomy_id in round-robin fashion
+                taxonomy_id = sample_taxonomy_ids[(idx - 1) % len(sample_taxonomy_ids)]
 
                 cur.execute(
                   """
@@ -134,8 +169,8 @@ jobs:
                   (domain, run_name, product_handle, product_detail),
                 )
                 cur.execute(
-                  "INSERT INTO cantbuymelove.product_taxonomy (product_id) VALUES (%s)",
-                  (idx,),
+                  "INSERT INTO cantbuymelove.product_taxonomy (product_id, taxonomy_id) VALUES (%s, %s)",
+                  (idx, taxonomy_id),
                 )
           PY
       - name: Run tests
