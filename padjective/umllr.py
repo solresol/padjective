@@ -64,6 +64,7 @@ class FoldResult:
     coefficients: List[TagCoefficient]
     predictions: List[Prediction]
     loss: float
+    default_prediction: int
 
 
 def _ensure_storage(conn, schema: str) -> None:
@@ -284,6 +285,14 @@ def _run_fold(
     training = [record for record in records if record.cv_fold != fold]
     testing = [record for record in records if record.cv_fold == fold]
 
+    # Calculate the most common taxonomy encoding in training data as default
+    from collections import Counter
+    training_values = [record.encoded_path for record in training]
+    if training_values:
+        default_prediction = Counter(training_values).most_common(1)[0][0]
+    else:
+        default_prediction = 0
+
     product_residuals: Dict[int, int] = {record.product_id: record.encoded_path for record in training}
     tag_to_products: Dict[str, List[int]] = {}
     for record in training:
@@ -309,6 +318,9 @@ def _run_fold(
     total_loss = 0.0
     for record in testing:
         predicted = sum(coefficient_lookup.get(tag, 0) for tag in record.tags)
+        # Use default prediction when no tags contributed
+        if predicted == 0:
+            predicted = default_prediction
         loss = _p_adic_distance(predicted, record.encoded_path, base)
         total_loss += loss
         predictions.append(
@@ -320,7 +332,13 @@ def _run_fold(
             )
         )
 
-    return FoldResult(cv_fold=fold, coefficients=coefficients, predictions=predictions, loss=total_loss)
+    return FoldResult(
+        cv_fold=fold,
+        coefficients=coefficients,
+        predictions=predictions,
+        loss=total_loss,
+        default_prediction=default_prediction,
+    )
 
 
 def _save_results(
@@ -334,11 +352,11 @@ def _save_results(
 ) -> None:
     coeff_rows: List[Tuple[int, str, int, int]] = []
     prediction_rows: List[Tuple[int, int, int, int, float]] = []
-    metrics_rows: List[Tuple[int, float, int, int]] = []
+    metrics_rows: List[Tuple[int, float, int, int, int]] = []
     encoding_rows: List[Tuple[int, str, str, int]] = []
 
     for result in results:
-        metrics_rows.append((result.cv_fold, result.loss, prime_base, max_digit))
+        metrics_rows.append((result.cv_fold, result.loss, prime_base, max_digit, result.default_prediction))
         for entry in result.coefficients:
             coeff_rows.append((result.cv_fold, entry.tag, entry.coefficient, entry.sequence))
         for prediction in result.predictions:
@@ -402,13 +420,37 @@ def _save_results(
                 coeff_rows,
             )
         if metrics_rows:
-            cur.executemany(
-                sql.SQL(
-                    "INSERT INTO {schema}.umllr_fold_metrics (cv_fold, loss, prime_base, max_digit) "
-                    "VALUES (%s, %s, %s, %s)"
-                ).format(schema=sql.Identifier(schema)),
-                metrics_rows,
+            # Check if default_prediction column exists
+            cur.execute(
+                """
+                SELECT column_name
+                FROM information_schema.columns
+                WHERE table_schema = %s
+                  AND table_name = 'umllr_fold_metrics'
+                  AND column_name = 'default_prediction'
+                """,
+                (schema,)
             )
+            has_default_column = cur.fetchone() is not None
+
+            if has_default_column:
+                cur.executemany(
+                    sql.SQL(
+                        "INSERT INTO {schema}.umllr_fold_metrics (cv_fold, loss, prime_base, max_digit, default_prediction) "
+                        "VALUES (%s, %s, %s, %s, %s)"
+                    ).format(schema=sql.Identifier(schema)),
+                    metrics_rows,
+                )
+            else:
+                # Backwards compatibility: insert without default_prediction
+                metrics_rows_compat = [(row[0], row[1], row[2], row[3]) for row in metrics_rows]
+                cur.executemany(
+                    sql.SQL(
+                        "INSERT INTO {schema}.umllr_fold_metrics (cv_fold, loss, prime_base, max_digit) "
+                        "VALUES (%s, %s, %s, %s)"
+                    ).format(schema=sql.Identifier(schema)),
+                    metrics_rows_compat,
+                )
         if prediction_rows:
             cur.executemany(
                 sql.SQL(
@@ -424,6 +466,157 @@ def _save_results(
                     "VALUES (%s, %s, %s, %s)"
                 ).format(schema=sql.Identifier(schema)),
                 encoding_rows,
+            )
+    conn.commit()
+
+
+@dataclass(frozen=True)
+class DummyFoldResult:
+    """Results from a dummy classifier (always predicts most common class)."""
+    cv_fold: int
+    predictions: List[Prediction]
+    loss: float
+    accuracy: float
+    most_common_value: int
+    most_common_taxonomy_id: str
+
+
+def _run_dummy_fold(
+    fold: int,
+    records: Sequence[ProductRecord],
+    taxonomy_encodings: Dict[str, Tuple[str, int]],
+    base: int,
+) -> DummyFoldResult:
+    """Run dummy classifier that always predicts the most common class."""
+    from collections import Counter
+
+    training = [record for record in records if record.cv_fold != fold]
+    testing = [record for record in records if record.cv_fold == fold]
+
+    # Find most common taxonomy encoding in training data
+    training_values = [record.encoded_path for record in training]
+    if training_values:
+        most_common_value = Counter(training_values).most_common(1)[0][0]
+    else:
+        most_common_value = 0
+
+    # Find the taxonomy_id for the most common value
+    most_common_taxonomy_id = ""
+    for taxonomy_id, (_, encoded_value) in taxonomy_encodings.items():
+        if encoded_value == most_common_value:
+            most_common_taxonomy_id = taxonomy_id
+            break
+
+    # Make predictions
+    predictions: List[Prediction] = []
+    total_loss = 0.0
+    correct_count = 0
+
+    for record in testing:
+        predicted = most_common_value
+        loss = _p_adic_distance(predicted, record.encoded_path, base)
+        total_loss += loss
+
+        if predicted == record.encoded_path:
+            correct_count += 1
+
+        predictions.append(
+            Prediction(
+                product_id=record.product_id,
+                true_value=record.encoded_path,
+                predicted_value=predicted,
+                loss=loss,
+            )
+        )
+
+    accuracy = correct_count / len(testing) if testing else 0.0
+
+    return DummyFoldResult(
+        cv_fold=fold,
+        predictions=predictions,
+        loss=total_loss,
+        accuracy=accuracy,
+        most_common_value=most_common_value,
+        most_common_taxonomy_id=most_common_taxonomy_id,
+    )
+
+
+def _save_dummy_results(
+    conn,
+    schema: str,
+    results: Sequence[DummyFoldResult],
+    cv_splits: int,
+) -> None:
+    """Save dummy classifier results to database."""
+    # Check if dummy tables exist
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT 1
+            FROM information_schema.tables
+            WHERE table_schema = %s AND table_name = 'dummy_fold_metrics'
+            """,
+            (schema,)
+        )
+        if not cur.fetchone():
+            # Tables don't exist, skip saving
+            return
+
+    prediction_rows: List[Tuple[int, int, int, int, float]] = []
+    metrics_rows: List[Tuple[int, float, float, int, str]] = []
+
+    for result in results:
+        metrics_rows.append((
+            result.cv_fold,
+            result.loss,
+            result.accuracy,
+            result.most_common_value,
+            result.most_common_taxonomy_id,
+        ))
+        for prediction in result.predictions:
+            prediction_rows.append((
+                result.cv_fold,
+                prediction.product_id,
+                prediction.true_value,
+                prediction.predicted_value,
+                prediction.loss,
+            ))
+
+    with conn.cursor() as cur:
+        # Clean up old data
+        fold_list = list(range(cv_splits))
+        if fold_list:
+            cur.execute(
+                sql.SQL("DELETE FROM {schema}.dummy_fold_metrics WHERE cv_fold = ANY(%s)").format(
+                    schema=sql.Identifier(schema)
+                ),
+                (fold_list,)
+            )
+            cur.execute(
+                sql.SQL("DELETE FROM {schema}.dummy_predictions WHERE cv_fold = ANY(%s)").format(
+                    schema=sql.Identifier(schema)
+                ),
+                (fold_list,)
+            )
+
+        # Insert new results
+        if metrics_rows:
+            cur.executemany(
+                sql.SQL(
+                    "INSERT INTO {schema}.dummy_fold_metrics "
+                    "(cv_fold, loss, accuracy, most_common_value, most_common_taxonomy_id) "
+                    "VALUES (%s, %s, %s, %s, %s)"
+                ).format(schema=sql.Identifier(schema)),
+                metrics_rows,
+            )
+        if prediction_rows:
+            cur.executemany(
+                sql.SQL(
+                    "INSERT INTO {schema}.dummy_predictions "
+                    "(cv_fold, product_id, true_value, predicted_value, loss) "
+                    "VALUES (%s, %s, %s, %s, %s)"
+                ).format(schema=sql.Identifier(schema)),
+                prediction_rows,
             )
     conn.commit()
 
@@ -468,6 +661,13 @@ def process_database(
         ]
 
         _save_results(conn, schema, results, prime_base, max_digit, taxonomy_encodings, cv_splits)
+
+        # Run and save dummy classifier results
+        dummy_results = [
+            _run_dummy_fold(fold, records, taxonomy_encodings, prime_base)
+            for fold in range(cv_splits)
+        ]
+        _save_dummy_results(conn, schema, dummy_results, cv_splits)
     finally:
         conn.close()
 

@@ -357,6 +357,8 @@ def _create_comprehensive_dumps(conn, datadumps_dir: Path, schema: str) -> None:
         (schema, "umllr_tag_coefficients"),
         (schema, "umllr_predictions"),
         (schema, "umllr_taxonomy_encodings"),
+        (schema, "dummy_fold_metrics"),
+        (schema, "dummy_predictions"),
         (schema, "taxonomy_lr_models"),
         (schema, "taxonomy_lr_class_distribution"),
         (schema, "taxonomy_lr_tag_summary"),
@@ -741,6 +743,71 @@ def _load_umllr_results(conn, schema: str) -> Optional[Dict[str, Any]]:
         "taxonomy_names": taxonomy_names,
         "average_accuracy": sum(accuracies) / len(accuracies) if accuracies else None,
         "average_f1": sum(f1_scores) / len(f1_scores) if f1_scores else None,
+    }
+
+
+def _load_dummy_results(conn, schema: str) -> Optional[Dict[str, Any]]:
+    """Load dummy classifier results from database."""
+    if not _table_exists(conn, schema, "dummy_fold_metrics"):
+        return None
+
+    with conn.cursor(row_factory=dict_row) as cur:
+        cur.execute(
+            sql.SQL(
+                """
+                SELECT cv_fold, loss, accuracy, most_common_value, most_common_taxonomy_id
+                FROM {schema}.dummy_fold_metrics
+                ORDER BY cv_fold
+                """
+            ).format(schema=sql.Identifier(schema))
+        )
+        metrics_rows = cur.fetchall()
+
+    if not metrics_rows:
+        return None
+
+    metrics = [
+        {
+            "cv_fold": int(row["cv_fold"]),
+            "loss": float(row["loss"]),
+            "accuracy": float(row["accuracy"]),
+            "most_common_value": int(row["most_common_value"]),
+            "most_common_taxonomy_id": str(row["most_common_taxonomy_id"]),
+        }
+        for row in metrics_rows
+    ]
+
+    predictions: Dict[int, list[Dict[str, Any]]] = {}
+    if _table_exists(conn, schema, "dummy_predictions"):
+        with conn.cursor(row_factory=dict_row) as cur:
+            cur.execute(
+                sql.SQL(
+                    """
+                    SELECT cv_fold, product_id, true_value, predicted_value, loss
+                    FROM {schema}.dummy_predictions
+                    ORDER BY cv_fold, product_id
+                    """
+                ).format(schema=sql.Identifier(schema))
+            )
+            for row in cur:
+                fold = int(row["cv_fold"])
+                predictions.setdefault(fold, []).append(
+                    {
+                        "product_id": int(row["product_id"]),
+                        "true_value": int(row["true_value"]),
+                        "predicted_value": int(row["predicted_value"]),
+                        "loss": float(row["loss"]),
+                    }
+                )
+
+    accuracies = [m["accuracy"] for m in metrics]
+    losses = [m["loss"] for m in metrics]
+
+    return {
+        "metrics": metrics,
+        "predictions": predictions,
+        "average_accuracy": sum(accuracies) / len(accuracies) if accuracies else None,
+        "average_loss": sum(losses) / len(losses) if losses else None,
     }
 
 
@@ -1483,6 +1550,7 @@ def _build_index_html(
     taxonomy_nn_page: Optional[Path],
     taxonomy_summary: Optional[Dict[str, Any]] = None,
     umllr_summary: Optional[Dict[str, Any]] = None,
+    dummy_summary: Optional[Dict[str, Any]] = None,
     taxonomy_fold_results: Optional[list[Dict[str, Any]]] = None,
     taxonomy_nn_fold_results: Optional[list[Dict[str, Any]]] = None,
     trends_chart_path: Optional[Path] = None,
@@ -1510,6 +1578,26 @@ def _build_index_html(
         )
 
     # Build model cards
+    dummy_card = ""
+    if dummy_summary:
+        avg_accuracy = dummy_summary.get("average_accuracy")
+        avg_loss = dummy_summary.get("average_loss")
+        accuracy_text = f"{avg_accuracy * 100:.2f}%" if avg_accuracy is not None else "—"
+        loss_text = f"{avg_loss:.4f}" if avg_loss is not None else "—"
+        dummy_card = f"""
+  <div class="model-card">
+    <h3>Dummy Baseline</h3>
+    <p>Always predicts most common taxonomy (baseline for comparison)</p>
+    <div class="card-metric">
+      <span class="value">{accuracy_text}</span>
+      <span class="label">Accuracy</span>
+    </div>
+    <div class="card-metric">
+      <span class="value">{loss_text}</span>
+      <span class="label">Avg p-adic loss</span>
+    </div>
+  </div>"""
+
     taxonomy_card = ""
     if taxonomy_summary and taxonomy_page:
         # Prefer showing p-adic loss from fold results if available
@@ -1586,6 +1674,8 @@ def _build_index_html(
         all_cards.append(nn_card)
     if taxonomy_card:
         all_cards.append(taxonomy_card)
+    if dummy_card:
+        all_cards.append(dummy_card)
     elo_card = f"""
   <div class="model-card">
     <h3>ELO-Inspired Rankings</h3>
@@ -2977,6 +3067,8 @@ footer {text-align: center; padding: 2rem 1.5rem 3rem; color: #6b7280;}
         umllr_page = _write_umllr_overview_page(output_dir, umllr_summary)
         umllr_summary["overview_page"] = umllr_page.relative_to(output_dir).as_posix()
 
+    dummy_summary = _load_dummy_results(precomputed_database, battle_schema)
+
     taxonomy_nn_fold_results = _load_taxonomy_nn_fold_results(
         precomputed_database, schema=battle_schema
     )
@@ -3004,6 +3096,7 @@ footer {text-align: center; padding: 2rem 1.5rem 3rem; color: #6b7280;}
         taxonomy_nn_page,
         taxonomy_summary,
         umllr_summary,
+        dummy_summary,
         taxonomy_lr_fold_results,
         taxonomy_nn_fold_results,
         trends_chart_path,

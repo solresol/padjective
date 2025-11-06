@@ -24,6 +24,7 @@ CREATE TABLE IF NOT EXISTS padjective.umllr_fold_metrics (
     loss DOUBLE PRECISION NOT NULL,
     prime_base INTEGER NOT NULL,
     max_digit INTEGER NOT NULL,
+    default_prediction NUMERIC,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -55,6 +56,31 @@ CREATE TABLE IF NOT EXISTS padjective.umllr_taxonomy_encodings (
 -- Create index for umllr_taxonomy_encodings
 CREATE INDEX IF NOT EXISTS padjective_umllr_taxonomy_encodings_fold_idx
     ON padjective.umllr_taxonomy_encodings (cv_fold);
+
+-- Create dummy_fold_metrics table for baseline classifier
+CREATE TABLE IF NOT EXISTS padjective.dummy_fold_metrics (
+    cv_fold INTEGER PRIMARY KEY,
+    loss DOUBLE PRECISION NOT NULL,
+    accuracy DOUBLE PRECISION NOT NULL,
+    most_common_value NUMERIC NOT NULL,
+    most_common_taxonomy_id TEXT NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Create dummy_predictions table
+CREATE TABLE IF NOT EXISTS padjective.dummy_predictions (
+    cv_fold INTEGER NOT NULL,
+    product_id BIGINT NOT NULL,
+    true_value NUMERIC NOT NULL,
+    predicted_value NUMERIC NOT NULL,
+    loss DOUBLE PRECISION NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (cv_fold, product_id)
+);
+
+-- Create index for dummy_predictions
+CREATE INDEX IF NOT EXISTS padjective_dummy_predictions_fold_idx
+    ON padjective.dummy_predictions (cv_fold);
 
 -- Grant all privileges on schema and tables to padjective user
 GRANT USAGE ON SCHEMA padjective TO padjective;
