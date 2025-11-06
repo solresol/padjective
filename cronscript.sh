@@ -78,20 +78,20 @@ uv run -m padjective.snapshot_metrics \
 uv run -m padjective.build_site --output "$OUTPUT_DIR" "${TAGBATTLE_DSN_ARGS[@]}" --schema "$TAGBATTLE_SCHEMA"
 
 REMOTE_SITE="padjective@merah.cassia.ifost.org.au:/var/www/vhosts/padjective.symmachus.org/htdocs/"
-rsync -avz --delete "$OUTPUT_DIR/" "$REMOTE_SITE"
+rsync -az --delete "$OUTPUT_DIR/" "$REMOTE_SITE"
 
 # Sync taxonomy classifier reports
 if [ -d "$TAXONOMY_CLASSIFIER_REPORT_DIR" ]; then
-    rsync -avz "$TAXONOMY_CLASSIFIER_REPORT_DIR/" "$REMOTE_SITE/taxonomy_classifier/"
+    rsync -az "$TAXONOMY_CLASSIFIER_REPORT_DIR/" "$REMOTE_SITE/taxonomy_classifier/"
 fi
 
 if [ -d "$TAXONOMY_NN_CLASSIFIER_REPORT_DIR" ]; then
-    rsync -avz "$TAXONOMY_NN_CLASSIFIER_REPORT_DIR/" "$REMOTE_SITE/taxonomy_nn_classifier/"
+    rsync -az "$TAXONOMY_NN_CLASSIFIER_REPORT_DIR/" "$REMOTE_SITE/taxonomy_nn_classifier/"
 fi
 
 # Sync data dumps
 DUMP_SOURCE="$OUTPUT_DIR/datadumps/"
 if [ -d "$DUMP_SOURCE" ]; then
     REMOTE_DUMPS="padjective@merah.cassia.ifost.org.au:/var/www/vhosts/datadumps.ifost.org.au/htdocs/padjective/"
-    rsync -avz "$DUMP_SOURCE" "$REMOTE_DUMPS"
+    rsync -az "$DUMP_SOURCE" "$REMOTE_DUMPS"
 fi
