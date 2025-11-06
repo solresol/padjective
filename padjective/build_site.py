@@ -811,6 +811,287 @@ def _load_dummy_results(conn, schema: str) -> Optional[Dict[str, Any]]:
     }
 
 
+def _write_dummy_fold_pages(
+    output_dir: Path,
+    summary: Dict[str, Any],
+    conn=None,
+    schema: str = "padjective"
+) -> Dict[int, Path]:
+    """Write individual fold pages for dummy classifier."""
+    pages: Dict[int, Path] = {}
+    metrics = summary.get("metrics", [])
+    if not metrics:
+        return pages
+
+    dummy_dir = output_dir / "dummy"
+    dummy_dir.mkdir(parents=True, exist_ok=True)
+
+    predictions = summary.get("predictions", {})
+
+    # Load taxonomy info for display
+    taxonomy_info_by_id: Dict[str, Dict[str, str]] = {}
+    if conn:
+        with conn.cursor(row_factory=dict_row) as cur:
+            cur.execute(
+                """
+                SELECT taxonomy_id, taxonomy_name, taxonomy_path
+                FROM cantbuymelove.taxonomy
+                WHERE taxonomy_path !~ '[>/|]'
+                """
+            )
+            rows = cur.fetchall()
+            for row in rows:
+                tid = row["taxonomy_id"]
+                info = {
+                    "taxonomy_id": tid,
+                    "taxonomy_name": row["taxonomy_name"] or "",
+                    "taxonomy_path": row["taxonomy_path"] or "",
+                }
+                if tid:
+                    taxonomy_info_by_id[tid] = info
+
+    for metric in metrics:
+        fold = metric["cv_fold"]
+        prediction_rows = predictions.get(fold, [])
+
+        accuracy = metric.get("accuracy", 0)
+        accuracy_text = f"{accuracy * 100:.2f}%"
+        loss = metric.get("loss", 0)
+        num_predictions = len(prediction_rows)
+        mean_loss = loss / num_predictions if num_predictions > 0 else 0
+
+        most_common_taxonomy_id = metric.get("most_common_taxonomy_id", "")
+        taxonomy_info = taxonomy_info_by_id.get(most_common_taxonomy_id, {})
+        taxonomy_name = taxonomy_info.get("taxonomy_name", most_common_taxonomy_id)
+        taxonomy_path = taxonomy_info.get("taxonomy_path", "")
+
+        # Build prediction table
+        prediction_table_rows_list = []
+        for row in prediction_rows:
+            prediction_table_rows_list.append(
+                "<tr>"
+                f"<td>{row['product_id']}</td>"
+                f"<td>{row['true_value']}</td>"
+                f"<td>{row['predicted_value']}</td>"
+                f"<td>{row['loss']:.6f}</td>"
+                "</tr>"
+            )
+
+        prediction_table_rows = "\n".join(prediction_table_rows_list)
+        if not prediction_table_rows:
+            prediction_table_rows = '<tr><td colspan="4">No test predictions available for this fold.</td></tr>'
+
+        # Calculate p-adic loss breakdown
+        pair_values = [
+            (int(row["true_value"]), int(row["predicted_value"]))
+            for row in prediction_rows
+        ]
+
+        # Get prime base from first metric (same across all folds)
+        # We need to look this up from umllr_fold_metrics
+        prime_base = 71  # Default, will be updated if available
+        if conn:
+            with conn.cursor(row_factory=dict_row) as cur:
+                cur.execute(
+                    sql.SQL("SELECT prime_base FROM {schema}.umllr_fold_metrics WHERE cv_fold = %s LIMIT 1").format(
+                        schema=sql.Identifier(schema)
+                    ),
+                    (fold,)
+                )
+                row = cur.fetchone()
+                if row:
+                    prime_base = int(row["prime_base"])
+
+        breakdown_rows = _padic_breakdown_from_pairs(pair_values, prime_base)
+
+        # Build breakdown HTML
+        breakdown_html = ""
+        if breakdown_rows:
+            breakdown_table_rows = []
+            total_predictions = len(prediction_rows)
+            for entry in breakdown_rows:
+                label = html.escape(str(entry.get("label", "")))
+                count = int(entry.get("count", 0))
+                percentage = (count / total_predictions * 100) if total_predictions else 0.0
+                cost = entry.get("cost", 0.0)
+                total_contrib = entry.get("total_contribution", 0.0)
+                breakdown_table_rows.append(
+                    f"<tr><td>{label}</td><td>{count:,}</td><td>{percentage:.2f}%</td><td>{cost:.6f}</td><td>{total_contrib:.6f}</td></tr>"
+                )
+            breakdown_body = "\n".join(breakdown_table_rows)
+            breakdown_html = f"""
+<h2>P-adic loss breakdown</h2>
+<table class="umllr-table">
+  <thead>
+    <tr><th>Agreement</th><th>Count</th><th>Share</th><th>Cost per mistake</th><th>Total contribution</th></tr>
+  </thead>
+  <tbody>
+    {breakdown_body}
+  </tbody>
+</table>
+"""
+
+        page_contents = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Dummy Classifier - Fold {fold}</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <h1>Dummy Classifier - Fold {fold}</h1>
+    <nav>
+      <a href="../index.html">← Home</a> |
+      <a href="index.html">← Overview</a>
+    </nav>
+  </header>
+
+  <section>
+    <h2>Fold {fold} Metrics</h2>
+    <table class="umllr-table">
+      <tbody>
+        <tr><td>Total predictions</td><td>{num_predictions:,}</td></tr>
+        <tr><td>Accuracy</td><td>{accuracy_text}</td></tr>
+        <tr><td>Total p-adic loss</td><td>{loss:.4f}</td></tr>
+        <tr><td>Mean p-adic loss</td><td>{mean_loss:.4f}</td></tr>
+        <tr><td>Predicted taxonomy</td><td>{html.escape(taxonomy_name)}</td></tr>
+        <tr><td>Predicted taxonomy path</td><td>{html.escape(taxonomy_path)}</td></tr>
+        <tr><td>Predicted taxonomy ID</td><td>{html.escape(most_common_taxonomy_id)}</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  {breakdown_html}
+
+  <section>
+    <h2>Test predictions</h2>
+    <table class="umllr-table">
+      <thead>
+        <tr>
+          <th>Product ID</th>
+          <th>True value</th>
+          <th>Predicted value</th>
+          <th>Loss</th>
+        </tr>
+      </thead>
+      <tbody>
+        {prediction_table_rows}
+      </tbody>
+    </table>
+  </section>
+</body>
+</html>
+"""
+        page_path = dummy_dir / f"fold_{fold}.html"
+        page_path.write_text(page_contents, encoding="utf-8")
+        pages[fold] = page_path
+
+    return pages
+
+
+def _write_dummy_overview_page(
+    output_dir: Path,
+    summary: Dict[str, Any],
+    fold_pages: Dict[int, Path],
+) -> Path:
+    """Write overview page for dummy classifier."""
+    dummy_dir = output_dir / "dummy"
+    dummy_dir.mkdir(parents=True, exist_ok=True)
+
+    metrics = summary.get("metrics", [])
+    avg_accuracy = summary.get("average_accuracy", 0)
+    avg_loss = summary.get("average_loss", 0)
+
+    # Build fold table
+    fold_rows = []
+    for metric in metrics:
+        fold = metric["cv_fold"]
+        accuracy = metric.get("accuracy", 0)
+        loss = metric.get("loss", 0)
+        num_predictions = len(summary.get("predictions", {}).get(fold, []))
+        mean_loss = loss / num_predictions if num_predictions > 0 else 0
+
+        fold_link = fold_pages.get(fold)
+        if fold_link:
+            fold_cell = f'<a href="{fold_link.relative_to(dummy_dir).as_posix()}">Fold {fold}</a>'
+        else:
+            fold_cell = f"Fold {fold}"
+
+        fold_rows.append(
+            f"<tr>"
+            f"<td>{fold_cell}</td>"
+            f"<td>{num_predictions:,}</td>"
+            f"<td>{accuracy * 100:.2f}%</td>"
+            f"<td>{mean_loss:.4f}</td>"
+            f"</tr>"
+        )
+
+    fold_table = "\n".join(fold_rows)
+
+    page_html = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Dummy Baseline Classifier</title>
+  <link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+  <header>
+    <h1>Dummy Baseline Classifier</h1>
+    <nav>
+      <a href="../index.html">← Home</a>
+    </nav>
+  </header>
+
+  <section>
+    <h2>Model description</h2>
+    <p>
+      The dummy classifier is a baseline model that always predicts the most common taxonomy
+      class from the training data. This provides a simple benchmark to compare against more
+      sophisticated models. Any model that performs worse than this baseline is essentially
+      useless.
+    </p>
+    <p>
+      For each fold, the model identifies the most frequent taxonomy in the training set and
+      predicts it for every test example, regardless of tags or other features.
+    </p>
+  </section>
+
+  <section>
+    <h2>Average metrics across folds</h2>
+    <table class="umllr-table">
+      <tbody>
+        <tr><td>Average accuracy</td><td>{avg_accuracy * 100:.2f}%</td></tr>
+        <tr><td>Average p-adic loss</td><td>{avg_loss:.4f}</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>Results by fold</h2>
+    <table class="umllr-table">
+      <thead>
+        <tr>
+          <th>Fold</th>
+          <th>Predictions</th>
+          <th>Accuracy</th>
+          <th>Mean p-adic loss</th>
+        </tr>
+      </thead>
+      <tbody>
+        {fold_table}
+      </tbody>
+    </table>
+  </section>
+</body>
+</html>
+"""
+    page_path = dummy_dir / "index.html"
+    page_path.write_text(page_html, encoding="utf-8")
+    return page_path
+
+
 def _load_prediction_details(conn, fold: int, schema: str) -> Dict[int, Dict[str, Any]]:
     """Load detailed prediction data for a specific fold.
 
@@ -1579,23 +1860,19 @@ def _build_index_html(
 
     # Build model cards
     dummy_card = ""
-    if dummy_summary:
-        avg_accuracy = dummy_summary.get("average_accuracy")
+    dummy_page = dummy_summary.get("overview_page") if dummy_summary else None
+    if dummy_summary and dummy_page:
         avg_loss = dummy_summary.get("average_loss")
-        accuracy_text = f"{avg_accuracy * 100:.2f}%" if avg_accuracy is not None else "—"
         loss_text = f"{avg_loss:.4f}" if avg_loss is not None else "—"
         dummy_card = f"""
   <div class="model-card">
     <h3>Dummy Baseline</h3>
     <p>Always predicts most common taxonomy (baseline for comparison)</p>
     <div class="card-metric">
-      <span class="value">{accuracy_text}</span>
-      <span class="label">Accuracy</span>
-    </div>
-    <div class="card-metric">
       <span class="value">{loss_text}</span>
       <span class="label">Avg p-adic loss</span>
     </div>
+    <a href="{dummy_page}" class="card-link">View model →</a>
   </div>"""
 
     taxonomy_card = ""
@@ -3068,6 +3345,10 @@ footer {text-align: center; padding: 2rem 1.5rem 3rem; color: #6b7280;}
         umllr_summary["overview_page"] = umllr_page.relative_to(output_dir).as_posix()
 
     dummy_summary = _load_dummy_results(precomputed_database, battle_schema)
+    if dummy_summary:
+        dummy_fold_pages = _write_dummy_fold_pages(output_dir, dummy_summary, conn=precomputed_database, schema=battle_schema)
+        dummy_page = _write_dummy_overview_page(output_dir, dummy_summary, dummy_fold_pages)
+        dummy_summary["overview_page"] = dummy_page.relative_to(output_dir).as_posix()
 
     taxonomy_nn_fold_results = _load_taxonomy_nn_fold_results(
         precomputed_database, schema=battle_schema
