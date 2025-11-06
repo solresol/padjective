@@ -22,3 +22,8 @@ product_synsets = "padjective.product_synsets:main"
 taxonomy-classifier = "padjective.taxonomy_classifier:main"
 taxonomy-classifier-schema = "padjective.taxonomy_classifier_schema:main"
 
+[tool.pytest.ini_options]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+]
+
