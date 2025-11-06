@@ -217,6 +217,9 @@ def build_feature_dataset(
     discarded_products: List[DiscardedProduct] = []
 
     for record in eligible_records:
+        if not record.tags:
+            discarded_products.append(DiscardedProduct(record, "no_tags"))
+            continue
         if require_taxonomy and not record.taxonomy_id:
             discarded_products.append(DiscardedProduct(record, "missing_taxonomy"))
             continue
