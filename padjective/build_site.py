@@ -2882,7 +2882,7 @@ footer {text-align: center; padding: 2rem 1.5rem 3rem; color: #6b7280;}
 
     artifact_links: Dict[str, Path] = {
         "Tag rankings table (HTML)": rankings_html,
-        "SQL dump of battles": dump_path,
+        "SQL dumps (comprehensive)": datadumps_dir,
         "Top tags chart": chart_path,
     }
 
