@@ -947,7 +947,7 @@ def _write_dummy_fold_pages(
     </nav>
   </header>
 
-  <section>
+  <section class="umllr-fold">
     <h2>Fold {fold} Metrics</h2>
     <table class="umllr-table">
       <tbody>
@@ -960,11 +960,9 @@ def _write_dummy_fold_pages(
         <tr><td>Predicted taxonomy ID</td><td>{html.escape(most_common_taxonomy_id)}</td></tr>
       </tbody>
     </table>
-  </section>
 
   {breakdown_html}
 
-  <section>
     <h2>Test predictions</h2>
     <table class="umllr-table">
       <thead>
@@ -1029,6 +1027,8 @@ def _write_dummy_overview_page(
 
     fold_table = "\n".join(fold_rows)
 
+    num_folds = len(metrics)
+
     page_html = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -1037,14 +1037,30 @@ def _write_dummy_overview_page(
   <link rel="stylesheet" href="../styles.css">
 </head>
 <body>
-  <header>
+  <header class="hero">
     <h1>Dummy Baseline Classifier</h1>
+    <p class="tagline">Always predicting the most common taxonomy (baseline for comparison)</p>
     <nav>
       <a href="../index.html">← Home</a>
     </nav>
   </header>
 
   <section>
+    <div class="metrics">
+      <div class="metric">
+        <span class="value">{num_folds}</span>
+        <span class="label">CV folds</span>
+      </div>
+      <div class="metric">
+        <span class="value">{avg_loss:.4f}</span>
+        <span class="label">Average p-adic loss</span>
+      </div>
+      <div class="metric">
+        <span class="value">{avg_accuracy * 100:.2f}%</span>
+        <span class="label">Mean accuracy</span>
+      </div>
+    </div>
+
     <h2>Model description</h2>
     <p>
       The dummy classifier is a baseline model that always predicts the most common taxonomy
@@ -1056,21 +1072,9 @@ def _write_dummy_overview_page(
       For each fold, the model identifies the most frequent taxonomy in the training set and
       predicts it for every test example, regardless of tags or other features.
     </p>
-  </section>
 
-  <section>
-    <h2>Average metrics across folds</h2>
-    <table class="umllr-table">
-      <tbody>
-        <tr><td>Average accuracy</td><td>{avg_accuracy * 100:.2f}%</td></tr>
-        <tr><td>Average p-adic loss</td><td>{avg_loss:.4f}</td></tr>
-      </tbody>
-    </table>
-  </section>
-
-  <section>
     <h2>Results by fold</h2>
-    <table class="umllr-table">
+    <table class="umllr-summary">
       <thead>
         <tr>
           <th>Fold</th>
