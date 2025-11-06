@@ -27,6 +27,8 @@ RESULTS_DUMPS = [
     "padjective_umllr_tag_coefficients.sql",
     "padjective_umllr_predictions.sql",
     "padjective_umllr_taxonomy_encodings.sql",
+    "padjective_dummy_fold_metrics.sql",
+    "padjective_dummy_predictions.sql",
     "padjective_taxonomy_lr_models.sql",
     "padjective_taxonomy_lr_class_distribution.sql",
     "padjective_taxonomy_lr_tag_summary.sql",
@@ -209,6 +211,11 @@ def test_model_results_exist(test_db_with_dumps):
             umllr_count = cur.fetchone()[0]
             assert umllr_count > 0, "UMllr fold metrics should exist"
 
+            # Check Dummy classifier results
+            cur.execute("SELECT COUNT(*) FROM padjective.dummy_fold_metrics")
+            dummy_count = cur.fetchone()[0]
+            assert dummy_count > 0, "Dummy fold metrics should exist"
+
             # Check LR results
             cur.execute("SELECT COUNT(*) FROM padjective.taxonomy_lr_fold_results")
             lr_count = cur.fetchone()[0]
@@ -229,6 +236,9 @@ def test_cv_folds_consistency(test_db_with_dumps):
             cur.execute("SELECT DISTINCT cv_fold FROM padjective.umllr_fold_metrics ORDER BY cv_fold")
             umllr_folds = [row[0] for row in cur.fetchall()]
 
+            cur.execute("SELECT DISTINCT cv_fold FROM padjective.dummy_fold_metrics ORDER BY cv_fold")
+            dummy_folds = [row[0] for row in cur.fetchall()]
+
             cur.execute("SELECT DISTINCT cv_fold FROM padjective.taxonomy_lr_fold_results ORDER BY cv_fold")
             lr_folds = [row[0] for row in cur.fetchall()]
 
@@ -236,6 +246,7 @@ def test_cv_folds_consistency(test_db_with_dumps):
             nn_folds = [row[0] for row in cur.fetchall()]
 
             # All should have the same folds (typically 0-4 for 5-fold CV)
+            assert umllr_folds == dummy_folds, "UMllr and Dummy should use same folds"
             assert umllr_folds == lr_folds, "UMllr and LR should use same folds"
             assert lr_folds == nn_folds, "LR and NN should use same folds"
             assert len(umllr_folds) > 0, "Should have at least one fold"
