@@ -308,8 +308,14 @@ def train_nn_classifier(
     learning_rate: float = 0.001,
     weight_decay: float = 0.0001,
     patience: int = 10,
+    num_classes: int | None = None,
 ) -> tuple[nn.Module, TrainingStats]:
-    """Train a neural network classifier using PyTorch."""
+    """Train a neural network classifier using PyTorch.
+
+    Args:
+        num_classes: Total number of output classes. If None, inferred from unique labels in training data.
+                     Should be set to the total number of classes in the full dataset when doing CV splits.
+    """
 
     if len(labels) == 0:
         raise ValueError("Cannot train on empty dataset")
@@ -317,6 +323,11 @@ def train_nn_classifier(
     unique_labels = np.unique(labels)
     if len(unique_labels) < 2:
         raise ValueError("Need at least 2 taxonomies to train")
+
+    # Use provided num_classes or infer from training data
+    output_dim = num_classes if num_classes is not None else len(unique_labels)
+    if output_dim < len(unique_labels):
+        raise ValueError(f"num_classes ({output_dim}) must be >= unique labels in training data ({len(unique_labels)})")
 
     dataset = _to_tensor_dataset(features, labels)
 
@@ -334,7 +345,7 @@ def train_nn_classifier(
         val_dataset = None
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model = _build_model(features.shape[1], hidden_layer_sizes, len(unique_labels)).to(device)
+    model = _build_model(features.shape[1], hidden_layer_sizes, output_dim).to(device)
     optimizer = torch.optim.Adam(
         model.parameters(), lr=learning_rate, weight_decay=weight_decay
     )
@@ -390,7 +401,7 @@ def train_nn_classifier(
 
     stats = TrainingStats(
         samples=len(labels),
-        taxonomies=len(unique_labels),
+        taxonomies=output_dim,
         unique_tags=features.shape[1],
         hidden_layers=hidden_layer_sizes,
         training_accuracy=accuracy,
@@ -426,6 +437,10 @@ def cross_validate_classifier(
     f1_scores: list[float] = []
     hierarchical_scores: list[float] = []
     placeholder = np.zeros((len(labels), 1), dtype=np.float32)
+
+    # Get total number of classes from the full dataset
+    num_classes = len(unique)
+
     for train_index, test_index in cv.split(placeholder, labels):
         train_features = features[train_index]
         train_labels = labels[train_index]
@@ -437,6 +452,7 @@ def cross_validate_classifier(
             hidden_layer_sizes=hidden_layer_sizes,
             max_iter=max_iter,
             early_stopping=True,
+            num_classes=num_classes,
         )
 
         y_true, y_pred = _collect_predictions(model, test_dataset)
@@ -815,8 +831,9 @@ def main() -> None:
         features, feature_names = select_top_tags(features, feature_names, args.max_tags)
         print(f"Selected top {len(feature_names)} most common tags (--max-tags={args.max_tags})")
 
+    num_total_classes = len(np.unique(labels))
     print(f"Loaded {len(labels)} products with {len(feature_names)} tags")
-    print(f"Architecture: {len(feature_names)} -> {hidden_layer_sizes} -> {len(np.unique(labels))}")
+    print(f"Architecture: {len(feature_names)} -> {hidden_layer_sizes} -> {num_total_classes}")
 
     taxonomy_paths = build_taxonomy_path_map(metadata, id_column="taxonomy_index")
     ensure_taxonomy_paths_cover_labels(np.unique(labels), taxonomy_paths)
@@ -845,12 +862,16 @@ def main() -> None:
 
         print(f"\nFold {args.fold}: Training on {len(y_train)} products, testing on {len(y_test)} products")
 
+        # Get total number of classes from the full dataset (not just training data)
+        num_classes = len(np.unique(labels))
+
         # Train model
         model, stats = train_nn_classifier(
             X_train,
             y_train,
             hidden_layer_sizes=hidden_layer_sizes,
             max_iter=args.max_iter,
+            num_classes=num_classes,
         )
 
         # Predict on test set
