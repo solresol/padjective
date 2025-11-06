@@ -197,8 +197,12 @@ def _weighted_f1_score(true_labels: Sequence[str], pred_labels: Sequence[str]) -
 def _padic_breakdown_from_pairs(
     value_pairs: Sequence[Tuple[int, int]],
     prime_base: int,
-) -> list[Dict[str, int]]:
-    """Summarise p-adic agreement by counting shared digits between integers."""
+) -> list[Dict[str, int | float]]:
+    """Summarise p-adic agreement by counting shared digits between integers.
+
+    Returns breakdown in descending order: exact match first, then highest exponent to lowest.
+    Each entry includes count, cost per mistake, and total contribution to loss.
+    """
 
     if not value_pairs:
         return []
@@ -222,10 +226,27 @@ def _padic_breakdown_from_pairs(
     exponent_keys = [key for key in breakdown_counts.keys() if isinstance(key, int)]
     max_exponent = max(exponent_keys, default=0)
 
-    breakdown: list[Dict[str, int]] = []
-    breakdown.append({"label": "Exact match", "count": breakdown_counts.get("exact", 0)})
-    for exponent in range(0, max_exponent + 1):
-        breakdown.append({"label": f"p^{exponent}", "count": breakdown_counts.get(exponent, 0)})
+    breakdown: list[Dict[str, int | float]] = []
+
+    # Exact match first (cost = 0)
+    exact_count = breakdown_counts.get("exact", 0)
+    breakdown.append({
+        "label": "Exact match",
+        "count": exact_count,
+        "cost": 0.0,
+        "total_contribution": 0.0,
+    })
+
+    # Then descending order: highest exponent to lowest
+    for exponent in range(max_exponent, -1, -1):
+        count = breakdown_counts.get(exponent, 0)
+        cost = prime_base ** (-exponent) if prime_base > 0 else 1.0
+        breakdown.append({
+            "label": f"p^{exponent}",
+            "count": count,
+            "cost": cost,
+            "total_contribution": count * cost,
+        })
 
     return breakdown
 
@@ -1367,15 +1388,17 @@ def _write_umllr_pages(output_dir: Path, summary: Dict[str, Any], conn=None, sch
                 label = html.escape(str(entry.get("label", "")))
                 count = int(entry.get("count", 0))
                 percentage = (count / total_predictions * 100) if total_predictions else 0.0
+                cost = entry.get("cost", 0.0)
+                total_contrib = entry.get("total_contribution", 0.0)
                 breakdown_table_rows.append(
-                    f"<tr><td>{label}</td><td>{count:,}</td><td>{percentage:.2f}%</td></tr>"
+                    f"<tr><td>{label}</td><td>{count:,}</td><td>{percentage:.2f}%</td><td>{cost:.6f}</td><td>{total_contrib:.6f}</td></tr>"
                 )
             breakdown_body = "\n".join(breakdown_table_rows)
             breakdown_html = f"""
     <h2>P-adic loss breakdown</h2>
     <table class=\"umllr-table\">
       <thead>
-        <tr><th>Agreement</th><th>Count</th><th>Share</th></tr>
+        <tr><th>Agreement</th><th>Count</th><th>Share</th><th>Cost per mistake</th><th>Total contribution</th></tr>
       </thead>
       <tbody>
         {breakdown_body}
@@ -1860,13 +1883,15 @@ def _write_taxonomy_lr_fold_pages(
                 label = html.escape(str(row.get("label", "")))
                 count = int(row.get("count", 0))
                 percentage = (count / total_predictions * 100) if total_predictions else 0.0
-                row_cells.append(f"<tr><td>{label}</td><td>{count:,}</td><td>{percentage:.2f}%</td></tr>")
+                cost = row.get("cost", 0.0)
+                total_contrib = row.get("total_contribution", 0.0)
+                row_cells.append(f"<tr><td>{label}</td><td>{count:,}</td><td>{percentage:.2f}%</td><td>{cost:.6f}</td><td>{total_contrib:.6f}</td></tr>")
             breakdown_body = "\n".join(row_cells)
             breakdown_html = f"""
     <h2>P-adic loss breakdown</h2>
     <table class=\"umllr-table\">
       <thead>
-        <tr><th>Agreement</th><th>Count</th><th>Share</th></tr>
+        <tr><th>Agreement</th><th>Count</th><th>Share</th><th>Cost per mistake</th><th>Total contribution</th></tr>
       </thead>
       <tbody>
         {breakdown_body}
@@ -2228,13 +2253,15 @@ def _write_taxonomy_nn_fold_pages(
                 label = html.escape(str(row.get("label", "")))
                 count = int(row.get("count", 0))
                 percentage = (count / total_predictions * 100) if total_predictions else 0.0
-                row_cells.append(f"<tr><td>{label}</td><td>{count:,}</td><td>{percentage:.2f}%</td></tr>")
+                cost = row.get("cost", 0.0)
+                total_contrib = row.get("total_contribution", 0.0)
+                row_cells.append(f"<tr><td>{label}</td><td>{count:,}</td><td>{percentage:.2f}%</td><td>{cost:.6f}</td><td>{total_contrib:.6f}</td></tr>")
             breakdown_body = "\n".join(row_cells)
             breakdown_html = f"""
     <h2>P-adic loss breakdown</h2>
     <table class=\"umllr-table\">
       <thead>
-        <tr><th>Agreement</th><th>Count</th><th>Share</th></tr>
+        <tr><th>Agreement</th><th>Count</th><th>Share</th><th>Cost per mistake</th><th>Total contribution</th></tr>
       </thead>
       <tbody>
         {breakdown_body}
