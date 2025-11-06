@@ -263,6 +263,143 @@ def _write_sql_dump(pairs: Sequence[Tuple[str, str]], dump_path: Path, schema: s
         dump_file.write("COMMIT;\n")
 
 
+def _dump_table_to_sql(conn, schema: str, table: str, dump_path: Path) -> None:
+    """Export a complete table to SQL INSERT statements."""
+    from psycopg.rows import dict_row
+
+    with dump_path.open("w", encoding="utf-8") as f:
+        f.write(f"-- Table: {schema}.{table}\n")
+        f.write("BEGIN;\n")
+
+        # Get column names
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT column_name
+                FROM information_schema.columns
+                WHERE table_schema = %s AND table_name = %s
+                ORDER BY ordinal_position
+                """,
+                (schema, table),
+            )
+            columns = [row[0] for row in cur.fetchall()]
+
+        if not columns:
+            f.write("COMMIT;\n")
+            return
+
+        # Fetch and write data
+        with conn.cursor(row_factory=dict_row) as cur:
+            cur.execute(
+                sql.SQL("SELECT * FROM {}.{}").format(
+                    sql.Identifier(schema), sql.Identifier(table)
+                )
+            )
+
+            for row in cur:
+                values = []
+                for col in columns:
+                    val = row[col]
+                    if val is None:
+                        values.append("NULL")
+                    elif isinstance(val, (int, float)):
+                        values.append(str(val))
+                    elif isinstance(val, bool):
+                        values.append("TRUE" if val else "FALSE")
+                    else:
+                        # Escape single quotes
+                        escaped = str(val).replace("'", "''")
+                        values.append(f"'{escaped}'")
+
+                cols_str = ", ".join(columns)
+                vals_str = ", ".join(values)
+                f.write(f"INSERT INTO {schema}.{table} ({cols_str}) VALUES ({vals_str});\n")
+
+        f.write("COMMIT;\n")
+
+
+def _create_comprehensive_dumps(conn, datadumps_dir: Path, schema: str) -> None:
+    """Create SQL dumps for all tables needed to recreate the website."""
+    from psycopg.rows import dict_row
+
+    # Core data tables from cantbuymelove schema
+    core_tables = [
+        ("cantbuymelove", "taxonomy"),
+        ("cantbuymelove", "product"),
+        ("cantbuymelove", "product_taxonomy"),
+    ]
+
+    # Results tables from padjective schema
+    results_tables = [
+        (schema, "battles"),
+        (schema, "umllr_fold_metrics"),
+        (schema, "umllr_tag_coefficients"),
+        (schema, "umllr_predictions"),
+        (schema, "umllr_taxonomy_encodings"),
+        (schema, "taxonomy_lr_models"),
+        (schema, "taxonomy_lr_class_distribution"),
+        (schema, "taxonomy_lr_tag_summary"),
+        (schema, "taxonomy_lr_top_tags"),
+        (schema, "taxonomy_lr_fold_results"),
+        (schema, "taxonomy_lr_predictions"),
+        (schema, "taxonomy_lr_coefficients"),
+        (schema, "taxonomy_nn_fold_results"),
+        (schema, "taxonomy_nn_predictions"),
+    ]
+
+    all_tables = core_tables + results_tables
+
+    for table_schema, table_name in all_tables:
+        # Check if table exists
+        if not _table_exists(conn, table_schema, table_name):
+            continue
+
+        dump_path = datadumps_dir / f"{table_schema}_{table_name}.sql"
+        try:
+            _dump_table_to_sql(conn, table_schema, table_name, dump_path)
+            print(f"Exported {table_schema}.{table_name} to {dump_path.name}")
+        except Exception as e:
+            print(f"Warning: Failed to export {table_schema}.{table_name}: {e}")
+
+    # Special handling for product_details - only dump rows for products in cantbuymelove.product
+    if _table_exists(conn, "public", "product_details"):
+        dump_path = datadumps_dir / "public_product_details.sql"
+        try:
+            with dump_path.open("w", encoding="utf-8") as f:
+                f.write("-- Table: public.product_details (filtered)\n")
+                f.write("BEGIN;\n")
+
+                with conn.cursor(row_factory=dict_row) as cur:
+                    cur.execute(
+                        """
+                        SELECT pd.*
+                        FROM public.product_details pd
+                        JOIN cantbuymelove.product p ON
+                            pd.myshopify_domain = p.myshopify_domain
+                            AND pd.run_name = p.run_name
+                            AND pd.product_handle = p.product_handle
+                        """
+                    )
+
+                    for row in cur:
+                        # Escape values
+                        domain = row['myshopify_domain'].replace("'", "''")
+                        run_name = row['run_name'].replace("'", "''")
+                        handle = row['product_handle'].replace("'", "''")
+                        # For JSONB, we need to escape it properly
+                        detail = str(row['product_detail']).replace("'", "''")
+
+                        f.write(
+                            f"INSERT INTO public.product_details (myshopify_domain, run_name, product_handle, product_detail) "
+                            f"VALUES ('{domain}', '{run_name}', '{handle}', '{detail}');\n"
+                        )
+
+                f.write("COMMIT;\n")
+            print(f"Exported public.product_details (filtered) to {dump_path.name}")
+        except Exception as e:
+            print(f"Warning: Failed to export public.product_details: {e}")
+
+
 def _write_defective_taxonomy_page(output_dir: Path, dataset: data_access.ProductDataset) -> Path:
     """Create a dedicated page showing products with defective taxonomy labels."""
     page_path = output_dir / "defective_taxonomy.html"
@@ -2663,8 +2800,8 @@ def build_site(
     stats["unique_tags"] = dataset_stats["unique_tags"]
     stats["taxonomies"] = dataset_stats["taxonomies"]
 
-    dump_path = datadumps_dir / "battles.sql"
-    _write_sql_dump(pairs, dump_path, battle_schema)
+    # Create comprehensive database dumps for website recreation
+    _create_comprehensive_dumps(precomputed_database, datadumps_dir, battle_schema)
 
     stylesheet = assets_dir / "styles.css"
     stylesheet.write_text(
