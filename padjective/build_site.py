@@ -1528,10 +1528,6 @@ def _build_index_html(
       <span class="value">{avg_loss:.4f}</span>
       <span class="label">Avg p-adic loss</span>
     </div>
-    <div class="card-metric">
-      <span class="value">{accuracy_text} / {f1_text}</span>
-      <span class="label">Mean accuracy / F1</span>
-    </div>
     <a href="{umllr_page.relative_to(output_dir).as_posix()}" class="card-link">View model →</a>
   </div>"""
 
