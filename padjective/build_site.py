@@ -2204,13 +2204,108 @@ def _write_taxonomy_classifier_page(
     return page_path
 
 
-def _write_taxonomy_nn_page(
-    output_dir: Path, fold_results: list[Dict[str, Any]]
-) -> Path:
-    """Write a report page for the taxonomy neural network classifier."""
+def _write_taxonomy_nn_fold_pages(
+    output_dir: Path,
+    fold_results: list[Dict[str, Any]],
+) -> Dict[int, Path]:
+    """Write individual pages for each neural network fold."""
+    pages: Dict[int, Path] = {}
+    if not fold_results:
+        return pages
 
     nn_dir = output_dir / "taxonomy_nn_classifier"
     nn_dir.mkdir(parents=True, exist_ok=True)
+
+    for fold_data in fold_results:
+        fold = fold_data["cv_fold"]
+
+        breakdown_rows = fold_data.get("loss_breakdown", [])
+        total_predictions = fold_data.get("total_predictions", 0)
+        breakdown_html = ""
+        if breakdown_rows:
+            row_cells: list[str] = []
+            for row in breakdown_rows:
+                label = html.escape(str(row.get("label", "")))
+                count = int(row.get("count", 0))
+                percentage = (count / total_predictions * 100) if total_predictions else 0.0
+                row_cells.append(f"<tr><td>{label}</td><td>{count:,}</td><td>{percentage:.2f}%</td></tr>")
+            breakdown_body = "\n".join(row_cells)
+            breakdown_html = f"""
+    <h2>P-adic loss breakdown</h2>
+    <table class=\"umllr-table\">
+      <thead>
+        <tr><th>Agreement</th><th>Count</th><th>Share</th></tr>
+      </thead>
+      <tbody>
+        {breakdown_body}
+      </tbody>
+    </table>
+"""
+        else:
+            breakdown_html = "<p>No prediction breakdown recorded for this fold.</p>"
+
+        max_tags = fold_data.get("max_tags")
+        max_tags_row = f"<tr><td>Max tags</td><td>{max_tags if max_tags is not None else '—'}</td></tr>" if max_tags is not None else ""
+
+        page_contents = f"""
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Neural Network Classifier Fold {fold} Results</title>
+  <link rel="stylesheet" href="../assets/styles.css" />
+</head>
+<body>
+  <section class="umllr-fold">
+    <h1>Neural Network Classifier Fold {fold}</h1>
+    <p><a href="index.html">Back to neural network overview</a> &middot; <a href="../index.html">Back to main index</a></p>
+
+    <h2>Fold metrics</h2>
+    <table class="umllr-table">
+      <thead>
+        <tr><th>Metric</th><th>Value</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Test accuracy</td><td>{fold_data['test_accuracy'] * 100:.2f}%</td></tr>
+        <tr><td>Test F1 score</td><td>{fold_data['test_f1']:.4f}</td></tr>
+        <tr><td>Hierarchical loss</td><td>{fold_data['test_hierarchical_loss']:.6f}</td></tr>
+        <tr><td>P-adic loss (total)</td><td>{fold_data['padic_loss_total']:.6f}</td></tr>
+        <tr><td>P-adic loss (mean)</td><td>{fold_data['padic_loss_mean']:.6f}</td></tr>
+        <tr><td>Prime base</td><td>{fold_data['prime_base']}</td></tr>
+        <tr><td>Hidden layers</td><td>{html.escape(fold_data['hidden_layers'])}</td></tr>
+        {max_tags_row}
+        <tr><td>Training samples</td><td>{fold_data['num_train_samples']:,}</td></tr>
+        <tr><td>Test samples</td><td>{fold_data['num_test_samples']:,}</td></tr>
+      </tbody>
+    </table>
+
+    {breakdown_html}
+
+    <h2>About p-adic loss</h2>
+    <p>P-adic loss measures the distance between predicted and true taxonomy using p-adic metric (base {fold_data['prime_base']}). Lower values indicate closer predictions in the taxonomy hierarchy. This metric is shared with the umllr model for comparison.</p>
+  </section>
+</body>
+</html>
+"""
+
+        page_path = nn_dir / f"fold_{fold}.html"
+        page_path.write_text(page_contents, encoding="utf-8")
+        pages[fold] = page_path
+
+    return pages
+
+
+def _write_taxonomy_nn_overview_page(
+    output_dir: Path,
+    fold_results: list[Dict[str, Any]],
+    fold_pages: Dict[int, Path],
+) -> Path:
+    """Write a main overview page for neural network classifier results."""
+    nn_dir = output_dir / "taxonomy_nn_classifier"
+    nn_dir.mkdir(parents=True, exist_ok=True)
+
+    if not fold_results:
+        raise ValueError("fold_results is required for neural network classifier page")
 
     num_folds = len(fold_results)
     avg_accuracy = sum(row["test_accuracy"] for row in fold_results) / num_folds
@@ -2237,74 +2332,24 @@ def _write_taxonomy_nn_page(
 
     fold_rows = []
     for row in fold_results:
-        max_tags = row.get("max_tags")
+        fold = row["cv_fold"]
+        link = fold_pages.get(fold)
+        if link:
+            link_text = f'<a href="{Path(link).name}">View details →</a>'
+        else:
+            link_text = "—"
+
         fold_rows.append(
-            """
-        <tr>
-          <td>{cv_fold}</td>
-          <td>{accuracy:.2f}%</td>
-          <td>{f1:.4f}</td>
-          <td>{hierarchical_loss:.6f}</td>
-          <td>{padic_loss:.6f}</td>
-          <td>{prime_base}</td>
-          <td>{train_samples:,}</td>
-          <td>{test_samples:,}</td>
-          <td>{hidden_layers}</td>
-          <td>{max_tags}</td>
-        </tr>
-        """.strip().format(
-                cv_fold=row["cv_fold"],
-                accuracy=row["test_accuracy"] * 100,
-                f1=row["test_f1"],
-                hierarchical_loss=row["test_hierarchical_loss"],
-                padic_loss=row["padic_loss_mean"],
-                prime_base=row["prime_base"],
-                train_samples=row["num_train_samples"],
-                test_samples=row["num_test_samples"],
-                hidden_layers=html.escape(row["hidden_layers"]),
-                max_tags="—" if max_tags is None else max_tags,
-            )
+            f"""<tr>
+          <td>{fold}</td>
+          <td>{row['test_accuracy'] * 100:.2f}%</td>
+          <td>{row['test_f1']:.4f}</td>
+          <td>{row['padic_loss_mean']:.6f}</td>
+          <td>{link_text}</td>
+        </tr>"""
         )
 
     fold_table_body = "\n".join(fold_rows)
-
-    breakdown_sections: list[str] = []
-    for row in fold_results:
-        fold = row["cv_fold"]
-        breakdown_rows = row.get("loss_breakdown", [])
-        total_predictions = row.get("total_predictions", 0)
-        if not breakdown_rows:
-            breakdown_sections.append(
-                f"<h3>Fold {fold}</h3><p>No prediction breakdown recorded for this fold.</p>"
-            )
-            continue
-
-        row_cells: list[str] = []
-        for entry in breakdown_rows:
-            label = html.escape(str(entry.get("label", "")))
-            count = int(entry.get("count", 0))
-            percentage = (count / total_predictions * 100) if total_predictions else 0.0
-            row_cells.append(
-                f"<tr><td>{label}</td><td>{count:,}</td><td>{percentage:.2f}%</td></tr>"
-            )
-        breakdown_body = "\n".join(row_cells)
-        breakdown_sections.append(
-            """
-    <section class="umllr">
-      <h3>Fold {fold}</h3>
-      <table class="umllr-table">
-        <thead>
-          <tr><th>Agreement</th><th>Count</th><th>Share</th></tr>
-        </thead>
-        <tbody>
-          {breakdown_body}
-        </tbody>
-      </table>
-    </section>
-""".format(fold=fold, breakdown_body=breakdown_body)
-        )
-
-    breakdown_html = "\n".join(breakdown_sections)
 
     page_html = f"""<!DOCTYPE html>
 <html lang="en">
@@ -2323,6 +2368,8 @@ def _write_taxonomy_nn_page(
     <p><a href="../index.html">← Back to index</a></p>
 
     <h2>Model overview</h2>
+    <p>Neural network classifier using PyTorch with configurable hidden layers to predict taxonomy IDs from product tags. Each taxonomy path is encoded as a p-adic integer and the model minimizes p-adic distance.</p>
+
     <div class="metrics">
       <div class="metric">
         <span class="value">{num_folds}</span>
@@ -2352,29 +2399,15 @@ def _write_taxonomy_nn_page(
       {''.join(hyperparameters_items)}
     </ul>
 
-    <h2>Cross-validation fold results</h2>
-    <table class="taxonomy-table">
+    <h2>Cross-validation results</h2>
+    <table class="umllr-summary">
       <thead>
-        <tr>
-          <th>Fold</th>
-          <th>Accuracy</th>
-          <th>F1 (weighted)</th>
-          <th>Hierarchical loss</th>
-          <th>P-adic loss (mean)</th>
-          <th>Prime base</th>
-          <th>Train samples</th>
-          <th>Test samples</th>
-          <th>Hidden layers</th>
-          <th>Max tags</th>
-        </tr>
+        <tr><th>Fold</th><th>Accuracy</th><th>F1</th><th>P-adic loss (mean)</th><th>Details</th></tr>
       </thead>
       <tbody>
         {fold_table_body}
       </tbody>
     </table>
-
-    <h2>P-adic loss breakdown by fold</h2>
-    {breakdown_html}
   </section>
 
   <footer>
@@ -2922,7 +2955,8 @@ footer {text-align: center; padding: 2rem 1.5rem 3rem; color: #6b7280;}
     )
     taxonomy_nn_page = None
     if taxonomy_nn_fold_results:
-        taxonomy_nn_page = _write_taxonomy_nn_page(output_dir, taxonomy_nn_fold_results)
+        taxonomy_nn_fold_pages = _write_taxonomy_nn_fold_pages(output_dir, taxonomy_nn_fold_results)
+        taxonomy_nn_page = _write_taxonomy_nn_overview_page(output_dir, taxonomy_nn_fold_results, taxonomy_nn_fold_pages)
 
     # Generate historical trends chart
     trends_chart_path = _generate_historical_trends_chart(
