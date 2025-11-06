@@ -6,6 +6,7 @@ import argparse
 import html
 import json
 import shutil
+from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Optional, Sequence, Tuple
@@ -151,6 +152,103 @@ def _table_exists(conn, schema: str, table: str) -> bool:
             return fetchone() is not None
     except Exception:
         return False
+
+
+def _weighted_f1_score(true_labels: Sequence[str], pred_labels: Sequence[str]) -> float | None:
+    """Compute weighted F1 score for multiclass predictions."""
+
+    if len(true_labels) != len(pred_labels):
+        raise ValueError("true_labels and pred_labels must be the same length")
+
+    if not true_labels:
+        return None
+
+    label_support = Counter(true_labels)
+    total = sum(label_support.values())
+    if total == 0:
+        return None
+
+    correct_counts = Counter()
+    predicted_counts = Counter(pred_labels)
+
+    for truth, guess in zip(true_labels, pred_labels):
+        if truth == guess:
+            correct_counts[truth] += 1
+
+    weighted_sum = 0.0
+    for label, support in label_support.items():
+        true_positive = correct_counts[label]
+        false_positive = predicted_counts[label] - true_positive
+        false_negative = support - true_positive
+
+        precision = true_positive / (true_positive + false_positive) if (true_positive + false_positive) > 0 else 0.0
+        recall = true_positive / (true_positive + false_negative) if (true_positive + false_negative) > 0 else 0.0
+
+        if precision + recall == 0:
+            f1 = 0.0
+        else:
+            f1 = 2 * precision * recall / (precision + recall)
+
+        weighted_sum += f1 * support
+
+    return weighted_sum / total
+
+
+def _padic_breakdown_from_pairs(
+    value_pairs: Sequence[Tuple[int, int]],
+    prime_base: int,
+) -> list[Dict[str, int]]:
+    """Summarise p-adic agreement by counting shared digits between integers."""
+
+    if not value_pairs:
+        return []
+
+    breakdown_counts: Counter[Any] = Counter()
+
+    for true_value, predicted_value in value_pairs:
+        if true_value == predicted_value:
+            breakdown_counts["exact"] += 1
+            continue
+
+        diff = abs(true_value - predicted_value)
+        exponent = 0
+        if prime_base > 1 and diff > 0:
+            while diff % prime_base == 0:
+                diff //= prime_base
+                exponent += 1
+
+        breakdown_counts[exponent] += 1
+
+    exponent_keys = [key for key in breakdown_counts.keys() if isinstance(key, int)]
+    max_exponent = max(exponent_keys, default=0)
+
+    breakdown: list[Dict[str, int]] = []
+    breakdown.append({"label": "Exact match", "count": breakdown_counts.get("exact", 0)})
+    for exponent in range(0, max_exponent + 1):
+        breakdown.append({"label": f"p^{exponent}", "count": breakdown_counts.get(exponent, 0)})
+
+    return breakdown
+
+
+def _load_taxonomy_encoding_lookup(conn, schema: str, fold: int) -> Dict[str, int]:
+    """Load taxonomy_id → encoded_value mapping for a specific fold."""
+
+    lookup: Dict[str, int] = {}
+    with conn.cursor(row_factory=dict_row) as cur:
+        cur.execute(
+            sql.SQL(
+                """
+                SELECT taxonomy_id, encoded_value
+                FROM {schema}.umllr_taxonomy_encodings
+                WHERE cv_fold = %s
+                """
+            ).format(schema=sql.Identifier(schema)),
+            (fold,),
+        )
+        for row in cur:
+            taxonomy_id = str(row["taxonomy_id"])
+            lookup[taxonomy_id] = int(row["encoded_value"])
+    return lookup
 
 
 def _write_sql_dump(pairs: Sequence[Tuple[str, str]], dump_path: Path, schema: str) -> None:
@@ -330,6 +428,7 @@ def _load_umllr_results(conn, schema: str) -> Optional[Dict[str, Any]]:
         "umllr_fold_metrics",
         "umllr_tag_coefficients",
         "umllr_predictions",
+        "umllr_taxonomy_encodings",
     )
     if not all(_table_exists(conn, schema, table) for table in required_tables):
         return None
@@ -402,15 +501,59 @@ def _load_umllr_results(conn, schema: str) -> Optional[Dict[str, Any]]:
                 }
             )
 
-    # Calculate mean loss per fold from predictions
+    taxonomy_lookup_by_fold: Dict[int, Dict[int, str]] = {}
+    with conn.cursor(row_factory=dict_row) as cur:
+        cur.execute(
+            sql.SQL(
+                """
+                SELECT cv_fold, taxonomy_id, encoded_value
+                FROM {schema}.umllr_taxonomy_encodings
+                ORDER BY cv_fold, taxonomy_id
+                """
+            ).format(schema=sql.Identifier(schema))
+        )
+        for row in cur:
+            fold = int(row["cv_fold"])
+            encoded_value = int(row["encoded_value"])
+            taxonomy_lookup_by_fold.setdefault(fold, {})[encoded_value] = row["taxonomy_id"]
+
+    # Calculate mean loss per fold from predictions and derive accuracy/F1 metrics
     for metric in metrics:
         fold = metric["cv_fold"]
         fold_predictions = predictions.get(fold, [])
+        total_predictions = len(fold_predictions)
+        metric["total_predictions"] = total_predictions
+
+        pair_values = [
+            (int(pred["true_value"]), int(pred["predicted_value"]))
+            for pred in fold_predictions
+        ]
+
         if fold_predictions:
             mean_loss = sum(p["loss"] for p in fold_predictions) / len(fold_predictions)
             metric["mean_loss"] = mean_loss
+            exact_matches = sum(1 for true_value, predicted_value in pair_values if true_value == predicted_value)
+            metric["exact_matches"] = exact_matches
+            metric["accuracy"] = exact_matches / total_predictions if total_predictions else None
+            metric["loss_breakdown"] = _padic_breakdown_from_pairs(pair_values, metric["prime_base"])
         else:
             metric["mean_loss"] = 0.0
+            metric["exact_matches"] = 0
+            metric["accuracy"] = None
+            metric["loss_breakdown"] = []
+
+        lookup = taxonomy_lookup_by_fold.get(fold, {})
+        if pair_values and lookup:
+            true_labels: list[str] = []
+            pred_labels: list[str] = []
+            for true_value, predicted_value in pair_values:
+                true_label = lookup.get(true_value, f"encoded:{true_value}")
+                pred_label = lookup.get(predicted_value, f"encoded:{predicted_value}")
+                true_labels.append(str(true_label))
+                pred_labels.append(str(pred_label))
+            metric["f1"] = _weighted_f1_score(true_labels, pred_labels)
+        else:
+            metric["f1"] = None
 
     # Load taxonomy name mappings for display
     taxonomy_names: Dict[str, str] = {}
@@ -430,11 +573,16 @@ def _load_umllr_results(conn, schema: str) -> Optional[Dict[str, Any]]:
             if path and name:
                 taxonomy_names[str(path)] = str(name)
 
+    accuracies = [m["accuracy"] for m in metrics if m.get("accuracy") is not None]
+    f1_scores = [m["f1"] for m in metrics if m.get("f1") is not None]
+
     return {
         "metrics": metrics,
         "coefficients": coefficients,
         "predictions": predictions,
         "taxonomy_names": taxonomy_names,
+        "average_accuracy": sum(accuracies) / len(accuracies) if accuracies else None,
+        "average_f1": sum(f1_scores) / len(f1_scores) if f1_scores else None,
     }
 
 
@@ -943,7 +1091,8 @@ def _write_umllr_pages(output_dir: Path, summary: Dict[str, Any], conn=None, sch
                 WHERE taxonomy_path !~ '[>/|]'
                 """
             )
-            for row in cur:
+            rows = cur.fetchall()
+            for row in rows:
                 path = row["taxonomy_path"]
                 tid = row["taxonomy_id"]
                 info = {
@@ -1063,6 +1212,35 @@ def _write_umllr_pages(output_dir: Path, summary: Dict[str, Any], conn=None, sch
 
         mean_loss = metric.get("mean_loss", 0)
         num_predictions = len(prediction_rows)
+        accuracy_val = metric.get("accuracy")
+        accuracy_text = f"{accuracy_val * 100:.2f}%" if accuracy_val is not None else "—"
+        f1_val = metric.get("f1")
+        f1_text = f"{f1_val:.4f}" if f1_val is not None else "—"
+        breakdown_rows = metric.get("loss_breakdown", [])
+        total_predictions = metric.get("total_predictions", num_predictions)
+
+        breakdown_html = ""
+        if breakdown_rows:
+            breakdown_table_rows = []
+            for entry in breakdown_rows:
+                label = html.escape(str(entry.get("label", "")))
+                count = int(entry.get("count", 0))
+                percentage = (count / total_predictions * 100) if total_predictions else 0.0
+                breakdown_table_rows.append(
+                    f"<tr><td>{label}</td><td>{count:,}</td><td>{percentage:.2f}%</td></tr>"
+                )
+            breakdown_body = "\n".join(breakdown_table_rows)
+            breakdown_html = f"""
+    <h2>P-adic loss breakdown</h2>
+    <table class=\"umllr-table\">
+      <thead>
+        <tr><th>Agreement</th><th>Count</th><th>Share</th></tr>
+      </thead>
+      <tbody>
+        {breakdown_body}
+      </tbody>
+    </table>
+"""
 
         page_contents = f"""
 <!DOCTYPE html>
@@ -1076,7 +1254,8 @@ def _write_umllr_pages(output_dir: Path, summary: Dict[str, Any], conn=None, sch
   <section class="umllr-fold">
     <h1>umllr fold {fold}</h1>
     <p><a href="../index.html">Back to index</a></p>
-    <p><strong>P-adic loss (mean):</strong> {mean_loss:.6f} &middot; <strong>Test samples:</strong> {num_predictions:,} &middot; <strong>Prime base:</strong> {metric['prime_base']} &middot; <strong>Max digit:</strong> {metric['max_digit']}</p>
+    <p><strong>P-adic loss (mean):</strong> {mean_loss:.6f} &middot; <strong>Test samples:</strong> {num_predictions:,} &middot; <strong>Accuracy:</strong> {accuracy_text} &middot; <strong>F1:</strong> {f1_text} &middot; <strong>Prime base:</strong> {metric['prime_base']} &middot; <strong>Max digit:</strong> {metric['max_digit']}</p>
+{breakdown_html}
     <h2>Tag coefficients</h2>
     <table class="umllr-table">
       <thead>
@@ -1200,6 +1379,10 @@ def _build_index_html(
         metrics = umllr_summary.get("metrics", [])
         # Use mean_loss (per-prediction average) not total loss
         avg_loss = sum(m["mean_loss"] for m in metrics) / len(metrics) if metrics else 0
+        avg_accuracy = umllr_summary.get("average_accuracy")
+        avg_f1 = umllr_summary.get("average_f1")
+        accuracy_text = f"{avg_accuracy * 100:.2f}%" if avg_accuracy is not None else "—"
+        f1_text = f"{avg_f1:.4f}" if avg_f1 is not None else "—"
         umllr_card = f"""
   <div class="model-card">
     <h3>umllr P-adic Regression</h3>
@@ -1207,6 +1390,10 @@ def _build_index_html(
     <div class="card-metric">
       <span class="value">{avg_loss:.4f}</span>
       <span class="label">Avg p-adic loss</span>
+    </div>
+    <div class="card-metric">
+      <span class="value">{accuracy_text} / {f1_text}</span>
+      <span class="label">Mean accuracy / F1</span>
     </div>
     <a href="{umllr_page.relative_to(output_dir).as_posix()}" class="card-link">View model →</a>
   </div>"""
@@ -1527,6 +1714,31 @@ def _write_taxonomy_lr_fold_pages(
     for fold_data in fold_results:
         fold = fold_data["cv_fold"]
 
+        breakdown_rows = fold_data.get("loss_breakdown", [])
+        total_predictions = fold_data.get("total_predictions", 0)
+        breakdown_html = ""
+        if breakdown_rows:
+            row_cells: list[str] = []
+            for row in breakdown_rows:
+                label = html.escape(str(row.get("label", "")))
+                count = int(row.get("count", 0))
+                percentage = (count / total_predictions * 100) if total_predictions else 0.0
+                row_cells.append(f"<tr><td>{label}</td><td>{count:,}</td><td>{percentage:.2f}%</td></tr>")
+            breakdown_body = "\n".join(row_cells)
+            breakdown_html = f"""
+    <h2>P-adic loss breakdown</h2>
+    <table class=\"umllr-table\">
+      <thead>
+        <tr><th>Agreement</th><th>Count</th><th>Share</th></tr>
+      </thead>
+      <tbody>
+        {breakdown_body}
+      </tbody>
+    </table>
+"""
+        else:
+            breakdown_html = "<p>No prediction breakdown recorded for this fold.</p>"
+
         page_contents = f"""
 <!DOCTYPE html>
 <html lang="en">
@@ -1558,6 +1770,8 @@ def _write_taxonomy_lr_fold_pages(
       </tbody>
     </table>
 
+    {breakdown_html}
+
     <h2>About p-adic loss</h2>
     <p>P-adic loss measures the distance between predicted and true taxonomy using p-adic metric (base {fold_data['prime_base']}). Lower values indicate closer predictions in the taxonomy hierarchy. This metric is shared with the umllr model for comparison.</p>
   </section>
@@ -1582,6 +1796,8 @@ def _write_umllr_overview_page(
 
     metrics = umllr_summary.get("metrics", [])
     page_lookup = umllr_summary.get("pages", {})
+    avg_accuracy_value = umllr_summary.get("average_accuracy")
+    avg_f1_value = umllr_summary.get("average_f1")
 
     if metrics:
         # Use mean_loss (per-prediction average) not total loss
@@ -1593,6 +1809,9 @@ def _write_umllr_overview_page(
         prime_base = 0
         max_digit = 0
 
+    avg_accuracy_text = f"{avg_accuracy_value * 100:.2f}%" if avg_accuracy_value is not None else "—"
+    avg_f1_text = f"{avg_f1_value:.4f}" if avg_f1_value is not None else "—"
+
     fold_rows = []
     for metric in metrics:
         fold = metric["cv_fold"]
@@ -1602,15 +1821,21 @@ def _write_umllr_overview_page(
         else:
             link_text = "—"
         mean_loss = metric.get("mean_loss", 0)
+        acc_value = metric.get("accuracy")
+        f1_value = metric.get("f1")
+        acc_text = f"{acc_value * 100:.2f}%" if acc_value is not None else "—"
+        f1_text = f"{f1_value:.4f}" if f1_value is not None else "—"
         fold_rows.append(
             f"<tr>"
             f"<td>{fold}</td>"
+            f"<td>{acc_text}</td>"
+            f"<td>{f1_text}</td>"
             f"<td>{mean_loss:.6f}</td>"
             f"<td>{link_text}</td>"
             f"</tr>"
         )
 
-    table_body = "\n".join(fold_rows) or '<tr><td colspan="3">No cross-validation folds recorded.</td></tr>'
+    table_body = "\n".join(fold_rows) or '<tr><td colspan="5">No cross-validation folds recorded.</td></tr>'
 
     page_html = f"""<!DOCTYPE html>
 <html lang="en">
@@ -1641,6 +1866,14 @@ def _write_umllr_overview_page(
         <span class="label">Average p-adic loss</span>
       </div>
       <div class="metric">
+        <span class="value">{avg_accuracy_text}</span>
+        <span class="label">Mean accuracy</span>
+      </div>
+      <div class="metric">
+        <span class="value">{avg_f1_text}</span>
+        <span class="label">Mean F1</span>
+      </div>
+      <div class="metric">
         <span class="value">{prime_base}</span>
         <span class="label">Prime base</span>
       </div>
@@ -1649,7 +1882,7 @@ def _write_umllr_overview_page(
     <h2>Cross-validation results</h2>
     <table class="umllr-summary">
       <thead>
-        <tr><th>Fold</th><th>P-adic loss (mean)</th><th>Details</th></tr>
+        <tr><th>Fold</th><th>Accuracy</th><th>F1</th><th>P-adic loss (mean)</th><th>Details</th></tr>
       </thead>
       <tbody>
         {table_body}
@@ -1898,6 +2131,44 @@ def _write_taxonomy_nn_page(
 
     fold_table_body = "\n".join(fold_rows)
 
+    breakdown_sections: list[str] = []
+    for row in fold_results:
+        fold = row["cv_fold"]
+        breakdown_rows = row.get("loss_breakdown", [])
+        total_predictions = row.get("total_predictions", 0)
+        if not breakdown_rows:
+            breakdown_sections.append(
+                f"<h3>Fold {fold}</h3><p>No prediction breakdown recorded for this fold.</p>"
+            )
+            continue
+
+        row_cells: list[str] = []
+        for entry in breakdown_rows:
+            label = html.escape(str(entry.get("label", "")))
+            count = int(entry.get("count", 0))
+            percentage = (count / total_predictions * 100) if total_predictions else 0.0
+            row_cells.append(
+                f"<tr><td>{label}</td><td>{count:,}</td><td>{percentage:.2f}%</td></tr>"
+            )
+        breakdown_body = "\n".join(row_cells)
+        breakdown_sections.append(
+            """
+    <section class="umllr">
+      <h3>Fold {fold}</h3>
+      <table class="umllr-table">
+        <thead>
+          <tr><th>Agreement</th><th>Count</th><th>Share</th></tr>
+        </thead>
+        <tbody>
+          {breakdown_body}
+        </tbody>
+      </table>
+    </section>
+""".format(fold=fold, breakdown_body=breakdown_body)
+        )
+
+    breakdown_html = "\n".join(breakdown_sections)
+
     page_html = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -1964,6 +2235,9 @@ def _write_taxonomy_nn_page(
         {fold_table_body}
       </tbody>
     </table>
+
+    <h2>P-adic loss breakdown by fold</h2>
+    {breakdown_html}
   </section>
 
   <footer>
@@ -2153,7 +2427,41 @@ def _load_taxonomy_lr_fold_results(conn, schema: str = "padjective") -> Optional
                 "trained_at": row["trained_at"].isoformat(timespec="seconds") if row["trained_at"] else None,
             })
 
-    return results if results else None
+    if not results:
+        return None
+
+    encoding_cache: Dict[int, Dict[str, int]] = {}
+    for entry in results:
+        fold = entry["cv_fold"]
+        if fold not in encoding_cache:
+            encoding_cache[fold] = _load_taxonomy_encoding_lookup(conn, schema, fold)
+        lookup = encoding_cache[fold]
+        value_pairs: list[tuple[int, int]] = []
+        with conn.cursor(row_factory=dict_row) as pred_cur:
+            pred_cur.execute(
+                sql.SQL(
+                    """
+                    SELECT true_taxonomy_id, predicted_taxonomy_id
+                    FROM {schema}.taxonomy_lr_predictions
+                    WHERE cv_fold = %s
+                    """
+                ).format(schema=sql.Identifier(schema)),
+                (fold,),
+            )
+            for pred_row in pred_cur:
+                true_id = pred_row["true_taxonomy_id"]
+                pred_id = pred_row["predicted_taxonomy_id"]
+                if true_id is None or pred_id is None:
+                    continue
+                true_value = lookup.get(str(true_id))
+                pred_value = lookup.get(str(pred_id))
+                if true_value is None or pred_value is None:
+                    continue
+                value_pairs.append((int(true_value), int(pred_value)))
+        entry["loss_breakdown"] = _padic_breakdown_from_pairs(value_pairs, entry["prime_base"]) if value_pairs else []
+        entry["total_predictions"] = len(value_pairs)
+
+    return results
 
 
 def _load_taxonomy_nn_fold_results(conn, schema: str = "padjective") -> Optional[list[Dict[str, Any]]]:
@@ -2189,7 +2497,41 @@ def _load_taxonomy_nn_fold_results(conn, schema: str = "padjective") -> Optional
                 "max_tags": int(row["max_tags"]) if row["max_tags"] is not None else None,
             })
 
-    return results if results else None
+    if not results:
+        return None
+
+    encoding_cache: Dict[int, Dict[str, int]] = {}
+    for entry in results:
+        fold = entry["cv_fold"]
+        if fold not in encoding_cache:
+            encoding_cache[fold] = _load_taxonomy_encoding_lookup(conn, schema, fold)
+        lookup = encoding_cache[fold]
+        value_pairs: list[tuple[int, int]] = []
+        with conn.cursor(row_factory=dict_row) as pred_cur:
+            pred_cur.execute(
+                sql.SQL(
+                    """
+                    SELECT true_taxonomy_id, predicted_taxonomy_id
+                    FROM {schema}.taxonomy_nn_predictions
+                    WHERE cv_fold = %s
+                    """
+                ).format(schema=sql.Identifier(schema)),
+                (fold,),
+            )
+            for pred_row in pred_cur:
+                true_id = pred_row["true_taxonomy_id"]
+                pred_id = pred_row["predicted_taxonomy_id"]
+                if true_id is None or pred_id is None:
+                    continue
+                true_value = lookup.get(str(true_id))
+                pred_value = lookup.get(str(pred_id))
+                if true_value is None or pred_value is None:
+                    continue
+                value_pairs.append((int(true_value), int(pred_value)))
+        entry["loss_breakdown"] = _padic_breakdown_from_pairs(value_pairs, entry["prime_base"]) if value_pairs else []
+        entry["total_predictions"] = len(value_pairs)
+
+    return results
 
 
 def _generate_historical_trends_chart(conn, output_path: Path, schema: str = "padjective") -> Optional[Path]:
@@ -2421,9 +2763,9 @@ footer {text-align: center; padding: 2rem 1.5rem 3rem; color: #6b7280;}
     if taxonomy_summary:
         if taxonomy_lr_fold_results:
             taxonomy_fold_pages = _write_taxonomy_lr_fold_pages(output_dir, taxonomy_lr_fold_results)
-        taxonomy_page = _write_taxonomy_classifier_page(
-            output_dir, taxonomy_summary, taxonomy_lr_fold_results, taxonomy_fold_pages
-        )
+            taxonomy_page = _write_taxonomy_classifier_page(
+                output_dir, taxonomy_summary, taxonomy_lr_fold_results, taxonomy_fold_pages
+            )
 
     umllr_summary = _load_umllr_results(precomputed_database, battle_schema)
     umllr_page = None
