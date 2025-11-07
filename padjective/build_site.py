@@ -1898,7 +1898,7 @@ def _build_index_html(
 
         taxonomy_card = f"""
   <div class="model-card">
-    <h3>Taxonomy Classifier</h3>
+    <h3>Logistic Regression</h3>
     <p>Logistic regression model predicting Shopify taxonomy from tags</p>
     <div class="card-metric">
       <span class="value">{metric_display}</span>
@@ -2239,7 +2239,7 @@ def _write_taxonomy_lr_fold_pages(
     if not fold_results:
         return pages
 
-    tax_dir = output_dir / "taxonomy_classifier"
+    tax_dir = output_dir / "logistic_regression"
     tax_dir.mkdir(parents=True, exist_ok=True)
 
     for fold_data in fold_results:
@@ -2277,13 +2277,13 @@ def _write_taxonomy_lr_fold_pages(
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Taxonomy Classifier Fold {fold} Results</title>
+  <title>Logistic Regression Fold {fold} Results</title>
   <link rel="stylesheet" href="../assets/styles.css" />
 </head>
 <body>
   <section class="umllr-fold">
-    <h1>Taxonomy Classifier Fold {fold}</h1>
-    <p><a href="index.html">Back to taxonomy classifier overview</a> &middot; <a href="../index.html">Back to main index</a></p>
+    <h1>Logistic Regression Fold {fold}</h1>
+    <p><a href="index.html">Back to logistic regression overview</a> &middot; <a href="../index.html">Back to main index</a></p>
 
     <h2>Fold metrics</h2>
     <table class="umllr-table">
@@ -2448,7 +2448,7 @@ def _write_taxonomy_classifier_page(
         fold_results: Required fold-level results with training statistics
         fold_pages: Required mapping of fold numbers to their detail page paths
     """
-    tax_dir = output_dir / "taxonomy_classifier"
+    tax_dir = output_dir / "logistic_regression"
     tax_dir.mkdir(parents=True, exist_ok=True)
 
     stats_block = taxonomy_summary.get("stats", {})
@@ -2553,12 +2553,12 @@ def _write_taxonomy_classifier_page(
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Taxonomy Classifier (Logistic Regression)</title>
+  <title>Logistic Regression</title>
   <link rel="stylesheet" href="../assets/styles.css" />
 </head>
 <body>
   <header class="hero">
-    <h1>Taxonomy Classifier</h1>
+    <h1>Logistic Regression</h1>
     <p class="tagline">Predicting Shopify taxonomy from product tags using logistic regression</p>
   </header>
 
