@@ -1604,6 +1604,95 @@ def _write_zero_coefficients_page(
     page_path.write_text(page_contents, encoding="utf-8")
 
 
+def _generate_padic_digit_distribution_chart(
+    coeff_rows: list[Dict[str, Any]],
+    tag_rankings: Dict[str, int],
+    prime_base: int,
+    output_path: Path
+) -> Optional[Path]:
+    """Generate a stacked area chart showing cumulative p-adic digit distributions.
+
+    Args:
+        coeff_rows: List of coefficient data with 'tag' and 'coefficient' fields
+        tag_rankings: Dict mapping tag names to their battle rankings
+        prime_base: The prime base for p-adic expansion
+        output_path: Where to save the chart
+
+    Returns:
+        Path to generated chart, or None if insufficient data
+    """
+    if not coeff_rows or not tag_rankings or prime_base < 2:
+        return None
+
+    # Build list of (rank, tag, padic_digit)
+    tag_data = []
+    for row in coeff_rows:
+        tag = row["tag"]
+        coefficient = row["coefficient"]
+        rank = tag_rankings.get(tag.upper())
+
+        if rank is not None:
+            padic_digit = abs(coefficient) % prime_base
+            tag_data.append((rank, tag, padic_digit))
+
+    if len(tag_data) < 2:
+        return None
+
+    # Sort by rank
+    tag_data.sort(key=lambda x: x[0])
+
+    # Compute cumulative proportions at each rank position
+    x_positions = []
+    digit_proportions = {d: [] for d in range(prime_base)}
+
+    for i in range(len(tag_data)):
+        # Include all tags from rank 0 to i (cumulative)
+        included_tags = tag_data[:i+1]
+
+        # Count p-adic digits
+        digit_counts = {d: 0 for d in range(prime_base)}
+        for _, _, digit in included_tags:
+            digit_counts[digit] += 1
+
+        # Calculate proportions
+        total = len(included_tags)
+        x_positions.append(i)
+        for d in range(prime_base):
+            proportion = digit_counts[d] / total if total > 0 else 0
+            digit_proportions[d].append(proportion * 100)  # Convert to percentage
+
+    # Create stacked area chart
+    fig, ax = plt.subplots(figsize=(12, 6))
+
+    # Use different colors for each digit
+    colors = plt.cm.tab10(range(prime_base))
+
+    # Stack the areas
+    y_stack = [digit_proportions[0]]
+    for d in range(1, prime_base):
+        y_stack.append([sum(x) for x in zip(y_stack[-1], digit_proportions[d])])
+
+    # Plot areas
+    ax.fill_between(x_positions, 0, digit_proportions[0],
+                     label=f'Digit 0', alpha=0.7, color=colors[0])
+    for d in range(1, prime_base):
+        ax.fill_between(x_positions, y_stack[d-1], y_stack[d],
+                         label=f'Digit {d}', alpha=0.7, color=colors[d])
+
+    ax.set_xlabel('Tag Rank (by battle position)', fontsize=12, fontweight='bold')
+    ax.set_ylabel('Cumulative Proportion (%)', fontsize=12, fontweight='bold')
+    ax.set_title('P-adic Digit Distribution by Tag Rank', fontsize=14, fontweight='bold', pad=15)
+    ax.set_ylim(0, 100)
+    ax.grid(True, alpha=0.3, linestyle='--')
+    ax.legend(loc='best', frameon=True, shadow=True, ncol=min(5, prime_base))
+
+    plt.tight_layout()
+    plt.savefig(output_path, dpi=150, bbox_inches='tight')
+    plt.close()
+
+    return output_path
+
+
 def _write_umllr_pages(output_dir: Path, summary: Dict[str, Any], conn=None, schema: str = "padjective") -> Dict[int, Path]:
     pages: Dict[int, Path] = {}
     metrics = summary.get("metrics", [])
@@ -1783,6 +1872,21 @@ def _write_umllr_pages(output_dir: Path, summary: Dict[str, Any], conn=None, sch
     </table>
 """
 
+        # Generate p-adic digit distribution chart
+        digit_chart_html = ""
+        digit_chart_path = umllr_dir / f"fold_{fold}_digit_distribution.png"
+        generated_chart = _generate_padic_digit_distribution_chart(
+            coeff_rows, tag_rankings, prime_base, digit_chart_path
+        )
+        if generated_chart:
+            digit_chart_html = f"""
+    <h2>P-adic Digit Distribution by Tag Rank</h2>
+    <figure class="chart">
+      <img src="fold_{fold}_digit_distribution.png" alt="P-adic digit distribution by tag rank" />
+      <figcaption>Cumulative distribution of p-adic digit values as tags are included by their battle ranking</figcaption>
+    </figure>
+"""
+
         page_contents = f"""
 <!DOCTYPE html>
 <html lang="en">
@@ -1797,6 +1901,7 @@ def _write_umllr_pages(output_dir: Path, summary: Dict[str, Any], conn=None, sch
     <p><a href="../index.html">Back to index</a></p>
     <p><strong>P-adic loss (mean):</strong> {mean_loss:.8f} &middot; <strong>Test samples:</strong> {num_predictions:,} &middot; <strong>Accuracy:</strong> {accuracy_text} &middot; <strong>F1:</strong> {f1_text} &middot; <strong>Prime base:</strong> {metric['prime_base']} &middot; <strong>Max digit:</strong> {metric['max_digit']}</p>
 {breakdown_html}
+{digit_chart_html}
     <h2>Tag coefficients</h2>
     <table class="umllr-table">
       <thead>
