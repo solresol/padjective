@@ -1610,7 +1610,7 @@ def _generate_padic_digit_distribution_chart(
     prime_base: int,
     output_path: Path
 ) -> Optional[Path]:
-    """Generate a stacked area chart showing cumulative p-adic digit distributions.
+    """Generate a stacked area chart showing cumulative p-adic valuation distributions.
 
     Args:
         coeff_rows: List of coefficient data with 'tag' and 'coefficient' fields
@@ -1624,7 +1624,8 @@ def _generate_padic_digit_distribution_chart(
     if not coeff_rows or not tag_rankings or prime_base < 2:
         return None
 
-    # Build list of (rank, tag, padic_digit)
+    # Build list of (rank, tag, num_zeros)
+    # num_zeros is the p-adic valuation (how many times prime divides coefficient)
     tag_data = []
     for row in coeff_rows:
         tag = row["tag"]
@@ -1632,8 +1633,17 @@ def _generate_padic_digit_distribution_chart(
         rank = tag_rankings.get(tag.upper())
 
         if rank is not None:
-            padic_digit = abs(coefficient) % prime_base
-            tag_data.append((rank, tag, padic_digit))
+            if coefficient == 0:
+                # Zero has infinite p-adic valuation
+                num_zeros = -1  # Use -1 to represent infinity
+            else:
+                # Count how many times prime_base divides coefficient
+                num_zeros = 0
+                temp = abs(coefficient)
+                while temp % prime_base == 0:
+                    num_zeros += 1
+                    temp //= prime_base
+            tag_data.append((rank, tag, num_zeros))
 
     if len(tag_data) < 2:
         return None
@@ -1641,50 +1651,55 @@ def _generate_padic_digit_distribution_chart(
     # Sort by rank
     tag_data.sort(key=lambda x: x[0])
 
+    # Find max number of zeros (excluding infinity)
+    max_zeros = max((z for _, _, z in tag_data if z >= 0), default=0)
+
+    # Categories: 0 zeros, 1 zero, 2 zeros, ..., max_zeros, infinity
+    categories = list(range(max_zeros + 1)) + [-1]  # -1 represents infinity
+
     # Compute cumulative proportions at each rank position
     x_positions = []
-    digit_proportions = {d: [] for d in range(prime_base)}
+    zero_proportions = {z: [] for z in categories}
 
     for i in range(len(tag_data)):
         # Include all tags from rank 0 to i (cumulative)
         included_tags = tag_data[:i+1]
 
-        # Count p-adic digits
-        digit_counts = {d: 0 for d in range(prime_base)}
-        for _, _, digit in included_tags:
-            digit_counts[digit] += 1
+        # Count number of zeros
+        zero_counts = {z: 0 for z in categories}
+        for _, _, num_zeros in included_tags:
+            zero_counts[num_zeros] += 1
 
         # Calculate proportions
         total = len(included_tags)
         x_positions.append(i)
-        for d in range(prime_base):
-            proportion = digit_counts[d] / total if total > 0 else 0
-            digit_proportions[d].append(proportion * 100)  # Convert to percentage
+        for z in categories:
+            proportion = zero_counts[z] / total if total > 0 else 0
+            zero_proportions[z].append(proportion * 100)  # Convert to percentage
 
     # Create stacked area chart
     fig, ax = plt.subplots(figsize=(12, 6))
 
-    # Use different colors for each digit
-    colors = plt.cm.tab10(range(prime_base))
+    # Use different colors
+    colors = plt.cm.tab20(range(len(categories)))
 
-    # Stack the areas
-    y_stack = [digit_proportions[0]]
-    for d in range(1, prime_base):
-        y_stack.append([sum(x) for x in zip(y_stack[-1], digit_proportions[d])])
+    # Stack the areas in order: 0, 1, 2, ..., infinity
+    y_stack = []
+    current_y = [0] * len(x_positions)
 
-    # Plot areas
-    ax.fill_between(x_positions, 0, digit_proportions[0],
-                     label=f'Digit 0', alpha=0.7, color=colors[0])
-    for d in range(1, prime_base):
-        ax.fill_between(x_positions, y_stack[d-1], y_stack[d],
-                         label=f'Digit {d}', alpha=0.7, color=colors[d])
+    for idx, z in enumerate(categories):
+        next_y = [current_y[j] + zero_proportions[z][j] for j in range(len(x_positions))]
+        label = f'{z} trailing zeros' if z >= 0 else 'Infinite trailing zeros (coeff=0)'
+        ax.fill_between(x_positions, current_y, next_y,
+                         label=label, alpha=0.7, color=colors[idx])
+        current_y = next_y
 
     ax.set_xlabel('Tag Rank (by battle position)', fontsize=12, fontweight='bold')
     ax.set_ylabel('Cumulative Proportion (%)', fontsize=12, fontweight='bold')
-    ax.set_title('P-adic Digit Distribution by Tag Rank', fontsize=14, fontweight='bold', pad=15)
+    ax.set_title('P-adic Trailing Zeros by Tag Rank', fontsize=14, fontweight='bold', pad=15)
     ax.set_ylim(0, 100)
     ax.grid(True, alpha=0.3, linestyle='--')
-    ax.legend(loc='best', frameon=True, shadow=True, ncol=min(5, prime_base))
+    ax.legend(loc='best', frameon=True, shadow=True, ncol=2)
 
     plt.tight_layout()
     plt.savefig(output_path, dpi=150, bbox_inches='tight')
@@ -1880,10 +1895,10 @@ def _write_umllr_pages(output_dir: Path, summary: Dict[str, Any], conn=None, sch
         )
         if generated_chart:
             digit_chart_html = f"""
-    <h2>P-adic Digit Distribution by Tag Rank</h2>
+    <h2>P-adic Trailing Zeros by Tag Rank</h2>
     <figure class="chart">
-      <img src="fold_{fold}_digit_distribution.png" alt="P-adic digit distribution by tag rank" />
-      <figcaption>Cumulative distribution of p-adic digit values as tags are included by their battle ranking</figcaption>
+      <img src="fold_{fold}_digit_distribution.png" alt="P-adic trailing zeros by tag rank" />
+      <figcaption>Cumulative distribution of p-adic valuations (trailing zeros) as tags are included by their battle ranking. Shows how many times the prime base divides each coefficient.</figcaption>
     </figure>
 """
 
