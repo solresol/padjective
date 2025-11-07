@@ -55,6 +55,15 @@ for fold in 0 1 2 3 4; do
         --max-tags 109
 done
 
+# Train full taxonomy classifier (populates taxonomy_lr_models summary table for index card)
+echo "Training full taxonomy classifier..."
+uv run -m padjective.taxonomy_classifier \
+    "${TAGBATTLE_DSN_ARGS[@]}" \
+    --product-table "$TAGBATTLE_PRODUCT_TABLE" \
+    --results-schema "$TAXONOMY_RESULTS_SCHEMA" \
+    --output-dir "$TAXONOMY_CLASSIFIER_REPORT_DIR" \
+    --max-tags 109
+
 # Train neural network classifiers (once per fold)
 # Use --max-tags 109 and --hidden-layers 49 for fair comparison with umllr (~10,000 parameters)
 for fold in 0 1 2 3 4; do
