@@ -1621,7 +1621,7 @@ def _generate_padic_digit_distribution_chart(
     Returns:
         Path to generated chart, or None if insufficient data
     """
-    if not coeff_rows or not tag_rankings or prime_base < 2:
+    if not coeff_rows or prime_base < 2:
         return None
 
     # Build list of (rank, tag, num_zeros)
@@ -1630,20 +1630,25 @@ def _generate_padic_digit_distribution_chart(
     for row in coeff_rows:
         tag = row["tag"]
         coefficient = row["coefficient"]
-        rank = tag_rankings.get(tag.upper())
 
-        if rank is not None:
-            if coefficient == 0:
-                # Zero has infinite p-adic valuation
-                num_zeros = -1  # Use -1 to represent infinity
-            else:
-                # Count how many times prime_base divides coefficient
-                num_zeros = 0
-                temp = abs(coefficient)
-                while temp % prime_base == 0:
-                    num_zeros += 1
-                    temp //= prime_base
-            tag_data.append((rank, tag, num_zeros))
+        # Get rank from tag_rankings, or use a very high rank if not found
+        # Tags without ranks get assigned a very high rank (999999) so they appear at the end
+        if tag_rankings:
+            rank = tag_rankings.get(tag.upper(), 999999)
+        else:
+            rank = 999999
+
+        if coefficient == 0:
+            # Zero has infinite p-adic valuation
+            num_zeros = -1  # Use -1 to represent infinity
+        else:
+            # Count how many times prime_base divides coefficient
+            num_zeros = 0
+            temp = abs(coefficient)
+            while temp % prime_base == 0:
+                num_zeros += 1
+                temp //= prime_base
+        tag_data.append((rank, tag, num_zeros))
 
     if len(tag_data) < 2:
         return None
@@ -1694,10 +1699,11 @@ def _generate_padic_digit_distribution_chart(
                          label=label, alpha=0.7, color=colors[idx])
         current_y = next_y
 
-    ax.set_xlabel('Tag Rank (by battle position)', fontsize=12, fontweight='bold')
+    ax.set_xlabel('Tag Position (ordered by battle rank)', fontsize=12, fontweight='bold')
     ax.set_ylabel('Cumulative Proportion (%)', fontsize=12, fontweight='bold')
-    ax.set_title('P-adic Leading Zeros by Tag Rank', fontsize=14, fontweight='bold', pad=15)
+    ax.set_title(f'P-adic Leading Zeros by Tag Rank ({len(tag_data)} tags)', fontsize=14, fontweight='bold', pad=15)
     ax.set_ylim(0, 100)
+    ax.set_xlim(0, len(x_positions) - 1)  # Ensure full range is shown
     ax.grid(True, alpha=0.3, linestyle='--')
     ax.legend(loc='best', frameon=True, shadow=True, ncol=2)
 
