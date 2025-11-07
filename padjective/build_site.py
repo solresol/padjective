@@ -1987,11 +1987,11 @@ def _build_index_html(
         # Show top 10 in table
         class_distribution_table = class_distribution[:10]
         class_rows = "\n".join(
-            f"<tr><td>{html.escape(row.get('taxonomy_id') or '')}</td><td>{html.escape(row.get('taxonomy_path') or 'Unknown')}</td><td>{row.get('sample_count', 0):,}</td><td>{row.get('sample_fraction', 0.0) * 100:.1f}%</td></tr>"
+            f"<tr><td>{html.escape(row.get('taxonomy_id') or '')}</td><td>{html.escape(row.get('taxonomy_name') or 'Unknown')}</td><td>{html.escape(row.get('taxonomy_path') or 'Unknown')}</td><td>{row.get('sample_count', 0):,}</td><td>{row.get('sample_fraction', 0.0) * 100:.1f}%</td></tr>"
             for row in class_distribution_table
         )
         if not class_rows:
-            class_rows = '<tr><td colspan="4">No taxonomy class data available</td></tr>'
+            class_rows = '<tr><td colspan="5">No taxonomy class data available</td></tr>'
 
         chart_html = ""
         if taxonomy_dist_chart_path:
@@ -2008,7 +2008,7 @@ def _build_index_html(
     {chart_html}
     <h3>Top 10 taxonomy classes</h3>
     <table class="taxonomy-table">
-      <thead><tr><th>Taxonomy ID</th><th>Path</th><th>Samples</th><th>Share</th></tr></thead>
+      <thead><tr><th>Taxonomy ID</th><th>Name</th><th>Path</th><th>Samples</th><th>Share</th></tr></thead>
       <tbody>{class_rows}</tbody>
     </table>
   </section>"""
@@ -2887,11 +2887,17 @@ def _collect_taxonomy_classifier_summary(
         cur.execute(
             sql.SQL(
                 """
-                SELECT taxonomy_id, taxonomy_path, sample_count, sample_fraction
-                FROM {schema}.taxonomy_lr_class_distribution
-                WHERE model_id = %s
-                  AND taxonomy_path !~ '[>/|]'
-                ORDER BY sample_fraction DESC, sample_count DESC, taxonomy_id
+                SELECT
+                    d.taxonomy_id,
+                    d.taxonomy_path,
+                    t.taxonomy_name,
+                    d.sample_count,
+                    d.sample_fraction
+                FROM {schema}.taxonomy_lr_class_distribution d
+                LEFT JOIN cantbuymelove.taxonomy t ON d.taxonomy_id = t.taxonomy_id
+                WHERE d.model_id = %s
+                  AND d.taxonomy_path !~ '[>/|]'
+                ORDER BY d.sample_fraction DESC, d.sample_count DESC, d.taxonomy_id
                 """
             ).format(schema=sql.Identifier(schema)),
             (model_id,),
@@ -2900,6 +2906,7 @@ def _collect_taxonomy_classifier_summary(
             {
                 "taxonomy_id": row["taxonomy_id"],
                 "taxonomy_path": row["taxonomy_path"],
+                "taxonomy_name": row.get("taxonomy_name") or "Unknown",
                 "sample_count": int(row["sample_count"]),
                 "sample_fraction": float(row["sample_fraction"]),
             }
@@ -3109,7 +3116,7 @@ def _generate_taxonomy_distribution_chart(class_distribution: list[dict], output
     """Generate a horizontal bar chart showing taxonomy class distribution.
 
     Args:
-        class_distribution: List of taxonomy distribution dicts with taxonomy_path, sample_count
+        class_distribution: List of taxonomy distribution dicts with taxonomy_name, sample_count
         output_path: Where to save the chart
         top_n: Number of top taxonomies to show
 
@@ -3122,8 +3129,8 @@ def _generate_taxonomy_distribution_chart(class_distribution: list[dict], output
     # Take top N taxonomies
     data = class_distribution[:top_n]
 
-    # Extract labels and values
-    labels = [row['taxonomy_path'] for row in data]
+    # Extract labels and values - use taxonomy_name instead of taxonomy_path
+    labels = [row.get('taxonomy_name', 'Unknown') for row in data]
     counts = [row['sample_count'] for row in data]
 
     # Create horizontal bar chart
