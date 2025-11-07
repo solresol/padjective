@@ -1971,43 +1971,46 @@ def _build_index_html(
     models_grid = "\n".join(all_cards)
 
     taxonomy_overview_html = ""
+    taxonomy_dist_chart_path = None
     if taxonomy_summary:
-        class_distribution = taxonomy_summary.get("class_distribution", [])[:5]
-        top_tags = taxonomy_summary.get("top_tags", [])[:5]
+        class_distribution = taxonomy_summary.get("class_distribution", [])[:15]
 
+        # Generate taxonomy distribution chart
+        if class_distribution:
+            assets_dir = output_dir / "assets"
+            assets_dir.mkdir(parents=True, exist_ok=True)
+            chart_path = assets_dir / "taxonomy_distribution.png"
+            taxonomy_dist_chart_path = _generate_taxonomy_distribution_chart(
+                class_distribution, chart_path, top_n=15
+            )
+
+        # Show top 10 in table
+        class_distribution_table = class_distribution[:10]
         class_rows = "\n".join(
-            f"<tr><td>{html.escape(row.get('taxonomy_path') or 'Unknown')}</td><td>{row.get('sample_count', 0):,}</td><td>{row.get('sample_fraction', 0.0) * 100:.1f}%</td></tr>"
-            for row in class_distribution
+            f"<tr><td>{html.escape(row.get('taxonomy_id') or '')}</td><td>{html.escape(row.get('taxonomy_path') or 'Unknown')}</td><td>{row.get('sample_count', 0):,}</td><td>{row.get('sample_fraction', 0.0) * 100:.1f}%</td></tr>"
+            for row in class_distribution_table
         )
         if not class_rows:
-            class_rows = '<tr><td colspan="3">No taxonomy class data available</td></tr>'
+            class_rows = '<tr><td colspan="4">No taxonomy class data available</td></tr>'
 
-        tag_rows = "\n".join(
-            f"<tr><td>{html.escape(row.get('tag') or '')}</td><td>{html.escape(row.get('top_taxonomy_path') or 'Unknown')}</td><td>{row.get('top_weight', 0.0):.3f}</td></tr>"
-            for row in top_tags
-        )
-        if not tag_rows:
-            tag_rows = '<tr><td colspan="3">No tag signal data available</td></tr>'
+        chart_html = ""
+        if taxonomy_dist_chart_path:
+            chart_rel_path = taxonomy_dist_chart_path.relative_to(output_dir).as_posix()
+            chart_html = f"""
+    <figure class="chart">
+      <img src="{chart_rel_path}" alt="Taxonomy class distribution" />
+      <figcaption>Distribution of products across the most common taxonomy classes</figcaption>
+    </figure>"""
 
         taxonomy_overview_html = f"""
   <section class="taxonomy-classifier">
-    <h2>Taxonomy classifier highlights</h2>
-    <div class="taxonomy-layout">
-      <div class="taxonomy-card">
-        <h3>Largest taxonomy classes</h3>
-        <table class="taxonomy-table">
-          <thead><tr><th>Path</th><th>Samples</th><th>Share</th></tr></thead>
-          <tbody>{class_rows}</tbody>
-        </table>
-      </div>
-      <div class="taxonomy-card">
-        <h3>Tags with strongest signals</h3>
-        <table class="taxonomy-table">
-          <thead><tr><th>Tag</th><th>Top taxonomy</th><th>Weight</th></tr></thead>
-          <tbody>{tag_rows}</tbody>
-        </table>
-      </div>
-    </div>
+    <h2>Taxonomy distribution</h2>
+    {chart_html}
+    <h3>Top 10 taxonomy classes</h3>
+    <table class="taxonomy-table">
+      <thead><tr><th>Taxonomy ID</th><th>Path</th><th>Samples</th><th>Share</th></tr></thead>
+      <tbody>{class_rows}</tbody>
+    </table>
   </section>"""
 
     html_document = f"""<!DOCTYPE html>
@@ -3100,6 +3103,57 @@ def _load_taxonomy_nn_fold_results(conn, schema: str = "padjective") -> Optional
         entry["total_predictions"] = len(value_pairs)
 
     return results
+
+
+def _generate_taxonomy_distribution_chart(class_distribution: list[dict], output_path: Path, top_n: int = 15) -> Optional[Path]:
+    """Generate a horizontal bar chart showing taxonomy class distribution.
+
+    Args:
+        class_distribution: List of taxonomy distribution dicts with taxonomy_path, sample_count
+        output_path: Where to save the chart
+        top_n: Number of top taxonomies to show
+
+    Returns:
+        Path to generated chart, or None if insufficient data
+    """
+    if not class_distribution or len(class_distribution) < 2:
+        return None
+
+    # Take top N taxonomies
+    data = class_distribution[:top_n]
+
+    # Extract labels and values
+    labels = [row['taxonomy_path'] for row in data]
+    counts = [row['sample_count'] for row in data]
+
+    # Create horizontal bar chart
+    fig, ax = plt.subplots(figsize=(10, max(6, len(data) * 0.4)))
+
+    # Create bars
+    bars = ax.barh(range(len(labels)), counts, color='#0b6ce3', alpha=0.8)
+
+    # Customize
+    ax.set_yticks(range(len(labels)))
+    ax.set_yticklabels(labels, fontsize=10)
+    ax.set_xlabel('Number of Products', fontsize=12, fontweight='bold')
+    ax.set_title('Taxonomy Class Distribution', fontsize=14, fontweight='bold', pad=15)
+    ax.grid(True, alpha=0.3, linestyle='--', axis='x')
+
+    # Add value labels on bars
+    for i, (bar, count) in enumerate(zip(bars, counts)):
+        width = bar.get_width()
+        ax.text(width, bar.get_y() + bar.get_height()/2,
+                f' {count:,}',
+                ha='left', va='center', fontsize=9, fontweight='bold')
+
+    # Invert y-axis so largest is on top
+    ax.invert_yaxis()
+
+    plt.tight_layout()
+    plt.savefig(output_path, dpi=150, bbox_inches='tight')
+    plt.close()
+
+    return output_path
 
 
 def _generate_historical_trends_chart(conn, output_path: Path, schema: str = "padjective") -> Optional[Path]:
