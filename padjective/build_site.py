@@ -873,7 +873,7 @@ def _write_dummy_fold_pages(
                 f"<td>{row['product_id']}</td>"
                 f"<td>{row['true_value']}</td>"
                 f"<td>{row['predicted_value']}</td>"
-                f"<td>{row['loss']:.6f}</td>"
+                f"<td>{row['loss']:.8f}</td>"
                 "</tr>"
             )
 
@@ -1353,7 +1353,7 @@ def _write_prediction_detail_page(
           <td>{html.escape(pred_tax_path)}</td>
           <td>{html.escape(pred_tax_id)}</td>
           <td>{html.escape(pred_tax_name)}</td>
-          <td>{umllr_pred.get("loss", 0.0):.6f}</td>
+          <td>{umllr_pred.get("loss", 0.0):.8f}</td>
         </tr>
         """)
 
@@ -1371,7 +1371,7 @@ def _write_prediction_detail_page(
           <td>{html.escape(pred_tax_path)}</td>
           <td>{html.escape(pred_tax_id)}</td>
           <td>{html.escape(pred_tax_name)}</td>
-          <td>{lr_pred.get("loss", 0.0):.6f}</td>
+          <td>{lr_pred.get("loss", 0.0):.8f}</td>
         </tr>
         """)
 
@@ -1389,7 +1389,7 @@ def _write_prediction_detail_page(
           <td>{html.escape(pred_tax_path)}</td>
           <td>{html.escape(pred_tax_id)}</td>
           <td>{html.escape(pred_tax_name)}</td>
-          <td>{nn_pred.get("loss", 0.0):.6f}</td>
+          <td>{nn_pred.get("loss", 0.0):.8f}</td>
         </tr>
         """)
 
@@ -1741,7 +1741,7 @@ def _write_umllr_pages(output_dir: Path, summary: Dict[str, Any], conn=None, sch
                 f"<td>{product_id_cell}</td>"
                 f"<td>{row['true_value']}</td>"
                 f"<td>{row['predicted_value']}</td>"
-                f"<td>{row['loss']:.6f}</td>"
+                f"<td>{row['loss']:.8f}</td>"
                 "</tr>"
             )
 
@@ -1795,7 +1795,7 @@ def _write_umllr_pages(output_dir: Path, summary: Dict[str, Any], conn=None, sch
   <section class="umllr-fold">
     <h1>Importance-Optimised p-adic Linear Regression fold {fold}</h1>
     <p><a href="../index.html">Back to index</a></p>
-    <p><strong>P-adic loss (mean):</strong> {mean_loss:.6f} &middot; <strong>Test samples:</strong> {num_predictions:,} &middot; <strong>Accuracy:</strong> {accuracy_text} &middot; <strong>F1:</strong> {f1_text} &middot; <strong>Prime base:</strong> {metric['prime_base']} &middot; <strong>Max digit:</strong> {metric['max_digit']}</p>
+    <p><strong>P-adic loss (mean):</strong> {mean_loss:.8f} &middot; <strong>Test samples:</strong> {num_predictions:,} &middot; <strong>Accuracy:</strong> {accuracy_text} &middot; <strong>F1:</strong> {f1_text} &middot; <strong>Prime base:</strong> {metric['prime_base']} &middot; <strong>Max digit:</strong> {metric['max_digit']}</p>
 {breakdown_html}
     <h2>Tag coefficients</h2>
     <table class="umllr-table">
@@ -2321,9 +2321,9 @@ def _write_taxonomy_lr_fold_pages(
       <tbody>
         <tr><td>Test accuracy</td><td>{fold_data['test_accuracy'] * 100:.2f}%</td></tr>
         <tr><td>Test F1 score</td><td>{fold_data['test_f1']:.4f}</td></tr>
-        <tr><td>Hierarchical loss</td><td>{fold_data['test_hierarchical_loss']:.6f}</td></tr>
-        <tr><td>P-adic loss (total)</td><td>{fold_data['padic_loss_total']:.6f}</td></tr>
-        <tr><td>P-adic loss (mean)</td><td>{fold_data['padic_loss_mean']:.6f}</td></tr>
+        <tr><td>Hierarchical loss</td><td>{fold_data['test_hierarchical_loss']:.8f}</td></tr>
+        <tr><td>P-adic loss (total)</td><td>{fold_data['padic_loss_total']:.8f}</td></tr>
+        <tr><td>P-adic loss (mean)</td><td>{fold_data['padic_loss_mean']:.8f}</td></tr>
         <tr><td>Prime base</td><td>{fold_data['prime_base']}</td></tr>
         <tr><td>Training samples</td><td>{fold_data['num_train_samples']:,}</td></tr>
         <tr><td>Test samples</td><td>{fold_data['num_test_samples']:,}</td></tr>
@@ -2391,7 +2391,7 @@ def _write_umllr_overview_page(
             f"<td>{fold}</td>"
             f"<td>{acc_text}</td>"
             f"<td>{f1_text}</td>"
-            f"<td>{mean_loss:.6f}</td>"
+            f"<td>{mean_loss:.8f}</td>"
             f"<td>{link_text}</td>"
             f"</tr>"
         )
@@ -2513,7 +2513,7 @@ def _write_taxonomy_classifier_page(
       <li><strong>Total train samples:</strong> {total_train:,}</li>
       <li><strong>Total test samples:</strong> {total_test:,}</li>
       <li><strong>Mean F1 (weighted):</strong> {avg_f1:.4f}</li>
-      <li><strong>Mean p-adic loss:</strong> {avg_padic_loss:.6f}</li>
+      <li><strong>Mean p-adic loss:</strong> {avg_padic_loss:.8f}</li>
     </ul>
 """
 
@@ -2534,14 +2534,14 @@ def _write_taxonomy_classifier_page(
             f"<td>{fold}</td>"
             f"<td>{fold_data['test_accuracy'] * 100:.2f}%</td>"
             f"<td>{fold_data['test_f1']:.4f}</td>"
-            f"<td>{fold_data['padic_loss_mean']:.6f}</td>"
+            f"<td>{fold_data['padic_loss_mean']:.8f}</td>"
             f"<td>{link_text}</td>"
             f"</tr>"
         )
     fold_table_body = "\n".join(fold_rows)
     fold_results_html = f"""
     <h2>Cross-validation fold results</h2>
-    <p>Average p-adic loss across all folds: <strong>{avg_padic_loss:.6f}</strong></p>
+    <p>Average p-adic loss across all folds: <strong>{avg_padic_loss:.8f}</strong></p>
     <table class="umllr-summary">
       <thead>
         <tr><th>Fold</th><th>Test Accuracy</th><th>F1 Score</th><th>P-adic Loss (mean)</th><th>Details</th></tr>
@@ -2694,9 +2694,9 @@ def _write_taxonomy_nn_fold_pages(
       <tbody>
         <tr><td>Test accuracy</td><td>{fold_data['test_accuracy'] * 100:.2f}%</td></tr>
         <tr><td>Test F1 score</td><td>{fold_data['test_f1']:.4f}</td></tr>
-        <tr><td>Hierarchical loss</td><td>{fold_data['test_hierarchical_loss']:.6f}</td></tr>
-        <tr><td>P-adic loss (total)</td><td>{fold_data['padic_loss_total']:.6f}</td></tr>
-        <tr><td>P-adic loss (mean)</td><td>{fold_data['padic_loss_mean']:.6f}</td></tr>
+        <tr><td>Hierarchical loss</td><td>{fold_data['test_hierarchical_loss']:.8f}</td></tr>
+        <tr><td>P-adic loss (total)</td><td>{fold_data['padic_loss_total']:.8f}</td></tr>
+        <tr><td>P-adic loss (mean)</td><td>{fold_data['padic_loss_mean']:.8f}</td></tr>
         <tr><td>Prime base</td><td>{fold_data['prime_base']}</td></tr>
         <tr><td>Hidden layer size</td><td>{html.escape(fold_data['hidden_layers'])}</td></tr>
         {max_tags_row}
@@ -2810,7 +2810,7 @@ def _write_taxonomy_nn_overview_page(
         <span class="label">Mean F1</span>
       </div>
       <div class="metric">
-        <span class="value">{avg_padic_loss:.6f}</span>
+        <span class="value">{avg_padic_loss:.8f}</span>
         <span class="label">Mean p-adic loss</span>
       </div>
     </div>
