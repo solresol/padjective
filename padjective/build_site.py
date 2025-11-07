@@ -1689,14 +1689,14 @@ def _generate_padic_digit_distribution_chart(
 
     for idx, z in enumerate(categories):
         next_y = [current_y[j] + zero_proportions[z][j] for j in range(len(x_positions))]
-        label = f'{z} trailing zeros' if z >= 0 else 'Infinite trailing zeros (coeff=0)'
+        label = f'{z} leading zeros' if z >= 0 else 'Infinite leading zeros (coeff=0)'
         ax.fill_between(x_positions, current_y, next_y,
                          label=label, alpha=0.7, color=colors[idx])
         current_y = next_y
 
     ax.set_xlabel('Tag Rank (by battle position)', fontsize=12, fontweight='bold')
     ax.set_ylabel('Cumulative Proportion (%)', fontsize=12, fontweight='bold')
-    ax.set_title('P-adic Trailing Zeros by Tag Rank', fontsize=14, fontweight='bold', pad=15)
+    ax.set_title('P-adic Leading Zeros by Tag Rank', fontsize=14, fontweight='bold', pad=15)
     ax.set_ylim(0, 100)
     ax.grid(True, alpha=0.3, linestyle='--')
     ax.legend(loc='best', frameon=True, shadow=True, ncol=2)
@@ -1895,10 +1895,10 @@ def _write_umllr_pages(output_dir: Path, summary: Dict[str, Any], conn=None, sch
         )
         if generated_chart:
             digit_chart_html = f"""
-    <h2>P-adic Trailing Zeros by Tag Rank</h2>
+    <h2>P-adic Leading Zeros by Tag Rank</h2>
     <figure class="chart">
-      <img src="fold_{fold}_digit_distribution.png" alt="P-adic trailing zeros by tag rank" />
-      <figcaption>Cumulative distribution of p-adic valuations (trailing zeros) as tags are included by their battle ranking. Shows how many times the prime base divides each coefficient.</figcaption>
+      <img src="fold_{fold}_digit_distribution.png" alt="P-adic leading zeros by tag rank" />
+      <figcaption>Cumulative distribution of p-adic valuations (leading zeros in the taxonomy path) as tags are included by their battle ranking. Shows how many times the prime base divides each coefficient.</figcaption>
     </figure>
 """
 
