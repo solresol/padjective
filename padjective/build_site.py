@@ -1349,7 +1349,7 @@ def _write_prediction_detail_page(
 
         predictions_rows.append(f"""
         <tr>
-          <td>umllr</td>
+          <td>Importance-Optimised p-adic Linear Regression</td>
           <td>{html.escape(pred_tax_path)}</td>
           <td>{html.escape(pred_tax_id)}</td>
           <td>{html.escape(pred_tax_name)}</td>
@@ -1440,7 +1440,7 @@ def _write_prediction_detail_page(
     if umllr_tag_rows:
         umllr_detail_html = f"""
         <div class="detail-section">
-          <h2>umllr Tag Contributions</h2>
+          <h2>Importance-Optimised p-adic Linear Regression Tag Contributions</h2>
           <table class="detail-table">
             <thead>
               <tr><th>Tag</th><th>Coefficient</th><th>Taxonomy Path</th><th>Expansion</th><th>Taxonomy Name</th></tr>
@@ -1581,12 +1581,12 @@ def _write_zero_coefficients_page(
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>umllr fold {fold} - Zero coefficients</title>
+  <title>Importance-Optimised p-adic Linear Regression fold {fold} - Zero coefficients</title>
   <link rel="stylesheet" href="../assets/styles.css" />
 </head>
 <body>
   <section class="umllr-fold">
-    <h1>umllr fold {fold} - Zero coefficients</h1>
+    <h1>Importance-Optimised p-adic Linear Regression fold {fold} - Zero coefficients</h1>
     <p><a href="fold_{fold}.html">Back to fold {fold}</a> | <a href="../index.html">Back to index</a></p>
     <p>Tags with zero coefficients ({len(zero_coeff_tags)} total)</p>
     <table class="umllr-table">
@@ -1788,12 +1788,12 @@ def _write_umllr_pages(output_dir: Path, summary: Dict[str, Any], conn=None, sch
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>umllr fold {fold} results</title>
+  <title>Importance-Optimised p-adic Linear Regression fold {fold} results</title>
   <link rel="stylesheet" href="../assets/styles.css" />
 </head>
 <body>
   <section class="umllr-fold">
-    <h1>umllr fold {fold}</h1>
+    <h1>Importance-Optimised p-adic Linear Regression fold {fold}</h1>
     <p><a href="../index.html">Back to index</a></p>
     <p><strong>P-adic loss (mean):</strong> {mean_loss:.6f} &middot; <strong>Test samples:</strong> {num_predictions:,} &middot; <strong>Accuracy:</strong> {accuracy_text} &middot; <strong>F1:</strong> {f1_text} &middot; <strong>Prime base:</strong> {metric['prime_base']} &middot; <strong>Max digit:</strong> {metric['max_digit']}</p>
 {breakdown_html}
@@ -1943,7 +1943,7 @@ def _build_index_html(
         f1_text = f"{avg_f1:.4f}" if avg_f1 is not None else "—"
         umllr_card = f"""
   <div class="model-card">
-    <h3>umllr P-adic Regression</h3>
+    <h3>Importance-Optimised p-adic Linear Regression</h3>
     <p>P-adic coefficients assigned to tags to predict taxonomy</p>
     <div class="card-metric">
       <span class="value">{avg_loss:.4f}</span>
@@ -3228,7 +3228,7 @@ def _generate_historical_trends_chart(conn, output_path: Path, schema: str = "pa
 
     # Plot p-adic loss trends
     if any(umllr_loss):
-        ax1.plot(dates, umllr_loss, 'o-', label='umllr', color='#0b6ce3', linewidth=2, markersize=6)
+        ax1.plot(dates, umllr_loss, 'o-', label='Importance-Optimised p-adic LR', color='#0b6ce3', linewidth=2, markersize=6)
     if any(lr_loss):
         ax1.plot(dates, lr_loss, 's-', label='Logistic Regression', color='#10b981', linewidth=2, markersize=6)
     if any(nn_loss):
