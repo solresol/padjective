@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import html
 import json
+import math
 import shutil
 from collections import Counter
 from datetime import datetime, timezone
@@ -1714,6 +1715,88 @@ def _generate_padic_digit_distribution_chart(
     return output_path
 
 
+def _generate_log_nonzero_proportion_chart(
+    coeff_rows: list[Dict[str, Any]],
+    tag_rankings: Dict[str, int],
+    output_path: Path
+) -> Optional[Path]:
+    """Generate a chart showing log of proportion of non-zero coefficients.
+
+    Args:
+        coeff_rows: List of coefficient data with 'tag' and 'coefficient' fields
+        tag_rankings: Dict mapping tag names to their battle rankings
+        output_path: Where to save the chart
+
+    Returns:
+        Path to generated chart, or None if insufficient data
+    """
+    if not coeff_rows:
+        return None
+
+    # Build list of (rank, tag, is_nonzero)
+    tag_data = []
+    for row in coeff_rows:
+        tag = row["tag"]
+        coefficient = row["coefficient"]
+
+        # Get rank from tag_rankings, or use a very high rank if not found
+        if tag_rankings:
+            rank = tag_rankings.get(tag.upper(), 999999)
+        else:
+            rank = 999999
+
+        is_nonzero = (coefficient != 0)
+        tag_data.append((rank, tag, is_nonzero))
+
+    if len(tag_data) < 2:
+        return None
+
+    # Sort by rank
+    tag_data.sort(key=lambda x: x[0])
+
+    # Calculate cumulative proportion of non-zero coefficients
+    x_positions = []
+    log_proportions = []
+
+    for i in range(len(tag_data)):
+        # Include all tags from rank 0 to i (cumulative)
+        included_tags = tag_data[:i+1]
+
+        # Count non-zero coefficients
+        num_nonzero = sum(1 for _, _, is_nonzero in included_tags if is_nonzero)
+        total = len(included_tags)
+
+        proportion = num_nonzero / total if total > 0 else 0
+
+        # Skip positions where proportion is 0 (can't take log)
+        if proportion > 0:
+            x_positions.append(i)
+            log_proportions.append(math.log(proportion))
+
+    if len(x_positions) < 2:
+        return None
+
+    # Create line chart
+    fig, ax = plt.subplots(figsize=(12, 6))
+
+    ax.plot(x_positions, log_proportions, color='#0b6ce3', linewidth=2, alpha=0.8)
+
+    ax.set_xlabel('Tag Position (ordered by battle rank)', fontsize=12, fontweight='bold')
+    ax.set_ylabel('log(Proportion of Non-Zero Coefficients)', fontsize=12, fontweight='bold')
+    ax.set_title(f'Log Proportion of Non-Zero Coefficients by Tag Rank', fontsize=14, fontweight='bold', pad=15)
+    ax.grid(True, alpha=0.3, linestyle='--')
+
+    # Add horizontal reference line at y=0 (proportion=1, or 100%)
+    ax.axhline(y=0, color='red', linestyle='--', alpha=0.5, linewidth=1, label='100% non-zero')
+    ax.legend(loc='best', frameon=True, shadow=True)
+
+    plt.tight_layout()
+    plt.savefig(output_path, dpi=150, bbox_inches='tight')
+    plt.close()
+
+    return output_path
+
+
 def _write_umllr_pages(output_dir: Path, summary: Dict[str, Any], conn=None, schema: str = "padjective") -> Dict[int, Path]:
     pages: Dict[int, Path] = {}
     metrics = summary.get("metrics", [])
@@ -1908,6 +1991,21 @@ def _write_umllr_pages(output_dir: Path, summary: Dict[str, Any], conn=None, sch
     </figure>
 """
 
+        # Generate log proportion of non-zero coefficients chart
+        log_proportion_chart_html = ""
+        log_proportion_chart_path = umllr_dir / f"fold_{fold}_log_nonzero_proportion.png"
+        generated_log_chart = _generate_log_nonzero_proportion_chart(
+            coeff_rows, tag_rankings, log_proportion_chart_path
+        )
+        if generated_log_chart:
+            log_proportion_chart_html = f"""
+    <h2>Log Proportion of Non-Zero Coefficients</h2>
+    <figure class="chart">
+      <img src="fold_{fold}_log_nonzero_proportion.png" alt="Log proportion of non-zero coefficients" />
+      <figcaption>Logarithm of the cumulative proportion of tags with non-zero coefficients (excludes infinite p-adic valuation). Shows how the proportion of informative tags changes as more tags are included by battle ranking.</figcaption>
+    </figure>
+"""
+
         page_contents = f"""
 <!DOCTYPE html>
 <html lang="en">
@@ -1923,6 +2021,7 @@ def _write_umllr_pages(output_dir: Path, summary: Dict[str, Any], conn=None, sch
     <p><strong>P-adic loss (mean):</strong> {mean_loss:.8f} &middot; <strong>Test samples:</strong> {num_predictions:,} &middot; <strong>Accuracy:</strong> {accuracy_text} &middot; <strong>F1:</strong> {f1_text} &middot; <strong>Prime base:</strong> {metric['prime_base']} &middot; <strong>Max digit:</strong> {metric['max_digit']}</p>
 {breakdown_html}
 {digit_chart_html}
+{log_proportion_chart_html}
     <h2>Tag coefficients</h2>
     <table class="umllr-table">
       <thead>
