@@ -1132,9 +1132,16 @@ def _load_prediction_details(conn, fold: int, schema: str) -> Dict[int, Dict[str
         cur.execute(
             sql.SQL(
                 """
-                SELECT product_id, true_value, predicted_value, loss
-                FROM {schema}.umllr_predictions
-                WHERE cv_fold = %s
+                SELECT
+                    up.product_id,
+                    up.true_value,
+                    up.predicted_value,
+                    up.loss,
+                    te.taxonomy_id as predicted_taxonomy_id
+                FROM {schema}.umllr_predictions up
+                LEFT JOIN {schema}.umllr_taxonomy_encodings te ON
+                    up.cv_fold = te.cv_fold AND up.predicted_value = te.encoded_value
+                WHERE up.cv_fold = %s
                 """
             ).format(schema=sql.Identifier(schema)),
             (fold,)
@@ -1144,6 +1151,7 @@ def _load_prediction_details(conn, fold: int, schema: str) -> Dict[int, Dict[str
             umllr_predictions[pid] = {
                 "true_value": row["true_value"],
                 "predicted_value": row["predicted_value"],
+                "predicted_taxonomy_id": row["predicted_taxonomy_id"],
                 "loss": row["loss"],
             }
 
@@ -1233,8 +1241,11 @@ def _load_prediction_details(conn, fold: int, schema: str) -> Dict[int, Dict[str
             SELECT
                 p.id AS product_id,
                 p.product_title AS title,
+                p.product_url,
                 pd.product_detail->'product'->>'tags' AS tags,
                 pt.taxonomy_id,
+                ps.is_alive,
+                ps.http_status_code,
                 up.cv_fold
             FROM cantbuymelove.product p
             JOIN public.product_details pd ON (
@@ -1243,6 +1254,7 @@ def _load_prediction_details(conn, fold: int, schema: str) -> Dict[int, Dict[str
                 AND p.product_handle = pd.product_handle
             )
             LEFT JOIN cantbuymelove.product_taxonomy pt ON pt.product_id = p.id
+            LEFT JOIN cantbuymelove.product_status ps ON ps.product_id = p.id
             LEFT JOIN padjective.umllr_predictions up ON up.product_id = p.id
             WHERE up.cv_fold = %s
             """,
@@ -1261,6 +1273,9 @@ def _load_prediction_details(conn, fold: int, schema: str) -> Dict[int, Dict[str
             details[pid] = {
                 "product_id": pid,
                 "title": row["title"] or "",
+                "product_url": row["product_url"],
+                "is_alive": row["is_alive"],
+                "http_status_code": row["http_status_code"],
                 "tags": tags,
                 "ground_truth": taxonomy_info.get(taxonomy_id, {}),
                 "predictions": {
@@ -1287,11 +1302,23 @@ def _write_prediction_detail_page(
     """Write a detailed prediction page for a single product."""
 
     title = detail.get("title", f"Product {product_id}")
+    product_url = detail.get("product_url")
+    is_alive = detail.get("is_alive")
+    http_status_code = detail.get("http_status_code")
     tags = detail.get("tags", [])
     ground_truth = detail.get("ground_truth", {})
     predictions = detail.get("predictions", {})
     umllr_coeffs = detail.get("umllr_coefficients", {})
     lr_coeffs = detail.get("lr_coefficients", {})
+
+    # Product link section
+    product_link_html = ""
+    if product_url:
+        if is_alive:
+            product_link_html = f'<p><strong>Product URL:</strong> <a href="{html.escape(product_url)}" target="_blank">{html.escape(product_url)}</a> ✓ Active</p>'
+        else:
+            status_text = f"(Status: {http_status_code})" if http_status_code else ""
+            product_link_html = f'<p><strong>Product URL:</strong> {html.escape(product_url)} ❌ Not available {status_text}</p>'
 
     # Ground truth section
     gt_taxonomy_id = ground_truth.get("taxonomy_id", "Unknown")
@@ -1315,18 +1342,15 @@ def _write_prediction_detail_page(
     # umllr prediction
     umllr_pred = predictions.get("umllr", {})
     if umllr_pred:
-        pred_value = umllr_pred.get("predicted_value", 0)
-        pred_path, pred_expansion = _format_padic_expansion(pred_value, prime_base)
-        # Reverse to get database format
-        reversed_pred_path = ".".join(reversed(pred_path.split(".")))
-        pred_info = taxonomy_info_by_path.get(reversed_pred_path, {})
-        pred_tax_id = pred_info.get("taxonomy_id", "")
-        pred_tax_name = pred_info.get("taxonomy_name", "")
+        pred_tax_id = umllr_pred.get("predicted_taxonomy_id") or ""
+        pred_info = taxonomy_info_by_id.get(pred_tax_id, {}) if pred_tax_id else {}
+        pred_tax_path = pred_info.get("taxonomy_path") or ""
+        pred_tax_name = pred_info.get("taxonomy_name") or ""
 
         predictions_rows.append(f"""
         <tr>
           <td>umllr</td>
-          <td>{html.escape(pred_path)}</td>
+          <td>{html.escape(pred_tax_path)}</td>
           <td>{html.escape(pred_tax_id)}</td>
           <td>{html.escape(pred_tax_name)}</td>
           <td>{umllr_pred.get("loss", 0.0):.6f}</td>
@@ -1336,10 +1360,10 @@ def _write_prediction_detail_page(
     # LR prediction
     lr_pred = predictions.get("lr", {})
     if lr_pred:
-        pred_tax_id = lr_pred.get("predicted_taxonomy_id", "")
-        pred_info = taxonomy_info_by_id.get(pred_tax_id, {})
-        pred_tax_path = pred_info.get("taxonomy_path", pred_tax_id)
-        pred_tax_name = pred_info.get("taxonomy_name", "")
+        pred_tax_id = lr_pred.get("predicted_taxonomy_id") or ""
+        pred_info = taxonomy_info_by_id.get(pred_tax_id, {}) if pred_tax_id else {}
+        pred_tax_path = pred_info.get("taxonomy_path") or pred_tax_id
+        pred_tax_name = pred_info.get("taxonomy_name") or ""
 
         predictions_rows.append(f"""
         <tr>
@@ -1354,10 +1378,10 @@ def _write_prediction_detail_page(
     # NN prediction
     nn_pred = predictions.get("nn", {})
     if nn_pred:
-        pred_tax_id = nn_pred.get("predicted_taxonomy_id", "")
-        pred_info = taxonomy_info_by_id.get(pred_tax_id, {})
-        pred_tax_path = pred_info.get("taxonomy_path", pred_tax_id)
-        pred_tax_name = pred_info.get("taxonomy_name", "")
+        pred_tax_id = nn_pred.get("predicted_taxonomy_id") or ""
+        pred_info = taxonomy_info_by_id.get(pred_tax_id, {}) if pred_tax_id else {}
+        pred_tax_path = pred_info.get("taxonomy_path") or pred_tax_id
+        pred_tax_name = pred_info.get("taxonomy_name") or ""
 
         predictions_rows.append(f"""
         <tr>
@@ -1518,6 +1542,7 @@ def _write_prediction_detail_page(
     <p><a href="../../umllr/fold_{fold}.html">Back to fold {fold}</a> | <a href="../../index.html">Back to index</a></p>
     <div class="product-title">{html.escape(title)}</div>
     <p><strong>Product ID:</strong> {product_id}</p>
+    {product_link_html}
 
     {ground_truth_html}
     {predictions_html}
