@@ -173,18 +173,8 @@ jobs:
                   (idx, taxonomy_id),
                 )
           PY
-      - name: Verify seed data
-        run: |
-          psql --host=localhost --port=5432 --username=postgres --dbname=postgres -c "\dt cantbuymelove.*"
-          psql --host=localhost --port=5432 --username=postgres --dbname=postgres -c "SELECT COUNT(*) FROM cantbuymelove.product"
-          psql --host=localhost --port=5432 --username=postgres --dbname=postgres -c "SELECT COUNT(*) FROM cantbuymelove.taxonomy"
-        env:
-          PGPASSWORD: postgres
       - name: Run tests
         run: uv run -m pytest -q -m "not slow"
-      - name: Test datadumps (real data validation)
-        run: uv run -m pytest -v -m slow tests/test_datadumps.py
-        continue-on-error: true  # Don't fail if dumps aren't available yet
       - name: Run pipeline scripts
         run: |
           uv run padjective/tagbattle.py \
@@ -201,3 +191,6 @@ jobs:
             --table tag_rankings \
             --html tag_rankings.html \
             --image tag_rankings.png
+      - name: Test datadumps (real data validation)
+        run: uv run -m pytest -v -m slow tests/test_datadumps.py
+        continue-on-error: true  # Don't fail if dumps aren't available yet

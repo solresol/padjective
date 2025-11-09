@@ -55,9 +55,7 @@ def _gather_taxonomy_columns(conn) -> Set[str]:
                 """,
                 ("cantbuymelove", "taxonomy"),
             )
-            row_count = 0
             for column_row in cur:  # ``FakeCursor`` yields tuples; psycopg returns sequences
-                row_count += 1
                 if isinstance(column_row, dict):
                     name = column_row.get("column_name")
                 elif isinstance(column_row, Iterable) and not isinstance(column_row, (str, bytes)):
@@ -66,27 +64,7 @@ def _gather_taxonomy_columns(conn) -> Set[str]:
                     name = getattr(column_row, "column_name", None)
                 if name:
                     columns.add(str(name))
-
-            import sys
-            print(f"Debug: _gather_taxonomy_columns processed {row_count} rows, found columns: {columns}", file=sys.stderr)
-
-            # If no rows found, let's see what tables exist
-            if row_count == 0:
-                cur.execute(
-                    """
-                    SELECT table_schema, table_name
-                    FROM information_schema.tables
-                    WHERE table_schema NOT IN ('pg_catalog', 'information_schema')
-                    ORDER BY table_schema, table_name
-                    """
-                )
-                tables = list(cur)
-                print(f"Debug: Available tables in database: {tables[:20]}", file=sys.stderr)
-    except Exception as e:  # pragma: no cover - metadata lookup is best-effort
-        import sys
-        print(f"Warning: Failed to gather taxonomy columns: {e}", file=sys.stderr)
-        import traceback
-        traceback.print_exc()
+    except Exception:  # pragma: no cover - metadata lookup is best-effort
         return set()
 
     return columns
@@ -111,8 +89,6 @@ def calculate_cv_folds(
 
     available_columns = _gather_taxonomy_columns(conn)
     if "taxonomy_path" not in available_columns:
-        import sys
-        print(f"Debug: Available columns in cantbuymelove.taxonomy: {available_columns}", file=sys.stderr)
         raise RuntimeError(
             "cantbuymelove.taxonomy.taxonomy_path must be present for CV folds"
         )
