@@ -1755,7 +1755,7 @@ def _generate_log_nonzero_proportion_chart(
     tag_data.sort(key=lambda x: x[0])
 
     # Calculate cumulative proportion of non-zero coefficients
-    x_positions = []
+    log_rank_positions = []
     log_proportions = []
 
     for i in range(len(tag_data)):
@@ -1770,20 +1770,25 @@ def _generate_log_nonzero_proportion_chart(
 
         # Skip positions where proportion is 0 (can't take log)
         if proportion > 0:
-            x_positions.append(i)
+            current_rank = tag_data[i][0]
+            # Rank must be positive to take a logarithm. If ranks are 0 or negative,
+            # fall back to the 1-based index position to maintain monotonic growth.
+            if current_rank <= 0:
+                current_rank = i + 1
+            log_rank_positions.append(math.log(current_rank))
             log_proportions.append(math.log(proportion))
 
-    if len(x_positions) < 2:
+    if len(log_rank_positions) < 2:
         return None
 
     # Create line chart
     fig, ax = plt.subplots(figsize=(12, 6))
 
-    ax.plot(x_positions, log_proportions, color='#0b6ce3', linewidth=2, alpha=0.8)
+    ax.plot(log_rank_positions, log_proportions, color='#0b6ce3', linewidth=2, alpha=0.8)
 
-    ax.set_xlabel('Tag Position (ordered by battle rank)', fontsize=12, fontweight='bold')
+    ax.set_xlabel('log(Tag Rank)', fontsize=12, fontweight='bold')
     ax.set_ylabel('log(Proportion of Non-Zero Coefficients)', fontsize=12, fontweight='bold')
-    ax.set_title(f'Log Proportion of Non-Zero Coefficients by Tag Rank', fontsize=14, fontweight='bold', pad=15)
+    ax.set_title('Log-Log Proportion of Non-Zero Coefficients by Tag Rank', fontsize=14, fontweight='bold', pad=15)
     ax.grid(True, alpha=0.3, linestyle='--')
 
     # Add horizontal reference line at y=0 (proportion=1, or 100%)
@@ -2002,7 +2007,7 @@ def _write_umllr_pages(output_dir: Path, summary: Dict[str, Any], conn=None, sch
     <h2>Log Proportion of Non-Zero Coefficients</h2>
     <figure class="chart">
       <img src="fold_{fold}_log_nonzero_proportion.png" alt="Log proportion of non-zero coefficients" />
-      <figcaption>Logarithm of the cumulative proportion of tags with non-zero coefficients (excludes infinite p-adic valuation). Shows how the proportion of informative tags changes as more tags are included by battle ranking.</figcaption>
+      <figcaption>Logarithms of the cumulative proportion of tags with non-zero coefficients (excludes infinite p-adic valuation) plotted against the logarithm of their battle ranking. Shows how the proportion of informative tags changes as more tags are included by battle ranking.</figcaption>
     </figure>
 """
 
@@ -2243,6 +2248,14 @@ def _build_index_html(
         if not class_rows:
             class_rows = '<tr><td colspan="5">No taxonomy class data available</td></tr>'
 
+        top_tags = taxonomy_summary.get("top_tags", [])[:10]
+        top_tag_rows = "\n".join(
+            f"<tr><td>{html.escape(row.get('tag') or '')}</td><td>{html.escape(row.get('top_taxonomy_path') or 'Unknown')}</td><td>{row.get('top_weight', 0.0):.4f}</td><td>{row.get('max_abs_weight', 0.0):.4f}</td></tr>"
+            for row in top_tags
+        )
+        if not top_tag_rows:
+            top_tag_rows = '<tr><td colspan="4">No tag signal data available</td></tr>'
+
         chart_html = ""
         if taxonomy_dist_chart_path:
             chart_rel_path = taxonomy_dist_chart_path.relative_to(output_dir).as_posix()
@@ -2260,6 +2273,11 @@ def _build_index_html(
     <table class="taxonomy-table">
       <thead><tr><th>Taxonomy ID</th><th>Name</th><th>Path</th><th>Samples</th><th>Share</th></tr></thead>
       <tbody>{class_rows}</tbody>
+    </table>
+    <h3>Tags with strongest signal</h3>
+    <table class="tag-taxonomy-table">
+      <thead><tr><th>Tag</th><th>Top taxonomy</th><th>Weight</th><th>Max |weight|</th></tr></thead>
+      <tbody>{top_tag_rows}</tbody>
     </table>
   </section>"""
 
