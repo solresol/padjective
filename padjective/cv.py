@@ -64,7 +64,9 @@ def _gather_taxonomy_columns(conn) -> Set[str]:
                     name = getattr(column_row, "column_name", None)
                 if name:
                     columns.add(str(name))
-    except Exception:  # pragma: no cover - metadata lookup is best-effort
+    except Exception as e:  # pragma: no cover - metadata lookup is best-effort
+        import sys
+        print(f"Warning: Failed to gather taxonomy columns: {e}", file=sys.stderr)
         return set()
 
     return columns
@@ -89,6 +91,8 @@ def calculate_cv_folds(
 
     available_columns = _gather_taxonomy_columns(conn)
     if "taxonomy_path" not in available_columns:
+        import sys
+        print(f"Debug: Available columns in cantbuymelove.taxonomy: {available_columns}", file=sys.stderr)
         raise RuntimeError(
             "cantbuymelove.taxonomy.taxonomy_path must be present for CV folds"
         )
