@@ -173,6 +173,13 @@ jobs:
                   (idx, taxonomy_id),
                 )
           PY
+      - name: Verify seed data
+        run: |
+          psql --host=localhost --port=5432 --username=postgres --dbname=postgres -c "\dt cantbuymelove.*"
+          psql --host=localhost --port=5432 --username=postgres --dbname=postgres -c "SELECT COUNT(*) FROM cantbuymelove.product"
+          psql --host=localhost --port=5432 --username=postgres --dbname=postgres -c "SELECT COUNT(*) FROM cantbuymelove.taxonomy"
+        env:
+          PGPASSWORD: postgres
       - name: Run tests
         run: uv run -m pytest -q -m "not slow"
       - name: Test datadumps (real data validation)
