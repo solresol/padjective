@@ -179,7 +179,7 @@ def stream_products(
             )
 
 
-MAX_PRODUCTS = 1000
+MAX_PRODUCTS = 2000
 
 
 def build_feature_dataset(

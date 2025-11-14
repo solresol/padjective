@@ -1804,6 +1804,94 @@ def _generate_log_nonzero_proportion_chart(
     return output_path
 
 
+def _generate_rolling_nonzero_chart(
+    coeff_rows: list[Dict[str, Any]],
+    tag_rankings: Dict[str, int],
+    output_path: Path,
+    window_size: int = 100
+) -> Optional[Path]:
+    """Generate a chart showing rolling average of proportion of non-zero coefficients.
+
+    Args:
+        coeff_rows: List of coefficient data with 'tag' and 'coefficient' fields
+        tag_rankings: Dict mapping tag names to their battle rankings
+        output_path: Where to save the chart
+        window_size: Size of rolling window (default 100)
+
+    Returns:
+        Path to generated chart, or None if insufficient data
+    """
+    if not coeff_rows:
+        return None
+
+    # Build list of (rank, tag, is_nonzero)
+    tag_data = []
+    for row in coeff_rows:
+        tag = row["tag"]
+        coefficient = row["coefficient"]
+
+        # Only include tags that have a valid ranking
+        if not tag_rankings:
+            continue
+
+        rank = tag_rankings.get(tag.upper())
+        if rank is None:
+            # Skip tags without a valid ranking
+            continue
+
+        is_nonzero = (coefficient != 0)
+        tag_data.append((rank, tag, is_nonzero))
+
+    if len(tag_data) < window_size:
+        return None
+
+    # Sort by rank
+    tag_data.sort(key=lambda x: x[0])
+
+    # Calculate rolling average of non-zero proportions
+    ranks = []
+    rolling_proportions = []
+
+    for i in range(window_size - 1, len(tag_data)):
+        # Get window of last 'window_size' tags
+        window_start = i - window_size + 1
+        window = tag_data[window_start:i+1]
+
+        # Count non-zero coefficients in window
+        num_nonzero = sum(1 for _, _, is_nonzero in window if is_nonzero)
+        proportion = num_nonzero / window_size
+
+        # Use the rank of the current tag (end of window)
+        current_rank = tag_data[i][0]
+        ranks.append(current_rank)
+        rolling_proportions.append(proportion * 100)  # Convert to percentage
+
+    if len(ranks) < 2:
+        return None
+
+    # Create line chart
+    fig, ax = plt.subplots(figsize=(12, 6))
+
+    ax.plot(ranks, rolling_proportions, color='#0b6ce3', linewidth=2, alpha=0.8)
+
+    ax.set_xlabel('Tag Rank', fontsize=12, fontweight='bold')
+    ax.set_ylabel('Proportion of Non-Zero Coefficients (%)', fontsize=12, fontweight='bold')
+    ax.set_title(f'Rolling Average of Non-Zero Coefficients by Tag Rank (window={window_size})',
+                 fontsize=14, fontweight='bold', pad=15)
+    ax.grid(True, alpha=0.3, linestyle='--')
+    ax.set_ylim(0, 100)
+
+    # Add horizontal reference line at 100%
+    ax.axhline(y=100, color='red', linestyle='--', alpha=0.5, linewidth=1, label='100% non-zero')
+    ax.legend(loc='best', frameon=True, shadow=True)
+
+    plt.tight_layout()
+    plt.savefig(output_path, dpi=150, bbox_inches='tight')
+    plt.close()
+
+    return output_path
+
+
 def _write_umllr_pages(output_dir: Path, summary: Dict[str, Any], conn=None, schema: str = "padjective") -> Dict[int, Path]:
     pages: Dict[int, Path] = {}
     metrics = summary.get("metrics", [])
@@ -2013,6 +2101,21 @@ def _write_umllr_pages(output_dir: Path, summary: Dict[str, Any], conn=None, sch
     </figure>
 """
 
+        # Generate rolling average of non-zero coefficients chart
+        rolling_chart_html = ""
+        rolling_chart_path = umllr_dir / f"fold_{fold}_rolling_nonzero.png"
+        generated_rolling_chart = _generate_rolling_nonzero_chart(
+            coeff_rows, tag_rankings, rolling_chart_path, window_size=100
+        )
+        if generated_rolling_chart:
+            rolling_chart_html = f"""
+    <h2>Rolling Average of Non-Zero Coefficients</h2>
+    <figure class="chart">
+      <img src="fold_{fold}_rolling_nonzero.png" alt="Rolling average of non-zero coefficients" />
+      <figcaption>Rolling average (window=100 tags) of the proportion of tags with non-zero coefficients, plotted by battle ranking. Shows how the informativeness of tags changes as we move through the ranking.</figcaption>
+    </figure>
+"""
+
         page_contents = f"""
 <!DOCTYPE html>
 <html lang="en">
@@ -2029,6 +2132,7 @@ def _write_umllr_pages(output_dir: Path, summary: Dict[str, Any], conn=None, sch
 {breakdown_html}
 {digit_chart_html}
 {log_proportion_chart_html}
+{rolling_chart_html}
     <h2>Tag coefficients</h2>
     <table class="umllr-table">
       <thead>
