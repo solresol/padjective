@@ -1738,11 +1738,14 @@ def _generate_log_nonzero_proportion_chart(
         tag = row["tag"]
         coefficient = row["coefficient"]
 
-        # Get rank from tag_rankings, or use a very high rank if not found
-        if tag_rankings:
-            rank = tag_rankings.get(tag.upper(), 999999)
-        else:
-            rank = 999999
+        # Only include tags that have a valid ranking
+        if not tag_rankings:
+            continue
+
+        rank = tag_rankings.get(tag.upper())
+        if rank is None:
+            # Skip tags without a valid ranking
+            continue
 
         is_nonzero = (coefficient != 0)
         tag_data.append((rank, tag, is_nonzero))
