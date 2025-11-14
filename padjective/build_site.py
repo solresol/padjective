@@ -1811,7 +1811,7 @@ def _generate_rolling_nonzero_chart(
     coeff_rows: list[Dict[str, Any]],
     tag_rankings: Dict[str, int],
     output_path: Path,
-    window_size: int = 10
+    window_size: int = 100
 ) -> Optional[Path]:
     """Generate a chart showing rolling average of proportion of non-zero coefficients.
 
@@ -1819,7 +1819,7 @@ def _generate_rolling_nonzero_chart(
         coeff_rows: List of coefficient data with 'tag' and 'coefficient' fields
         tag_rankings: Dict mapping tag names to their battle rankings
         output_path: Where to save the chart
-        window_size: Size of rolling window (default 10)
+        window_size: Size of rolling window (default 100)
 
     Returns:
         Path to generated chart, or None if insufficient data
