@@ -126,7 +126,22 @@ CREATE TABLE IF NOT EXISTS padjective.taxonomy_nn_predictions (
 CREATE INDEX IF NOT EXISTS taxonomy_nn_predictions_fold_idx
     ON padjective.taxonomy_nn_predictions (cv_fold);
 
--- 11. Grant padjective role access to the schema, tables, and sequences.
+-- 12. Create the taxonomy_nn_input_weights table storing first-layer weights per fold.
+CREATE TABLE IF NOT EXISTS padjective.taxonomy_nn_input_weights (
+    cv_fold INTEGER NOT NULL,
+    tag TEXT NOT NULL,
+    hidden_unit INTEGER NOT NULL,
+    weight DOUBLE PRECISION NOT NULL,
+    PRIMARY KEY (cv_fold, tag, hidden_unit)
+);
+
+CREATE INDEX IF NOT EXISTS taxonomy_nn_input_weights_fold_idx
+    ON padjective.taxonomy_nn_input_weights (cv_fold);
+
+CREATE INDEX IF NOT EXISTS taxonomy_nn_input_weights_tag_idx
+    ON padjective.taxonomy_nn_input_weights (tag);
+
+-- 13. Grant padjective role access to the schema, tables, and sequences.
 GRANT USAGE ON SCHEMA padjective TO padjective;
 
 GRANT SELECT, INSERT, UPDATE, DELETE ON
@@ -138,7 +153,8 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON
     padjective.taxonomy_lr_intercepts,
     padjective.taxonomy_lr_predictions,
     padjective.taxonomy_lr_coefficients,
-    padjective.taxonomy_nn_predictions
+    padjective.taxonomy_nn_predictions,
+    padjective.taxonomy_nn_input_weights
 TO padjective;
 
 GRANT USAGE, SELECT ON SEQUENCE padjective.taxonomy_lr_models_id_seq TO padjective;

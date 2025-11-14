@@ -2720,6 +2720,108 @@ def _generate_lr_tag_rank_vs_coeff_chart(
     return output_path
 
 
+def _generate_nn_tag_rank_vs_weight_chart(
+    conn,
+    cv_fold: int,
+    tag_rankings: Dict[str, int],
+    output_path: Path,
+    schema: str = "padjective"
+) -> Optional[Path]:
+    """Generate a chart showing tag rank vs maximum first-layer weight magnitude.
+
+    Args:
+        conn: Database connection
+        cv_fold: Cross-validation fold number
+        tag_rankings: Dict mapping tag names to their battle rankings
+        output_path: Where to save the chart
+        schema: Database schema name
+
+    Returns:
+        Path to generated chart, or None if insufficient data
+    """
+    if not _table_exists(conn, schema, "taxonomy_nn_input_weights"):
+        return None
+
+    with conn.cursor() as cur:
+        cur.execute(
+            sql.SQL(
+                """
+                SELECT tag, hidden_unit, weight
+                FROM {schema}.taxonomy_nn_input_weights
+                WHERE cv_fold = %s
+                """
+            ).format(schema=sql.Identifier(schema)),
+            (cv_fold,)
+        )
+        rows = cur.fetchall()
+
+    if not rows:
+        return None
+
+    # Calculate max absolute weight for each tag across all hidden units
+    tag_max_weight = {}
+    for tag, hidden_unit, weight in rows:
+        abs_weight = abs(weight)
+        if tag not in tag_max_weight or abs_weight > tag_max_weight[tag]:
+            tag_max_weight[tag] = abs_weight
+
+    # Build list of (rank, max_weight) for tags with rankings
+    data_points = []
+    for tag, max_weight in tag_max_weight.items():
+        rank = tag_rankings.get(tag.upper())
+        if rank is not None:
+            data_points.append((rank, max_weight))
+
+    if len(data_points) < 2:
+        return None
+
+    # Sort by rank
+    data_points.sort(key=lambda x: x[0])
+    ranks = [x[0] for x in data_points]
+    weights = [x[1] for x in data_points]
+
+    # Calculate linear regression
+    ranks_array = np.array(ranks)
+    weights_array = np.array(weights)
+    slope, intercept, r_value, p_value, std_err = stats.linregress(ranks_array, weights_array)
+    r_squared = r_value ** 2
+
+    # Create scatter plot
+    fig, ax = plt.subplots(figsize=(12, 6))
+
+    ax.scatter(ranks, weights, color='#0b6ce3', alpha=0.6, s=50, label='Data points')
+
+    # Add regression line
+    line_x = np.array([min(ranks), max(ranks)])
+    line_y = slope * line_x + intercept
+    ax.plot(line_x, line_y, 'r-', linewidth=2, alpha=0.8,
+            label=f'Linear fit: y = {slope:.6f}x + {intercept:.4f}')
+
+    # Add statistics text box
+    sig_marker = '***' if p_value < 0.001 else ('**' if p_value < 0.01 else ('*' if p_value < 0.05 else 'ns'))
+    if p_value < 0.001:
+        p_text = 'p < 0.001'
+    else:
+        p_text = f'p = {p_value:.4f}'
+    stats_text = f'R² = {r_squared:.4f}\n{p_text} {sig_marker}\nn = {len(ranks)}'
+    ax.text(0.02, 0.02, stats_text, transform=ax.transAxes,
+            fontsize=10, verticalalignment='bottom',
+            bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
+
+    ax.set_xlabel('Tag Battle Rank', fontsize=12, fontweight='bold')
+    ax.set_ylabel('Max |Weight| across Hidden Units', fontsize=12, fontweight='bold')
+    ax.set_title('Tag Rank vs Maximum Absolute First-Layer Weight', fontsize=14, fontweight='bold', pad=15)
+    ax.grid(True, alpha=0.3, linestyle='--')
+    ax.set_ylim(bottom=0)  # Start y-axis at zero for proper magnitude comparison
+    ax.legend(loc='upper right', frameon=True, shadow=True)
+
+    plt.tight_layout()
+    plt.savefig(output_path, dpi=150, bbox_inches='tight')
+    plt.close()
+
+    return output_path
+
+
 def _write_taxonomy_lr_fold_pages(
     output_dir: Path,
     fold_results: list[Dict[str, Any]],
@@ -3114,6 +3216,9 @@ def _write_taxonomy_classifier_page(
 def _write_taxonomy_nn_fold_pages(
     output_dir: Path,
     fold_results: list[Dict[str, Any]],
+    conn=None,
+    tag_rankings: Optional[Dict[str, int]] = None,
+    schema: str = "padjective",
 ) -> Dict[int, Path]:
     """Write individual pages for each neural network fold."""
     pages: Dict[int, Path] = {}
@@ -3153,6 +3258,22 @@ def _write_taxonomy_nn_fold_pages(
         else:
             breakdown_html = "<p>No prediction breakdown recorded for this fold.</p>"
 
+        # Generate tag rank vs weight chart
+        rank_weight_chart_html = ""
+        if conn and tag_rankings:
+            rank_weight_chart_path = nn_dir / f"fold_{fold}_rank_vs_weight.png"
+            generated_chart = _generate_nn_tag_rank_vs_weight_chart(
+                conn, fold, tag_rankings, rank_weight_chart_path, schema
+            )
+            if generated_chart:
+                rank_weight_chart_html = f"""
+    <h2>Tag Rank vs First-Layer Weight Magnitude</h2>
+    <figure class="chart">
+      <img src="fold_{fold}_rank_vs_weight.png" alt="Tag rank vs max first-layer weight magnitude" />
+      <figcaption>Scatter plot showing the relationship between tag battle ranking and maximum absolute first-layer weight value across all hidden units. Shows which input features contribute most to the neural network's hidden representations.</figcaption>
+    </figure>
+"""
+
         max_tags = fold_data.get("max_tags")
         max_tags_row = f"<tr><td>Max tags</td><td>{max_tags if max_tags is not None else '—'}</td></tr>" if max_tags is not None else ""
 
@@ -3189,6 +3310,8 @@ def _write_taxonomy_nn_fold_pages(
     </table>
 
     {breakdown_html}
+
+    {rank_weight_chart_html}
 
     <h2>About p-adic loss</h2>
     <p>P-adic loss measures the distance between predicted and true taxonomy using p-adic metric (base {fold_data['prime_base']}). Lower values indicate closer predictions in the taxonomy hierarchy. This metric is shared with the umllr model for comparison.</p>
@@ -3935,7 +4058,13 @@ footer {text-align: center; padding: 2rem 1.5rem 3rem; color: #6b7280;}
     )
     taxonomy_nn_page = None
     if taxonomy_nn_fold_results:
-        taxonomy_nn_fold_pages = _write_taxonomy_nn_fold_pages(output_dir, taxonomy_nn_fold_results)
+        taxonomy_nn_fold_pages = _write_taxonomy_nn_fold_pages(
+            output_dir,
+            taxonomy_nn_fold_results,
+            conn=precomputed_database,
+            tag_rankings=tag_rank_lookup,
+            schema=battle_schema
+        )
         taxonomy_nn_page = _write_taxonomy_nn_overview_page(output_dir, taxonomy_nn_fold_results, taxonomy_nn_fold_pages)
 
     # Generate historical trends chart

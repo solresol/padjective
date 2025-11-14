@@ -987,8 +987,46 @@ def main() -> None:
                         (args.fold, product_id, true_tax_id, pred_tax_id, ind_loss)
                     )
 
+                # Save first-layer weights for feature importance analysis
+                cur.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS padjective.taxonomy_nn_input_weights (
+                        cv_fold INTEGER NOT NULL,
+                        tag TEXT NOT NULL,
+                        hidden_unit INTEGER NOT NULL,
+                        weight DOUBLE PRECISION NOT NULL,
+                        PRIMARY KEY (cv_fold, tag, hidden_unit)
+                    )
+                    """
+                )
+
+                # Delete existing weights for this fold
+                cur.execute(
+                    "DELETE FROM padjective.taxonomy_nn_input_weights WHERE cv_fold = %s",
+                    (args.fold,)
+                )
+
+                # Extract first-layer weights (input -> hidden)
+                # model[0] is the first Linear layer with shape (hidden_units, n_features)
+                first_layer_weights = model[0].weight.data.cpu().numpy()
+
+                # Save each weight
+                for hidden_idx in range(first_layer_weights.shape[0]):
+                    for feature_idx in range(first_layer_weights.shape[1]):
+                        tag = feature_names[feature_idx]
+                        weight = float(first_layer_weights[hidden_idx, feature_idx])
+
+                        cur.execute(
+                            """
+                            INSERT INTO padjective.taxonomy_nn_input_weights
+                            (cv_fold, tag, hidden_unit, weight)
+                            VALUES (%s, %s, %s, %s)
+                            """,
+                            (args.fold, tag, hidden_idx, weight)
+                        )
+
             save_conn.commit()
-            print(f"\nResults saved to padjective.taxonomy_nn_fold_results")
+            print(f"\nResults saved to padjective.taxonomy_nn_fold_results and padjective.taxonomy_nn_input_weights")
         finally:
             save_conn.close()
 
