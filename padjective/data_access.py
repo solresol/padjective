@@ -187,7 +187,7 @@ def build_feature_dataset(
     *,
     product_table: str = "cantbuymelove.product",
     require_taxonomy: bool = True,
-    min_tag_count: int = 2,
+    min_tag_count: int = 5,
     min_samples_per_taxonomy: Optional[int] = None,
 ) -> ProductDataset:
     """Build a sparse tag matrix and accompanying metadata from Postgres."""

@@ -1849,7 +1849,7 @@ def _generate_rolling_nonzero_chart(
     tag_data.sort(key=lambda x: x[0])
 
     # Calculate rolling average of non-zero proportions
-    ranks = []
+    positions = []
     rolling_proportions = []
 
     for i in range(window_size - 1, len(tag_data)):
@@ -1861,20 +1861,19 @@ def _generate_rolling_nonzero_chart(
         num_nonzero = sum(1 for _, _, is_nonzero in window if is_nonzero)
         proportion = num_nonzero / window_size
 
-        # Use the rank of the current tag (end of window)
-        current_rank = tag_data[i][0]
-        ranks.append(current_rank)
+        # Use the position in the sorted list (1-based indexing)
+        positions.append(i + 1)
         rolling_proportions.append(proportion * 100)  # Convert to percentage
 
-    if len(ranks) < 2:
+    if len(positions) < 2:
         return None
 
     # Create line chart
     fig, ax = plt.subplots(figsize=(12, 6))
 
-    ax.plot(ranks, rolling_proportions, color='#0b6ce3', linewidth=2, alpha=0.8)
+    ax.plot(positions, rolling_proportions, color='#0b6ce3', linewidth=2, alpha=0.8)
 
-    ax.set_xlabel('Tag Rank', fontsize=12, fontweight='bold')
+    ax.set_xlabel('Tag Position (sorted by battle rank)', fontsize=12, fontweight='bold')
     ax.set_ylabel('Proportion of Non-Zero Coefficients (%)', fontsize=12, fontweight='bold')
     ax.set_title(f'Rolling Average of Non-Zero Coefficients by Tag Rank (window={window_size})',
                  fontsize=14, fontweight='bold', pad=15)

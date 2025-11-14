@@ -185,7 +185,7 @@ def select_top_tags(
 def load_training_data(
     conn,
     product_table: str = "cantbuymelove.product",
-    min_tag_count: int = 2,
+    min_tag_count: int = 5,
     min_samples_per_taxonomy: int = 5,
 ) -> tuple[
     sparse.csr_matrix,
@@ -794,7 +794,7 @@ def main() -> None:
     parser.add_argument(
         "--min-tag-count",
         type=int,
-        default=2,
+        default=5,
         help="Minimum tag occurrences to include",
     )
     parser.add_argument(
