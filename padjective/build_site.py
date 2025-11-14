@@ -1809,7 +1809,7 @@ def _generate_rolling_nonzero_chart(
     coeff_rows: list[Dict[str, Any]],
     tag_rankings: Dict[str, int],
     output_path: Path,
-    window_size: int = 100
+    window_size: int = 10
 ) -> Optional[Path]:
     """Generate a chart showing rolling average of proportion of non-zero coefficients.
 
@@ -1817,7 +1817,7 @@ def _generate_rolling_nonzero_chart(
         coeff_rows: List of coefficient data with 'tag' and 'coefficient' fields
         tag_rankings: Dict mapping tag names to their battle rankings
         output_path: Where to save the chart
-        window_size: Size of rolling window (default 100)
+        window_size: Size of rolling window (default 10)
 
     Returns:
         Path to generated chart, or None if insufficient data
@@ -1826,19 +1826,22 @@ def _generate_rolling_nonzero_chart(
         return None
 
     # Build list of (rank, tag, is_nonzero)
+    # For tags without battle rankings, assign a high rank based on position
     tag_data = []
-    for row in coeff_rows:
+    max_real_rank = max(tag_rankings.values()) if tag_rankings else 0
+
+    for idx, row in enumerate(coeff_rows):
         tag = row["tag"]
         coefficient = row["coefficient"]
 
-        # Only include tags that have a valid ranking
-        if not tag_rankings:
-            continue
-
-        rank = tag_rankings.get(tag.upper())
-        if rank is None:
-            # Skip tags without a valid ranking
-            continue
+        # Get rank from tag_rankings, or assign based on position
+        if tag_rankings:
+            rank = tag_rankings.get(tag.upper())
+            if rank is None:
+                # Assign a high rank for tags without battle rankings
+                rank = max_real_rank + 1000 + idx
+        else:
+            rank = idx
 
         is_nonzero = (coefficient != 0)
         tag_data.append((rank, tag, is_nonzero))
@@ -2613,9 +2616,89 @@ def _write_elo_rankings_page(
     return page_path
 
 
+def _generate_lr_tag_rank_vs_coeff_chart(
+    conn,
+    cv_fold: int,
+    tag_rankings: Dict[str, int],
+    output_path: Path,
+    schema: str = "padjective"
+) -> Optional[Path]:
+    """Generate a chart showing tag rank vs maximum coefficient magnitude.
+
+    Args:
+        conn: Database connection
+        cv_fold: Cross-validation fold number
+        tag_rankings: Dict mapping tag names to their battle rankings
+        output_path: Where to save the chart
+        schema: Database schema name
+
+    Returns:
+        Path to generated chart, or None if insufficient data
+    """
+    if not _table_exists(conn, schema, "taxonomy_lr_coefficients"):
+        return None
+
+    with conn.cursor() as cur:
+        cur.execute(
+            sql.SQL(
+                """
+                SELECT tag, taxonomy_id, coefficient
+                FROM {schema}.taxonomy_lr_coefficients
+                WHERE cv_fold = %s
+                """
+            ).format(schema=sql.Identifier(schema)),
+            (cv_fold,)
+        )
+        rows = cur.fetchall()
+
+    if not rows:
+        return None
+
+    # Calculate max absolute coefficient for each tag across all taxonomies
+    tag_max_coeff = {}
+    for tag, taxonomy_id, coeff in rows:
+        abs_coeff = abs(coeff)
+        if tag not in tag_max_coeff or abs_coeff > tag_max_coeff[tag]:
+            tag_max_coeff[tag] = abs_coeff
+
+    # Build list of (rank, max_coeff) for tags with rankings
+    data_points = []
+    for tag, max_coeff in tag_max_coeff.items():
+        rank = tag_rankings.get(tag.upper())
+        if rank is not None:
+            data_points.append((rank, max_coeff))
+
+    if len(data_points) < 2:
+        return None
+
+    # Sort by rank
+    data_points.sort(key=lambda x: x[0])
+    ranks = [x[0] for x in data_points]
+    coeffs = [x[1] for x in data_points]
+
+    # Create scatter plot
+    fig, ax = plt.subplots(figsize=(12, 6))
+
+    ax.scatter(ranks, coeffs, color='#0b6ce3', alpha=0.6, s=50)
+
+    ax.set_xlabel('Tag Battle Rank', fontsize=12, fontweight='bold')
+    ax.set_ylabel('Max |Coefficient| across Taxonomies', fontsize=12, fontweight='bold')
+    ax.set_title('Tag Rank vs Maximum Coefficient Magnitude', fontsize=14, fontweight='bold', pad=15)
+    ax.grid(True, alpha=0.3, linestyle='--')
+
+    plt.tight_layout()
+    plt.savefig(output_path, dpi=150, bbox_inches='tight')
+    plt.close()
+
+    return output_path
+
+
 def _write_taxonomy_lr_fold_pages(
     output_dir: Path,
     fold_results: list[Dict[str, Any]],
+    conn=None,
+    tag_rankings: Optional[Dict[str, int]] = None,
+    schema: str = "padjective",
 ) -> Dict[int, Path]:
     """Write individual pages for each taxonomy classifier fold."""
     pages: Dict[int, Path] = {}
@@ -2655,6 +2738,22 @@ def _write_taxonomy_lr_fold_pages(
         else:
             breakdown_html = "<p>No prediction breakdown recorded for this fold.</p>"
 
+        # Generate tag rank vs coefficient chart
+        rank_coeff_chart_html = ""
+        if conn and tag_rankings:
+            rank_coeff_chart_path = tax_dir / f"fold_{fold}_rank_vs_coeff.png"
+            generated_chart = _generate_lr_tag_rank_vs_coeff_chart(
+                conn, fold, tag_rankings, rank_coeff_chart_path, schema
+            )
+            if generated_chart:
+                rank_coeff_chart_html = f"""
+    <h2>Tag Rank vs Coefficient Magnitude</h2>
+    <figure class="chart">
+      <img src="fold_{fold}_rank_vs_coeff.png" alt="Tag rank vs max coefficient magnitude" />
+      <figcaption>Scatter plot showing the relationship between tag battle ranking and maximum absolute coefficient value across all taxonomies. Shows which tags have the strongest influence in the model.</figcaption>
+    </figure>
+"""
+
         page_contents = f"""
 <!DOCTYPE html>
 <html lang="en">
@@ -2687,6 +2786,8 @@ def _write_taxonomy_lr_fold_pages(
     </table>
 
     {breakdown_html}
+
+    {rank_coeff_chart_html}
 
     <h2>About p-adic loss</h2>
     <p>P-adic loss measures the distance between predicted and true taxonomy using p-adic metric (base {fold_data['prime_base']}). Lower values indicate closer predictions in the taxonomy hierarchy. This metric is shared with the umllr model for comparison.</p>
@@ -3772,7 +3873,13 @@ footer {text-align: center; padding: 2rem 1.5rem 3rem; color: #6b7280;}
     taxonomy_fold_pages = {}
     if taxonomy_summary:
         if taxonomy_lr_fold_results:
-            taxonomy_fold_pages = _write_taxonomy_lr_fold_pages(output_dir, taxonomy_lr_fold_results)
+            taxonomy_fold_pages = _write_taxonomy_lr_fold_pages(
+                output_dir,
+                taxonomy_lr_fold_results,
+                conn=precomputed_database,
+                tag_rankings=tag_rank_lookup,
+                schema=battle_schema
+            )
             taxonomy_page = _write_taxonomy_classifier_page(
                 output_dir, taxonomy_summary, taxonomy_lr_fold_results, taxonomy_fold_pages
             )
