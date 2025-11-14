@@ -2475,7 +2475,11 @@ def _build_index_html(
     </div>
     <div class="metric">
       <span class="value">{dataset_stats.get('unique_tags', 0):,}</span>
-      <span class="label">Distinct tags</span>
+      <span class="label">Tags used</span>
+    </div>
+    <div class="metric">
+      <span class="value">{dataset_stats.get('total_tags', 0):,}</span>
+      <span class="label">Total tags</span>
     </div>
     <div class="metric">
       <span class="value">{stats.get('battles', 0):,}</span>
@@ -2487,8 +2491,10 @@ def _build_index_html(
     <h2>Dataset coverage</h2>
     <p>
       Training data spans <strong>{dataset_stats.get('products', 0):,}</strong> products across
-      <strong>{dataset_stats.get('taxonomies', 0):,}</strong> taxonomies and
-      <strong>{dataset_stats.get('unique_tags', 0):,}</strong> tags.
+      <strong>{dataset_stats.get('taxonomies', 0):,}</strong> taxonomies.
+      Of <strong>{dataset_stats.get('total_tags', 0):,}</strong> total tags in the dataset,
+      <strong>{dataset_stats.get('unique_tags', 0):,}</strong> tags were used
+      (tags appearing fewer than 5 times were filtered out).
       {discard_note}
       {dataset_link}
     </p>
@@ -3545,6 +3551,7 @@ def build_site(
     dataset_stats = {
         "products": dataset.product_count,
         "unique_tags": len(dataset.feature_names),
+        "total_tags": len(dataset.feature_names) + len(dataset.discarded_tags),
         "taxonomies": dataset.taxonomy_count,
         "discarded_products": len(dataset.discarded_products),
         "discarded_tags": len(dataset.discarded_tags),
