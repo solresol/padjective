@@ -2697,7 +2697,11 @@ def _generate_lr_tag_rank_vs_coeff_chart(
 
     # Add statistics text box
     sig_marker = '***' if p_value < 0.001 else ('**' if p_value < 0.01 else ('*' if p_value < 0.05 else 'ns'))
-    stats_text = f'R² = {r_squared:.4f}\np-value = {p_value:.4e} {sig_marker}\nn = {len(ranks)}'
+    if p_value < 0.001:
+        p_text = 'p < 0.001'
+    else:
+        p_text = f'p = {p_value:.4f}'
+    stats_text = f'R² = {r_squared:.4f}\n{p_text} {sig_marker}\nn = {len(ranks)}'
     ax.text(0.02, 0.98, stats_text, transform=ax.transAxes,
             fontsize=10, verticalalignment='top',
             bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
