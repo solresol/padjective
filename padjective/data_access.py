@@ -179,9 +179,6 @@ def stream_products(
             )
 
 
-MAX_PRODUCTS = 2000
-
-
 def build_feature_dataset(
     conn,
     *,
@@ -194,12 +191,9 @@ def build_feature_dataset(
 
     all_records = list(stream_products(conn, product_table=product_table))
 
-    # Always work with the thousand oldest products so every downstream model
-    # (logistic regression, neural networks, UM-LLR, etc.) sees the exact same
-    # subset of tags and therefore the same number of parameters.
-    if len(all_records) > MAX_PRODUCTS:
-        all_records.sort(key=lambda record: record.product_id)
-        all_records = all_records[:MAX_PRODUCTS]
+    # Use all available products
+    # Sort by product_id for consistency
+    all_records.sort(key=lambda record: record.product_id)
 
     if require_taxonomy:
         eligible_records = [record for record in all_records if record.taxonomy_id]

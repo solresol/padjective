@@ -2104,14 +2104,14 @@ def _write_umllr_pages(output_dir: Path, summary: Dict[str, Any], conn=None, sch
         rolling_chart_html = ""
         rolling_chart_path = umllr_dir / f"fold_{fold}_rolling_nonzero.png"
         generated_rolling_chart = _generate_rolling_nonzero_chart(
-            coeff_rows, tag_rankings, rolling_chart_path, window_size=100
+            coeff_rows, tag_rankings, rolling_chart_path, window_size=10
         )
         if generated_rolling_chart:
             rolling_chart_html = f"""
     <h2>Rolling Average of Non-Zero Coefficients</h2>
     <figure class="chart">
       <img src="fold_{fold}_rolling_nonzero.png" alt="Rolling average of non-zero coefficients" />
-      <figcaption>Rolling average (window=100 tags) of the proportion of tags with non-zero coefficients, plotted by battle ranking. Shows how the informativeness of tags changes as we move through the ranking.</figcaption>
+      <figcaption>Rolling average (window=10 tags) of the proportion of tags with non-zero coefficients, plotted by battle ranking. Shows how the informativeness of tags changes as we move through the ranking.</figcaption>
     </figure>
 """
 
