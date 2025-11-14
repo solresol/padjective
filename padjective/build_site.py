@@ -16,9 +16,11 @@ import matplotlib
 matplotlib.use('Agg')  # Use non-interactive backend
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
+import numpy as np
 import pandas as pd
 from psycopg import sql
 from psycopg.rows import dict_row
+from scipy import stats
 
 from . import data_access, db, display, ranking, tagbattle
 
@@ -2676,16 +2678,36 @@ def _generate_lr_tag_rank_vs_coeff_chart(
     ranks = [x[0] for x in data_points]
     coeffs = [x[1] for x in data_points]
 
+    # Calculate linear regression
+    ranks_array = np.array(ranks)
+    coeffs_array = np.array(coeffs)
+    slope, intercept, r_value, p_value, std_err = stats.linregress(ranks_array, coeffs_array)
+    r_squared = r_value ** 2
+
     # Create scatter plot
     fig, ax = plt.subplots(figsize=(12, 6))
 
-    ax.scatter(ranks, coeffs, color='#0b6ce3', alpha=0.6, s=50)
+    ax.scatter(ranks, coeffs, color='#0b6ce3', alpha=0.6, s=50, label='Data points')
+
+    # Add regression line
+    line_x = np.array([min(ranks), max(ranks)])
+    line_y = slope * line_x + intercept
+    ax.plot(line_x, line_y, 'r-', linewidth=2, alpha=0.8,
+            label=f'Linear fit: y = {slope:.6f}x + {intercept:.4f}')
+
+    # Add statistics text box
+    sig_marker = '***' if p_value < 0.001 else ('**' if p_value < 0.01 else ('*' if p_value < 0.05 else 'ns'))
+    stats_text = f'R² = {r_squared:.4f}\np-value = {p_value:.4e} {sig_marker}\nn = {len(ranks)}'
+    ax.text(0.02, 0.98, stats_text, transform=ax.transAxes,
+            fontsize=10, verticalalignment='top',
+            bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
 
     ax.set_xlabel('Tag Battle Rank', fontsize=12, fontweight='bold')
     ax.set_ylabel('Max |Coefficient| across Taxonomies', fontsize=12, fontweight='bold')
     ax.set_title('Tag Rank vs Maximum Absolute Coefficient', fontsize=14, fontweight='bold', pad=15)
     ax.grid(True, alpha=0.3, linestyle='--')
     ax.set_ylim(bottom=0)  # Start y-axis at zero for proper magnitude comparison
+    ax.legend(loc='upper right', frameon=True, shadow=True)
 
     plt.tight_layout()
     plt.savefig(output_path, dpi=150, bbox_inches='tight')
