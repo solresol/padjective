@@ -2683,8 +2683,9 @@ def _generate_lr_tag_rank_vs_coeff_chart(
 
     ax.set_xlabel('Tag Battle Rank', fontsize=12, fontweight='bold')
     ax.set_ylabel('Max |Coefficient| across Taxonomies', fontsize=12, fontweight='bold')
-    ax.set_title('Tag Rank vs Maximum Coefficient Magnitude', fontsize=14, fontweight='bold', pad=15)
+    ax.set_title('Tag Rank vs Maximum Absolute Coefficient', fontsize=14, fontweight='bold', pad=15)
     ax.grid(True, alpha=0.3, linestyle='--')
+    ax.set_ylim(bottom=0)  # Start y-axis at zero for proper magnitude comparison
 
     plt.tight_layout()
     plt.savefig(output_path, dpi=150, bbox_inches='tight')
