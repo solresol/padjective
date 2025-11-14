@@ -2702,8 +2702,8 @@ def _generate_lr_tag_rank_vs_coeff_chart(
     else:
         p_text = f'p = {p_value:.4f}'
     stats_text = f'R² = {r_squared:.4f}\n{p_text} {sig_marker}\nn = {len(ranks)}'
-    ax.text(0.02, 0.98, stats_text, transform=ax.transAxes,
-            fontsize=10, verticalalignment='top',
+    ax.text(0.02, 0.02, stats_text, transform=ax.transAxes,
+            fontsize=10, verticalalignment='bottom',
             bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.5))
 
     ax.set_xlabel('Tag Battle Rank', fontsize=12, fontweight='bold')
