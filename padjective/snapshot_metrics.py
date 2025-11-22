@@ -46,11 +46,24 @@ def create_history_table(conn, schema: str = "padjective") -> None:
                     umllr_mean_padic_loss REAL,
                     lr_mean_padic_loss REAL,
                     nn_mean_padic_loss REAL,
+                    dummy_mean_padic_loss REAL,
                     umllr_mean_accuracy REAL,
                     lr_mean_accuracy REAL,
                     nn_mean_accuracy REAL,
+                    dummy_mean_accuracy REAL,
                     PRIMARY KEY (snapshot_date)
                 )
+                """
+            ).format(schema=sql.Identifier(schema))
+        )
+
+        # Add missing columns if table already exists (migration)
+        cur.execute(
+            sql.SQL(
+                """
+                ALTER TABLE {schema}.model_performance_history
+                ADD COLUMN IF NOT EXISTS dummy_mean_padic_loss REAL,
+                ADD COLUMN IF NOT EXISTS dummy_mean_accuracy REAL
                 """
             ).format(schema=sql.Identifier(schema))
         )
@@ -151,6 +164,28 @@ def get_nn_metrics(conn, schema: str = "padjective") -> tuple[float | None, floa
     return None, None
 
 
+def get_dummy_metrics(conn, schema: str = "padjective") -> tuple[float | None, float | None]:
+    """Get dummy baseline mean p-adic loss and accuracy across all folds.
+
+    Returns:
+        tuple: (mean_padic_loss, mean_accuracy)
+    """
+    with conn.cursor() as cur:
+        cur.execute(
+            sql.SQL(
+                """
+                SELECT AVG(loss), AVG(accuracy)
+                FROM {schema}.dummy_fold_metrics
+                """
+            ).format(schema=sql.Identifier(schema))
+        )
+        row = cur.fetchone()
+        if row and row[0] is not None:
+            return float(row[0]), float(row[1]) if row[1] is not None else None
+
+    return None, None
+
+
 def snapshot_metrics(
     conn,
     product_table: str = "cantbuymelove.product",
@@ -181,6 +216,7 @@ def snapshot_metrics(
     umllr_padic, umllr_acc = get_umllr_metrics(conn, schema)
     lr_padic, lr_acc = get_lr_metrics(conn, schema)
     nn_padic, nn_acc = get_nn_metrics(conn, schema)
+    dummy_padic, dummy_acc = get_dummy_metrics(conn, schema)
 
     # Insert or update snapshot
     with conn.cursor() as cur:
@@ -189,9 +225,9 @@ def snapshot_metrics(
                 """
                 INSERT INTO {schema}.model_performance_history
                 (snapshot_date, num_products, num_tags, num_taxonomies,
-                 umllr_mean_padic_loss, lr_mean_padic_loss, nn_mean_padic_loss,
-                 umllr_mean_accuracy, lr_mean_accuracy, nn_mean_accuracy)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                 umllr_mean_padic_loss, lr_mean_padic_loss, nn_mean_padic_loss, dummy_mean_padic_loss,
+                 umllr_mean_accuracy, lr_mean_accuracy, nn_mean_accuracy, dummy_mean_accuracy)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ON CONFLICT (snapshot_date) DO UPDATE SET
                     snapshot_time = now(),
                     num_products = EXCLUDED.num_products,
@@ -200,9 +236,11 @@ def snapshot_metrics(
                     umllr_mean_padic_loss = EXCLUDED.umllr_mean_padic_loss,
                     lr_mean_padic_loss = EXCLUDED.lr_mean_padic_loss,
                     nn_mean_padic_loss = EXCLUDED.nn_mean_padic_loss,
+                    dummy_mean_padic_loss = EXCLUDED.dummy_mean_padic_loss,
                     umllr_mean_accuracy = EXCLUDED.umllr_mean_accuracy,
                     lr_mean_accuracy = EXCLUDED.lr_mean_accuracy,
-                    nn_mean_accuracy = EXCLUDED.nn_mean_accuracy
+                    nn_mean_accuracy = EXCLUDED.nn_mean_accuracy,
+                    dummy_mean_accuracy = EXCLUDED.dummy_mean_accuracy
                 """
             ).format(schema=sql.Identifier(schema)),
             (
@@ -213,9 +251,11 @@ def snapshot_metrics(
                 umllr_padic,
                 lr_padic,
                 nn_padic,
+                dummy_padic,
                 umllr_acc,
                 lr_acc,
                 nn_acc,
+                dummy_acc,
             ),
         )
     conn.commit()
@@ -225,6 +265,7 @@ def snapshot_metrics(
     print(f"  umllr p-adic loss: {umllr_padic:.6f}" if umllr_padic else "  umllr: no data")
     print(f"  LR p-adic loss: {lr_padic:.6f}" if lr_padic else "  LR: no data")
     print(f"  NN p-adic loss: {nn_padic:.6f}" if nn_padic else "  NN: no data")
+    print(f"  Dummy p-adic loss: {dummy_padic:.6f}" if dummy_padic else "  Dummy: no data")
 
 
 def main() -> None:
