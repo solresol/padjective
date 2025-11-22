@@ -530,11 +530,12 @@ def _run_dummy_fold(
         )
 
     accuracy = correct_count / len(testing) if testing else 0.0
+    average_loss = total_loss / len(testing) if testing else 0.0
 
     return DummyFoldResult(
         cv_fold=fold,
         predictions=predictions,
-        loss=total_loss,
+        loss=average_loss,
         accuracy=accuracy,
         most_common_value=most_common_value,
         most_common_taxonomy_id=most_common_taxonomy_id,
