@@ -276,6 +276,36 @@ def _tag_order(
     return ordered_tags
 
 
+def _select_default_prediction(
+    no_tag_values: Sequence[int],
+    candidate_values: Sequence[int],
+    base: int,
+) -> int:
+    """Select the default prediction that minimizes p-adic loss for products with no tags.
+
+    Due to ultrametricity, the optimal default is one of the existing taxonomy values.
+    We check each unique candidate and pick the one with minimum total p-adic loss.
+    """
+    if not no_tag_values:
+        # No products without tags to optimize for; fall back to most common
+        from collections import Counter
+        if candidate_values:
+            return Counter(candidate_values).most_common(1)[0][0]
+        return 0
+
+    unique_candidates = sorted(set(candidate_values)) if candidate_values else [0]
+    best_value = unique_candidates[0]
+    best_loss = float("inf")
+
+    for candidate in unique_candidates:
+        total_loss = sum(_p_adic_distance(candidate, value, base) for value in no_tag_values)
+        if total_loss < best_loss or (total_loss == best_loss and candidate < best_value):
+            best_loss = total_loss
+            best_value = candidate
+
+    return best_value
+
+
 def _run_fold(
     fold: int,
     records: Sequence[ProductRecord],
@@ -284,14 +314,6 @@ def _run_fold(
 ) -> FoldResult:
     training = [record for record in records if record.cv_fold != fold]
     testing = [record for record in records if record.cv_fold == fold]
-
-    # Calculate the most common taxonomy encoding in training data as default
-    from collections import Counter
-    training_values = [record.encoded_path for record in training]
-    if training_values:
-        default_prediction = Counter(training_values).most_common(1)[0][0]
-    else:
-        default_prediction = 0
 
     product_residuals: Dict[int, int] = {record.product_id: record.encoded_path for record in training}
     tag_to_products: Dict[str, List[int]] = {}
@@ -313,6 +335,19 @@ def _run_fold(
         coefficients.append(TagCoefficient(tag=tag, coefficient=coefficient, sequence=sequence))
 
     coefficient_lookup = {entry.tag: entry.coefficient for entry in coefficients}
+
+    # Find training products with no contributing tags (prediction would be 0)
+    no_tag_training_values = [
+        record.encoded_path
+        for record in training
+        if sum(coefficient_lookup.get(tag, 0) for tag in record.tags) == 0
+    ]
+    all_training_values = [record.encoded_path for record in training]
+
+    # Select default that minimizes p-adic loss for products with no tags
+    default_prediction = _select_default_prediction(
+        no_tag_training_values, all_training_values, base
+    )
 
     predictions: List[Prediction] = []
     total_loss = 0.0

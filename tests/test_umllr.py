@@ -4,6 +4,7 @@ from padjective.umllr import (
     _p_adic_distance,
     _run_fold,
     _select_coefficient,
+    _select_default_prediction,
 )
 
 
@@ -19,6 +20,41 @@ def test_select_coefficient_prefers_smallest_candidate() -> None:
     base = 5
     # Candidates 0 and 5 produce the same loss; the smaller is chosen.
     assert _select_coefficient(values, base) == 0
+
+
+def test_select_default_prediction_minimizes_padic_loss() -> None:
+    # Products with no tags have encoded paths 5, 10, 15 (all divisible by 5)
+    # Candidates are 1, 5, 10, 15
+    # p-adic distance from 5 to {5, 10, 15}: 0 + 0.2 + 0.2 = 0.4
+    # p-adic distance from 10 to {5, 10, 15}: 0.2 + 0 + 0.2 = 0.4
+    # p-adic distance from 15 to {5, 10, 15}: 0.2 + 0.2 + 0 = 0.4
+    # p-adic distance from 1 to {5, 10, 15}: 1 + 1 + 1 = 3.0
+    # Tie between 5, 10, 15 - should pick smallest (5)
+    no_tag_values = [5, 10, 15]
+    candidate_values = [1, 5, 10, 15]
+    base = 5
+    assert _select_default_prediction(no_tag_values, candidate_values, base) == 5
+
+
+def test_select_default_prediction_empty_no_tag_values() -> None:
+    # When no products have missing tags, fall back to most common
+    no_tag_values = []
+    candidate_values = [1, 5, 5, 10]  # 5 is most common
+    base = 5
+    assert _select_default_prediction(no_tag_values, candidate_values, base) == 5
+
+
+def test_select_default_prediction_picks_best_for_ultrametric() -> None:
+    # Test case where one candidate is clearly better due to ultrametricity
+    # Products with no tags: 25, 50 (both divisible by 25)
+    # p-adic distance from 25 to {25, 50}: 0 + 0.04 = 0.04
+    # p-adic distance from 50 to {25, 50}: 0.04 + 0 = 0.04
+    # p-adic distance from 1 to {25, 50}: 1 + 1 = 2.0
+    # Tie: pick smallest (25)
+    no_tag_values = [25, 50]
+    candidate_values = [1, 25, 50]
+    base = 5
+    assert _select_default_prediction(no_tag_values, candidate_values, base) == 25
 
 
 def test_run_fold_returns_coefficients_and_predictions() -> None:
