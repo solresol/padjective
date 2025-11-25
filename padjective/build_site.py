@@ -3930,25 +3930,31 @@ def _generate_performance_vs_products_chart(conn, output_path: Path, schema: str
 
     fig, ax = plt.subplots(figsize=(10, 6))
 
+    # Helper function to plot scatter with regression line
+    def plot_with_regression(x_data, y_data, label, color, marker='o'):
+        valid_x = [x for x, y in zip(x_data, y_data) if y is not None]
+        valid_y = [y for y in y_data if y is not None]
+        if len(valid_x) >= 2:
+            ax.scatter(valid_x, valid_y, label=label, color=color, s=60, alpha=0.8, marker=marker)
+            # Add regression line
+            x_arr = np.array(valid_x)
+            y_arr = np.array(valid_y)
+            coeffs = np.polyfit(x_arr, y_arr, 1)
+            x_line = np.linspace(min(valid_x), max(valid_x), 100)
+            y_line = np.polyval(coeffs, x_line)
+            ax.plot(x_line, y_line, color=color, linestyle='--', linewidth=1.5, alpha=0.6)
+
     if any(v is not None for v in umllr_loss):
-        valid_x = [x for x, y in zip(num_products, umllr_loss) if y is not None]
-        valid_y = [y for y in umllr_loss if y is not None]
-        ax.scatter(valid_x, valid_y, label='Importance-Optimised p-adic LR', color='#0b6ce3', s=60, alpha=0.8)
+        plot_with_regression(num_products, umllr_loss, 'Importance-Optimised p-adic LR', '#0b6ce3', 'o')
 
     if any(v is not None for v in lr_loss):
-        valid_x = [x for x, y in zip(num_products, lr_loss) if y is not None]
-        valid_y = [y for y in lr_loss if y is not None]
-        ax.scatter(valid_x, valid_y, label='Logistic Regression', color='#10b981', s=60, alpha=0.8, marker='s')
+        plot_with_regression(num_products, lr_loss, 'Logistic Regression', '#10b981', 's')
 
     if any(v is not None for v in nn_loss):
-        valid_x = [x for x, y in zip(num_products, nn_loss) if y is not None]
-        valid_y = [y for y in nn_loss if y is not None]
-        ax.scatter(valid_x, valid_y, label='Neural Network', color='#f59e0b', s=60, alpha=0.8, marker='^')
+        plot_with_regression(num_products, nn_loss, 'Neural Network', '#f59e0b', '^')
 
     if any(v is not None for v in dummy_loss):
-        valid_x = [x for x, y in zip(num_products, dummy_loss) if y is not None]
-        valid_y = [y for y in dummy_loss if y is not None]
-        ax.scatter(valid_x, valid_y, label='Dummy Baseline', color='#94a3b8', s=60, alpha=0.8, marker='x')
+        plot_with_regression(num_products, dummy_loss, 'Dummy Baseline', '#94a3b8', 'x')
 
     ax.set_xlabel('Number of Products', fontsize=12, fontweight='bold')
     ax.set_ylabel('P-adic Loss (lower is better)', fontsize=12, fontweight='bold')
@@ -3997,25 +4003,31 @@ def _generate_performance_vs_tags_chart(conn, output_path: Path, schema: str = "
 
     fig, ax = plt.subplots(figsize=(10, 6))
 
+    # Helper function to plot scatter with regression line
+    def plot_with_regression(x_data, y_data, label, color, marker='o'):
+        valid_x = [x for x, y in zip(x_data, y_data) if y is not None]
+        valid_y = [y for y in y_data if y is not None]
+        if len(valid_x) >= 2:
+            ax.scatter(valid_x, valid_y, label=label, color=color, s=60, alpha=0.8, marker=marker)
+            # Add regression line
+            x_arr = np.array(valid_x)
+            y_arr = np.array(valid_y)
+            coeffs = np.polyfit(x_arr, y_arr, 1)
+            x_line = np.linspace(min(valid_x), max(valid_x), 100)
+            y_line = np.polyval(coeffs, x_line)
+            ax.plot(x_line, y_line, color=color, linestyle='--', linewidth=1.5, alpha=0.6)
+
     if any(v is not None for v in umllr_loss):
-        valid_x = [x for x, y in zip(num_tags, umllr_loss) if y is not None]
-        valid_y = [y for y in umllr_loss if y is not None]
-        ax.scatter(valid_x, valid_y, label='Importance-Optimised p-adic LR', color='#0b6ce3', s=60, alpha=0.8)
+        plot_with_regression(num_tags, umllr_loss, 'Importance-Optimised p-adic LR', '#0b6ce3', 'o')
 
     if any(v is not None for v in lr_loss):
-        valid_x = [x for x, y in zip(num_tags, lr_loss) if y is not None]
-        valid_y = [y for y in lr_loss if y is not None]
-        ax.scatter(valid_x, valid_y, label='Logistic Regression', color='#10b981', s=60, alpha=0.8, marker='s')
+        plot_with_regression(num_tags, lr_loss, 'Logistic Regression', '#10b981', 's')
 
     if any(v is not None for v in nn_loss):
-        valid_x = [x for x, y in zip(num_tags, nn_loss) if y is not None]
-        valid_y = [y for y in nn_loss if y is not None]
-        ax.scatter(valid_x, valid_y, label='Neural Network', color='#f59e0b', s=60, alpha=0.8, marker='^')
+        plot_with_regression(num_tags, nn_loss, 'Neural Network', '#f59e0b', '^')
 
     if any(v is not None for v in dummy_loss):
-        valid_x = [x for x, y in zip(num_tags, dummy_loss) if y is not None]
-        valid_y = [y for y in dummy_loss if y is not None]
-        ax.scatter(valid_x, valid_y, label='Dummy Baseline', color='#94a3b8', s=60, alpha=0.8, marker='x')
+        plot_with_regression(num_tags, dummy_loss, 'Dummy Baseline', '#94a3b8', 'x')
 
     ax.set_xlabel('Number of Distinct Tags', fontsize=12, fontweight='bold')
     ax.set_ylabel('P-adic Loss (lower is better)', fontsize=12, fontweight='bold')
