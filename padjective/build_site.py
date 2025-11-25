@@ -2202,10 +2202,10 @@ def _format_regression_stats_html(stats: Optional[Dict[str, Dict[str, float]]], 
                 p_str = f"{s['p_value']:.4f}"
             rows.append(
                 f'<tr><td style="color: {color}; font-weight: bold;">{name}</td>'
-                f'<td>{s["slope"]:.6f}</td>'
-                f'<td>{s["intercept"]:.4f}</td>'
-                f'<td>{s["r_squared"]:.4f}</td>'
-                f'<td>{p_str}</td></tr>'
+                f'<td style="text-align: right;">{s["slope"]:.6f}</td>'
+                f'<td style="text-align: right;">{s["intercept"]:.4f}</td>'
+                f'<td style="text-align: right;">{s["r_squared"]:.4f}</td>'
+                f'<td style="text-align: right;">{p_str}</td></tr>'
             )
 
     if not rows:
