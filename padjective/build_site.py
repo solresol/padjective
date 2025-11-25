@@ -2171,12 +2171,35 @@ def _write_umllr_pages(output_dir: Path, summary: Dict[str, Any], conn=None, sch
 
 
 
-def _build_trends_section(trends_chart_path: Optional[Path], output_dir: Path) -> str:
-    """Build HTML section for historical trends chart."""
+def _build_trends_section(
+    trends_chart_path: Optional[Path],
+    perf_vs_products_chart_path: Optional[Path],
+    perf_vs_tags_chart_path: Optional[Path],
+    output_dir: Path,
+) -> str:
+    """Build HTML section for historical trends charts."""
     if not trends_chart_path:
         return ""
 
     chart_rel_path = trends_chart_path.relative_to(output_dir).as_posix()
+
+    # Build optional charts HTML
+    perf_vs_products_html = ""
+    if perf_vs_products_chart_path:
+        products_chart_rel = perf_vs_products_chart_path.relative_to(output_dir).as_posix()
+        perf_vs_products_html = f"""
+    <figure class="chart" style="margin-top: 2rem;">
+      <img src="{products_chart_rel}" alt="Model performance vs number of products" />
+    </figure>"""
+
+    perf_vs_tags_html = ""
+    if perf_vs_tags_chart_path:
+        tags_chart_rel = perf_vs_tags_chart_path.relative_to(output_dir).as_posix()
+        perf_vs_tags_html = f"""
+    <figure class="chart" style="margin-top: 2rem;">
+      <img src="{tags_chart_rel}" alt="Model performance vs number of distinct tags" />
+    </figure>"""
+
     return f"""
   <section style="max-width: 70rem; margin: 2rem auto; background: white; border-radius: 1rem; box-shadow: 0 12px 30px rgba(15, 23, 42, 0.12); padding: 2rem 1.5rem;">
     <h2 style="margin-top: 0;">Historical Performance Trends</h2>
@@ -2186,6 +2209,8 @@ def _build_trends_section(trends_chart_path: Optional[Path], output_dir: Path) -
     <figure class="chart">
       <img src="{chart_rel_path}" alt="Historical model performance trends" />
     </figure>
+    {perf_vs_products_html}
+    {perf_vs_tags_html}
   </section>"""
 
 
@@ -2205,6 +2230,8 @@ def _build_index_html(
     taxonomy_fold_results: Optional[list[Dict[str, Any]]] = None,
     taxonomy_nn_fold_results: Optional[list[Dict[str, Any]]] = None,
     trends_chart_path: Optional[Path] = None,
+    perf_vs_products_chart_path: Optional[Path] = None,
+    perf_vs_tags_chart_path: Optional[Path] = None,
 ) -> None:
     generated = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
 
@@ -2531,7 +2558,7 @@ def _build_index_html(
 
   {taxonomy_overview_html}
 
-  {_build_trends_section(trends_chart_path, output_dir)}
+  {_build_trends_section(trends_chart_path, perf_vs_products_chart_path, perf_vs_tags_chart_path, output_dir)}
 
   <footer>
     <p>Source available on <a href="https://github.com/IFost-Sydney-Uni/padjective">GitHub</a></p>
@@ -3870,6 +3897,140 @@ def _generate_historical_trends_chart(conn, output_path: Path, schema: str = "pa
     return output_path
 
 
+def _generate_performance_vs_products_chart(conn, output_path: Path, schema: str = "padjective") -> Optional[Path]:
+    """Generate a scatter plot showing model performance vs number of products.
+
+    Returns:
+        Path to generated chart, or None if no historical data exists
+    """
+    if not _table_exists(conn, schema, "model_performance_history"):
+        return None
+
+    with conn.cursor() as cur:
+        cur.execute(
+            sql.SQL(
+                """
+                SELECT num_products, umllr_mean_padic_loss, lr_mean_padic_loss,
+                       nn_mean_padic_loss, dummy_mean_padic_loss
+                FROM {schema}.model_performance_history
+                ORDER BY num_products
+                """
+            ).format(schema=sql.Identifier(schema))
+        )
+        rows = cur.fetchall()
+
+    if not rows or len(rows) < 2:
+        return None
+
+    num_products = [row[0] for row in rows]
+    umllr_loss = [row[1] for row in rows]
+    lr_loss = [row[2] for row in rows]
+    nn_loss = [row[3] for row in rows]
+    dummy_loss = [row[4] for row in rows]
+
+    fig, ax = plt.subplots(figsize=(10, 6))
+
+    if any(v is not None for v in umllr_loss):
+        valid_x = [x for x, y in zip(num_products, umllr_loss) if y is not None]
+        valid_y = [y for y in umllr_loss if y is not None]
+        ax.scatter(valid_x, valid_y, label='Importance-Optimised p-adic LR', color='#0b6ce3', s=60, alpha=0.8)
+
+    if any(v is not None for v in lr_loss):
+        valid_x = [x for x, y in zip(num_products, lr_loss) if y is not None]
+        valid_y = [y for y in lr_loss if y is not None]
+        ax.scatter(valid_x, valid_y, label='Logistic Regression', color='#10b981', s=60, alpha=0.8, marker='s')
+
+    if any(v is not None for v in nn_loss):
+        valid_x = [x for x, y in zip(num_products, nn_loss) if y is not None]
+        valid_y = [y for y in nn_loss if y is not None]
+        ax.scatter(valid_x, valid_y, label='Neural Network', color='#f59e0b', s=60, alpha=0.8, marker='^')
+
+    if any(v is not None for v in dummy_loss):
+        valid_x = [x for x, y in zip(num_products, dummy_loss) if y is not None]
+        valid_y = [y for y in dummy_loss if y is not None]
+        ax.scatter(valid_x, valid_y, label='Dummy Baseline', color='#94a3b8', s=60, alpha=0.8, marker='x')
+
+    ax.set_xlabel('Number of Products', fontsize=12, fontweight='bold')
+    ax.set_ylabel('P-adic Loss (lower is better)', fontsize=12, fontweight='bold')
+    ax.set_title('Model Performance vs Dataset Size (Products)', fontsize=14, fontweight='bold', pad=15)
+    ax.legend(loc='best', frameon=True, shadow=True)
+    ax.grid(True, alpha=0.3, linestyle='--')
+    ax.set_ylim(bottom=0)
+
+    plt.tight_layout()
+    plt.savefig(output_path, dpi=150, bbox_inches='tight')
+    plt.close()
+
+    return output_path
+
+
+def _generate_performance_vs_tags_chart(conn, output_path: Path, schema: str = "padjective") -> Optional[Path]:
+    """Generate a scatter plot showing model performance vs number of distinct tags.
+
+    Returns:
+        Path to generated chart, or None if no historical data exists
+    """
+    if not _table_exists(conn, schema, "model_performance_history"):
+        return None
+
+    with conn.cursor() as cur:
+        cur.execute(
+            sql.SQL(
+                """
+                SELECT num_tags, umllr_mean_padic_loss, lr_mean_padic_loss,
+                       nn_mean_padic_loss, dummy_mean_padic_loss
+                FROM {schema}.model_performance_history
+                ORDER BY num_tags
+                """
+            ).format(schema=sql.Identifier(schema))
+        )
+        rows = cur.fetchall()
+
+    if not rows or len(rows) < 2:
+        return None
+
+    num_tags = [row[0] for row in rows]
+    umllr_loss = [row[1] for row in rows]
+    lr_loss = [row[2] for row in rows]
+    nn_loss = [row[3] for row in rows]
+    dummy_loss = [row[4] for row in rows]
+
+    fig, ax = plt.subplots(figsize=(10, 6))
+
+    if any(v is not None for v in umllr_loss):
+        valid_x = [x for x, y in zip(num_tags, umllr_loss) if y is not None]
+        valid_y = [y for y in umllr_loss if y is not None]
+        ax.scatter(valid_x, valid_y, label='Importance-Optimised p-adic LR', color='#0b6ce3', s=60, alpha=0.8)
+
+    if any(v is not None for v in lr_loss):
+        valid_x = [x for x, y in zip(num_tags, lr_loss) if y is not None]
+        valid_y = [y for y in lr_loss if y is not None]
+        ax.scatter(valid_x, valid_y, label='Logistic Regression', color='#10b981', s=60, alpha=0.8, marker='s')
+
+    if any(v is not None for v in nn_loss):
+        valid_x = [x for x, y in zip(num_tags, nn_loss) if y is not None]
+        valid_y = [y for y in nn_loss if y is not None]
+        ax.scatter(valid_x, valid_y, label='Neural Network', color='#f59e0b', s=60, alpha=0.8, marker='^')
+
+    if any(v is not None for v in dummy_loss):
+        valid_x = [x for x, y in zip(num_tags, dummy_loss) if y is not None]
+        valid_y = [y for y in dummy_loss if y is not None]
+        ax.scatter(valid_x, valid_y, label='Dummy Baseline', color='#94a3b8', s=60, alpha=0.8, marker='x')
+
+    ax.set_xlabel('Number of Distinct Tags', fontsize=12, fontweight='bold')
+    ax.set_ylabel('P-adic Loss (lower is better)', fontsize=12, fontweight='bold')
+    ax.set_title('Model Performance vs Feature Space (Distinct Tags)', fontsize=14, fontweight='bold', pad=15)
+    ax.legend(loc='best', frameon=True, shadow=True)
+    ax.grid(True, alpha=0.3, linestyle='--')
+    ax.set_ylim(bottom=0)
+
+    plt.tight_layout()
+    plt.savefig(output_path, dpi=150, bbox_inches='tight')
+    plt.close()
+
+    return output_path
+
+
 def build_site(
     output_dir: Path,
     *,
@@ -4067,10 +4228,20 @@ footer {text-align: center; padding: 2rem 1.5rem 3rem; color: #6b7280;}
         )
         taxonomy_nn_page = _write_taxonomy_nn_overview_page(output_dir, taxonomy_nn_fold_results, taxonomy_nn_fold_pages)
 
-    # Generate historical trends chart
+    # Generate historical trends charts
     trends_chart_path = _generate_historical_trends_chart(
         precomputed_database,
         assets_dir / "historical_trends.png",
+        schema=battle_schema
+    )
+    perf_vs_products_chart_path = _generate_performance_vs_products_chart(
+        precomputed_database,
+        assets_dir / "performance_vs_products.png",
+        schema=battle_schema
+    )
+    perf_vs_tags_chart_path = _generate_performance_vs_tags_chart(
+        precomputed_database,
+        assets_dir / "performance_vs_tags.png",
         schema=battle_schema
     )
 
@@ -4090,6 +4261,8 @@ footer {text-align: center; padding: 2rem 1.5rem 3rem; color: #6b7280;}
         taxonomy_lr_fold_results,
         taxonomy_nn_fold_results,
         trends_chart_path,
+        perf_vs_products_chart_path,
+        perf_vs_tags_chart_path,
     )
 
     metadata = {
