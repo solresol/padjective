@@ -2171,11 +2171,70 @@ def _write_umllr_pages(output_dir: Path, summary: Dict[str, Any], conn=None, sch
 
 
 
+def _format_regression_stats_html(stats: Optional[Dict[str, Dict[str, float]]], x_label: str) -> str:
+    """Format regression statistics as an HTML table."""
+    if not stats:
+        return ""
+
+    model_names = {
+        'umllr': 'Importance-Optimised p-adic LR',
+        'lr': 'Logistic Regression',
+        'nn': 'Neural Network',
+        'dummy': 'Dummy Baseline',
+    }
+    model_colors = {
+        'umllr': '#0b6ce3',
+        'lr': '#10b981',
+        'nn': '#f59e0b',
+        'dummy': '#94a3b8',
+    }
+
+    rows = []
+    for key in ['umllr', 'lr', 'nn', 'dummy']:
+        if key in stats:
+            s = stats[key]
+            color = model_colors[key]
+            name = model_names[key]
+            # Format p-value with scientific notation if very small
+            if s['p_value'] < 0.001:
+                p_str = f"{s['p_value']:.2e}"
+            else:
+                p_str = f"{s['p_value']:.4f}"
+            rows.append(
+                f'<tr><td style="color: {color}; font-weight: bold;">{name}</td>'
+                f'<td>{s["slope"]:.6f}</td>'
+                f'<td>{s["intercept"]:.4f}</td>'
+                f'<td>{s["r_squared"]:.4f}</td>'
+                f'<td>{p_str}</td></tr>'
+            )
+
+    if not rows:
+        return ""
+
+    return f"""
+    <table style="width: 100%; border-collapse: collapse; margin-top: 1rem; font-size: 0.9rem;">
+      <thead>
+        <tr style="background: #f8fafc; border-bottom: 2px solid #e2e8f0;">
+          <th style="padding: 0.5rem; text-align: left;">Model</th>
+          <th style="padding: 0.5rem; text-align: right;">Slope (per {x_label})</th>
+          <th style="padding: 0.5rem; text-align: right;">Intercept</th>
+          <th style="padding: 0.5rem; text-align: right;">R²</th>
+          <th style="padding: 0.5rem; text-align: right;">p-value</th>
+        </tr>
+      </thead>
+      <tbody>
+        {''.join(rows)}
+      </tbody>
+    </table>"""
+
+
 def _build_trends_section(
     trends_chart_path: Optional[Path],
     perf_vs_products_chart_path: Optional[Path],
     perf_vs_tags_chart_path: Optional[Path],
     output_dir: Path,
+    perf_vs_products_stats: Optional[Dict[str, Dict[str, float]]] = None,
+    perf_vs_tags_stats: Optional[Dict[str, Dict[str, float]]] = None,
 ) -> str:
     """Build HTML section for historical trends charts."""
     if not trends_chart_path:
@@ -2183,22 +2242,26 @@ def _build_trends_section(
 
     chart_rel_path = trends_chart_path.relative_to(output_dir).as_posix()
 
-    # Build optional charts HTML
+    # Build optional charts HTML with regression stats
     perf_vs_products_html = ""
     if perf_vs_products_chart_path:
         products_chart_rel = perf_vs_products_chart_path.relative_to(output_dir).as_posix()
+        products_stats_html = _format_regression_stats_html(perf_vs_products_stats, "product")
         perf_vs_products_html = f"""
     <figure class="chart" style="margin-top: 2rem;">
       <img src="{products_chart_rel}" alt="Model performance vs number of products" />
-    </figure>"""
+    </figure>
+    {products_stats_html}"""
 
     perf_vs_tags_html = ""
     if perf_vs_tags_chart_path:
         tags_chart_rel = perf_vs_tags_chart_path.relative_to(output_dir).as_posix()
+        tags_stats_html = _format_regression_stats_html(perf_vs_tags_stats, "tag")
         perf_vs_tags_html = f"""
     <figure class="chart" style="margin-top: 2rem;">
       <img src="{tags_chart_rel}" alt="Model performance vs number of distinct tags" />
-    </figure>"""
+    </figure>
+    {tags_stats_html}"""
 
     return f"""
   <section style="max-width: 70rem; margin: 2rem auto; background: white; border-radius: 1rem; box-shadow: 0 12px 30px rgba(15, 23, 42, 0.12); padding: 2rem 1.5rem;">
@@ -2232,6 +2295,8 @@ def _build_index_html(
     trends_chart_path: Optional[Path] = None,
     perf_vs_products_chart_path: Optional[Path] = None,
     perf_vs_tags_chart_path: Optional[Path] = None,
+    perf_vs_products_stats: Optional[Dict[str, Dict[str, float]]] = None,
+    perf_vs_tags_stats: Optional[Dict[str, Dict[str, float]]] = None,
 ) -> None:
     generated = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
 
@@ -2558,7 +2623,7 @@ def _build_index_html(
 
   {taxonomy_overview_html}
 
-  {_build_trends_section(trends_chart_path, perf_vs_products_chart_path, perf_vs_tags_chart_path, output_dir)}
+  {_build_trends_section(trends_chart_path, perf_vs_products_chart_path, perf_vs_tags_chart_path, output_dir, perf_vs_products_stats, perf_vs_tags_stats)}
 
   <footer>
     <p>Source available on <a href="https://github.com/IFost-Sydney-Uni/padjective">GitHub</a></p>
@@ -3897,14 +3962,14 @@ def _generate_historical_trends_chart(conn, output_path: Path, schema: str = "pa
     return output_path
 
 
-def _generate_performance_vs_products_chart(conn, output_path: Path, schema: str = "padjective") -> Optional[Path]:
+def _generate_performance_vs_products_chart(conn, output_path: Path, schema: str = "padjective") -> Tuple[Optional[Path], Optional[Dict[str, Dict[str, float]]]]:
     """Generate a scatter plot showing model performance vs number of products.
 
     Returns:
-        Path to generated chart, or None if no historical data exists
+        Tuple of (path to generated chart, regression statistics dict) or (None, None) if no data
     """
     if not _table_exists(conn, schema, "model_performance_history"):
-        return None
+        return None, None
 
     with conn.cursor() as cur:
         cur.execute(
@@ -3920,7 +3985,7 @@ def _generate_performance_vs_products_chart(conn, output_path: Path, schema: str
         rows = cur.fetchall()
 
     if not rows or len(rows) < 2:
-        return None
+        return None, None
 
     num_products = [row[0] for row in rows]
     umllr_loss = [row[1] for row in rows]
@@ -3929,32 +3994,49 @@ def _generate_performance_vs_products_chart(conn, output_path: Path, schema: str
     dummy_loss = [row[4] for row in rows]
 
     fig, ax = plt.subplots(figsize=(10, 6))
+    regression_stats = {}
 
-    # Helper function to plot scatter with regression line
+    # Helper function to plot scatter with regression line and return stats
     def plot_with_regression(x_data, y_data, label, color, marker='o'):
         valid_x = [x for x, y in zip(x_data, y_data) if y is not None]
         valid_y = [y for y in y_data if y is not None]
         if len(valid_x) >= 2:
             ax.scatter(valid_x, valid_y, label=label, color=color, s=60, alpha=0.8, marker=marker)
-            # Add regression line
+            # Calculate regression with scipy for p-value
             x_arr = np.array(valid_x)
             y_arr = np.array(valid_y)
-            coeffs = np.polyfit(x_arr, y_arr, 1)
+            result = stats.linregress(x_arr, y_arr)
             x_line = np.linspace(min(valid_x), max(valid_x), 100)
-            y_line = np.polyval(coeffs, x_line)
+            y_line = result.slope * x_line + result.intercept
             ax.plot(x_line, y_line, color=color, linestyle='--', linewidth=1.5, alpha=0.6)
+            return {
+                'slope': result.slope,
+                'intercept': result.intercept,
+                'r_squared': result.rvalue ** 2,
+                'p_value': result.pvalue,
+                'std_err': result.stderr,
+            }
+        return None
 
     if any(v is not None for v in umllr_loss):
-        plot_with_regression(num_products, umllr_loss, 'Importance-Optimised p-adic LR', '#0b6ce3', 'o')
+        stat = plot_with_regression(num_products, umllr_loss, 'Importance-Optimised p-adic LR', '#0b6ce3', 'o')
+        if stat:
+            regression_stats['umllr'] = stat
 
     if any(v is not None for v in lr_loss):
-        plot_with_regression(num_products, lr_loss, 'Logistic Regression', '#10b981', 's')
+        stat = plot_with_regression(num_products, lr_loss, 'Logistic Regression', '#10b981', 's')
+        if stat:
+            regression_stats['lr'] = stat
 
     if any(v is not None for v in nn_loss):
-        plot_with_regression(num_products, nn_loss, 'Neural Network', '#f59e0b', '^')
+        stat = plot_with_regression(num_products, nn_loss, 'Neural Network', '#f59e0b', '^')
+        if stat:
+            regression_stats['nn'] = stat
 
     if any(v is not None for v in dummy_loss):
-        plot_with_regression(num_products, dummy_loss, 'Dummy Baseline', '#94a3b8', 'x')
+        stat = plot_with_regression(num_products, dummy_loss, 'Dummy Baseline', '#94a3b8', 'x')
+        if stat:
+            regression_stats['dummy'] = stat
 
     ax.set_xlabel('Number of Products', fontsize=12, fontweight='bold')
     ax.set_ylabel('P-adic Loss (lower is better)', fontsize=12, fontweight='bold')
@@ -3967,17 +4049,17 @@ def _generate_performance_vs_products_chart(conn, output_path: Path, schema: str
     plt.savefig(output_path, dpi=150, bbox_inches='tight')
     plt.close()
 
-    return output_path
+    return output_path, regression_stats
 
 
-def _generate_performance_vs_tags_chart(conn, output_path: Path, schema: str = "padjective") -> Optional[Path]:
+def _generate_performance_vs_tags_chart(conn, output_path: Path, schema: str = "padjective") -> Tuple[Optional[Path], Optional[Dict[str, Dict[str, float]]]]:
     """Generate a scatter plot showing model performance vs number of distinct tags.
 
     Returns:
-        Path to generated chart, or None if no historical data exists
+        Tuple of (path to generated chart, regression statistics dict) or (None, None) if no data
     """
     if not _table_exists(conn, schema, "model_performance_history"):
-        return None
+        return None, None
 
     with conn.cursor() as cur:
         cur.execute(
@@ -3993,7 +4075,7 @@ def _generate_performance_vs_tags_chart(conn, output_path: Path, schema: str = "
         rows = cur.fetchall()
 
     if not rows or len(rows) < 2:
-        return None
+        return None, None
 
     num_tags = [row[0] for row in rows]
     umllr_loss = [row[1] for row in rows]
@@ -4002,32 +4084,49 @@ def _generate_performance_vs_tags_chart(conn, output_path: Path, schema: str = "
     dummy_loss = [row[4] for row in rows]
 
     fig, ax = plt.subplots(figsize=(10, 6))
+    regression_stats = {}
 
-    # Helper function to plot scatter with regression line
+    # Helper function to plot scatter with regression line and return stats
     def plot_with_regression(x_data, y_data, label, color, marker='o'):
         valid_x = [x for x, y in zip(x_data, y_data) if y is not None]
         valid_y = [y for y in y_data if y is not None]
         if len(valid_x) >= 2:
             ax.scatter(valid_x, valid_y, label=label, color=color, s=60, alpha=0.8, marker=marker)
-            # Add regression line
+            # Calculate regression with scipy for p-value
             x_arr = np.array(valid_x)
             y_arr = np.array(valid_y)
-            coeffs = np.polyfit(x_arr, y_arr, 1)
+            result = stats.linregress(x_arr, y_arr)
             x_line = np.linspace(min(valid_x), max(valid_x), 100)
-            y_line = np.polyval(coeffs, x_line)
+            y_line = result.slope * x_line + result.intercept
             ax.plot(x_line, y_line, color=color, linestyle='--', linewidth=1.5, alpha=0.6)
+            return {
+                'slope': result.slope,
+                'intercept': result.intercept,
+                'r_squared': result.rvalue ** 2,
+                'p_value': result.pvalue,
+                'std_err': result.stderr,
+            }
+        return None
 
     if any(v is not None for v in umllr_loss):
-        plot_with_regression(num_tags, umllr_loss, 'Importance-Optimised p-adic LR', '#0b6ce3', 'o')
+        stat = plot_with_regression(num_tags, umllr_loss, 'Importance-Optimised p-adic LR', '#0b6ce3', 'o')
+        if stat:
+            regression_stats['umllr'] = stat
 
     if any(v is not None for v in lr_loss):
-        plot_with_regression(num_tags, lr_loss, 'Logistic Regression', '#10b981', 's')
+        stat = plot_with_regression(num_tags, lr_loss, 'Logistic Regression', '#10b981', 's')
+        if stat:
+            regression_stats['lr'] = stat
 
     if any(v is not None for v in nn_loss):
-        plot_with_regression(num_tags, nn_loss, 'Neural Network', '#f59e0b', '^')
+        stat = plot_with_regression(num_tags, nn_loss, 'Neural Network', '#f59e0b', '^')
+        if stat:
+            regression_stats['nn'] = stat
 
     if any(v is not None for v in dummy_loss):
-        plot_with_regression(num_tags, dummy_loss, 'Dummy Baseline', '#94a3b8', 'x')
+        stat = plot_with_regression(num_tags, dummy_loss, 'Dummy Baseline', '#94a3b8', 'x')
+        if stat:
+            regression_stats['dummy'] = stat
 
     ax.set_xlabel('Number of Distinct Tags', fontsize=12, fontweight='bold')
     ax.set_ylabel('P-adic Loss (lower is better)', fontsize=12, fontweight='bold')
@@ -4040,7 +4139,7 @@ def _generate_performance_vs_tags_chart(conn, output_path: Path, schema: str = "
     plt.savefig(output_path, dpi=150, bbox_inches='tight')
     plt.close()
 
-    return output_path
+    return output_path, regression_stats
 
 
 def build_site(
@@ -4246,12 +4345,12 @@ footer {text-align: center; padding: 2rem 1.5rem 3rem; color: #6b7280;}
         assets_dir / "historical_trends.png",
         schema=battle_schema
     )
-    perf_vs_products_chart_path = _generate_performance_vs_products_chart(
+    perf_vs_products_chart_path, perf_vs_products_stats = _generate_performance_vs_products_chart(
         precomputed_database,
         assets_dir / "performance_vs_products.png",
         schema=battle_schema
     )
-    perf_vs_tags_chart_path = _generate_performance_vs_tags_chart(
+    perf_vs_tags_chart_path, perf_vs_tags_stats = _generate_performance_vs_tags_chart(
         precomputed_database,
         assets_dir / "performance_vs_tags.png",
         schema=battle_schema
@@ -4275,6 +4374,8 @@ footer {text-align: center; padding: 2rem 1.5rem 3rem; color: #6b7280;}
         trends_chart_path,
         perf_vs_products_chart_path,
         perf_vs_tags_chart_path,
+        perf_vs_products_stats,
+        perf_vs_tags_stats,
     )
 
     metadata = {
