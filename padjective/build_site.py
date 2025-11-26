@@ -2277,6 +2277,191 @@ def _build_trends_section(
   </section>"""
 
 
+def _build_index_markdown(
+    stats: Dict[str, int],
+    dataset_stats: Dict[str, int],
+    generated: str,
+    taxonomy_summary: Optional[Dict[str, Any]],
+    umllr_summary: Optional[Dict[str, Any]],
+    dummy_summary: Optional[Dict[str, Any]],
+    taxonomy_fold_results: Optional[list[Dict[str, Any]]],
+    taxonomy_nn_fold_results: Optional[list[Dict[str, Any]]],
+    trends_chart_path: Optional[Path],
+    output_dir: Path,
+) -> str:
+    """Generate markdown version of the index page."""
+    lines = [
+        "# Padjective Tag Hierarchy",
+        "",
+        "Machine learning insights into Shopify product tag organization",
+        "",
+        "Data sourced from [cantbuymelove.industrial-linguistics.com](https://cantbuymelove.industrial-linguistics.com/) powering Shopify taxonomy classification and filtered to taxonomies with at least five products.",
+        "",
+        f"*Last updated {generated}*",
+        "",
+        "## Key Metrics",
+        "",
+        "| Metric | Value |",
+        "|--------|-------|",
+        f"| Products used | {dataset_stats.get('products', 0):,} |",
+        f"| Taxonomies covered | {dataset_stats.get('taxonomies', 0):,} |",
+        f"| Tags used | {dataset_stats.get('unique_tags', 0):,} |",
+        f"| Total tags | {dataset_stats.get('total_tags', 0):,} |",
+        f"| Tag battles | {stats.get('battles', 0):,} |",
+        "",
+        "## Dataset Coverage",
+        "",
+    ]
+
+    discarded_products = dataset_stats.get("discarded_products")
+    discard_note = ""
+    if discarded_products:
+        discard_note = f" *{discarded_products:,} products were discarded due to missing or sparse taxonomy labels.*"
+
+    lines.append(
+        f"Training data spans **{dataset_stats.get('products', 0):,}** products across "
+        f"**{dataset_stats.get('taxonomies', 0):,}** taxonomies. "
+        f"Of **{dataset_stats.get('total_tags', 0):,}** total tags in the dataset, "
+        f"**{dataset_stats.get('unique_tags', 0):,}** tags were used "
+        f"(tags appearing fewer than 5 times were filtered out).{discard_note}"
+    )
+    lines.extend([
+        "",
+        "- [Explore the full dataset](dataset.html)",
+        "- [View defective taxonomy labels](defective_taxonomy.html)",
+        "",
+        "## Models",
+        "",
+    ])
+
+    # UMLLR model
+    if umllr_summary and umllr_summary.get("metrics"):
+        metrics = umllr_summary.get("metrics", [])
+        avg_loss = sum(m["mean_loss"] for m in metrics) / len(metrics) if metrics else 0
+        lines.extend([
+            "### Importance-Optimised p-adic Linear Regression",
+            "",
+            "P-adic coefficients assigned to tags to predict taxonomy",
+            "",
+            f"- **Avg p-adic loss:** {avg_loss:.4f}",
+            "- [View model](umllr/index.html)",
+            "",
+        ])
+
+    # Neural Network
+    if taxonomy_nn_fold_results:
+        avg_loss = sum(r["padic_loss_mean"] for r in taxonomy_nn_fold_results) / len(taxonomy_nn_fold_results)
+        lines.extend([
+            "### Neural Network Classifier",
+            "",
+            "PyTorch neural network predicting taxonomy from tags",
+            "",
+            f"- **Avg p-adic loss:** {avg_loss:.4f}",
+            "- [View model](taxonomy_nn_classifier/index.html)",
+            "",
+        ])
+
+    # Logistic Regression
+    if taxonomy_summary and taxonomy_fold_results:
+        avg_padic_loss = sum(fold["padic_loss_mean"] for fold in taxonomy_fold_results) / len(taxonomy_fold_results)
+        lines.extend([
+            "### Logistic Regression",
+            "",
+            "Logistic regression model predicting Shopify taxonomy from tags",
+            "",
+            f"- **Avg p-adic loss:** {avg_padic_loss:.4f}",
+            "- [View model](logistic_regression/index.html)",
+            "",
+        ])
+
+    # Dummy Baseline
+    if dummy_summary:
+        avg_loss = dummy_summary.get("average_loss")
+        loss_text = f"{avg_loss:.4f}" if avg_loss is not None else "—"
+        lines.extend([
+            "### Dummy Baseline",
+            "",
+            "Always predicts most common taxonomy (baseline for comparison)",
+            "",
+            f"- **Avg p-adic loss:** {loss_text}",
+            "- [View model](dummy/index.html)",
+            "",
+        ])
+
+    # ELO Rankings
+    lines.extend([
+        "### ELO-Inspired Rankings",
+        "",
+        "Battle-tested tag hierarchy from product title positions",
+        "",
+        f"- **Tag battles:** {stats.get('battles', 0):,}",
+        "- [View rankings](elo/index.html)",
+        "",
+    ])
+
+    # Taxonomy Distribution
+    if taxonomy_summary:
+        lines.extend([
+            "## Taxonomy Distribution",
+            "",
+            "![Taxonomy class distribution](assets/taxonomy_distribution.png)",
+            "",
+            "*Distribution of products across the most common taxonomy classes*",
+            "",
+            "### Top 10 Taxonomy Classes",
+            "",
+            "| Taxonomy ID | Name | Path | Samples | Share |",
+            "|-------------|------|------|---------|-------|",
+        ])
+
+        class_distribution = taxonomy_summary.get("class_distribution", [])[:10]
+        for row in class_distribution:
+            tax_id = row.get("taxonomy_id") or ""
+            name = row.get("taxonomy_name") or "Unknown"
+            path = row.get("taxonomy_path") or "Unknown"
+            samples = row.get("sample_count", 0)
+            share = row.get("sample_fraction", 0.0) * 100
+            lines.append(f"| {tax_id} | {name} | {path} | {samples:,} | {share:.1f}% |")
+
+        lines.extend([
+            "",
+            "### Tags with Strongest Signal",
+            "",
+            "| Tag | Top taxonomy | Weight | Max \\|weight\\| |",
+            "|-----|--------------|--------|----------------|",
+        ])
+
+        top_tags = taxonomy_summary.get("top_tags", [])[:10]
+        for row in top_tags:
+            tag = row.get("tag") or ""
+            top_tax = row.get("top_taxonomy_path") or "Unknown"
+            weight = row.get("top_weight", 0.0)
+            max_weight = row.get("max_abs_weight", 0.0)
+            lines.append(f"| {tag} | {top_tax} | {weight:.4f} | {max_weight:.4f} |")
+
+        lines.append("")
+
+    # Historical Performance Trends
+    if trends_chart_path:
+        lines.extend([
+            "## Historical Performance Trends",
+            "",
+            "Tracking model performance and dataset growth over time. Lower p-adic loss indicates better predictions.",
+            "",
+            "![Historical model performance trends](assets/historical_trends.png)",
+            "",
+        ])
+
+    # Footer
+    lines.extend([
+        "---",
+        "",
+        "Source available on [GitHub](https://github.com/IFost-Sydney-Uni/padjective)",
+    ])
+
+    return "\n".join(lines)
+
+
 def _build_index_html(
     output_dir: Path,
     stats: Dict[str, int],
@@ -2633,6 +2818,21 @@ def _build_index_html(
 """
 
     (output_dir / "index.html").write_text(html_document, encoding="utf-8")
+
+    # Generate markdown version
+    markdown_document = _build_index_markdown(
+        stats=stats,
+        dataset_stats=dataset_stats,
+        generated=generated,
+        taxonomy_summary=taxonomy_summary,
+        umllr_summary=umllr_summary,
+        dummy_summary=dummy_summary,
+        taxonomy_fold_results=taxonomy_fold_results,
+        taxonomy_nn_fold_results=taxonomy_nn_fold_results,
+        trends_chart_path=trends_chart_path,
+        output_dir=output_dir,
+    )
+    (output_dir / "index.md").write_text(markdown_document, encoding="utf-8")
 
 
 def _write_elo_rankings_page(
