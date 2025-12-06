@@ -63,7 +63,10 @@ def create_history_table(conn, schema: str = "padjective") -> None:
                 """
                 ALTER TABLE {schema}.model_performance_history
                 ADD COLUMN IF NOT EXISTS dummy_mean_padic_loss REAL,
-                ADD COLUMN IF NOT EXISTS dummy_mean_accuracy REAL
+                ADD COLUMN IF NOT EXISTS dummy_mean_accuracy REAL,
+                ADD COLUMN IF NOT EXISTS ulr_mean_padic_loss REAL,
+                ADD COLUMN IF NOT EXISTS ulr_mean_accuracy REAL,
+                ADD COLUMN IF NOT EXISTS ulr_mean_nonzero_params REAL
                 """
             ).format(schema=sql.Identifier(schema))
         )
@@ -186,6 +189,32 @@ def get_dummy_metrics(conn, schema: str = "padjective") -> tuple[float | None, f
     return None, None
 
 
+def get_ulr_metrics(conn, schema: str = "padjective") -> tuple[float | None, float | None, float | None]:
+    """Get ULR (Unconstrained Logistic Regression) mean metrics across all folds.
+
+    Returns:
+        tuple: (mean_padic_loss, mean_accuracy, mean_nonzero_params)
+    """
+    with conn.cursor() as cur:
+        cur.execute(
+            sql.SQL(
+                """
+                SELECT AVG(padic_loss_mean), AVG(test_accuracy), AVG(num_nonzero_params)
+                FROM {schema}.taxonomy_ulr_fold_results
+                """
+            ).format(schema=sql.Identifier(schema))
+        )
+        row = cur.fetchone()
+        if row and row[0] is not None:
+            return (
+                float(row[0]),
+                float(row[1]) if row[1] is not None else None,
+                float(row[2]) if row[2] is not None else None,
+            )
+
+    return None, None, None
+
+
 def snapshot_metrics(
     conn,
     product_table: str = "cantbuymelove.product",
@@ -217,6 +246,7 @@ def snapshot_metrics(
     lr_padic, lr_acc = get_lr_metrics(conn, schema)
     nn_padic, nn_acc = get_nn_metrics(conn, schema)
     dummy_padic, dummy_acc = get_dummy_metrics(conn, schema)
+    ulr_padic, ulr_acc, ulr_nonzero = get_ulr_metrics(conn, schema)
 
     # Insert or update snapshot
     with conn.cursor() as cur:
@@ -226,8 +256,9 @@ def snapshot_metrics(
                 INSERT INTO {schema}.model_performance_history
                 (snapshot_date, num_products, num_tags, num_taxonomies,
                  umllr_mean_padic_loss, lr_mean_padic_loss, nn_mean_padic_loss, dummy_mean_padic_loss,
-                 umllr_mean_accuracy, lr_mean_accuracy, nn_mean_accuracy, dummy_mean_accuracy)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                 umllr_mean_accuracy, lr_mean_accuracy, nn_mean_accuracy, dummy_mean_accuracy,
+                 ulr_mean_padic_loss, ulr_mean_accuracy, ulr_mean_nonzero_params)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ON CONFLICT (snapshot_date) DO UPDATE SET
                     snapshot_time = now(),
                     num_products = EXCLUDED.num_products,
@@ -240,7 +271,10 @@ def snapshot_metrics(
                     umllr_mean_accuracy = EXCLUDED.umllr_mean_accuracy,
                     lr_mean_accuracy = EXCLUDED.lr_mean_accuracy,
                     nn_mean_accuracy = EXCLUDED.nn_mean_accuracy,
-                    dummy_mean_accuracy = EXCLUDED.dummy_mean_accuracy
+                    dummy_mean_accuracy = EXCLUDED.dummy_mean_accuracy,
+                    ulr_mean_padic_loss = EXCLUDED.ulr_mean_padic_loss,
+                    ulr_mean_accuracy = EXCLUDED.ulr_mean_accuracy,
+                    ulr_mean_nonzero_params = EXCLUDED.ulr_mean_nonzero_params
                 """
             ).format(schema=sql.Identifier(schema)),
             (
@@ -256,6 +290,9 @@ def snapshot_metrics(
                 lr_acc,
                 nn_acc,
                 dummy_acc,
+                ulr_padic,
+                ulr_acc,
+                ulr_nonzero,
             ),
         )
     conn.commit()
@@ -265,6 +302,7 @@ def snapshot_metrics(
     print(f"  umllr p-adic loss: {umllr_padic:.6f}" if umllr_padic else "  umllr: no data")
     print(f"  PCLR p-adic loss: {lr_padic:.6f}" if lr_padic else "  PCLR: no data")
     print(f"  PCNN p-adic loss: {nn_padic:.6f}" if nn_padic else "  PCNN: no data")
+    print(f"  ULR p-adic loss: {ulr_padic:.6f}" if ulr_padic else "  ULR: no data")
     print(f"  Dummy p-adic loss: {dummy_padic:.6f}" if dummy_padic else "  Dummy: no data")
 
 

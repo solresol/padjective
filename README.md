@@ -232,6 +232,14 @@ Trains a parameter constrained neural network (MLPClassifier) to predict `taxono
 - Cross-validation evaluation
 - Metadata storage and HTML reporting
 
+### taxonomy_ulr_classifier.py
+
+Trains an unconstrained logistic regression model with L1 (Lasso) regularization to predict `taxonomy_id` from product tags. Features:
+- Uses ALL available tags (no max-tags constraint)
+- L1 regularization to achieve sparsity and automatic feature selection
+- Tracks the number of non-zero parameters after training
+- Cross-validation evaluation with p-adic loss metrics
+
 ## Part-of-Speech Considerations
 
 The pipeline currently works with whatever tags appear in the database and

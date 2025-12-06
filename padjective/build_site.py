@@ -2180,17 +2180,19 @@ def _format_regression_stats_html(stats: Optional[Dict[str, Dict[str, float]]], 
         'umllr': 'Importance-Optimised p-adic LR',
         'lr': 'PCLR',
         'nn': 'PCNN',
+        'ulr': 'ULR',
         'dummy': 'Dummy Baseline',
     }
     model_colors = {
         'umllr': '#0b6ce3',
         'lr': '#10b981',
         'nn': '#f59e0b',
+        'ulr': '#8b5cf6',
         'dummy': '#94a3b8',
     }
 
     rows = []
-    for key in ['umllr', 'lr', 'nn', 'dummy']:
+    for key in ['umllr', 'lr', 'nn', 'ulr', 'dummy']:
         if key in stats:
             s = stats[key]
             color = model_colors[key]
@@ -2286,6 +2288,7 @@ def _build_index_markdown(
     dummy_summary: Optional[Dict[str, Any]],
     taxonomy_fold_results: Optional[list[Dict[str, Any]]],
     taxonomy_pcnn_fold_results: Optional[list[Dict[str, Any]]],
+    taxonomy_ulr_fold_results: Optional[list[Dict[str, Any]]],
     trends_chart_path: Optional[Path],
     output_dir: Path,
 ) -> str:
@@ -2358,6 +2361,21 @@ def _build_index_markdown(
             "",
             f"- **Avg p-adic loss:** {avg_loss:.4f}",
             "- [View model](parameter_constrained_neural_network/index.html)",
+            "",
+        ])
+
+    # Unconstrained Logistic Regression
+    if taxonomy_ulr_fold_results:
+        avg_loss = sum(r["padic_loss_mean"] for r in taxonomy_ulr_fold_results) / len(taxonomy_ulr_fold_results)
+        avg_nonzero = sum(r["num_nonzero_params"] for r in taxonomy_ulr_fold_results) / len(taxonomy_ulr_fold_results)
+        lines.extend([
+            "### Unconstrained Logistic Regression",
+            "",
+            "L1-regularized logistic regression using ALL tags with automatic feature selection",
+            "",
+            f"- **Avg p-adic loss:** {avg_loss:.4f}",
+            f"- **Avg non-zero params:** {avg_nonzero:,.0f}",
+            "- [View model](unconstrained_logistic_regression/index.html)",
             "",
         ])
 
@@ -2472,11 +2490,13 @@ def _build_index_html(
     taxonomy_page: Optional[Path],
     umllr_page: Optional[Path],
     taxonomy_pcnn_page: Optional[Path],
+    taxonomy_ulr_page: Optional[Path] = None,
     taxonomy_summary: Optional[Dict[str, Any]] = None,
     umllr_summary: Optional[Dict[str, Any]] = None,
     dummy_summary: Optional[Dict[str, Any]] = None,
     taxonomy_fold_results: Optional[list[Dict[str, Any]]] = None,
     taxonomy_pcnn_fold_results: Optional[list[Dict[str, Any]]] = None,
+    taxonomy_ulr_fold_results: Optional[list[Dict[str, Any]]] = None,
     trends_chart_path: Optional[Path] = None,
     perf_vs_products_chart_path: Optional[Path] = None,
     perf_vs_tags_chart_path: Optional[Path] = None,
@@ -2590,12 +2610,39 @@ def _build_index_html(
     {taxonomy_pcnn_link or '<span class="card-link disabled">No report available</span>'}
   </div>"""
 
+    ulr_card = ""
+    taxonomy_ulr_link = ""
+    if taxonomy_ulr_page:
+        taxonomy_ulr_link = (
+            f'<a href="{taxonomy_ulr_page.relative_to(output_dir).as_posix()}" class="card-link">View model →</a>'
+        )
+
+    if taxonomy_ulr_fold_results:
+        avg_loss = sum(r["padic_loss_mean"] for r in taxonomy_ulr_fold_results) / len(taxonomy_ulr_fold_results)
+        avg_nonzero = sum(r["num_nonzero_params"] for r in taxonomy_ulr_fold_results) / len(taxonomy_ulr_fold_results)
+        ulr_card = f"""
+  <div class="model-card">
+    <h3>Unconstrained Logistic Regression</h3>
+    <p>L1-regularized model using ALL tags</p>
+    <div class="card-metric">
+      <span class="value">{avg_loss:.4f}</span>
+      <span class="label">Avg p-adic loss</span>
+    </div>
+    <div class="card-metric" style="margin-top: 0.5rem;">
+      <span class="value">{avg_nonzero:,.0f}</span>
+      <span class="label">Non-zero params</span>
+    </div>
+    {taxonomy_ulr_link or '<span class="card-link disabled">No report available</span>'}
+  </div>"""
+
     # Combine model cards
     all_cards: list[str] = []
     if umllr_card:
         all_cards.append(umllr_card)
     if pcnn_card:
         all_cards.append(pcnn_card)
+    if ulr_card:
+        all_cards.append(ulr_card)
     if taxonomy_card:
         all_cards.append(taxonomy_card)
     if dummy_card:
@@ -2829,6 +2876,7 @@ def _build_index_html(
         dummy_summary=dummy_summary,
         taxonomy_fold_results=taxonomy_fold_results,
         taxonomy_pcnn_fold_results=taxonomy_pcnn_fold_results,
+        taxonomy_ulr_fold_results=taxonomy_ulr_fold_results,
         trends_chart_path=trends_chart_path,
         output_dir=output_dir,
     )
@@ -3745,6 +3793,217 @@ def _write_taxonomy_pcnn_overview_page(
     return page_path
 
 
+def _write_taxonomy_ulr_fold_pages(
+    output_dir: Path,
+    fold_results: list[Dict[str, Any]],
+) -> Dict[int, Path]:
+    """Write individual pages for each unconstrained logistic regression fold."""
+    pages: Dict[int, Path] = {}
+    if not fold_results:
+        return pages
+
+    ulr_dir = output_dir / "unconstrained_logistic_regression"
+    ulr_dir.mkdir(parents=True, exist_ok=True)
+
+    for fold_data in fold_results:
+        fold = fold_data["cv_fold"]
+
+        breakdown_rows = fold_data.get("loss_breakdown", [])
+        total_predictions = fold_data.get("total_predictions", 0)
+        breakdown_html = ""
+        if breakdown_rows:
+            row_cells: list[str] = []
+            for row in breakdown_rows:
+                label = html.escape(str(row.get("label", "")))
+                count = int(row.get("count", 0))
+                percentage = (count / total_predictions * 100) if total_predictions else 0.0
+                cost = row.get("cost", 0.0)
+                total_contrib = row.get("total_contribution", 0.0)
+                row_cells.append(f"<tr><td>{label}</td><td>{count:,}</td><td>{percentage:.2f}%</td><td>{cost:.6f}</td><td>{total_contrib:.6f}</td></tr>")
+            breakdown_body = "\n".join(row_cells)
+            breakdown_html = f"""
+    <h2>P-adic loss breakdown</h2>
+    <table class=\"umllr-table\">
+      <thead>
+        <tr><th>Agreement</th><th>Count</th><th>Share</th><th>Cost per mistake</th><th>Total contribution</th></tr>
+      </thead>
+      <tbody>
+        {breakdown_body}
+      </tbody>
+    </table>
+"""
+        else:
+            breakdown_html = "<p>No prediction breakdown recorded for this fold.</p>"
+
+        # Calculate sparsity
+        num_nonzero = fold_data.get("num_nonzero_params", 0)
+        num_total = fold_data.get("num_total_params", 1)
+        sparsity_pct = (1 - num_nonzero / num_total) * 100 if num_total > 0 else 0
+
+        page_contents = f"""
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>ULR Fold {fold} Results</title>
+  <link rel="stylesheet" href="../assets/styles.css" />
+</head>
+<body>
+  <section class="umllr-fold">
+    <h1>ULR Fold {fold}</h1>
+    <p><a href="index.html">Back to ULR overview</a> &middot; <a href="../index.html">Back to main index</a></p>
+
+    <h2>Fold metrics</h2>
+    <table class="umllr-table">
+      <thead>
+        <tr><th>Metric</th><th>Value</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Test accuracy</td><td>{fold_data['test_accuracy'] * 100:.2f}%</td></tr>
+        <tr><td>Test F1 score</td><td>{fold_data['test_f1']:.4f}</td></tr>
+        <tr><td>Hierarchical loss</td><td>{fold_data['test_hierarchical_loss']:.8f}</td></tr>
+        <tr><td>P-adic loss (total)</td><td>{fold_data['padic_loss_total']:.8f}</td></tr>
+        <tr><td>P-adic loss (mean)</td><td>{fold_data['padic_loss_mean']:.8f}</td></tr>
+        <tr><td>Prime base</td><td>{fold_data['prime_base']}</td></tr>
+        <tr><td>Number of tags (input features)</td><td>{fold_data['num_tags']:,}</td></tr>
+        <tr><td>Non-zero parameters</td><td>{num_nonzero:,} / {num_total:,} ({sparsity_pct:.1f}% sparse)</td></tr>
+        <tr><td>L1 regularization (C)</td><td>{fold_data['l1_C']:.4f}</td></tr>
+        <tr><td>Training samples</td><td>{fold_data['num_train_samples']:,}</td></tr>
+        <tr><td>Test samples</td><td>{fold_data['num_test_samples']:,}</td></tr>
+      </tbody>
+    </table>
+
+    {breakdown_html}
+
+    <h2>About L1 regularization</h2>
+    <p>L1 (Lasso) regularization promotes sparsity by driving many coefficients to exactly zero. This model uses ALL available tags ({fold_data['num_tags']:,}) but L1 regularization selects which features are actually used. The number of non-zero parameters ({num_nonzero:,}) indicates how many coefficients the model actually uses.</p>
+  </section>
+</body>
+</html>
+"""
+
+        page_path = ulr_dir / f"fold_{fold}.html"
+        page_path.write_text(page_contents, encoding="utf-8")
+        pages[fold] = page_path
+
+    return pages
+
+
+def _write_taxonomy_ulr_overview_page(
+    output_dir: Path,
+    fold_results: list[Dict[str, Any]],
+    fold_pages: Dict[int, Path],
+) -> Path:
+    """Write a main overview page for unconstrained logistic regression classifier results."""
+    ulr_dir = output_dir / "unconstrained_logistic_regression"
+    ulr_dir.mkdir(parents=True, exist_ok=True)
+
+    if not fold_results:
+        raise ValueError("fold_results is required for ULR classifier page")
+
+    num_folds = len(fold_results)
+    avg_accuracy = sum(row["test_accuracy"] for row in fold_results) / num_folds
+    avg_f1 = sum(row["test_f1"] for row in fold_results) / num_folds
+    avg_padic_loss = sum(row["padic_loss_mean"] for row in fold_results) / num_folds
+
+    total_train = sum(row["num_train_samples"] for row in fold_results)
+    total_test = sum(row["num_test_samples"] for row in fold_results)
+
+    # Aggregate parameter stats
+    avg_nonzero = sum(row["num_nonzero_params"] for row in fold_results) / num_folds
+    avg_total = sum(row["num_total_params"] for row in fold_results) / num_folds
+    avg_sparsity = (1 - avg_nonzero / avg_total) * 100 if avg_total > 0 else 0
+
+    num_tags = fold_results[0]["num_tags"]
+    l1_C = fold_results[0]["l1_C"]
+
+    fold_rows: list[str] = []
+    for row in fold_results:
+        fold = row["cv_fold"]
+        page_link = ""
+        if fold in fold_pages:
+            rel_path = fold_pages[fold].relative_to(ulr_dir)
+            page_link = f'<a href="{rel_path.as_posix()}">View</a>'
+        fold_rows.append(
+            f"<tr><td>{fold}</td><td>{row['test_accuracy'] * 100:.2f}%</td>"
+            f"<td>{row['test_f1']:.4f}</td><td>{row['padic_loss_mean']:.8f}</td>"
+            f"<td>{row['num_nonzero_params']:,}</td><td>{page_link}</td></tr>"
+        )
+
+    fold_table_body = "\n".join(fold_rows)
+
+    page_html = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Unconstrained Logistic Regression</title>
+  <link rel="stylesheet" href="../assets/styles.css" />
+</head>
+<body>
+  <header class="hero">
+    <h1>Unconstrained Logistic Regression</h1>
+    <p class="tagline">L1-regularized model using ALL tags with automatic feature selection</p>
+  </header>
+
+  <section>
+    <p><a href="../index.html">← Back to index</a></p>
+
+    <h2>Model overview</h2>
+    <p>Unconstrained logistic regression classifier using L1 (Lasso) regularization to predict taxonomy IDs from product tags. Unlike parameter-constrained models, this classifier uses ALL available tags and relies on L1 regularization to achieve sparsity by driving unimportant coefficients to zero.</p>
+
+    <div class="metrics">
+      <div class="metric">
+        <span class="value">{num_folds}</span>
+        <span class="label">CV folds</span>
+      </div>
+      <div class="metric">
+        <span class="value">{avg_accuracy * 100:.2f}%</span>
+        <span class="label">Mean accuracy</span>
+      </div>
+      <div class="metric">
+        <span class="value">{avg_f1:.4f}</span>
+        <span class="label">Mean F1</span>
+      </div>
+      <div class="metric">
+        <span class="value">{avg_padic_loss:.8f}</span>
+        <span class="label">Mean p-adic loss</span>
+      </div>
+      <div class="metric">
+        <span class="value">{avg_nonzero:,.0f}</span>
+        <span class="label">Avg non-zero params</span>
+      </div>
+    </div>
+
+    <ul class="taxonomy-stats">
+      <li><strong>Total train samples:</strong> {total_train:,}</li>
+      <li><strong>Total test samples:</strong> {total_test:,}</li>
+      <li><strong>Number of tags (input features):</strong> {num_tags:,}</li>
+      <li><strong>Avg non-zero parameters:</strong> {avg_nonzero:,.0f} / {avg_total:,.0f} ({avg_sparsity:.1f}% sparse)</li>
+      <li><strong>L1 regularization (C):</strong> {l1_C:.4f}</li>
+    </ul>
+
+    <h2>Cross-validation results</h2>
+    <table class="umllr-summary">
+      <thead>
+        <tr><th>Fold</th><th>Accuracy</th><th>F1</th><th>P-adic loss (mean)</th><th>Non-zero params</th><th>Details</th></tr>
+      </thead>
+      <tbody>
+        {fold_table_body}
+      </tbody>
+    </table>
+  </section>
+
+  <footer>
+    <p><a href="../index.html">← Back to index</a></p>
+  </footer>
+</body>
+</html>"""
+
+    page_path = ulr_dir / "index.html"
+    page_path.write_text(page_html, encoding="utf-8")
+    return page_path
+
+
 def _collect_taxonomy_classifier_summary(
     conn, schema: str = "padjective"
 ) -> Optional[Dict[str, Any]]:
@@ -4035,6 +4294,79 @@ def _load_taxonomy_pcnn_fold_results(conn, schema: str = "padjective") -> Option
     return results
 
 
+def _load_taxonomy_ulr_fold_results(conn, schema: str = "padjective") -> Optional[list[Dict[str, Any]]]:
+    """Load taxonomy unconstrained logistic regression (L1) fold-based results."""
+    if not _table_exists(conn, schema, "taxonomy_ulr_fold_results"):
+        return None
+
+    with conn.cursor(row_factory=dict_row) as cur:
+        cur.execute(
+            sql.SQL(
+                """
+                SELECT cv_fold, test_accuracy, test_f1, test_hierarchical_loss,
+                       padic_loss_total, padic_loss_mean, prime_base,
+                       num_train_samples, num_test_samples, num_tags,
+                       num_nonzero_params, num_total_params, l1_C
+                FROM {schema}.taxonomy_ulr_fold_results
+                ORDER BY cv_fold
+                """
+            ).format(schema=sql.Identifier(schema))
+        )
+        results = []
+        for row in cur:
+            results.append({
+                "cv_fold": int(row["cv_fold"]),
+                "test_accuracy": float(row["test_accuracy"]),
+                "test_f1": float(row["test_f1"]),
+                "test_hierarchical_loss": float(row["test_hierarchical_loss"]),
+                "padic_loss_total": float(row["padic_loss_total"]),
+                "padic_loss_mean": float(row["padic_loss_mean"]),
+                "prime_base": int(row["prime_base"]),
+                "num_train_samples": int(row["num_train_samples"]),
+                "num_test_samples": int(row["num_test_samples"]),
+                "num_tags": int(row["num_tags"]),
+                "num_nonzero_params": int(row["num_nonzero_params"]),
+                "num_total_params": int(row["num_total_params"]),
+                "l1_C": float(row["l1_C"]) if row["l1_C"] is not None else 1.0,
+            })
+
+    if not results:
+        return None
+
+    encoding_cache: Dict[int, Dict[str, int]] = {}
+    for entry in results:
+        fold = entry["cv_fold"]
+        if fold not in encoding_cache:
+            encoding_cache[fold] = _load_taxonomy_encoding_lookup(conn, schema, fold)
+        lookup = encoding_cache[fold]
+        value_pairs: list[tuple[int, int]] = []
+        with conn.cursor(row_factory=dict_row) as pred_cur:
+            pred_cur.execute(
+                sql.SQL(
+                    """
+                    SELECT true_taxonomy_id, predicted_taxonomy_id
+                    FROM {schema}.taxonomy_ulr_predictions
+                    WHERE cv_fold = %s
+                    """
+                ).format(schema=sql.Identifier(schema)),
+                (fold,),
+            )
+            for pred_row in pred_cur:
+                true_id = pred_row["true_taxonomy_id"]
+                pred_id = pred_row["predicted_taxonomy_id"]
+                if true_id is None or pred_id is None:
+                    continue
+                true_value = lookup.get(str(true_id))
+                pred_value = lookup.get(str(pred_id))
+                if true_value is None or pred_value is None:
+                    continue
+                value_pairs.append((int(true_value), int(pred_value)))
+        entry["loss_breakdown"] = _padic_breakdown_from_pairs(value_pairs, entry["prime_base"]) if value_pairs else []
+        entry["total_predictions"] = len(value_pairs)
+
+    return results
+
+
 def _generate_taxonomy_distribution_chart(class_distribution: list[dict], output_path: Path, top_n: int = 15) -> Optional[Path]:
     """Generate a horizontal bar chart showing taxonomy class distribution.
 
@@ -4176,7 +4508,7 @@ def _generate_performance_vs_products_chart(conn, output_path: Path, schema: str
             sql.SQL(
                 """
                 SELECT num_products, umllr_mean_padic_loss, lr_mean_padic_loss,
-                       nn_mean_padic_loss, dummy_mean_padic_loss
+                       nn_mean_padic_loss, dummy_mean_padic_loss, ulr_mean_padic_loss
                 FROM {schema}.model_performance_history
                 ORDER BY num_products
                 """
@@ -4192,6 +4524,7 @@ def _generate_performance_vs_products_chart(conn, output_path: Path, schema: str
     lr_loss = [row[2] for row in rows]
     nn_loss = [row[3] for row in rows]
     dummy_loss = [row[4] for row in rows]
+    ulr_loss = [row[5] for row in rows]
 
     fig, ax = plt.subplots(figsize=(10, 6))
     regression_stats = {}
@@ -4233,6 +4566,11 @@ def _generate_performance_vs_products_chart(conn, output_path: Path, schema: str
         if stat:
             regression_stats['nn'] = stat
 
+    if any(v is not None for v in ulr_loss):
+        stat = plot_with_regression(num_products, ulr_loss, 'ULR', '#8b5cf6', 'D')
+        if stat:
+            regression_stats['ulr'] = stat
+
     if any(v is not None for v in dummy_loss):
         stat = plot_with_regression(num_products, dummy_loss, 'Dummy Baseline', '#94a3b8', 'x')
         if stat:
@@ -4266,7 +4604,7 @@ def _generate_performance_vs_tags_chart(conn, output_path: Path, schema: str = "
             sql.SQL(
                 """
                 SELECT num_tags, umllr_mean_padic_loss, lr_mean_padic_loss,
-                       nn_mean_padic_loss, dummy_mean_padic_loss
+                       nn_mean_padic_loss, dummy_mean_padic_loss, ulr_mean_padic_loss
                 FROM {schema}.model_performance_history
                 ORDER BY num_tags
                 """
@@ -4282,6 +4620,7 @@ def _generate_performance_vs_tags_chart(conn, output_path: Path, schema: str = "
     lr_loss = [row[2] for row in rows]
     nn_loss = [row[3] for row in rows]
     dummy_loss = [row[4] for row in rows]
+    ulr_loss = [row[5] for row in rows]
 
     fig, ax = plt.subplots(figsize=(10, 6))
     regression_stats = {}
@@ -4322,6 +4661,11 @@ def _generate_performance_vs_tags_chart(conn, output_path: Path, schema: str = "
         stat = plot_with_regression(num_tags, nn_loss, 'PCNN', '#f59e0b', '^')
         if stat:
             regression_stats['nn'] = stat
+
+    if any(v is not None for v in ulr_loss):
+        stat = plot_with_regression(num_tags, ulr_loss, 'ULR', '#8b5cf6', 'D')
+        if stat:
+            regression_stats['ulr'] = stat
 
     if any(v is not None for v in dummy_loss):
         stat = plot_with_regression(num_tags, dummy_loss, 'Dummy Baseline', '#94a3b8', 'x')
@@ -4539,6 +4883,17 @@ footer {text-align: center; padding: 2rem 1.5rem 3rem; color: #6b7280;}
         )
         taxonomy_pcnn_page = _write_taxonomy_pcnn_overview_page(output_dir, taxonomy_pcnn_fold_results, taxonomy_pcnn_fold_pages)
 
+    taxonomy_ulr_fold_results = _load_taxonomy_ulr_fold_results(
+        precomputed_database, schema=battle_schema
+    )
+    taxonomy_ulr_page = None
+    if taxonomy_ulr_fold_results:
+        taxonomy_ulr_fold_pages = _write_taxonomy_ulr_fold_pages(
+            output_dir,
+            taxonomy_ulr_fold_results,
+        )
+        taxonomy_ulr_page = _write_taxonomy_ulr_overview_page(output_dir, taxonomy_ulr_fold_results, taxonomy_ulr_fold_pages)
+
     # Generate historical trends charts
     trends_chart_path = _generate_historical_trends_chart(
         precomputed_database,
@@ -4566,11 +4921,13 @@ footer {text-align: center; padding: 2rem 1.5rem 3rem; color: #6b7280;}
         taxonomy_page,
         umllr_page,
         taxonomy_pcnn_page,
+        taxonomy_ulr_page,
         taxonomy_summary,
         umllr_summary,
         dummy_summary,
         taxonomy_pclr_fold_results,
         taxonomy_pcnn_fold_results,
+        taxonomy_ulr_fold_results,
         trends_chart_path,
         perf_vs_products_chart_path,
         perf_vs_tags_chart_path,

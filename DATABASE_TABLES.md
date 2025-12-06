@@ -46,12 +46,23 @@ All tables are created automatically by the Python programs when they run, using
 - `taxonomy_pcnn_models` - Full training metadata (stored in SQLite at `data/taxonomy_pcnn_classifier.sqlite`)
 - `taxonomy_pcnn_cv_scores` - Cross-validation scores (stored in SQLite)
 
-### 5. Historical Performance Tracking Tables
+### 5. Unconstrained Logistic Regression (ULR) Tables
 
-**SQL Script:** `create_model_performance_history_table.sql`  
+**SQL Script:** `create_taxonomy_ulr_fold_tables.sql`
+**Created by:** `padjective/taxonomy_ulr_classifier.py`
+
+- `taxonomy_ulr_fold_results` - Per-fold test metrics including non-zero parameter counts
+- `taxonomy_ulr_predictions` - Individual product predictions with p-adic loss
+
+Unlike PCLR and PCNN, ULR uses ALL available tags with L1 regularization to achieve sparsity. The `num_nonzero_params` column tracks how many parameters remain non-zero after L1 shrinkage.
+
+### 6. Historical Performance Tracking Tables
+
+**SQL Script:** `create_model_performance_history_table.sql`
 **Created by:** `padjective/snapshot_metrics.py`
 
 - `model_performance_history` - Daily snapshots of all model metrics and dataset statistics
+  - Includes ULR metrics: `ulr_mean_padic_loss`, `ulr_mean_accuracy`, `ulr_mean_nonzero_params`
 
 ## Running the Scripts
 
@@ -62,6 +73,7 @@ To manually create all tables with proper permissions:
 psql -f create_umllr_tables.sql
 psql -f create_taxonomy_pclr_fold_tables.sql
 psql -f create_taxonomy_pcnn_fold_tables.sql
+psql -f create_taxonomy_ulr_fold_tables.sql
 psql -f create_model_performance_history_table.sql
 ```
 
@@ -72,6 +84,7 @@ The following tables are cleaned (old data deleted) before each cronscript run:
 - `umllr_*` tables - Cleaned by `umllr.py` before inserting new fold data
 - `taxonomy_pclr_fold_results` - Per-fold cleanup by `taxonomy_classifier.py`
 - `taxonomy_pcnn_fold_results` - Per-fold cleanup by `taxonomy_pcnn_classifier.py`
+- `taxonomy_ulr_fold_results` - Per-fold cleanup by `taxonomy_ulr_classifier.py`
 
 The following table accumulates data over time (no cleanup):
 

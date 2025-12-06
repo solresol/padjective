@@ -10,6 +10,7 @@ OUTPUT_DIR=${PADJECTIVE_SITE_DIR:-build/site}
 TAXONOMY_CLASSIFIER_REPORT_DIR=${PADJECTIVE_TAXONOMY_CLASSIFIER_REPORT_DIR:-build/taxonomy_classifier}
 TAXONOMY_PCNN_CLASSIFIER_DB=${PADJECTIVE_TAXONOMY_PCNN_CLASSIFIER_DB:-data/taxonomy_pcnn_classifier.sqlite}
 TAXONOMY_PCNN_CLASSIFIER_REPORT_DIR=${PADJECTIVE_TAXONOMY_PCNN_CLASSIFIER_REPORT_DIR:-build/taxonomy_pcnn_classifier}
+TAXONOMY_ULR_CLASSIFIER_REPORT_DIR=${PADJECTIVE_TAXONOMY_ULR_CLASSIFIER_REPORT_DIR:-build/unconstrained_logistic_regression}
 TAGBATTLE_SCHEMA=${PADJECTIVE_TAGBATTLE_SCHEMA:-padjective}
 TAXONOMY_RESULTS_SCHEMA=${PADJECTIVE_TAXONOMY_RESULTS_SCHEMA:-padjective}
 TAGBATTLE_PRODUCT_TABLE=${PADJECTIVE_TAGBATTLE_PRODUCT_TABLE:-cantbuymelove.product}
@@ -19,6 +20,7 @@ SHOPIFY_DSN=${PADJECTIVE_SHOPIFY_DSN:-}
 mkdir -p "$TAXONOMY_CLASSIFIER_REPORT_DIR"
 mkdir -p "$(dirname "$TAXONOMY_PCNN_CLASSIFIER_DB")"
 mkdir -p "$TAXONOMY_PCNN_CLASSIFIER_REPORT_DIR"
+mkdir -p "$TAXONOMY_ULR_CLASSIFIER_REPORT_DIR"
 
 if [[ -n "$SHOPIFY_DSN" ]]; then
     TAGBATTLE_DSN_ARGS=(--dsn "$SHOPIFY_DSN")
@@ -78,6 +80,18 @@ for fold in 0 1 2 3 4; do
         --fold "$fold"
 done
 
+# Train unconstrained logistic regression classifiers with L1 regularization (once per fold)
+# Uses ALL tags with L1 regularization to achieve sparsity
+for fold in 0 1 2 3 4; do
+    echo "Training unconstrained L1-regularized logistic regression classifier for fold $fold..."
+    uv run -m padjective.taxonomy_ulr_classifier \
+        "${TAGBATTLE_DSN_ARGS[@]}" \
+        --product-table "$TAGBATTLE_PRODUCT_TABLE" \
+        --results-schema "$TAXONOMY_RESULTS_SCHEMA" \
+        --output-dir "$TAXONOMY_ULR_CLASSIFIER_REPORT_DIR" \
+        --fold "$fold"
+done
+
 # Snapshot current metrics for historical tracking
 uv run -m padjective.snapshot_metrics \
     "${TAGBATTLE_DSN_ARGS[@]}" \
@@ -96,6 +110,10 @@ fi
 
 if [ -d "$TAXONOMY_PCNN_CLASSIFIER_REPORT_DIR" ]; then
     rsync -az "$TAXONOMY_PCNN_CLASSIFIER_REPORT_DIR/" "$REMOTE_SITE/parameter_constrained_neural_network/"
+fi
+
+if [ -d "$TAXONOMY_ULR_CLASSIFIER_REPORT_DIR" ]; then
+    rsync -az "$TAXONOMY_ULR_CLASSIFIER_REPORT_DIR/" "$REMOTE_SITE/unconstrained_logistic_regression/"
 fi
 
 # Sync data dumps

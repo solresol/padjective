@@ -19,6 +19,8 @@ EXPECTED_TABLES: tuple[str, ...] = (
     "taxonomy_pclr_predictions",
     "taxonomy_pclr_coefficients",
     "taxonomy_pcnn_predictions",
+    "taxonomy_ulr_fold_results",
+    "taxonomy_ulr_predictions",
 )
 
 
