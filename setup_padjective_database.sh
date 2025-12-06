@@ -29,14 +29,14 @@ REQUIRED_TABLES=(
   "padjective.umllr_fold_metrics"
   "padjective.umllr_predictions"
   "padjective.umllr_taxonomy_encodings"
-  "padjective.taxonomy_lr_models"
-  "padjective.taxonomy_lr_cv_scores"
-  "padjective.taxonomy_lr_intercepts"
-  "padjective.taxonomy_lr_tag_summary"
-  "padjective.taxonomy_lr_class_distribution"
-  "padjective.taxonomy_lr_top_tags"
-  "padjective.taxonomy_lr_fold_results"
-  "padjective.taxonomy_nn_fold_results"
+  "padjective.taxonomy_pclr_models"
+  "padjective.taxonomy_pclr_cv_scores"
+  "padjective.taxonomy_pclr_intercepts"
+  "padjective.taxonomy_pclr_tag_summary"
+  "padjective.taxonomy_pclr_class_distribution"
+  "padjective.taxonomy_pclr_top_tags"
+  "padjective.taxonomy_pclr_fold_results"
+  "padjective.taxonomy_pcnn_fold_results"
   "padjective.model_performance_history"
 )
 
@@ -90,8 +90,8 @@ run_schema_scripts() {
   for sql_file in \
     "${SCRIPT_DIR}/padjective/sql/tagbattles.sql" \
     "${SCRIPT_DIR}/create_umllr_tables.sql" \
-    "${SCRIPT_DIR}/create_taxonomy_lr_fold_tables.sql" \
-    "${SCRIPT_DIR}/create_taxonomy_nn_fold_tables.sql" \
+    "${SCRIPT_DIR}/create_taxonomy_pclr_fold_tables.sql" \
+    "${SCRIPT_DIR}/create_taxonomy_pcnn_fold_tables.sql" \
     "${SCRIPT_DIR}/create_model_performance_history_table.sql"; do
     if [[ -f "${sql_file}" ]]; then
       sudo_psql -d "${DB_NAME}" -f "${sql_file}" >/dev/null

@@ -36,8 +36,8 @@ RESULTS_DUMPS = [
     "padjective_taxonomy_pclr_fold_results.sql",
     "padjective_taxonomy_pclr_predictions.sql",
     "padjective_taxonomy_pclr_coefficients.sql",
-    "padjective_taxonomy_nn_fold_results.sql",
-    "padjective_taxonomy_nn_predictions.sql",
+    "padjective_taxonomy_pcnn_fold_results.sql",
+    "padjective_taxonomy_pcnn_predictions.sql",
 ]
 
 
@@ -221,10 +221,10 @@ def test_model_results_exist(test_db_with_dumps):
             lr_count = cur.fetchone()[0]
             assert lr_count > 0, "PCLR fold results should exist"
 
-            # Check NN results
-            cur.execute("SELECT COUNT(*) FROM padjective.taxonomy_nn_fold_results")
+            # Check PCNN results
+            cur.execute("SELECT COUNT(*) FROM padjective.taxonomy_pcnn_fold_results")
             nn_count = cur.fetchone()[0]
-            assert nn_count > 0, "NN fold results should exist"
+            assert nn_count > 0, "PCNN fold results should exist"
 
 
 @pytest.mark.slow
@@ -242,13 +242,13 @@ def test_cv_folds_consistency(test_db_with_dumps):
             cur.execute("SELECT DISTINCT cv_fold FROM padjective.taxonomy_pclr_fold_results ORDER BY cv_fold")
             lr_folds = [row[0] for row in cur.fetchall()]
 
-            cur.execute("SELECT DISTINCT cv_fold FROM padjective.taxonomy_nn_fold_results ORDER BY cv_fold")
+            cur.execute("SELECT DISTINCT cv_fold FROM padjective.taxonomy_pcnn_fold_results ORDER BY cv_fold")
             nn_folds = [row[0] for row in cur.fetchall()]
 
             # All should have the same folds (typically 0-4 for 5-fold CV)
             assert umllr_folds == dummy_folds, "UMllr and Dummy should use same folds"
             assert umllr_folds == lr_folds, "UMllr and PCLR should use same folds"
-            assert lr_folds == nn_folds, "PCLR and NN should use same folds"
+            assert lr_folds == nn_folds, "PCLR and PCNN should use same folds"
             assert len(umllr_folds) > 0, "Should have at least one fold"
 
 

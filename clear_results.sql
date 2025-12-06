@@ -22,9 +22,9 @@ TRUNCATE TABLE padjective.taxonomy_pclr_predictions CASCADE;
 TRUNCATE TABLE padjective.taxonomy_pclr_coefficients CASCADE;
 TRUNCATE TABLE padjective.taxonomy_pclr_fold_results CASCADE;
 
--- Neural network results
-TRUNCATE TABLE padjective.taxonomy_nn_fold_results CASCADE;
-TRUNCATE TABLE padjective.taxonomy_nn_predictions CASCADE;
+-- Parameter constrained neural network results
+TRUNCATE TABLE padjective.taxonomy_pcnn_fold_results CASCADE;
+TRUNCATE TABLE padjective.taxonomy_pcnn_predictions CASCADE;
 
 -- Tag battles
 TRUNCATE TABLE padjective.battles CASCADE;

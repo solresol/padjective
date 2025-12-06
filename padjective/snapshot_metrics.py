@@ -1,6 +1,6 @@
 """Snapshot current model performance metrics for historical tracking.
 
-This script captures the current state of all models (umllr, PCLR, NN) and stores
+This script captures the current state of all models (umllr, PCLR, PCNN) and stores
 a snapshot in the model_performance_history table for trend analysis over time.
 """
 
@@ -143,7 +143,7 @@ def get_lr_metrics(conn, schema: str = "padjective") -> tuple[float | None, floa
 
 
 def get_nn_metrics(conn, schema: str = "padjective") -> tuple[float | None, float | None]:
-    """Get NN mean p-adic loss and accuracy across all folds.
+    """Get PCNN mean p-adic loss and accuracy across all folds.
 
     Returns:
         tuple: (mean_padic_loss, mean_accuracy)
@@ -153,7 +153,7 @@ def get_nn_metrics(conn, schema: str = "padjective") -> tuple[float | None, floa
             sql.SQL(
                 """
                 SELECT AVG(padic_loss_mean), AVG(test_accuracy)
-                FROM {schema}.taxonomy_nn_fold_results
+                FROM {schema}.taxonomy_pcnn_fold_results
                 """
             ).format(schema=sql.Identifier(schema))
         )
@@ -264,7 +264,7 @@ def snapshot_metrics(
     print(f"  Products: {num_products}, Tags: {num_tags}, Taxonomies: {num_taxonomies}")
     print(f"  umllr p-adic loss: {umllr_padic:.6f}" if umllr_padic else "  umllr: no data")
     print(f"  PCLR p-adic loss: {lr_padic:.6f}" if lr_padic else "  PCLR: no data")
-    print(f"  NN p-adic loss: {nn_padic:.6f}" if nn_padic else "  NN: no data")
+    print(f"  PCNN p-adic loss: {nn_padic:.6f}" if nn_padic else "  PCNN: no data")
     print(f"  Dummy p-adic loss: {dummy_padic:.6f}" if dummy_padic else "  Dummy: no data")
 
 

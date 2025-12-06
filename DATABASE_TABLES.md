@@ -27,24 +27,24 @@ All tables are created automatically by the Python programs when they run, using
 - `umllr_predictions` - Individual product predictions with p-adic loss
 - `umllr_taxonomy_encodings` - P-adic encodings of taxonomy paths per fold
 
-### 3. Logistic Regression Classifier Tables
+### 3. Parameter Constrained Logistic Regression Classifier Tables
 
-**SQL Script:** `create_taxonomy_lr_fold_tables.sql`  
+**SQL Script:** `create_taxonomy_pclr_fold_tables.sql`
 **Created by:** `padjective/taxonomy_classifier.py`
 
-- `taxonomy_lr_fold_results` - Per-fold test metrics (accuracy, F1, hierarchical loss, p-adic loss)
-- `taxonomy_lr_models` - Full training metadata and cross-validation results
+- `taxonomy_pclr_fold_results` - Per-fold test metrics (accuracy, F1, hierarchical loss, p-adic loss)
+- `taxonomy_pclr_models` - Full training metadata and cross-validation results
 
 **Schema Creation:** `padjective/taxonomy_classifier_schema.py`
 
-### 4. Neural Network Classifier Tables
+### 4. Parameter Constrained Neural Network Classifier Tables
 
-**SQL Script:** `create_taxonomy_nn_fold_tables.sql`  
-**Created by:** `padjective/taxonomy_nn_classifier.py`
+**SQL Script:** `create_taxonomy_pcnn_fold_tables.sql`
+**Created by:** `padjective/taxonomy_pcnn_classifier.py`
 
-- `taxonomy_nn_fold_results` - Per-fold test metrics (accuracy, F1, hierarchical loss, p-adic loss)
-- `taxonomy_nn_models` - Full training metadata (stored in SQLite at `data/taxonomy_nn_classifier.sqlite`)
-- `taxonomy_nn_cv_scores` - Cross-validation scores (stored in SQLite)
+- `taxonomy_pcnn_fold_results` - Per-fold test metrics (accuracy, F1, hierarchical loss, p-adic loss)
+- `taxonomy_pcnn_models` - Full training metadata (stored in SQLite at `data/taxonomy_pcnn_classifier.sqlite`)
+- `taxonomy_pcnn_cv_scores` - Cross-validation scores (stored in SQLite)
 
 ### 5. Historical Performance Tracking Tables
 
@@ -60,8 +60,8 @@ To manually create all tables with proper permissions:
 ```bash
 # As admin/superuser
 psql -f create_umllr_tables.sql
-psql -f create_taxonomy_lr_fold_tables.sql
-psql -f create_taxonomy_nn_fold_tables.sql
+psql -f create_taxonomy_pclr_fold_tables.sql
+psql -f create_taxonomy_pcnn_fold_tables.sql
 psql -f create_model_performance_history_table.sql
 ```
 
@@ -70,8 +70,8 @@ psql -f create_model_performance_history_table.sql
 The following tables are cleaned (old data deleted) before each cronscript run:
 
 - `umllr_*` tables - Cleaned by `umllr.py` before inserting new fold data
-- `taxonomy_lr_fold_results` - Per-fold cleanup by `taxonomy_classifier.py`
-- `taxonomy_nn_fold_results` - Per-fold cleanup by `taxonomy_nn_classifier.py`
+- `taxonomy_pclr_fold_results` - Per-fold cleanup by `taxonomy_classifier.py`
+- `taxonomy_pcnn_fold_results` - Per-fold cleanup by `taxonomy_pcnn_classifier.py`
 
 The following table accumulates data over time (no cleanup):
 

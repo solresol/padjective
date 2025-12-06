@@ -113,8 +113,8 @@ CREATE TABLE IF NOT EXISTS padjective.taxonomy_pclr_coefficients (
 CREATE INDEX IF NOT EXISTS taxonomy_pclr_coefficients_fold_idx
     ON padjective.taxonomy_pclr_coefficients (cv_fold);
 
--- 10. Create the taxonomy_nn_predictions table for individual test predictions per fold.
-CREATE TABLE IF NOT EXISTS padjective.taxonomy_nn_predictions (
+-- 10. Create the taxonomy_pcnn_predictions table for individual test predictions per fold.
+CREATE TABLE IF NOT EXISTS padjective.taxonomy_pcnn_predictions (
     cv_fold INTEGER NOT NULL,
     product_id INTEGER NOT NULL,
     true_taxonomy_id TEXT NOT NULL,
@@ -123,11 +123,11 @@ CREATE TABLE IF NOT EXISTS padjective.taxonomy_nn_predictions (
     PRIMARY KEY (cv_fold, product_id)
 );
 
-CREATE INDEX IF NOT EXISTS taxonomy_nn_predictions_fold_idx
-    ON padjective.taxonomy_nn_predictions (cv_fold);
+CREATE INDEX IF NOT EXISTS taxonomy_pcnn_predictions_fold_idx
+    ON padjective.taxonomy_pcnn_predictions (cv_fold);
 
--- 12. Create the taxonomy_nn_input_weights table storing first-layer weights per fold.
-CREATE TABLE IF NOT EXISTS padjective.taxonomy_nn_input_weights (
+-- 11. Create the taxonomy_pcnn_input_weights table storing first-layer weights per fold.
+CREATE TABLE IF NOT EXISTS padjective.taxonomy_pcnn_input_weights (
     cv_fold INTEGER NOT NULL,
     tag TEXT NOT NULL,
     hidden_unit INTEGER NOT NULL,
@@ -135,11 +135,11 @@ CREATE TABLE IF NOT EXISTS padjective.taxonomy_nn_input_weights (
     PRIMARY KEY (cv_fold, tag, hidden_unit)
 );
 
-CREATE INDEX IF NOT EXISTS taxonomy_nn_input_weights_fold_idx
-    ON padjective.taxonomy_nn_input_weights (cv_fold);
+CREATE INDEX IF NOT EXISTS taxonomy_pcnn_input_weights_fold_idx
+    ON padjective.taxonomy_pcnn_input_weights (cv_fold);
 
-CREATE INDEX IF NOT EXISTS taxonomy_nn_input_weights_tag_idx
-    ON padjective.taxonomy_nn_input_weights (tag);
+CREATE INDEX IF NOT EXISTS taxonomy_pcnn_input_weights_tag_idx
+    ON padjective.taxonomy_pcnn_input_weights (tag);
 
 -- 13. Grant padjective role access to the schema, tables, and sequences.
 GRANT USAGE ON SCHEMA padjective TO padjective;
@@ -153,8 +153,8 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON
     padjective.taxonomy_pclr_intercepts,
     padjective.taxonomy_pclr_predictions,
     padjective.taxonomy_pclr_coefficients,
-    padjective.taxonomy_nn_predictions,
-    padjective.taxonomy_nn_input_weights
+    padjective.taxonomy_pcnn_predictions,
+    padjective.taxonomy_pcnn_input_weights
 TO padjective;
 
 GRANT USAGE, SELECT ON SEQUENCE padjective.taxonomy_pclr_models_id_seq TO padjective;

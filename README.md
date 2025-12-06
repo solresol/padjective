@@ -224,10 +224,10 @@ Trains a parameter constrained logistic regression model to predict `taxonomy_id
 - Postgres storage for model weights and metadata
 - HTML reports visualizing tag importance
 
-### taxonomy_nn_classifier.py
+### taxonomy_pcnn_classifier.py
 
-Trains a neural network (MLPClassifier) to predict `taxonomy_id` from product tags. Features:
-- Configurable hidden layer architecture
+Trains a parameter constrained neural network (MLPClassifier) to predict `taxonomy_id` from product tags. Features:
+- Configurable hidden layer architecture with parameter constraints for fair model comparison
 - Early stopping to prevent overfitting
 - Cross-validation evaluation
 - Metadata storage and HTML reporting
@@ -262,9 +262,9 @@ uv run padjective/taxonomy_classifier.py \
     --results-schema padjective \
     --output-dir build/taxonomy_classifier
 
-uv run padjective/taxonomy_nn_classifier.py \
-    --model-database data/taxonomy_nn_classifier.sqlite \
-    --output-dir build/taxonomy_nn_classifier \
+uv run padjective/taxonomy_pcnn_classifier.py \
+    --model-database data/taxonomy_pcnn_classifier.sqlite \
+    --output-dir build/taxonomy_pcnn_classifier \
     --hidden-layers "100,50"
 ```
 
@@ -272,7 +272,7 @@ This sequence:
 1. Populates ``padjective.battles`` and ``padjective.tag_rankings`` in Postgres
 2. Renders ``tag_rankings.html`` and ``tag_rankings.png`` locally
 3. Extracts tag features to numpy sparse format
-4. Trains both parameter constrained logistic regression and neural network models to predict taxonomy
+4. Trains both parameter constrained logistic regression and parameter constrained neural network models to predict taxonomy
 5. Generates HTML reports visualizing model performance and tag coefficients
 
 ## Model Output
@@ -291,10 +291,10 @@ The taxonomy classifiers produce:
 * Ensure the tables exist by running
   `uv run padjective/taxonomy_classifier_schema.py --schema padjective`
 
-### Neural Network
-* **SQLite database** (`data/taxonomy_nn_classifier.sqlite`) containing:
+### Parameter Constrained Neural Network
+* **SQLite database** (`data/taxonomy_pcnn_classifier.sqlite`) containing:
   - Model metadata (architecture, accuracy, CV scores)
-* **HTML report** (`build/taxonomy_nn_classifier/nn_report.html`) summarizing:
+* **HTML report** (`build/taxonomy_pcnn_classifier/pcnn_report.html`) summarizing:
   - Network architecture
   - Training and cross-validation performance
 

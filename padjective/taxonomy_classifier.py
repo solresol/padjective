@@ -1,8 +1,9 @@
 """Train classifiers to predict product taxonomy from tags.
 
 This module provides utilities for training parameter constrained logistic regression
-and neural network models that predict taxonomy IDs from product tags. The models are
-evaluated using stratified cross-validation and results are stored in Postgres.
+and parameter constrained neural network models that predict taxonomy IDs from product
+tags. The models are evaluated using stratified cross-validation and results are stored
+in Postgres.
 """
 
 from __future__ import annotations

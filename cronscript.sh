@@ -8,8 +8,8 @@ git pull -q
 
 OUTPUT_DIR=${PADJECTIVE_SITE_DIR:-build/site}
 TAXONOMY_CLASSIFIER_REPORT_DIR=${PADJECTIVE_TAXONOMY_CLASSIFIER_REPORT_DIR:-build/taxonomy_classifier}
-TAXONOMY_NN_CLASSIFIER_DB=${PADJECTIVE_TAXONOMY_NN_CLASSIFIER_DB:-data/taxonomy_nn_classifier.sqlite}
-TAXONOMY_NN_CLASSIFIER_REPORT_DIR=${PADJECTIVE_TAXONOMY_NN_CLASSIFIER_REPORT_DIR:-build/taxonomy_nn_classifier}
+TAXONOMY_PCNN_CLASSIFIER_DB=${PADJECTIVE_TAXONOMY_PCNN_CLASSIFIER_DB:-data/taxonomy_pcnn_classifier.sqlite}
+TAXONOMY_PCNN_CLASSIFIER_REPORT_DIR=${PADJECTIVE_TAXONOMY_PCNN_CLASSIFIER_REPORT_DIR:-build/taxonomy_pcnn_classifier}
 TAGBATTLE_SCHEMA=${PADJECTIVE_TAGBATTLE_SCHEMA:-padjective}
 TAXONOMY_RESULTS_SCHEMA=${PADJECTIVE_TAXONOMY_RESULTS_SCHEMA:-padjective}
 TAGBATTLE_PRODUCT_TABLE=${PADJECTIVE_TAGBATTLE_PRODUCT_TABLE:-cantbuymelove.product}
@@ -17,8 +17,8 @@ TAGBATTLE_BATCH_SIZE=${PADJECTIVE_TAGBATTLE_BATCH_SIZE:-2000}
 SHOPIFY_DSN=${PADJECTIVE_SHOPIFY_DSN:-}
 
 mkdir -p "$TAXONOMY_CLASSIFIER_REPORT_DIR"
-mkdir -p "$(dirname "$TAXONOMY_NN_CLASSIFIER_DB")"
-mkdir -p "$TAXONOMY_NN_CLASSIFIER_REPORT_DIR"
+mkdir -p "$(dirname "$TAXONOMY_PCNN_CLASSIFIER_DB")"
+mkdir -p "$TAXONOMY_PCNN_CLASSIFIER_REPORT_DIR"
 
 if [[ -n "$SHOPIFY_DSN" ]]; then
     TAGBATTLE_DSN_ARGS=(--dsn "$SHOPIFY_DSN")
@@ -64,15 +64,15 @@ uv run -m padjective.taxonomy_classifier \
     --output-dir "$TAXONOMY_CLASSIFIER_REPORT_DIR" \
     --max-tags 109
 
-# Train neural network classifiers (once per fold)
+# Train parameter constrained neural network classifiers (once per fold)
 # Use --max-tags 109 and --hidden-layers 49 for fair comparison with umllr (~10,000 parameters)
 for fold in 0 1 2 3 4; do
-    echo "Training neural network classifier for fold $fold..."
-    uv run -m padjective.taxonomy_nn_classifier \
+    echo "Training parameter constrained neural network classifier for fold $fold..."
+    uv run -m padjective.taxonomy_pcnn_classifier \
         "${TAGBATTLE_DSN_ARGS[@]}" \
         --product-table "$TAGBATTLE_PRODUCT_TABLE" \
-        --model-database "$TAXONOMY_NN_CLASSIFIER_DB" \
-        --output-dir "$TAXONOMY_NN_CLASSIFIER_REPORT_DIR" \
+        --model-database "$TAXONOMY_PCNN_CLASSIFIER_DB" \
+        --output-dir "$TAXONOMY_PCNN_CLASSIFIER_REPORT_DIR" \
         --hidden-layers "49" \
         --max-tags 109 \
         --fold "$fold"
@@ -94,8 +94,8 @@ if [ -d "$TAXONOMY_CLASSIFIER_REPORT_DIR" ]; then
     rsync -az "$TAXONOMY_CLASSIFIER_REPORT_DIR/" "$REMOTE_SITE/taxonomy_classifier/"
 fi
 
-if [ -d "$TAXONOMY_NN_CLASSIFIER_REPORT_DIR" ]; then
-    rsync -az "$TAXONOMY_NN_CLASSIFIER_REPORT_DIR/" "$REMOTE_SITE/taxonomy_nn_classifier/"
+if [ -d "$TAXONOMY_PCNN_CLASSIFIER_REPORT_DIR" ]; then
+    rsync -az "$TAXONOMY_PCNN_CLASSIFIER_REPORT_DIR/" "$REMOTE_SITE/parameter_constrained_neural_network/"
 fi
 
 # Sync data dumps

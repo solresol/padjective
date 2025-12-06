@@ -1,7 +1,7 @@
-"""Train neural network classifiers to predict product taxonomy from tags.
+"""Train parameter constrained neural network classifiers to predict product taxonomy from tags.
 
-This module provides utilities for training neural network models using PyTorch to
-predict taxonomy IDs from product tags.
+This module provides utilities for training parameter constrained neural network models
+using PyTorch to predict taxonomy IDs from product tags.
 """
 
 from __future__ import annotations
@@ -130,7 +130,7 @@ def calculate_padic_loss(
 
 @dataclass(slots=True)
 class TrainingStats:
-    """Metadata about the trained neural network classifier."""
+    """Metadata about the trained parameter constrained neural network classifier."""
 
     samples: int
     taxonomies: int
@@ -150,7 +150,7 @@ class TrainingStats:
 
 @dataclass(slots=True)
 class CrossValidationResults:
-    """Container for neural network cross-validation metrics."""
+    """Container for parameter constrained neural network cross-validation metrics."""
 
     accuracy: list[float]
     f1_weighted: list[float]
@@ -310,7 +310,7 @@ def train_nn_classifier(
     patience: int = 10,
     num_classes: int | None = None,
 ) -> tuple[nn.Module, TrainingStats]:
-    """Train a neural network classifier using PyTorch.
+    """Train a parameter constrained neural network classifier using PyTorch.
 
     Args:
         num_classes: Total number of output classes. If None, inferred from unique labels in training data.
@@ -420,7 +420,7 @@ def cross_validate_classifier(
     max_iter: int = 200,
     hierarchical_base: float = 1.1,
 ) -> CrossValidationResults:
-    """Evaluate neural network using stratified k-fold cross-validation."""
+    """Evaluate parameter constrained neural network using stratified k-fold cross-validation."""
 
     if len(labels) == 0:
         return CrossValidationResults([], [], [])
@@ -518,7 +518,7 @@ def save_model_to_database(
         # Create tables
         conn.execute(
             """
-            CREATE TABLE IF NOT EXISTS taxonomy_nn_models (
+            CREATE TABLE IF NOT EXISTS taxonomy_pcnn_models (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 trained_at TEXT NOT NULL,
                 samples INTEGER NOT NULL,
@@ -539,53 +539,53 @@ def save_model_to_database(
             """
         )
 
-        info_models = conn.execute("PRAGMA table_info(taxonomy_nn_models)").fetchall()
+        info_models = conn.execute("PRAGMA table_info(taxonomy_pcnn_models)").fetchall()
         existing_columns = {row[1] for row in info_models}
         if "training_f1" not in existing_columns:
-            conn.execute("ALTER TABLE taxonomy_nn_models ADD COLUMN training_f1 REAL")
+            conn.execute("ALTER TABLE taxonomy_pcnn_models ADD COLUMN training_f1 REAL")
         if "training_hierarchical_loss" not in existing_columns:
             conn.execute(
-                "ALTER TABLE taxonomy_nn_models ADD COLUMN training_hierarchical_loss REAL"
+                "ALTER TABLE taxonomy_pcnn_models ADD COLUMN training_hierarchical_loss REAL"
             )
         if "cv_mean_f1" not in existing_columns:
-            conn.execute("ALTER TABLE taxonomy_nn_models ADD COLUMN cv_mean_f1 REAL")
+            conn.execute("ALTER TABLE taxonomy_pcnn_models ADD COLUMN cv_mean_f1 REAL")
         if "cv_std_f1" not in existing_columns:
-            conn.execute("ALTER TABLE taxonomy_nn_models ADD COLUMN cv_std_f1 REAL")
+            conn.execute("ALTER TABLE taxonomy_pcnn_models ADD COLUMN cv_std_f1 REAL")
         if "cv_mean_hierarchical_loss" not in existing_columns:
             conn.execute(
-                "ALTER TABLE taxonomy_nn_models ADD COLUMN cv_mean_hierarchical_loss REAL"
+                "ALTER TABLE taxonomy_pcnn_models ADD COLUMN cv_mean_hierarchical_loss REAL"
             )
         if "cv_std_hierarchical_loss" not in existing_columns:
             conn.execute(
-                "ALTER TABLE taxonomy_nn_models ADD COLUMN cv_std_hierarchical_loss REAL"
+                "ALTER TABLE taxonomy_pcnn_models ADD COLUMN cv_std_hierarchical_loss REAL"
             )
 
         conn.execute(
             """
-            CREATE TABLE IF NOT EXISTS taxonomy_nn_cv_scores (
+            CREATE TABLE IF NOT EXISTS taxonomy_pcnn_cv_scores (
                 model_id INTEGER NOT NULL,
                 fold INTEGER NOT NULL,
                 accuracy REAL,
                 f1_weighted REAL,
                 hierarchical_loss REAL,
-                FOREIGN KEY(model_id) REFERENCES taxonomy_nn_models(id) ON DELETE CASCADE
+                FOREIGN KEY(model_id) REFERENCES taxonomy_pcnn_models(id) ON DELETE CASCADE
             )
             """
         )
 
-        info_scores = conn.execute("PRAGMA table_info(taxonomy_nn_cv_scores)").fetchall()
+        info_scores = conn.execute("PRAGMA table_info(taxonomy_pcnn_cv_scores)").fetchall()
         existing_score_columns = {row[1] for row in info_scores}
         if "f1_weighted" not in existing_score_columns:
-            conn.execute("ALTER TABLE taxonomy_nn_cv_scores ADD COLUMN f1_weighted REAL")
+            conn.execute("ALTER TABLE taxonomy_pcnn_cv_scores ADD COLUMN f1_weighted REAL")
         if "hierarchical_loss" not in existing_score_columns:
             conn.execute(
-                "ALTER TABLE taxonomy_nn_cv_scores ADD COLUMN hierarchical_loss REAL"
+                "ALTER TABLE taxonomy_pcnn_cv_scores ADD COLUMN hierarchical_loss REAL"
             )
 
         # Insert model metadata
         cursor = conn.execute(
             """
-            INSERT INTO taxonomy_nn_models (
+            INSERT INTO taxonomy_pcnn_models (
                 trained_at, samples, taxonomies, unique_tags, hidden_layers,
                 training_accuracy, training_f1, training_hierarchical_loss,
                 cv_folds, cv_mean_accuracy, cv_std_accuracy,
@@ -618,7 +618,7 @@ def save_model_to_database(
         if cv_accuracy:
             conn.executemany(
                 """
-                INSERT INTO taxonomy_nn_cv_scores (
+                INSERT INTO taxonomy_pcnn_cv_scores (
                     model_id, fold, accuracy, f1_weighted, hierarchical_loss
                 )
                 VALUES (?, ?, ?, ?, ?)
@@ -646,7 +646,7 @@ def render_report_html(
     *,
     hierarchical_base: float = 1.1,
 ) -> None:
-    """Render HTML report summarizing neural network training.
+    """Render HTML report summarizing parameter constrained neural network training.
 
     Args:
         stats: Training statistics
@@ -656,7 +656,7 @@ def render_report_html(
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     intro = (
-        "<p>This report summarizes a neural network classifier trained "
+        "<p>This report summarizes a parameter constrained neural network classifier trained "
         "to predict product taxonomies from tags using PyTorch.</p>"
     )
 
@@ -713,7 +713,7 @@ def render_report_html(
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>Taxonomy Neural Network Classifier</title>
+  <title>Parameter Constrained Neural Network Classifier</title>
   <style>
     body {{ font-family: 'Segoe UI', Tahoma, sans-serif; margin: 2rem; background: #f8fafc; color: #0f172a; }}
     h1 {{ margin-top: 0; }}
@@ -722,7 +722,7 @@ def render_report_html(
   </style>
 </head>
 <body>
-  <h1>Taxonomy Neural Network Classifier</h1>
+  <h1>Parameter Constrained Neural Network Classifier</h1>
   {intro}
   {metadata}
 </body>
@@ -732,9 +732,9 @@ def render_report_html(
 
 
 def main() -> None:
-    """Command-line interface for training neural network taxonomy classifiers."""
+    """Command-line interface for training parameter constrained neural network taxonomy classifiers."""
     parser = argparse.ArgumentParser(
-        description="Train neural network to predict product taxonomy from tags"
+        description="Train parameter constrained neural network to predict product taxonomy from tags"
     )
     parser.add_argument(
         "--dsn",
@@ -748,13 +748,13 @@ def main() -> None:
     parser.add_argument(
         "--model-database",
         type=Path,
-        default=Path("data/taxonomy_nn_classifier.sqlite"),
+        default=Path("data/taxonomy_pcnn_classifier.sqlite"),
         help="SQLite database for model metadata storage",
     )
     parser.add_argument(
         "--output-dir",
         type=Path,
-        default=Path("build/taxonomy_nn_classifier"),
+        default=Path("build/parameter_constrained_neural_network"),
         help="Directory for HTML reports",
     )
     parser.add_argument(
@@ -924,7 +924,7 @@ def main() -> None:
                 # Create table if it doesn't exist
                 cur.execute(
                     """
-                    CREATE TABLE IF NOT EXISTS padjective.taxonomy_nn_fold_results (
+                    CREATE TABLE IF NOT EXISTS padjective.taxonomy_pcnn_fold_results (
                         cv_fold INTEGER PRIMARY KEY,
                         test_accuracy REAL NOT NULL,
                         test_f1 REAL NOT NULL,
@@ -942,7 +942,7 @@ def main() -> None:
 
                 # Delete existing results for this fold
                 cur.execute(
-                    "DELETE FROM padjective.taxonomy_nn_fold_results WHERE cv_fold = %s",
+                    "DELETE FROM padjective.taxonomy_pcnn_fold_results WHERE cv_fold = %s",
                     (args.fold,)
                 )
 
@@ -950,7 +950,7 @@ def main() -> None:
                 hidden_layers_str = ",".join(str(x) for x in hidden_layer_sizes)
                 cur.execute(
                     """
-                    INSERT INTO padjective.taxonomy_nn_fold_results
+                    INSERT INTO padjective.taxonomy_pcnn_fold_results
                     (cv_fold, test_accuracy, test_f1, test_hierarchical_loss,
                      padic_loss_total, padic_loss_mean, prime_base,
                      num_train_samples, num_test_samples, hidden_layers, max_tags)
@@ -964,7 +964,7 @@ def main() -> None:
                 # Save individual predictions
                 test_metadata = metadata[test_mask].reset_index(drop=True)
                 cur.execute(
-                    "DELETE FROM padjective.taxonomy_nn_predictions WHERE cv_fold = %s",
+                    "DELETE FROM padjective.taxonomy_pcnn_predictions WHERE cv_fold = %s",
                     (args.fold,)
                 )
 
@@ -980,7 +980,7 @@ def main() -> None:
 
                     cur.execute(
                         """
-                        INSERT INTO padjective.taxonomy_nn_predictions
+                        INSERT INTO padjective.taxonomy_pcnn_predictions
                         (cv_fold, product_id, true_taxonomy_id, predicted_taxonomy_id, loss)
                         VALUES (%s, %s, %s, %s, %s)
                         """,
@@ -990,7 +990,7 @@ def main() -> None:
                 # Save first-layer weights for feature importance analysis
                 cur.execute(
                     """
-                    CREATE TABLE IF NOT EXISTS padjective.taxonomy_nn_input_weights (
+                    CREATE TABLE IF NOT EXISTS padjective.taxonomy_pcnn_input_weights (
                         cv_fold INTEGER NOT NULL,
                         tag TEXT NOT NULL,
                         hidden_unit INTEGER NOT NULL,
@@ -1002,7 +1002,7 @@ def main() -> None:
 
                 # Delete existing weights for this fold
                 cur.execute(
-                    "DELETE FROM padjective.taxonomy_nn_input_weights WHERE cv_fold = %s",
+                    "DELETE FROM padjective.taxonomy_pcnn_input_weights WHERE cv_fold = %s",
                     (args.fold,)
                 )
 
@@ -1018,7 +1018,7 @@ def main() -> None:
 
                         cur.execute(
                             """
-                            INSERT INTO padjective.taxonomy_nn_input_weights
+                            INSERT INTO padjective.taxonomy_pcnn_input_weights
                             (cv_fold, tag, hidden_unit, weight)
                             VALUES (%s, %s, %s, %s)
                             """,
@@ -1026,7 +1026,7 @@ def main() -> None:
                         )
 
             save_conn.commit()
-            print(f"\nResults saved to padjective.taxonomy_nn_fold_results and padjective.taxonomy_nn_input_weights")
+            print(f"\nResults saved to padjective.taxonomy_pcnn_fold_results and padjective.taxonomy_pcnn_input_weights")
         finally:
             save_conn.close()
 

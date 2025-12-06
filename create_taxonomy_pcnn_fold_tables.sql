@@ -1,11 +1,11 @@
--- Create taxonomy neural network fold results tables
--- Run this with admin privileges to create tables for per-fold NN metrics
+-- Create taxonomy parameter constrained neural network fold results tables
+-- Run this with admin privileges to create tables for per-fold PCNN metrics
 
 -- Create schema if it doesn't exist
 CREATE SCHEMA IF NOT EXISTS padjective;
 
--- Create taxonomy_nn_fold_results table
-CREATE TABLE IF NOT EXISTS padjective.taxonomy_nn_fold_results (
+-- Create taxonomy_pcnn_fold_results table
+CREATE TABLE IF NOT EXISTS padjective.taxonomy_pcnn_fold_results (
     cv_fold INTEGER PRIMARY KEY,
     test_accuracy REAL NOT NULL,
     test_f1 REAL NOT NULL,
@@ -21,4 +21,4 @@ CREATE TABLE IF NOT EXISTS padjective.taxonomy_nn_fold_results (
 
 -- Grant privileges
 GRANT USAGE ON SCHEMA padjective TO padjective;
-GRANT ALL PRIVILEGES ON padjective.taxonomy_nn_fold_results TO padjective;
+GRANT ALL PRIVILEGES ON padjective.taxonomy_pcnn_fold_results TO padjective;

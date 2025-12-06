@@ -369,8 +369,8 @@ def _create_comprehensive_dumps(conn, datadumps_dir: Path, schema: str) -> None:
         (schema, "taxonomy_pclr_fold_results"),
         (schema, "taxonomy_pclr_predictions"),
         (schema, "taxonomy_pclr_coefficients"),
-        (schema, "taxonomy_nn_fold_results"),
-        (schema, "taxonomy_nn_predictions"),
+        (schema, "taxonomy_pcnn_fold_results"),
+        (schema, "taxonomy_pcnn_predictions"),
     ]
 
     all_tables = core_tables + results_tables
@@ -1223,7 +1223,7 @@ def _load_prediction_details(conn, fold: int, schema: str) -> Dict[int, Dict[str
             sql.SQL(
                 """
                 SELECT product_id, true_taxonomy_id, predicted_taxonomy_id, loss
-                FROM {schema}.taxonomy_nn_predictions
+                FROM {schema}.taxonomy_pcnn_predictions
                 WHERE cv_fold = %s
                 """
             ).format(schema=sql.Identifier(schema)),
@@ -1388,7 +1388,7 @@ def _write_prediction_detail_page(
 
         predictions_rows.append(f"""
         <tr>
-          <td>Neural Network</td>
+          <td>PC Neural Network</td>
           <td>{html.escape(pred_tax_path)}</td>
           <td>{html.escape(pred_tax_id)}</td>
           <td>{html.escape(pred_tax_name)}</td>
@@ -2179,7 +2179,7 @@ def _format_regression_stats_html(stats: Optional[Dict[str, Dict[str, float]]], 
     model_names = {
         'umllr': 'Importance-Optimised p-adic LR',
         'lr': 'PC Logistic Regression',
-        'nn': 'Neural Network',
+        'nn': 'PC Neural Network',
         'dummy': 'Dummy Baseline',
     }
     model_colors = {
@@ -2285,7 +2285,7 @@ def _build_index_markdown(
     umllr_summary: Optional[Dict[str, Any]],
     dummy_summary: Optional[Dict[str, Any]],
     taxonomy_fold_results: Optional[list[Dict[str, Any]]],
-    taxonomy_nn_fold_results: Optional[list[Dict[str, Any]]],
+    taxonomy_pcnn_fold_results: Optional[list[Dict[str, Any]]],
     trends_chart_path: Optional[Path],
     output_dir: Path,
 ) -> str:
@@ -2348,16 +2348,16 @@ def _build_index_markdown(
             "",
         ])
 
-    # Neural Network
-    if taxonomy_nn_fold_results:
-        avg_loss = sum(r["padic_loss_mean"] for r in taxonomy_nn_fold_results) / len(taxonomy_nn_fold_results)
+    # Parameter Constrained Neural Network
+    if taxonomy_pcnn_fold_results:
+        avg_loss = sum(r["padic_loss_mean"] for r in taxonomy_pcnn_fold_results) / len(taxonomy_pcnn_fold_results)
         lines.extend([
-            "### Neural Network Classifier",
+            "### Parameter Constrained Neural Network",
             "",
-            "PyTorch neural network predicting taxonomy from tags",
+            "Parameter constrained neural network predicting taxonomy from tags",
             "",
             f"- **Avg p-adic loss:** {avg_loss:.4f}",
-            "- [View model](taxonomy_nn_classifier/index.html)",
+            "- [View model](parameter_constrained_neural_network/index.html)",
             "",
         ])
 
@@ -2471,12 +2471,12 @@ def _build_index_html(
     elo_page: Path,
     taxonomy_page: Optional[Path],
     umllr_page: Optional[Path],
-    taxonomy_nn_page: Optional[Path],
+    taxonomy_pcnn_page: Optional[Path],
     taxonomy_summary: Optional[Dict[str, Any]] = None,
     umllr_summary: Optional[Dict[str, Any]] = None,
     dummy_summary: Optional[Dict[str, Any]] = None,
     taxonomy_fold_results: Optional[list[Dict[str, Any]]] = None,
-    taxonomy_nn_fold_results: Optional[list[Dict[str, Any]]] = None,
+    taxonomy_pcnn_fold_results: Optional[list[Dict[str, Any]]] = None,
     trends_chart_path: Optional[Path] = None,
     perf_vs_products_chart_path: Optional[Path] = None,
     perf_vs_tags_chart_path: Optional[Path] = None,
@@ -2570,32 +2570,32 @@ def _build_index_html(
     <a href="{umllr_page.relative_to(output_dir).as_posix()}" class="card-link">View model →</a>
   </div>"""
 
-    nn_card = ""
-    taxonomy_nn_link = ""
-    if taxonomy_nn_page:
-        taxonomy_nn_link = (
-            f'<a href="{taxonomy_nn_page.relative_to(output_dir).as_posix()}" class="card-link">View model →</a>'
+    pcnn_card = ""
+    taxonomy_pcnn_link = ""
+    if taxonomy_pcnn_page:
+        taxonomy_pcnn_link = (
+            f'<a href="{taxonomy_pcnn_page.relative_to(output_dir).as_posix()}" class="card-link">View model →</a>'
         )
 
-    if taxonomy_nn_fold_results:
-        avg_loss = sum(r["padic_loss_mean"] for r in taxonomy_nn_fold_results) / len(taxonomy_nn_fold_results)
-        nn_card = f"""
+    if taxonomy_pcnn_fold_results:
+        avg_loss = sum(r["padic_loss_mean"] for r in taxonomy_pcnn_fold_results) / len(taxonomy_pcnn_fold_results)
+        pcnn_card = f"""
   <div class="model-card">
-    <h3>Neural Network Classifier</h3>
-    <p>PyTorch neural network predicting taxonomy from tags</p>
+    <h3>PC Neural Network</h3>
+    <p>Parameter constrained neural network predicting taxonomy from tags</p>
     <div class="card-metric">
       <span class="value">{avg_loss:.4f}</span>
       <span class="label">Avg p-adic loss</span>
     </div>
-    {taxonomy_nn_link or '<span class="card-link disabled">No report available</span>'}
+    {taxonomy_pcnn_link or '<span class="card-link disabled">No report available</span>'}
   </div>"""
 
     # Combine model cards
     all_cards: list[str] = []
     if umllr_card:
         all_cards.append(umllr_card)
-    if nn_card:
-        all_cards.append(nn_card)
+    if pcnn_card:
+        all_cards.append(pcnn_card)
     if taxonomy_card:
         all_cards.append(taxonomy_card)
     if dummy_card:
@@ -2828,7 +2828,7 @@ def _build_index_html(
         umllr_summary=umllr_summary,
         dummy_summary=dummy_summary,
         taxonomy_fold_results=taxonomy_fold_results,
-        taxonomy_nn_fold_results=taxonomy_nn_fold_results,
+        taxonomy_pcnn_fold_results=taxonomy_pcnn_fold_results,
         trends_chart_path=trends_chart_path,
         output_dir=output_dir,
     )
@@ -3031,7 +3031,7 @@ def _generate_nn_tag_rank_vs_weight_chart(
     Returns:
         Path to generated chart, or None if insufficient data
     """
-    if not _table_exists(conn, schema, "taxonomy_nn_input_weights"):
+    if not _table_exists(conn, schema, "taxonomy_pcnn_input_weights"):
         return None
 
     with conn.cursor() as cur:
@@ -3039,7 +3039,7 @@ def _generate_nn_tag_rank_vs_weight_chart(
             sql.SQL(
                 """
                 SELECT tag, hidden_unit, weight
-                FROM {schema}.taxonomy_nn_input_weights
+                FROM {schema}.taxonomy_pcnn_input_weights
                 WHERE cv_fold = %s
                 """
             ).format(schema=sql.Identifier(schema)),
@@ -3505,19 +3505,19 @@ def _write_taxonomy_classifier_page(
     return page_path
 
 
-def _write_taxonomy_nn_fold_pages(
+def _write_taxonomy_pcnn_fold_pages(
     output_dir: Path,
     fold_results: list[Dict[str, Any]],
     conn=None,
     tag_rankings: Optional[Dict[str, int]] = None,
     schema: str = "padjective",
 ) -> Dict[int, Path]:
-    """Write individual pages for each neural network fold."""
+    """Write individual pages for each parameter constrained neural network fold."""
     pages: Dict[int, Path] = {}
     if not fold_results:
         return pages
 
-    nn_dir = output_dir / "taxonomy_nn_classifier"
+    nn_dir = output_dir / "parameter_constrained_neural_network"
     nn_dir.mkdir(parents=True, exist_ok=True)
 
     for fold_data in fold_results:
@@ -3562,7 +3562,7 @@ def _write_taxonomy_nn_fold_pages(
     <h2>Tag Rank vs First-Layer Weight Magnitude</h2>
     <figure class="chart">
       <img src="fold_{fold}_rank_vs_weight.png" alt="Tag rank vs max first-layer weight magnitude" />
-      <figcaption>Scatter plot showing the relationship between tag battle ranking and maximum absolute first-layer weight value across all hidden units. Shows which input features contribute most to the neural network's hidden representations.</figcaption>
+      <figcaption>Scatter plot showing the relationship between tag battle ranking and maximum absolute first-layer weight value across all hidden units. Shows which input features contribute most to the parameter constrained neural network's hidden representations.</figcaption>
     </figure>
 """
 
@@ -3574,13 +3574,13 @@ def _write_taxonomy_nn_fold_pages(
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Neural Network Classifier Fold {fold} Results</title>
+  <title>PC Neural Network Fold {fold} Results</title>
   <link rel="stylesheet" href="../assets/styles.css" />
 </head>
 <body>
   <section class="umllr-fold">
-    <h1>Neural Network Classifier Fold {fold}</h1>
-    <p><a href="index.html">Back to neural network overview</a> &middot; <a href="../index.html">Back to main index</a></p>
+    <h1>PC Neural Network Fold {fold}</h1>
+    <p><a href="index.html">Back to PC neural network overview</a> &middot; <a href="../index.html">Back to main index</a></p>
 
     <h2>Fold metrics</h2>
     <table class="umllr-table">
@@ -3619,17 +3619,17 @@ def _write_taxonomy_nn_fold_pages(
     return pages
 
 
-def _write_taxonomy_nn_overview_page(
+def _write_taxonomy_pcnn_overview_page(
     output_dir: Path,
     fold_results: list[Dict[str, Any]],
     fold_pages: Dict[int, Path],
 ) -> Path:
-    """Write a main overview page for neural network classifier results."""
-    nn_dir = output_dir / "taxonomy_nn_classifier"
+    """Write a main overview page for parameter constrained neural network classifier results."""
+    nn_dir = output_dir / "parameter_constrained_neural_network"
     nn_dir.mkdir(parents=True, exist_ok=True)
 
     if not fold_results:
-        raise ValueError("fold_results is required for neural network classifier page")
+        raise ValueError("fold_results is required for parameter constrained neural network classifier page")
 
     num_folds = len(fold_results)
     avg_accuracy = sum(row["test_accuracy"] for row in fold_results) / num_folds
@@ -3679,12 +3679,12 @@ def _write_taxonomy_nn_overview_page(
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Taxonomy Neural Network Classifier</title>
+  <title>Parameter Constrained Neural Network</title>
   <link rel="stylesheet" href="../assets/styles.css" />
 </head>
 <body>
   <header class="hero">
-    <h1>Taxonomy Neural Network Classifier</h1>
+    <h1>Parameter Constrained Neural Network</h1>
     <p class="tagline">Cross-validated PyTorch model predicting taxonomy IDs from tags</p>
   </header>
 
@@ -3692,7 +3692,7 @@ def _write_taxonomy_nn_overview_page(
     <p><a href="../index.html">← Back to index</a></p>
 
     <h2>Model overview</h2>
-    <p>Neural network classifier using PyTorch with configurable hidden layers to predict taxonomy IDs from product tags. Each taxonomy path is encoded as a p-adic integer and the model minimizes p-adic distance.</p>
+    <p>Parameter constrained neural network classifier using PyTorch with configurable hidden layers to predict taxonomy IDs from product tags. Each taxonomy path is encoded as a p-adic integer and the model minimizes p-adic distance.</p>
 
     <div class="metrics">
       <div class="metric">
@@ -3965,9 +3965,9 @@ def _load_taxonomy_pclr_fold_results(conn, schema: str = "padjective") -> Option
     return results
 
 
-def _load_taxonomy_nn_fold_results(conn, schema: str = "padjective") -> Optional[list[Dict[str, Any]]]:
-    """Load taxonomy neural network fold-based results."""
-    if not _table_exists(conn, schema, "taxonomy_nn_fold_results"):
+def _load_taxonomy_pcnn_fold_results(conn, schema: str = "padjective") -> Optional[list[Dict[str, Any]]]:
+    """Load taxonomy parameter constrained neural network fold-based results."""
+    if not _table_exists(conn, schema, "taxonomy_pcnn_fold_results"):
         return None
 
     with conn.cursor(row_factory=dict_row) as cur:
@@ -3977,7 +3977,7 @@ def _load_taxonomy_nn_fold_results(conn, schema: str = "padjective") -> Optional
                 SELECT cv_fold, test_accuracy, test_f1, test_hierarchical_loss,
                        padic_loss_total, padic_loss_mean, prime_base,
                        num_train_samples, num_test_samples, hidden_layers, max_tags
-                FROM {schema}.taxonomy_nn_fold_results
+                FROM {schema}.taxonomy_pcnn_fold_results
                 ORDER BY cv_fold
                 """
             ).format(schema=sql.Identifier(schema))
@@ -4013,7 +4013,7 @@ def _load_taxonomy_nn_fold_results(conn, schema: str = "padjective") -> Optional
                 sql.SQL(
                     """
                     SELECT true_taxonomy_id, predicted_taxonomy_id
-                    FROM {schema}.taxonomy_nn_predictions
+                    FROM {schema}.taxonomy_pcnn_predictions
                     WHERE cv_fold = %s
                     """
                 ).format(schema=sql.Identifier(schema)),
@@ -4130,7 +4130,7 @@ def _generate_historical_trends_chart(conn, output_path: Path, schema: str = "pa
     if any(lr_loss):
         ax1.plot(dates, lr_loss, 's-', label='PC Logistic Regression', color='#10b981', linewidth=2, markersize=6)
     if any(nn_loss):
-        ax1.plot(dates, nn_loss, '^-', label='Neural Network', color='#f59e0b', linewidth=2, markersize=6)
+        ax1.plot(dates, nn_loss, '^-', label='PC Neural Network', color='#f59e0b', linewidth=2, markersize=6)
 
     ax1.set_ylabel('P-adic Loss (lower is better)', fontsize=12, fontweight='bold')
     ax1.set_title('Model Performance Over Time', fontsize=14, fontweight='bold', pad=15)
@@ -4229,7 +4229,7 @@ def _generate_performance_vs_products_chart(conn, output_path: Path, schema: str
             regression_stats['lr'] = stat
 
     if any(v is not None for v in nn_loss):
-        stat = plot_with_regression(num_products, nn_loss, 'Neural Network', '#f59e0b', '^')
+        stat = plot_with_regression(num_products, nn_loss, 'PC Neural Network', '#f59e0b', '^')
         if stat:
             regression_stats['nn'] = stat
 
@@ -4319,7 +4319,7 @@ def _generate_performance_vs_tags_chart(conn, output_path: Path, schema: str = "
             regression_stats['lr'] = stat
 
     if any(v is not None for v in nn_loss):
-        stat = plot_with_regression(num_tags, nn_loss, 'Neural Network', '#f59e0b', '^')
+        stat = plot_with_regression(num_tags, nn_loss, 'PC Neural Network', '#f59e0b', '^')
         if stat:
             regression_stats['nn'] = stat
 
@@ -4525,19 +4525,19 @@ footer {text-align: center; padding: 2rem 1.5rem 3rem; color: #6b7280;}
         dummy_page = _write_dummy_overview_page(output_dir, dummy_summary, dummy_fold_pages)
         dummy_summary["overview_page"] = dummy_page.relative_to(output_dir).as_posix()
 
-    taxonomy_nn_fold_results = _load_taxonomy_nn_fold_results(
+    taxonomy_pcnn_fold_results = _load_taxonomy_pcnn_fold_results(
         precomputed_database, schema=battle_schema
     )
-    taxonomy_nn_page = None
-    if taxonomy_nn_fold_results:
-        taxonomy_nn_fold_pages = _write_taxonomy_nn_fold_pages(
+    taxonomy_pcnn_page = None
+    if taxonomy_pcnn_fold_results:
+        taxonomy_pcnn_fold_pages = _write_taxonomy_pcnn_fold_pages(
             output_dir,
-            taxonomy_nn_fold_results,
+            taxonomy_pcnn_fold_results,
             conn=precomputed_database,
             tag_rankings=tag_rank_lookup,
             schema=battle_schema
         )
-        taxonomy_nn_page = _write_taxonomy_nn_overview_page(output_dir, taxonomy_nn_fold_results, taxonomy_nn_fold_pages)
+        taxonomy_pcnn_page = _write_taxonomy_pcnn_overview_page(output_dir, taxonomy_pcnn_fold_results, taxonomy_pcnn_fold_pages)
 
     # Generate historical trends charts
     trends_chart_path = _generate_historical_trends_chart(
@@ -4565,12 +4565,12 @@ footer {text-align: center; padding: 2rem 1.5rem 3rem; color: #6b7280;}
         elo_page,
         taxonomy_page,
         umllr_page,
-        taxonomy_nn_page,
+        taxonomy_pcnn_page,
         taxonomy_summary,
         umllr_summary,
         dummy_summary,
         taxonomy_pclr_fold_results,
-        taxonomy_nn_fold_results,
+        taxonomy_pcnn_fold_results,
         trends_chart_path,
         perf_vs_products_chart_path,
         perf_vs_tags_chart_path,
