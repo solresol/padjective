@@ -2395,12 +2395,17 @@ def _build_index_markdown(
     # Parameter Constrained Neural Network
     if taxonomy_pcnn_fold_results:
         avg_loss = sum(r["padic_loss_mean"] for r in taxonomy_pcnn_fold_results) / len(taxonomy_pcnn_fold_results)
+        avg_input_weights = sum(r.get("num_input_weights", 0) for r in taxonomy_pcnn_fold_results) / len(taxonomy_pcnn_fold_results)
         lines.extend([
             "### Parameter Constrained Neural Network",
             "",
             "Parameter constrained neural network predicting taxonomy from tags",
             "",
             f"- **Avg p-adic loss:** {avg_loss:.4f}",
+        ])
+        if avg_input_weights > 0:
+            lines.append(f"- **Avg input weights:** {avg_input_weights:,.0f}")
+        lines.extend([
             "- [View model](parameter_constrained_neural_network/index.html)",
             "",
         ])
@@ -2423,12 +2428,17 @@ def _build_index_markdown(
     # Parameter Constrained Logistic Regression
     if taxonomy_summary and taxonomy_fold_results:
         avg_padic_loss = sum(fold["padic_loss_mean"] for fold in taxonomy_fold_results) / len(taxonomy_fold_results)
+        avg_params = sum(fold.get("num_params", 0) for fold in taxonomy_fold_results) / len(taxonomy_fold_results)
         lines.extend([
             "### Parameter Constrained Logistic Regression",
             "",
             "Parameter constrained logistic regression model predicting Shopify taxonomy from tags",
             "",
             f"- **Avg p-adic loss:** {avg_padic_loss:.4f}",
+        ])
+        if avg_params > 0:
+            lines.append(f"- **Avg parameters:** {avg_params:,.0f}")
+        lines.extend([
             "- [View model](parameter_constrained_logistic_regression/index.html)",
             "",
         ])
@@ -2590,6 +2600,12 @@ def _build_index_html(
             avg_padic_loss = sum(fold["padic_loss_mean"] for fold in taxonomy_fold_results) / len(taxonomy_fold_results)
             metric_display = f"{avg_padic_loss:.4f}"
             metric_label = "Avg p-adic loss"
+            avg_params = sum(fold.get("num_params", 0) for fold in taxonomy_fold_results) / len(taxonomy_fold_results)
+            params_html = f"""
+    <div class="card-metric" style="margin-top: 0.5rem;">
+      <span class="value">{avg_params:,.0f}</span>
+      <span class="label">Avg parameters</span>
+    </div>""" if avg_params > 0 else ""
         else:
             stats_block = taxonomy_summary.get("stats", {})
             cv_info = stats_block.get("cross_validation") or {}
@@ -2599,6 +2615,7 @@ def _build_index_html(
             else:
                 metric_display = "—"
             metric_label = "CV accuracy"
+            params_html = ""
 
         taxonomy_card = f"""
   <div class="model-card">
@@ -2607,7 +2624,7 @@ def _build_index_html(
     <div class="card-metric">
       <span class="value">{metric_display}</span>
       <span class="label">{metric_label}</span>
-    </div>
+    </div>{params_html}
     <a href="{taxonomy_page.relative_to(output_dir).as_posix()}" class="card-link">View model →</a>
   </div>"""
 
@@ -2640,6 +2657,12 @@ def _build_index_html(
 
     if taxonomy_pcnn_fold_results:
         avg_loss = sum(r["padic_loss_mean"] for r in taxonomy_pcnn_fold_results) / len(taxonomy_pcnn_fold_results)
+        avg_input_weights = sum(r.get("num_input_weights", 0) for r in taxonomy_pcnn_fold_results) / len(taxonomy_pcnn_fold_results)
+        params_html = f"""
+    <div class="card-metric" style="margin-top: 0.5rem;">
+      <span class="value">{avg_input_weights:,.0f}</span>
+      <span class="label">Avg input weights</span>
+    </div>""" if avg_input_weights > 0 else ""
         pcnn_card = f"""
   <div class="model-card">
     <h3>Parameter Constrained Neural Network</h3>
@@ -2647,7 +2670,7 @@ def _build_index_html(
     <div class="card-metric">
       <span class="value">{avg_loss:.4f}</span>
       <span class="label">Avg p-adic loss</span>
-    </div>
+    </div>{params_html}
     {taxonomy_pcnn_link or '<span class="card-link disabled">No report available</span>'}
   </div>"""
 
@@ -4201,6 +4224,22 @@ def _load_taxonomy_pclr_fold_results(conn, schema: str = "padjective") -> Option
     if not _table_exists(conn, schema, "taxonomy_pclr_fold_results"):
         return None
 
+    # Load coefficient counts per fold (number of non-zero parameters)
+    coef_counts: Dict[int, int] = {}
+    if _table_exists(conn, schema, "taxonomy_pclr_coefficients"):
+        with conn.cursor(row_factory=dict_row) as cur:
+            cur.execute(
+                sql.SQL(
+                    """
+                    SELECT cv_fold, COUNT(*) as num_params
+                    FROM {schema}.taxonomy_pclr_coefficients
+                    GROUP BY cv_fold
+                    """
+                ).format(schema=sql.Identifier(schema))
+            )
+            for row in cur:
+                coef_counts[int(row["cv_fold"])] = int(row["num_params"])
+
     with conn.cursor(row_factory=dict_row) as cur:
         cur.execute(
             sql.SQL(
@@ -4215,8 +4254,9 @@ def _load_taxonomy_pclr_fold_results(conn, schema: str = "padjective") -> Option
         )
         results = []
         for row in cur:
+            fold = int(row["cv_fold"])
             results.append({
-                "cv_fold": int(row["cv_fold"]),
+                "cv_fold": fold,
                 "test_accuracy": float(row["test_accuracy"]),
                 "test_f1": float(row["test_f1"]),
                 "test_hierarchical_loss": float(row["test_hierarchical_loss"]),
@@ -4226,6 +4266,7 @@ def _load_taxonomy_pclr_fold_results(conn, schema: str = "padjective") -> Option
                 "num_train_samples": int(row["num_train_samples"]),
                 "num_test_samples": int(row["num_test_samples"]),
                 "trained_at": row["trained_at"].isoformat(timespec="seconds") if row["trained_at"] else None,
+                "num_params": coef_counts.get(fold, 0),
             })
 
     if not results:
@@ -4270,6 +4311,22 @@ def _load_taxonomy_pcnn_fold_results(conn, schema: str = "padjective") -> Option
     if not _table_exists(conn, schema, "taxonomy_pcnn_fold_results"):
         return None
 
+    # Load input weight counts per fold (number of parameters in input layer)
+    weight_counts: Dict[int, int] = {}
+    if _table_exists(conn, schema, "taxonomy_pcnn_input_weights"):
+        with conn.cursor(row_factory=dict_row) as cur:
+            cur.execute(
+                sql.SQL(
+                    """
+                    SELECT cv_fold, COUNT(*) as num_params
+                    FROM {schema}.taxonomy_pcnn_input_weights
+                    GROUP BY cv_fold
+                    """
+                ).format(schema=sql.Identifier(schema))
+            )
+            for row in cur:
+                weight_counts[int(row["cv_fold"])] = int(row["num_params"])
+
     with conn.cursor(row_factory=dict_row) as cur:
         cur.execute(
             sql.SQL(
@@ -4284,8 +4341,9 @@ def _load_taxonomy_pcnn_fold_results(conn, schema: str = "padjective") -> Option
         )
         results = []
         for row in cur:
+            fold = int(row["cv_fold"])
             results.append({
-                "cv_fold": int(row["cv_fold"]),
+                "cv_fold": fold,
                 "test_accuracy": float(row["test_accuracy"]),
                 "test_f1": float(row["test_f1"]),
                 "test_hierarchical_loss": float(row["test_hierarchical_loss"]),
@@ -4296,6 +4354,7 @@ def _load_taxonomy_pcnn_fold_results(conn, schema: str = "padjective") -> Option
                 "num_test_samples": int(row["num_test_samples"]),
                 "hidden_layers": str(row["hidden_layers"]),
                 "max_tags": int(row["max_tags"]) if row["max_tags"] is not None else None,
+                "num_input_weights": weight_counts.get(fold, 0),
             })
 
     if not results:
