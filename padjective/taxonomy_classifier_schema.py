@@ -19,9 +19,9 @@ EXPECTED_TABLES: tuple[str, ...] = (
     "taxonomy_pclr_predictions",
     "taxonomy_pclr_coefficients",
     "taxonomy_pcnn_predictions",
-    "taxonomy_ulr_fold_results",
-    "taxonomy_ulr_predictions",
 )
+# Note: taxonomy_ulr_fold_results and taxonomy_ulr_predictions are created
+# on-the-fly by taxonomy_ulr_classifier.py and are not validated here.
 
 
 def _check_schema_exists(conn, schema: str) -> bool:

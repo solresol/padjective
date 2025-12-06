@@ -141,7 +141,38 @@ CREATE INDEX IF NOT EXISTS taxonomy_pcnn_input_weights_fold_idx
 CREATE INDEX IF NOT EXISTS taxonomy_pcnn_input_weights_tag_idx
     ON padjective.taxonomy_pcnn_input_weights (tag);
 
--- 13. Grant padjective role access to the schema, tables, and sequences.
+-- 12. Create the taxonomy_ulr_fold_results table for unconstrained L1-regularized LR.
+CREATE TABLE IF NOT EXISTS padjective.taxonomy_ulr_fold_results (
+    cv_fold INTEGER PRIMARY KEY,
+    test_accuracy DOUBLE PRECISION NOT NULL,
+    test_f1 DOUBLE PRECISION NOT NULL,
+    test_hierarchical_loss DOUBLE PRECISION NOT NULL,
+    padic_loss_total DOUBLE PRECISION NOT NULL,
+    padic_loss_mean DOUBLE PRECISION NOT NULL,
+    prime_base INTEGER NOT NULL,
+    num_train_samples INTEGER NOT NULL,
+    num_test_samples INTEGER NOT NULL,
+    num_tags INTEGER NOT NULL,
+    num_nonzero_params INTEGER NOT NULL,
+    num_total_params INTEGER NOT NULL,
+    l1_C DOUBLE PRECISION NOT NULL DEFAULT 1.0,
+    trained_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- 13. Create the taxonomy_ulr_predictions table for individual test predictions per fold.
+CREATE TABLE IF NOT EXISTS padjective.taxonomy_ulr_predictions (
+    cv_fold INTEGER NOT NULL,
+    product_id INTEGER NOT NULL,
+    true_taxonomy_id TEXT NOT NULL,
+    predicted_taxonomy_id TEXT NOT NULL,
+    loss DOUBLE PRECISION NOT NULL,
+    PRIMARY KEY (cv_fold, product_id)
+);
+
+CREATE INDEX IF NOT EXISTS taxonomy_ulr_predictions_fold_idx
+    ON padjective.taxonomy_ulr_predictions (cv_fold);
+
+-- 14. Grant padjective role access to the schema, tables, and sequences.
 GRANT USAGE ON SCHEMA padjective TO padjective;
 
 GRANT SELECT, INSERT, UPDATE, DELETE ON
@@ -154,7 +185,9 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON
     padjective.taxonomy_pclr_predictions,
     padjective.taxonomy_pclr_coefficients,
     padjective.taxonomy_pcnn_predictions,
-    padjective.taxonomy_pcnn_input_weights
+    padjective.taxonomy_pcnn_input_weights,
+    padjective.taxonomy_ulr_fold_results,
+    padjective.taxonomy_ulr_predictions
 TO padjective;
 
 GRANT USAGE, SELECT ON SEQUENCE padjective.taxonomy_pclr_models_id_seq TO padjective;
