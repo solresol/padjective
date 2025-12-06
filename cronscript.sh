@@ -55,7 +55,7 @@ for fold in 0 1 2 3 4; do
         --max-tags 109
 done
 
-# Train full taxonomy classifier (populates taxonomy_lr_models summary table for index card)
+# Train full taxonomy classifier (populates taxonomy_pclr_models summary table for index card)
 echo "Training full taxonomy classifier..."
 uv run -m padjective.taxonomy_classifier \
     "${TAGBATTLE_DSN_ARGS[@]}" \
