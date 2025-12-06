@@ -362,13 +362,13 @@ def _create_comprehensive_dumps(conn, datadumps_dir: Path, schema: str) -> None:
         (schema, "umllr_taxonomy_encodings"),
         (schema, "dummy_fold_metrics"),
         (schema, "dummy_predictions"),
-        (schema, "taxonomy_lr_models"),
-        (schema, "taxonomy_lr_class_distribution"),
-        (schema, "taxonomy_lr_tag_summary"),
-        (schema, "taxonomy_lr_top_tags"),
-        (schema, "taxonomy_lr_fold_results"),
-        (schema, "taxonomy_lr_predictions"),
-        (schema, "taxonomy_lr_coefficients"),
+        (schema, "taxonomy_pclr_models"),
+        (schema, "taxonomy_pclr_class_distribution"),
+        (schema, "taxonomy_pclr_tag_summary"),
+        (schema, "taxonomy_pclr_top_tags"),
+        (schema, "taxonomy_pclr_fold_results"),
+        (schema, "taxonomy_pclr_predictions"),
+        (schema, "taxonomy_pclr_coefficients"),
         (schema, "taxonomy_nn_fold_results"),
         (schema, "taxonomy_nn_predictions"),
     ]
@@ -1181,7 +1181,7 @@ def _load_prediction_details(conn, fold: int, schema: str) -> Dict[int, Dict[str
             sql.SQL(
                 """
                 SELECT product_id, true_taxonomy_id, predicted_taxonomy_id, loss
-                FROM {schema}.taxonomy_lr_predictions
+                FROM {schema}.taxonomy_pclr_predictions
                 WHERE cv_fold = %s
                 """
             ).format(schema=sql.Identifier(schema)),
@@ -1202,7 +1202,7 @@ def _load_prediction_details(conn, fold: int, schema: str) -> Dict[int, Dict[str
             sql.SQL(
                 """
                 SELECT taxonomy_id, tag, coefficient
-                FROM {schema}.taxonomy_lr_coefficients
+                FROM {schema}.taxonomy_pclr_coefficients
                 WHERE cv_fold = %s
                 """
             ).format(schema=sql.Identifier(schema)),
@@ -1370,7 +1370,7 @@ def _write_prediction_detail_page(
 
         predictions_rows.append(f"""
         <tr>
-          <td>Logistic Regression</td>
+          <td>PC Logistic Regression</td>
           <td>{html.escape(pred_tax_path)}</td>
           <td>{html.escape(pred_tax_id)}</td>
           <td>{html.escape(pred_tax_name)}</td>
@@ -1484,7 +1484,7 @@ def _write_prediction_detail_page(
     if lr_detail_rows:
         lr_detail_html = f"""
         <div class="detail-section">
-          <h2>Logistic Regression Coefficients</h2>
+          <h2>PC Logistic Regression Coefficients</h2>
           <p>Tag coefficients for each taxonomy class (highest coefficient per tag is highlighted)</p>
           <table class="detail-table">
             <thead>
@@ -2178,7 +2178,7 @@ def _format_regression_stats_html(stats: Optional[Dict[str, Dict[str, float]]], 
 
     model_names = {
         'umllr': 'Importance-Optimised p-adic LR',
-        'lr': 'Logistic Regression',
+        'lr': 'PC Logistic Regression',
         'nn': 'Neural Network',
         'dummy': 'Dummy Baseline',
     }
@@ -2361,16 +2361,16 @@ def _build_index_markdown(
             "",
         ])
 
-    # Logistic Regression
+    # Parameter Constrained Logistic Regression
     if taxonomy_summary and taxonomy_fold_results:
         avg_padic_loss = sum(fold["padic_loss_mean"] for fold in taxonomy_fold_results) / len(taxonomy_fold_results)
         lines.extend([
-            "### Logistic Regression",
+            "### Parameter Constrained Logistic Regression",
             "",
-            "Logistic regression model predicting Shopify taxonomy from tags",
+            "Parameter constrained logistic regression model predicting Shopify taxonomy from tags",
             "",
             f"- **Avg p-adic loss:** {avg_padic_loss:.4f}",
-            "- [View model](logistic_regression/index.html)",
+            "- [View model](parameter_constrained_logistic_regression/index.html)",
             "",
         ])
 
@@ -2541,8 +2541,8 @@ def _build_index_html(
 
         taxonomy_card = f"""
   <div class="model-card">
-    <h3>Logistic Regression</h3>
-    <p>Logistic regression model predicting Shopify taxonomy from tags</p>
+    <h3>PC Logistic Regression</h3>
+    <p>Parameter constrained logistic regression model predicting Shopify taxonomy from tags</p>
     <div class="card-metric">
       <span class="value">{metric_display}</span>
       <span class="label">{metric_label}</span>
@@ -2929,7 +2929,7 @@ def _generate_lr_tag_rank_vs_coeff_chart(
     Returns:
         Path to generated chart, or None if insufficient data
     """
-    if not _table_exists(conn, schema, "taxonomy_lr_coefficients"):
+    if not _table_exists(conn, schema, "taxonomy_pclr_coefficients"):
         return None
 
     with conn.cursor() as cur:
@@ -2937,7 +2937,7 @@ def _generate_lr_tag_rank_vs_coeff_chart(
             sql.SQL(
                 """
                 SELECT tag, taxonomy_id, coefficient
-                FROM {schema}.taxonomy_lr_coefficients
+                FROM {schema}.taxonomy_pclr_coefficients
                 WHERE cv_fold = %s
                 """
             ).format(schema=sql.Identifier(schema)),
@@ -3114,7 +3114,7 @@ def _generate_nn_tag_rank_vs_weight_chart(
     return output_path
 
 
-def _write_taxonomy_lr_fold_pages(
+def _write_taxonomy_pclr_fold_pages(
     output_dir: Path,
     fold_results: list[Dict[str, Any]],
     conn=None,
@@ -3126,7 +3126,7 @@ def _write_taxonomy_lr_fold_pages(
     if not fold_results:
         return pages
 
-    tax_dir = output_dir / "logistic_regression"
+    tax_dir = output_dir / "parameter_constrained_logistic_regression"
     tax_dir.mkdir(parents=True, exist_ok=True)
 
     for fold_data in fold_results:
@@ -3180,13 +3180,13 @@ def _write_taxonomy_lr_fold_pages(
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Logistic Regression Fold {fold} Results</title>
+  <title>PC Logistic Regression Fold {fold} Results</title>
   <link rel="stylesheet" href="../assets/styles.css" />
 </head>
 <body>
   <section class="umllr-fold">
-    <h1>Logistic Regression Fold {fold}</h1>
-    <p><a href="index.html">Back to logistic regression overview</a> &middot; <a href="../index.html">Back to main index</a></p>
+    <h1>PC Logistic Regression Fold {fold}</h1>
+    <p><a href="index.html">Back to PC logistic regression overview</a> &middot; <a href="../index.html">Back to main index</a></p>
 
     <h2>Fold metrics</h2>
     <table class="umllr-table">
@@ -3353,7 +3353,7 @@ def _write_taxonomy_classifier_page(
         fold_results: Required fold-level results with training statistics
         fold_pages: Required mapping of fold numbers to their detail page paths
     """
-    tax_dir = output_dir / "logistic_regression"
+    tax_dir = output_dir / "parameter_constrained_logistic_regression"
     tax_dir.mkdir(parents=True, exist_ok=True)
 
     stats_block = taxonomy_summary.get("stats", {})
@@ -3458,20 +3458,20 @@ def _write_taxonomy_classifier_page(
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Logistic Regression</title>
+  <title>Parameter Constrained Logistic Regression</title>
   <link rel="stylesheet" href="../assets/styles.css" />
 </head>
 <body>
   <header class="hero">
-    <h1>Logistic Regression</h1>
-    <p class="tagline">Predicting Shopify taxonomy from product tags using logistic regression</p>
+    <h1>Parameter Constrained Logistic Regression</h1>
+    <p class="tagline">Predicting Shopify taxonomy from product tags using parameter constrained logistic regression</p>
   </header>
 
   <section>
     <p><a href="../index.html">← Back to index</a></p>
 
     <h2>Model summary</h2>
-    <p>This logistic regression model predicts taxonomy IDs from product tags. Trained at: {html.escape(str(trained_at))}</p>
+    <p>This parameter constrained logistic regression model predicts taxonomy IDs from product tags. Trained at: {html.escape(str(trained_at))}</p>
 
     <div class="metrics">
       {metrics_html}
@@ -3770,7 +3770,7 @@ def _collect_taxonomy_classifier_summary(
                     cv_std_f1,
                     cv_mean_hierarchical_loss,
                     cv_std_hierarchical_loss
-                FROM {schema}.taxonomy_lr_models
+                FROM {schema}.taxonomy_pclr_models
                 ORDER BY trained_at DESC, id DESC
                 LIMIT 1
                 """
@@ -3816,7 +3816,7 @@ def _collect_taxonomy_classifier_summary(
                     t.taxonomy_name,
                     d.sample_count,
                     d.sample_fraction
-                FROM {schema}.taxonomy_lr_class_distribution d
+                FROM {schema}.taxonomy_pclr_class_distribution d
                 LEFT JOIN cantbuymelove.taxonomy t ON d.taxonomy_id = t.taxonomy_id
                 WHERE d.model_id = %s
                   AND d.taxonomy_path !~ '[>/|]'
@@ -3842,7 +3842,7 @@ def _collect_taxonomy_classifier_summary(
                 """
                 SELECT tag, top_taxonomy_id, top_taxonomy_path,
                        top_weight, max_abs_weight, sum_abs_weight
-                FROM {schema}.taxonomy_lr_tag_summary
+                FROM {schema}.taxonomy_pclr_tag_summary
                 WHERE model_id = %s
                   AND top_taxonomy_path !~ '[>/|]'
                 ORDER BY max_abs_weight DESC, sum_abs_weight DESC, tag
@@ -3868,7 +3868,7 @@ def _collect_taxonomy_classifier_summary(
             sql.SQL(
                 """
                 SELECT taxonomy_id, taxonomy_path, tag, weight, rank
-                FROM {schema}.taxonomy_lr_top_tags
+                FROM {schema}.taxonomy_pclr_top_tags
                 WHERE model_id = %s
                 ORDER BY taxonomy_id, rank
                 """
@@ -3896,9 +3896,9 @@ def _collect_taxonomy_classifier_summary(
     }
 
 
-def _load_taxonomy_lr_fold_results(conn, schema: str = "padjective") -> Optional[list[Dict[str, Any]]]:
-    """Load taxonomy logistic regression fold-based results."""
-    if not _table_exists(conn, schema, "taxonomy_lr_fold_results"):
+def _load_taxonomy_pclr_fold_results(conn, schema: str = "padjective") -> Optional[list[Dict[str, Any]]]:
+    """Load taxonomy parameter constrained logistic regression fold-based results."""
+    if not _table_exists(conn, schema, "taxonomy_pclr_fold_results"):
         return None
 
     with conn.cursor(row_factory=dict_row) as cur:
@@ -3908,7 +3908,7 @@ def _load_taxonomy_lr_fold_results(conn, schema: str = "padjective") -> Optional
                 SELECT cv_fold, test_accuracy, test_f1, test_hierarchical_loss,
                        padic_loss_total, padic_loss_mean, prime_base,
                        num_train_samples, num_test_samples, trained_at
-                FROM {schema}.taxonomy_lr_fold_results
+                FROM {schema}.taxonomy_pclr_fold_results
                 ORDER BY cv_fold
                 """
             ).format(schema=sql.Identifier(schema))
@@ -3943,7 +3943,7 @@ def _load_taxonomy_lr_fold_results(conn, schema: str = "padjective") -> Optional
                 sql.SQL(
                     """
                     SELECT true_taxonomy_id, predicted_taxonomy_id
-                    FROM {schema}.taxonomy_lr_predictions
+                    FROM {schema}.taxonomy_pclr_predictions
                     WHERE cv_fold = %s
                     """
                 ).format(schema=sql.Identifier(schema)),
@@ -4128,7 +4128,7 @@ def _generate_historical_trends_chart(conn, output_path: Path, schema: str = "pa
     if any(umllr_loss):
         ax1.plot(dates, umllr_loss, 'o-', label='Importance-Optimised p-adic LR', color='#0b6ce3', linewidth=2, markersize=6)
     if any(lr_loss):
-        ax1.plot(dates, lr_loss, 's-', label='Logistic Regression', color='#10b981', linewidth=2, markersize=6)
+        ax1.plot(dates, lr_loss, 's-', label='PC Logistic Regression', color='#10b981', linewidth=2, markersize=6)
     if any(nn_loss):
         ax1.plot(dates, nn_loss, '^-', label='Neural Network', color='#f59e0b', linewidth=2, markersize=6)
 
@@ -4224,7 +4224,7 @@ def _generate_performance_vs_products_chart(conn, output_path: Path, schema: str
             regression_stats['umllr'] = stat
 
     if any(v is not None for v in lr_loss):
-        stat = plot_with_regression(num_products, lr_loss, 'Logistic Regression', '#10b981', 's')
+        stat = plot_with_regression(num_products, lr_loss, 'PC Logistic Regression', '#10b981', 's')
         if stat:
             regression_stats['lr'] = stat
 
@@ -4314,7 +4314,7 @@ def _generate_performance_vs_tags_chart(conn, output_path: Path, schema: str = "
             regression_stats['umllr'] = stat
 
     if any(v is not None for v in lr_loss):
-        stat = plot_with_regression(num_tags, lr_loss, 'Logistic Regression', '#10b981', 's')
+        stat = plot_with_regression(num_tags, lr_loss, 'PC Logistic Regression', '#10b981', 's')
         if stat:
             regression_stats['lr'] = stat
 
@@ -4488,22 +4488,22 @@ footer {text-align: center; padding: 2rem 1.5rem 3rem; color: #6b7280;}
     taxonomy_summary = _collect_taxonomy_classifier_summary(
         precomputed_database, schema=battle_schema
     )
-    taxonomy_lr_fold_results = _load_taxonomy_lr_fold_results(
+    taxonomy_pclr_fold_results = _load_taxonomy_pclr_fold_results(
         precomputed_database, schema=battle_schema
     )
     taxonomy_page = None
     taxonomy_fold_pages = {}
     if taxonomy_summary:
-        if taxonomy_lr_fold_results:
-            taxonomy_fold_pages = _write_taxonomy_lr_fold_pages(
+        if taxonomy_pclr_fold_results:
+            taxonomy_fold_pages = _write_taxonomy_pclr_fold_pages(
                 output_dir,
-                taxonomy_lr_fold_results,
+                taxonomy_pclr_fold_results,
                 conn=precomputed_database,
                 tag_rankings=tag_rank_lookup,
                 schema=battle_schema
             )
             taxonomy_page = _write_taxonomy_classifier_page(
-                output_dir, taxonomy_summary, taxonomy_lr_fold_results, taxonomy_fold_pages
+                output_dir, taxonomy_summary, taxonomy_pclr_fold_results, taxonomy_fold_pages
             )
 
     umllr_summary = _load_umllr_results(precomputed_database, battle_schema)
@@ -4569,7 +4569,7 @@ footer {text-align: center; padding: 2rem 1.5rem 3rem; color: #6b7280;}
         taxonomy_summary,
         umllr_summary,
         dummy_summary,
-        taxonomy_lr_fold_results,
+        taxonomy_pclr_fold_results,
         taxonomy_nn_fold_results,
         trends_chart_path,
         perf_vs_products_chart_path,

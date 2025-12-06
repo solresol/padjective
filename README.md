@@ -34,7 +34,7 @@ For any given pair of tags, which one is more likely to appear first in a produc
 
 ### Product Taxonomy Classification
 
-We predict product taxonomy from tags using machine learning approaches, including logistic regression and neural networks. This allows automatic categorization of products based on their tag combinations.
+We predict product taxonomy from tags using machine learning approaches, including parameter constrained logistic regression and neural networks. This allows automatic categorization of products based on their tag combinations.
 
 ## Database Schema
 
@@ -218,10 +218,10 @@ Utilities for extracting product tags as sparse feature matrices suitable for ma
 
 ### taxonomy_classifier.py
 
-Trains a multinomial logistic regression model to predict `taxonomy_id` from product tags. Features:
+Trains a parameter constrained logistic regression model to predict `taxonomy_id` from product tags. Features:
 - Stratified cross-validation for evaluation
 - Coefficient analysis to identify influential tags
-- SQLite storage for model weights and metadata
+- Postgres storage for model weights and metadata
 - HTML reports visualizing tag importance
 
 ### taxonomy_nn_classifier.py
@@ -272,15 +272,15 @@ This sequence:
 1. Populates ``padjective.battles`` and ``padjective.tag_rankings`` in Postgres
 2. Renders ``tag_rankings.html`` and ``tag_rankings.png`` locally
 3. Extracts tag features to numpy sparse format
-4. Trains both logistic regression and neural network models to predict taxonomy
+4. Trains both parameter constrained logistic regression and neural network models to predict taxonomy
 5. Generates HTML reports visualizing model performance and tag coefficients
 
 ## Model Output
 
 The taxonomy classifiers produce:
 
-### Logistic Regression
-* **Postgres schema** (`padjective.taxonomy_lr_*` tables) containing:
+### Parameter Constrained Logistic Regression
+* **Postgres schema** (`padjective.taxonomy_pclr_*` tables) containing:
   - Model metadata (samples, accuracy, F1, hierarchical loss, CV scores)
   - Class distribution snapshots and per-tag weight summaries
   - Per-taxonomy top-weighted tags and intercepts
@@ -299,9 +299,9 @@ The taxonomy classifiers produce:
   - Training and cross-validation performance
 
 ### Complement Naive Bayes (removed)
-The Complement Naive Bayes pipeline has been superseded by the logistic
-regression workflow above. The old `padjective.taxonomy_nb_*` tables and
-`padjective/taxonomy_nb_classifier.py` have been retired.
+The Complement Naive Bayes pipeline has been superseded by the parameter
+constrained logistic regression workflow above. The old `padjective.taxonomy_nb_*`
+tables and `padjective/taxonomy_nb_classifier.py` have been retired.
 
 ## Experiments & Evaluation
 

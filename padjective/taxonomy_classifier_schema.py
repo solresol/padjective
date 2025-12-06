@@ -10,14 +10,14 @@ from . import db
 
 
 EXPECTED_TABLES: tuple[str, ...] = (
-    "taxonomy_lr_models",
-    "taxonomy_lr_cv_scores",
-    "taxonomy_lr_class_distribution",
-    "taxonomy_lr_tag_summary",
-    "taxonomy_lr_top_tags",
-    "taxonomy_lr_intercepts",
-    "taxonomy_lr_predictions",
-    "taxonomy_lr_coefficients",
+    "taxonomy_pclr_models",
+    "taxonomy_pclr_cv_scores",
+    "taxonomy_pclr_class_distribution",
+    "taxonomy_pclr_tag_summary",
+    "taxonomy_pclr_top_tags",
+    "taxonomy_pclr_intercepts",
+    "taxonomy_pclr_predictions",
+    "taxonomy_pclr_coefficients",
     "taxonomy_nn_predictions",
 )
 

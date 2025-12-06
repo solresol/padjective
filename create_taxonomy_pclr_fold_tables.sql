@@ -1,11 +1,11 @@
--- Create taxonomy logistic regression fold results tables
+-- Create taxonomy parameter constrained logistic regression fold results tables
 -- Run this with admin privileges to create tables for per-fold metrics
 
 -- Create schema if it doesn't exist
 CREATE SCHEMA IF NOT EXISTS padjective;
 
--- Create taxonomy_lr_fold_results table
-CREATE TABLE IF NOT EXISTS padjective.taxonomy_lr_fold_results (
+-- Create taxonomy_pclr_fold_results table
+CREATE TABLE IF NOT EXISTS padjective.taxonomy_pclr_fold_results (
     cv_fold INTEGER PRIMARY KEY,
     test_accuracy DOUBLE PRECISION NOT NULL,
     test_f1 DOUBLE PRECISION NOT NULL,
@@ -20,4 +20,4 @@ CREATE TABLE IF NOT EXISTS padjective.taxonomy_lr_fold_results (
 
 -- Grant privileges
 GRANT USAGE ON SCHEMA padjective TO padjective;
-GRANT ALL PRIVILEGES ON padjective.taxonomy_lr_fold_results TO padjective;
+GRANT ALL PRIVILEGES ON padjective.taxonomy_pclr_fold_results TO padjective;

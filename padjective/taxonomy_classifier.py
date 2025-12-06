@@ -1,8 +1,8 @@
 """Train classifiers to predict product taxonomy from tags.
 
-This module provides utilities for training logistic regression and neural network
-models that predict taxonomy IDs from product tags. The models are evaluated using
-stratified cross-validation and results are stored in Postgres.
+This module provides utilities for training parameter constrained logistic regression
+and neural network models that predict taxonomy IDs from product tags. The models are
+evaluated using stratified cross-validation and results are stored in Postgres.
 """
 
 from __future__ import annotations
@@ -230,7 +230,7 @@ def train_logistic_classifier(
     labels: np.ndarray,
     max_iter: int = 1000,
 ) -> tuple[LogisticRegression, TrainingStats]:
-    """Train a logistic regression classifier.
+    """Train a parameter constrained logistic regression classifier.
 
     Args:
         features: Sparse feature matrix (n_samples x n_features)
@@ -466,7 +466,7 @@ def save_model_to_database(
         cur.execute(
             sql.SQL(
                 """
-                INSERT INTO {schema}.taxonomy_lr_models (
+                INSERT INTO {schema}.taxonomy_pclr_models (
                     trained_at, samples, taxonomies, unique_tags,
                     training_accuracy, training_f1, training_hierarchical_loss,
                     cv_folds, cv_mean_accuracy, cv_std_accuracy,
@@ -511,7 +511,7 @@ def save_model_to_database(
             cur.executemany(
                 sql.SQL(
                     """
-                    INSERT INTO {schema}.taxonomy_lr_cv_scores (
+                    INSERT INTO {schema}.taxonomy_pclr_cv_scores (
                         model_id, fold, accuracy, f1_weighted, hierarchical_loss
                     ) VALUES (%s, %s, %s, %s, %s)
                     """
@@ -533,7 +533,7 @@ def save_model_to_database(
             cur.executemany(
                 sql.SQL(
                     """
-                    INSERT INTO {schema}.taxonomy_lr_intercepts (
+                    INSERT INTO {schema}.taxonomy_pclr_intercepts (
                         model_id, taxonomy_id, taxonomy_path, intercept
                     ) VALUES (%s, %s, %s, %s)
                     """
@@ -559,7 +559,7 @@ def save_model_to_database(
             cur.executemany(
                 sql.SQL(
                     """
-                    INSERT INTO {schema}.taxonomy_lr_tag_summary (
+                    INSERT INTO {schema}.taxonomy_pclr_tag_summary (
                         model_id, tag, top_taxonomy_id, top_taxonomy_path,
                         top_weight, max_abs_weight, sum_abs_weight
                     ) VALUES (%s, %s, %s, %s, %s, %s, %s)
@@ -584,7 +584,7 @@ def save_model_to_database(
             cur.executemany(
                 sql.SQL(
                     """
-                    INSERT INTO {schema}.taxonomy_lr_class_distribution (
+                    INSERT INTO {schema}.taxonomy_pclr_class_distribution (
                         model_id, taxonomy_id, taxonomy_path, sample_count, sample_fraction
                     ) VALUES (%s, %s, %s, %s, %s)
                     """
@@ -609,7 +609,7 @@ def save_model_to_database(
             cur.executemany(
                 sql.SQL(
                     """
-                    INSERT INTO {schema}.taxonomy_lr_top_tags (
+                    INSERT INTO {schema}.taxonomy_pclr_top_tags (
                         model_id, taxonomy_id, taxonomy_path, tag, weight, rank
                     ) VALUES (%s, %s, %s, %s, %s, %s)
                     """
@@ -641,7 +641,7 @@ def render_coefficients_html(
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     intro = (
-        "<p>This report summarizes a multinomial logistic regression model trained "
+        "<p>This report summarizes a parameter constrained logistic regression model trained"
         "to predict product taxonomies from tags. The tables below list the tags "
         "with the strongest coefficients.</p>"
     )
@@ -769,7 +769,7 @@ def render_coefficients_html(
 def main() -> None:
     """Command-line interface for training taxonomy classifiers."""
     parser = argparse.ArgumentParser(
-        description="Train logistic regression to predict product taxonomy from tags"
+        description="Train parameter constrained logistic regression to predict product taxonomy from tags"
     )
     parser.add_argument(
         "--dsn",
@@ -937,7 +937,7 @@ def main() -> None:
             with save_conn.cursor() as cur:
                 # Delete existing results for this fold
                 cur.execute(
-                    sql.SQL("DELETE FROM {schema}.taxonomy_lr_fold_results WHERE cv_fold = %s").format(
+                    sql.SQL("DELETE FROM {schema}.taxonomy_pclr_fold_results WHERE cv_fold = %s").format(
                         schema=sql.Identifier(args.results_schema)
                     ),
                     (args.fold,)
@@ -947,7 +947,7 @@ def main() -> None:
                 cur.execute(
                     sql.SQL(
                         """
-                        INSERT INTO {schema}.taxonomy_lr_fold_results
+                        INSERT INTO {schema}.taxonomy_pclr_fold_results
                         (cv_fold, test_accuracy, test_f1, test_hierarchical_loss,
                          padic_loss_total, padic_loss_mean, prime_base,
                          num_train_samples, num_test_samples)
@@ -962,7 +962,7 @@ def main() -> None:
                 # Save individual predictions
                 test_metadata = metadata[test_mask].reset_index(drop=True)
                 cur.execute(
-                    sql.SQL("DELETE FROM {schema}.taxonomy_lr_predictions WHERE cv_fold = %s").format(
+                    sql.SQL("DELETE FROM {schema}.taxonomy_pclr_predictions WHERE cv_fold = %s").format(
                         schema=sql.Identifier(args.results_schema)
                     ),
                     (args.fold,)
@@ -981,7 +981,7 @@ def main() -> None:
                     cur.execute(
                         sql.SQL(
                             """
-                            INSERT INTO {schema}.taxonomy_lr_predictions
+                            INSERT INTO {schema}.taxonomy_pclr_predictions
                             (cv_fold, product_id, true_taxonomy_id, predicted_taxonomy_id, loss)
                             VALUES (%s, %s, %s, %s, %s)
                             """
@@ -991,7 +991,7 @@ def main() -> None:
 
                 # Save coefficients
                 cur.execute(
-                    sql.SQL("DELETE FROM {schema}.taxonomy_lr_coefficients WHERE cv_fold = %s").format(
+                    sql.SQL("DELETE FROM {schema}.taxonomy_pclr_coefficients WHERE cv_fold = %s").format(
                         schema=sql.Identifier(args.results_schema)
                     ),
                     (args.fold,)
@@ -1005,7 +1005,7 @@ def main() -> None:
                             cur.execute(
                                 sql.SQL(
                                     """
-                                    INSERT INTO {schema}.taxonomy_lr_coefficients
+                                    INSERT INTO {schema}.taxonomy_pclr_coefficients
                                     (cv_fold, taxonomy_id, tag, coefficient)
                                     VALUES (%s, %s, %s, %s)
                                     """
@@ -1014,7 +1014,7 @@ def main() -> None:
                             )
 
             save_conn.commit()
-            print(f"\nResults saved to {args.results_schema}.taxonomy_lr_fold_results")
+            print(f"\nResults saved to {args.results_schema}.taxonomy_pclr_fold_results")
         finally:
             save_conn.close()
 
@@ -1157,7 +1157,7 @@ def main() -> None:
             f"Cross-validated hierarchical loss (M={args.hierarchical_base:.2f}): {cv_text}"
         )
     print(
-        f"\nModel saved to {args.results_schema}.taxonomy_lr_models as ID {model_id}"
+        f"\nModel saved to {args.results_schema}.taxonomy_pclr_models as ID {model_id}"
     )
     print(f"HTML report saved to {html_path}")
 

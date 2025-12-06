@@ -11,16 +11,16 @@ TRUNCATE TABLE padjective.umllr_taxonomy_encodings CASCADE;
 TRUNCATE TABLE padjective.dummy_fold_metrics CASCADE;
 TRUNCATE TABLE padjective.dummy_predictions CASCADE;
 
--- Taxonomy logistic regression results
-TRUNCATE TABLE padjective.taxonomy_lr_models CASCADE;
-TRUNCATE TABLE padjective.taxonomy_lr_cv_scores CASCADE;
-TRUNCATE TABLE padjective.taxonomy_lr_class_distribution CASCADE;
-TRUNCATE TABLE padjective.taxonomy_lr_tag_summary CASCADE;
-TRUNCATE TABLE padjective.taxonomy_lr_top_tags CASCADE;
-TRUNCATE TABLE padjective.taxonomy_lr_intercepts CASCADE;
-TRUNCATE TABLE padjective.taxonomy_lr_predictions CASCADE;
-TRUNCATE TABLE padjective.taxonomy_lr_coefficients CASCADE;
-TRUNCATE TABLE padjective.taxonomy_lr_fold_results CASCADE;
+-- Taxonomy parameter constrained logistic regression results
+TRUNCATE TABLE padjective.taxonomy_pclr_models CASCADE;
+TRUNCATE TABLE padjective.taxonomy_pclr_cv_scores CASCADE;
+TRUNCATE TABLE padjective.taxonomy_pclr_class_distribution CASCADE;
+TRUNCATE TABLE padjective.taxonomy_pclr_tag_summary CASCADE;
+TRUNCATE TABLE padjective.taxonomy_pclr_top_tags CASCADE;
+TRUNCATE TABLE padjective.taxonomy_pclr_intercepts CASCADE;
+TRUNCATE TABLE padjective.taxonomy_pclr_predictions CASCADE;
+TRUNCATE TABLE padjective.taxonomy_pclr_coefficients CASCADE;
+TRUNCATE TABLE padjective.taxonomy_pclr_fold_results CASCADE;
 
 -- Neural network results
 TRUNCATE TABLE padjective.taxonomy_nn_fold_results CASCADE;

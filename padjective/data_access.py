@@ -1,11 +1,11 @@
 """Shared data access helpers for training datasets and reporting.
 
 This module centralises the logic for reading product, tag, and taxonomy data
-from Postgres so that every consumer (logistic regression, neural networks,
-UM-LLR, historical metrics, and the website) works from the exact same view of
-the world.  Keeping the data shaping code in one place avoids subtle
-discrepancies in sample counts across the project and makes it easy to expose
-the raw inputs for reporting purposes.
+from Postgres so that every consumer (parameter constrained logistic regression,
+neural networks, UM-LLR, historical metrics, and the website) works from the
+exact same view of the world.  Keeping the data shaping code in one place avoids
+subtle discrepancies in sample counts across the project and makes it easy to
+expose the raw inputs for reporting purposes.
 """
 
 from __future__ import annotations
