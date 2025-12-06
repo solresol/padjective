@@ -1237,6 +1237,28 @@ def _load_prediction_details(conn, fold: int, schema: str) -> Dict[int, Dict[str
                 "loss": row["loss"],
             }
 
+    # Load ULR predictions
+    ulr_predictions: Dict[int, Dict[str, Any]] = {}
+    if _table_exists(conn, schema, "taxonomy_ulr_predictions"):
+        with conn.cursor(row_factory=dict_row) as cur:
+            cur.execute(
+                sql.SQL(
+                    """
+                    SELECT product_id, true_taxonomy_id, predicted_taxonomy_id, loss
+                    FROM {schema}.taxonomy_ulr_predictions
+                    WHERE cv_fold = %s
+                    """
+                ).format(schema=sql.Identifier(schema)),
+                (fold,)
+            )
+            for row in cur:
+                pid = row["product_id"]
+                ulr_predictions[pid] = {
+                    "true_taxonomy_id": row["true_taxonomy_id"],
+                    "predicted_taxonomy_id": row["predicted_taxonomy_id"],
+                    "loss": row["loss"],
+                }
+
     # Load product tags and ground truth
     with conn.cursor(row_factory=dict_row) as cur:
         cur.execute(
@@ -1285,6 +1307,7 @@ def _load_prediction_details(conn, fold: int, schema: str) -> Dict[int, Dict[str
                     "umllr": umllr_predictions.get(pid, {}),
                     "lr": lr_predictions.get(pid, {}),
                     "nn": nn_predictions.get(pid, {}),
+                    "ulr": ulr_predictions.get(pid, {}),
                 },
                 "umllr_coefficients": {tag: umllr_tag_coeffs.get(tag, 0) for tag in tags},
                 "lr_coefficients": {tag: lr_coeffs.get(tag, {}) for tag in tags},
@@ -1393,6 +1416,24 @@ def _write_prediction_detail_page(
           <td>{html.escape(pred_tax_id)}</td>
           <td>{html.escape(pred_tax_name)}</td>
           <td>{nn_pred.get("loss", 0.0):.8f}</td>
+        </tr>
+        """)
+
+    # ULR prediction
+    ulr_pred = predictions.get("ulr", {})
+    if ulr_pred:
+        pred_tax_id = ulr_pred.get("predicted_taxonomy_id") or ""
+        pred_info = taxonomy_info_by_id.get(pred_tax_id, {}) if pred_tax_id else {}
+        pred_tax_path = pred_info.get("taxonomy_path") or pred_tax_id
+        pred_tax_name = pred_info.get("taxonomy_name") or ""
+
+        predictions_rows.append(f"""
+        <tr>
+          <td>ULR</td>
+          <td>{html.escape(pred_tax_path)}</td>
+          <td>{html.escape(pred_tax_id)}</td>
+          <td>{html.escape(pred_tax_name)}</td>
+          <td>{ulr_pred.get("loss", 0.0):.8f}</td>
         </tr>
         """)
 
