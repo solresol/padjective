@@ -385,6 +385,48 @@ def main() -> None:
         save_conn = db.get_connection(args.dsn)
         try:
             with save_conn.cursor() as cur:
+                # Override default tablespace temporarily to avoid permission issues
+                cur.execute("SET LOCAL default_tablespace = ''")
+
+                # Create tables if they don't exist
+                cur.execute(
+                    sql.SQL(
+                        """
+                        CREATE TABLE IF NOT EXISTS {schema}.taxonomy_ulr_fold_results (
+                            cv_fold INTEGER PRIMARY KEY,
+                            test_accuracy DOUBLE PRECISION NOT NULL,
+                            test_f1 DOUBLE PRECISION NOT NULL,
+                            test_hierarchical_loss DOUBLE PRECISION NOT NULL,
+                            padic_loss_total DOUBLE PRECISION NOT NULL,
+                            padic_loss_mean DOUBLE PRECISION NOT NULL,
+                            prime_base INTEGER NOT NULL,
+                            num_train_samples INTEGER NOT NULL,
+                            num_test_samples INTEGER NOT NULL,
+                            num_tags INTEGER NOT NULL,
+                            num_nonzero_params INTEGER NOT NULL,
+                            num_total_params INTEGER NOT NULL,
+                            l1_C DOUBLE PRECISION NOT NULL DEFAULT 1.0,
+                            trained_at TIMESTAMPTZ NOT NULL DEFAULT now()
+                        )
+                        """
+                    ).format(schema=sql.Identifier(args.results_schema))
+                )
+
+                cur.execute(
+                    sql.SQL(
+                        """
+                        CREATE TABLE IF NOT EXISTS {schema}.taxonomy_ulr_predictions (
+                            cv_fold INTEGER NOT NULL,
+                            product_id INTEGER NOT NULL,
+                            true_taxonomy_id TEXT NOT NULL,
+                            predicted_taxonomy_id TEXT NOT NULL,
+                            loss DOUBLE PRECISION NOT NULL,
+                            PRIMARY KEY (cv_fold, product_id)
+                        )
+                        """
+                    ).format(schema=sql.Identifier(args.results_schema))
+                )
+
                 # Delete existing results for this fold
                 cur.execute(
                     sql.SQL("DELETE FROM {schema}.taxonomy_ulr_fold_results WHERE cv_fold = %s").format(
