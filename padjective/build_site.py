@@ -1370,7 +1370,7 @@ def _write_prediction_detail_page(
 
         predictions_rows.append(f"""
         <tr>
-          <td>PC Logistic Regression</td>
+          <td>PCLR</td>
           <td>{html.escape(pred_tax_path)}</td>
           <td>{html.escape(pred_tax_id)}</td>
           <td>{html.escape(pred_tax_name)}</td>
@@ -1388,7 +1388,7 @@ def _write_prediction_detail_page(
 
         predictions_rows.append(f"""
         <tr>
-          <td>PC Neural Network</td>
+          <td>PCNN</td>
           <td>{html.escape(pred_tax_path)}</td>
           <td>{html.escape(pred_tax_id)}</td>
           <td>{html.escape(pred_tax_name)}</td>
@@ -1484,7 +1484,7 @@ def _write_prediction_detail_page(
     if lr_detail_rows:
         lr_detail_html = f"""
         <div class="detail-section">
-          <h2>PC Logistic Regression Coefficients</h2>
+          <h2>PCLR Coefficients</h2>
           <p>Tag coefficients for each taxonomy class (highest coefficient per tag is highlighted)</p>
           <table class="detail-table">
             <thead>
@@ -2178,8 +2178,8 @@ def _format_regression_stats_html(stats: Optional[Dict[str, Dict[str, float]]], 
 
     model_names = {
         'umllr': 'Importance-Optimised p-adic LR',
-        'lr': 'PC Logistic Regression',
-        'nn': 'PC Neural Network',
+        'lr': 'PCLR',
+        'nn': 'PCNN',
         'dummy': 'Dummy Baseline',
     }
     model_colors = {
@@ -2541,8 +2541,8 @@ def _build_index_html(
 
         taxonomy_card = f"""
   <div class="model-card">
-    <h3>PC Logistic Regression</h3>
-    <p>Parameter constrained logistic regression model predicting Shopify taxonomy from tags</p>
+    <h3>Parameter Constrained Logistic Regression</h3>
+    <p>Logistic regression model predicting Shopify taxonomy from tags</p>
     <div class="card-metric">
       <span class="value">{metric_display}</span>
       <span class="label">{metric_label}</span>
@@ -2581,8 +2581,8 @@ def _build_index_html(
         avg_loss = sum(r["padic_loss_mean"] for r in taxonomy_pcnn_fold_results) / len(taxonomy_pcnn_fold_results)
         pcnn_card = f"""
   <div class="model-card">
-    <h3>PC Neural Network</h3>
-    <p>Parameter constrained neural network predicting taxonomy from tags</p>
+    <h3>Parameter Constrained Neural Network</h3>
+    <p>Neural network predicting taxonomy from tags</p>
     <div class="card-metric">
       <span class="value">{avg_loss:.4f}</span>
       <span class="label">Avg p-adic loss</span>
@@ -3180,13 +3180,13 @@ def _write_taxonomy_pclr_fold_pages(
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>PC Logistic Regression Fold {fold} Results</title>
+  <title>PCLR Fold {fold} Results</title>
   <link rel="stylesheet" href="../assets/styles.css" />
 </head>
 <body>
   <section class="umllr-fold">
-    <h1>PC Logistic Regression Fold {fold}</h1>
-    <p><a href="index.html">Back to PC logistic regression overview</a> &middot; <a href="../index.html">Back to main index</a></p>
+    <h1>PCLR Fold {fold}</h1>
+    <p><a href="index.html">Back to PCLR overview</a> &middot; <a href="../index.html">Back to main index</a></p>
 
     <h2>Fold metrics</h2>
     <table class="umllr-table">
@@ -3574,13 +3574,13 @@ def _write_taxonomy_pcnn_fold_pages(
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>PC Neural Network Fold {fold} Results</title>
+  <title>PCNN Fold {fold} Results</title>
   <link rel="stylesheet" href="../assets/styles.css" />
 </head>
 <body>
   <section class="umllr-fold">
-    <h1>PC Neural Network Fold {fold}</h1>
-    <p><a href="index.html">Back to PC neural network overview</a> &middot; <a href="../index.html">Back to main index</a></p>
+    <h1>PCNN Fold {fold}</h1>
+    <p><a href="index.html">Back to PCNN overview</a> &middot; <a href="../index.html">Back to main index</a></p>
 
     <h2>Fold metrics</h2>
     <table class="umllr-table">
@@ -4128,9 +4128,9 @@ def _generate_historical_trends_chart(conn, output_path: Path, schema: str = "pa
     if any(umllr_loss):
         ax1.plot(dates, umllr_loss, 'o-', label='Importance-Optimised p-adic LR', color='#0b6ce3', linewidth=2, markersize=6)
     if any(lr_loss):
-        ax1.plot(dates, lr_loss, 's-', label='PC Logistic Regression', color='#10b981', linewidth=2, markersize=6)
+        ax1.plot(dates, lr_loss, 's-', label='PCLR', color='#10b981', linewidth=2, markersize=6)
     if any(nn_loss):
-        ax1.plot(dates, nn_loss, '^-', label='PC Neural Network', color='#f59e0b', linewidth=2, markersize=6)
+        ax1.plot(dates, nn_loss, '^-', label='PCNN', color='#f59e0b', linewidth=2, markersize=6)
 
     ax1.set_ylabel('P-adic Loss (lower is better)', fontsize=12, fontweight='bold')
     ax1.set_title('Model Performance Over Time', fontsize=14, fontweight='bold', pad=15)
@@ -4224,12 +4224,12 @@ def _generate_performance_vs_products_chart(conn, output_path: Path, schema: str
             regression_stats['umllr'] = stat
 
     if any(v is not None for v in lr_loss):
-        stat = plot_with_regression(num_products, lr_loss, 'PC Logistic Regression', '#10b981', 's')
+        stat = plot_with_regression(num_products, lr_loss, 'PCLR', '#10b981', 's')
         if stat:
             regression_stats['lr'] = stat
 
     if any(v is not None for v in nn_loss):
-        stat = plot_with_regression(num_products, nn_loss, 'PC Neural Network', '#f59e0b', '^')
+        stat = plot_with_regression(num_products, nn_loss, 'PCNN', '#f59e0b', '^')
         if stat:
             regression_stats['nn'] = stat
 
@@ -4314,12 +4314,12 @@ def _generate_performance_vs_tags_chart(conn, output_path: Path, schema: str = "
             regression_stats['umllr'] = stat
 
     if any(v is not None for v in lr_loss):
-        stat = plot_with_regression(num_tags, lr_loss, 'PC Logistic Regression', '#10b981', 's')
+        stat = plot_with_regression(num_tags, lr_loss, 'PCLR', '#10b981', 's')
         if stat:
             regression_stats['lr'] = stat
 
     if any(v is not None for v in nn_loss):
-        stat = plot_with_regression(num_tags, nn_loss, 'PC Neural Network', '#f59e0b', '^')
+        stat = plot_with_regression(num_tags, nn_loss, 'PCNN', '#f59e0b', '^')
         if stat:
             regression_stats['nn'] = stat
 
