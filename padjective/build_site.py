@@ -3867,7 +3867,7 @@ def _write_taxonomy_ulr_fold_pages(
         <tr><td>Prime base</td><td>{fold_data['prime_base']}</td></tr>
         <tr><td>Number of tags (input features)</td><td>{fold_data['num_tags']:,}</td></tr>
         <tr><td>Non-zero parameters</td><td>{num_nonzero:,} / {num_total:,} ({sparsity_pct:.1f}% sparse)</td></tr>
-        <tr><td>L1 regularization (C)</td><td>{fold_data['l1_C']:.4f}</td></tr>
+        <tr><td>L1 regularization (C)</td><td>{fold_data['l1_c']:.4f}</td></tr>
         <tr><td>Training samples</td><td>{fold_data['num_train_samples']:,}</td></tr>
         <tr><td>Test samples</td><td>{fold_data['num_test_samples']:,}</td></tr>
       </tbody>
@@ -3915,7 +3915,7 @@ def _write_taxonomy_ulr_overview_page(
     avg_sparsity = (1 - avg_nonzero / avg_total) * 100 if avg_total > 0 else 0
 
     num_tags = fold_results[0]["num_tags"]
-    l1_C = fold_results[0]["l1_C"]
+    l1_c = fold_results[0]["l1_c"]
 
     fold_rows: list[str] = []
     for row in fold_results:
@@ -3979,7 +3979,7 @@ def _write_taxonomy_ulr_overview_page(
       <li><strong>Total test samples:</strong> {total_test:,}</li>
       <li><strong>Number of tags (input features):</strong> {num_tags:,}</li>
       <li><strong>Avg non-zero parameters:</strong> {avg_nonzero:,.0f} / {avg_total:,.0f} ({avg_sparsity:.1f}% sparse)</li>
-      <li><strong>L1 regularization (C):</strong> {l1_C:.4f}</li>
+      <li><strong>L1 regularization (C):</strong> {l1_c:.4f}</li>
     </ul>
 
     <h2>Cross-validation results</h2>
@@ -4306,7 +4306,7 @@ def _load_taxonomy_ulr_fold_results(conn, schema: str = "padjective") -> Optiona
                 SELECT cv_fold, test_accuracy, test_f1, test_hierarchical_loss,
                        padic_loss_total, padic_loss_mean, prime_base,
                        num_train_samples, num_test_samples, num_tags,
-                       num_nonzero_params, num_total_params, l1_C
+                       num_nonzero_params, num_total_params, l1_c
                 FROM {schema}.taxonomy_ulr_fold_results
                 ORDER BY cv_fold
                 """
@@ -4327,7 +4327,7 @@ def _load_taxonomy_ulr_fold_results(conn, schema: str = "padjective") -> Optiona
                 "num_tags": int(row["num_tags"]),
                 "num_nonzero_params": int(row["num_nonzero_params"]),
                 "num_total_params": int(row["num_total_params"]),
-                "l1_C": float(row["l1_C"]) if row["l1_C"] is not None else 1.0,
+                "l1_c": float(row["l1_c"]) if row["l1_c"] is not None else 1.0,
             })
 
     if not results:
