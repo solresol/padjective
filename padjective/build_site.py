@@ -2464,6 +2464,7 @@ def _build_index_markdown(
             "Always predicts most common taxonomy (baseline for comparison)",
             "",
             f"- **Avg p-adic loss:** {loss_text}",
+            "- **Parameters:** 1",
             "- [View model](dummy/index.html)",
             "",
         ])
@@ -2600,6 +2601,10 @@ def _build_index_html(
     <div class="card-metric">
       <span class="value">{loss_text}</span>
       <span class="label">Avg p-adic loss</span>
+    </div>
+    <div class="card-metric" style="margin-top: 0.5rem;">
+      <span class="value">1</span>
+      <span class="label">Parameter</span>
     </div>
     <a href="{dummy_page}" class="card-link">View model →</a>
   </div>"""
