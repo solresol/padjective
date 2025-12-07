@@ -687,6 +687,12 @@ def _load_umllr_results(conn, schema: str) -> Optional[Dict[str, Any]]:
         total_predictions = len(fold_predictions)
         metric["total_predictions"] = total_predictions
 
+        # Count non-zero coefficients for this fold
+        fold_coefficients = coefficients.get(fold, [])
+        num_nonzero = sum(1 for c in fold_coefficients if c.get("coefficient", 0) != 0)
+        metric["num_nonzero_coefficients"] = num_nonzero
+        metric["num_total_coefficients"] = len(fold_coefficients)
+
         pair_values = [
             (int(pred["true_value"]), int(pred["predicted_value"]))
             for pred in fold_predictions
@@ -2382,12 +2388,17 @@ def _build_index_markdown(
     if umllr_summary and umllr_summary.get("metrics"):
         metrics = umllr_summary.get("metrics", [])
         avg_loss = sum(m["mean_loss"] for m in metrics) / len(metrics) if metrics else 0
+        avg_nonzero_coeffs = sum(m.get("num_nonzero_coefficients", 0) for m in metrics) / len(metrics) if metrics else 0
         lines.extend([
             "### Importance-Optimised p-adic Linear Regression",
             "",
             "P-adic coefficients assigned to tags to predict taxonomy",
             "",
             f"- **Avg p-adic loss:** {avg_loss:.4f}",
+        ])
+        if avg_nonzero_coeffs > 0:
+            lines.append(f"- **Avg non-zero coefficients:** {avg_nonzero_coeffs:,.0f}")
+        lines.extend([
             "- [View model](umllr/index.html)",
             "",
         ])
@@ -2637,6 +2648,12 @@ def _build_index_html(
         avg_f1 = umllr_summary.get("average_f1")
         accuracy_text = f"{avg_accuracy * 100:.2f}%" if avg_accuracy is not None else "—"
         f1_text = f"{avg_f1:.4f}" if avg_f1 is not None else "—"
+        avg_nonzero_coeffs = sum(m.get("num_nonzero_coefficients", 0) for m in metrics) / len(metrics) if metrics else 0
+        params_html = f"""
+    <div class="card-metric" style="margin-top: 0.5rem;">
+      <span class="value">{avg_nonzero_coeffs:,.0f}</span>
+      <span class="label">Avg non-zero coefficients</span>
+    </div>""" if avg_nonzero_coeffs > 0 else ""
         umllr_card = f"""
   <div class="model-card">
     <h3>Importance-Optimised p-adic Linear Regression</h3>
@@ -2644,7 +2661,7 @@ def _build_index_html(
     <div class="card-metric">
       <span class="value">{avg_loss:.4f}</span>
       <span class="label">Avg p-adic loss</span>
-    </div>
+    </div>{params_html}
     <a href="{umllr_page.relative_to(output_dir).as_posix()}" class="card-link">View model →</a>
   </div>"""
 
