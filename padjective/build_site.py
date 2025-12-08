@@ -5190,6 +5190,44 @@ def _generate_params_vs_loss_chart(
         ax.annotate(label, (params, loss), textcoords="offset points", xytext=(10, 5),
                    fontsize=10, fontweight='bold', color=color)
 
+    # Compute lines of best fit using log(params) as x
+    # Separate points with and without dummy
+    all_points = [(params, loss, label) for params, loss, label, _, _ in data_points]
+    non_dummy_points = [(params, loss) for params, loss, label in all_points if label != "Dummy"]
+
+    # Line of best fit WITH dummy (all points)
+    if len(all_points) >= 2:
+        log_params_all = np.array([np.log10(p) for p, _, _ in all_points])
+        losses_all = np.array([l for _, l, _ in all_points])
+
+        from scipy import stats as scipy_stats
+        result_all = scipy_stats.linregress(log_params_all, losses_all)
+
+        # Generate line across the full x range
+        x_range = np.linspace(min(log_params_all) - 0.3, max(log_params_all) + 0.3, 100)
+        y_fit_all = result_all.slope * x_range + result_all.intercept
+
+        # Convert back from log scale for plotting
+        x_range_params = 10 ** x_range
+        ax.plot(x_range_params, y_fit_all, '--', color='#94a3b8', linewidth=2, alpha=0.7,
+                label=f'With Dummy (R²={result_all.rvalue**2:.3f})')
+
+    # Line of best fit WITHOUT dummy
+    if len(non_dummy_points) >= 2:
+        log_params_no_dummy = np.array([np.log10(p) for p, _ in non_dummy_points])
+        losses_no_dummy = np.array([l for _, l in non_dummy_points])
+
+        result_no_dummy = scipy_stats.linregress(log_params_no_dummy, losses_no_dummy)
+
+        # Generate line across the non-dummy x range
+        x_range_nd = np.linspace(min(log_params_no_dummy) - 0.3, max(log_params_no_dummy) + 0.3, 100)
+        y_fit_no_dummy = result_no_dummy.slope * x_range_nd + result_no_dummy.intercept
+
+        # Convert back from log scale for plotting
+        x_range_params_nd = 10 ** x_range_nd
+        ax.plot(x_range_params_nd, y_fit_no_dummy, '-', color='#ef4444', linewidth=2, alpha=0.7,
+                label=f'Without Dummy (R²={result_no_dummy.rvalue**2:.3f})')
+
     ax.set_xlabel('Number of Parameters (non-zero for sparse models)', fontsize=12, fontweight='bold')
     ax.set_ylabel('P-adic Loss (lower is better)', fontsize=12, fontweight='bold')
     ax.set_title('Model Complexity vs Performance', fontsize=14, fontweight='bold', pad=15)
@@ -5197,8 +5235,8 @@ def _generate_params_vs_loss_chart(
     ax.grid(True, alpha=0.3, linestyle='--')
     ax.set_ylim(bottom=0)
 
-    # Remove legend since we have inline labels
-    # ax.legend(loc='best', frameon=True, shadow=True)
+    # Add legend for the regression lines
+    ax.legend(loc='upper right', frameon=True, shadow=True, fontsize=9)
 
     plt.tight_layout()
     plt.savefig(output_path, dpi=150, bbox_inches='tight')
