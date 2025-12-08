@@ -2336,6 +2336,7 @@ def _build_index_markdown(
     taxonomy_fold_results: Optional[list[Dict[str, Any]]],
     taxonomy_pcnn_fold_results: Optional[list[Dict[str, Any]]],
     taxonomy_ulr_fold_results: Optional[list[Dict[str, Any]]],
+    taxonomy_unn_fold_results: Optional[list[Dict[str, Any]]],
     trends_chart_path: Optional[Path],
     output_dir: Path,
 ) -> str:
@@ -2433,6 +2434,21 @@ def _build_index_markdown(
             f"- **Avg p-adic loss:** {avg_loss:.4f}",
             f"- **Avg non-zero params:** {avg_nonzero:,.0f}",
             "- [View model](unconstrained_logistic_regression/index.html)",
+            "",
+        ])
+
+    # Unconstrained Neural Network
+    if taxonomy_unn_fold_results:
+        avg_loss = sum(r["padic_loss_mean"] for r in taxonomy_unn_fold_results) / len(taxonomy_unn_fold_results)
+        avg_nonzero = sum(r["num_nonzero_params"] for r in taxonomy_unn_fold_results) / len(taxonomy_unn_fold_results)
+        lines.extend([
+            "### Unconstrained Neural Network",
+            "",
+            "L1-regularized neural network using ALL tags with weight pruning",
+            "",
+            f"- **Avg p-adic loss:** {avg_loss:.4f}",
+            f"- **Avg non-zero params:** {avg_nonzero:,.0f}",
+            "- [View model](unconstrained_neural_network/index.html)",
             "",
         ])
 
@@ -2554,12 +2570,14 @@ def _build_index_html(
     umllr_page: Optional[Path],
     taxonomy_pcnn_page: Optional[Path],
     taxonomy_ulr_page: Optional[Path] = None,
+    taxonomy_unn_page: Optional[Path] = None,
     taxonomy_summary: Optional[Dict[str, Any]] = None,
     umllr_summary: Optional[Dict[str, Any]] = None,
     dummy_summary: Optional[Dict[str, Any]] = None,
     taxonomy_fold_results: Optional[list[Dict[str, Any]]] = None,
     taxonomy_pcnn_fold_results: Optional[list[Dict[str, Any]]] = None,
     taxonomy_ulr_fold_results: Optional[list[Dict[str, Any]]] = None,
+    taxonomy_unn_fold_results: Optional[list[Dict[str, Any]]] = None,
     trends_chart_path: Optional[Path] = None,
     perf_vs_products_chart_path: Optional[Path] = None,
     perf_vs_tags_chart_path: Optional[Path] = None,
@@ -2721,6 +2739,31 @@ def _build_index_html(
     {taxonomy_ulr_link or '<span class="card-link disabled">No report available</span>'}
   </div>"""
 
+    unn_card = ""
+    taxonomy_unn_link = ""
+    if taxonomy_unn_page:
+        taxonomy_unn_link = (
+            f'<a href="{taxonomy_unn_page.relative_to(output_dir).as_posix()}" class="card-link">View model →</a>'
+        )
+
+    if taxonomy_unn_fold_results:
+        avg_loss = sum(r["padic_loss_mean"] for r in taxonomy_unn_fold_results) / len(taxonomy_unn_fold_results)
+        avg_nonzero = sum(r["num_nonzero_params"] for r in taxonomy_unn_fold_results) / len(taxonomy_unn_fold_results)
+        unn_card = f"""
+  <div class="model-card">
+    <h3>Unconstrained Neural Network</h3>
+    <p>L1-regularized NN with weight pruning</p>
+    <div class="card-metric">
+      <span class="value">{avg_loss:.4f}</span>
+      <span class="label">Avg p-adic loss</span>
+    </div>
+    <div class="card-metric" style="margin-top: 0.5rem;">
+      <span class="value">{avg_nonzero:,.0f}</span>
+      <span class="label">Non-zero params</span>
+    </div>
+    {taxonomy_unn_link or '<span class="card-link disabled">No report available</span>'}
+  </div>"""
+
     # Combine model cards
     all_cards: list[str] = []
     if umllr_card:
@@ -2729,6 +2772,8 @@ def _build_index_html(
         all_cards.append(pcnn_card)
     if ulr_card:
         all_cards.append(ulr_card)
+    if unn_card:
+        all_cards.append(unn_card)
     if taxonomy_card:
         all_cards.append(taxonomy_card)
     if dummy_card:
@@ -2963,6 +3008,7 @@ def _build_index_html(
         taxonomy_fold_results=taxonomy_fold_results,
         taxonomy_pcnn_fold_results=taxonomy_pcnn_fold_results,
         taxonomy_ulr_fold_results=taxonomy_ulr_fold_results,
+        taxonomy_unn_fold_results=taxonomy_unn_fold_results,
         trends_chart_path=trends_chart_path,
         output_dir=output_dir,
     )
@@ -5090,6 +5136,12 @@ footer {text-align: center; padding: 2rem 1.5rem 3rem; color: #6b7280;}
         )
         taxonomy_ulr_page = _write_taxonomy_ulr_overview_page(output_dir, taxonomy_ulr_fold_results, taxonomy_ulr_fold_pages)
 
+    taxonomy_unn_fold_results = _load_taxonomy_unn_fold_results(
+        precomputed_database, schema=battle_schema
+    )
+    taxonomy_unn_page = None
+    # UNN page generation will be added later when we have the page templates
+
     # Generate historical trends charts
     trends_chart_path = _generate_historical_trends_chart(
         precomputed_database,
@@ -5118,12 +5170,14 @@ footer {text-align: center; padding: 2rem 1.5rem 3rem; color: #6b7280;}
         umllr_page,
         taxonomy_pcnn_page,
         taxonomy_ulr_page,
+        taxonomy_unn_page,
         taxonomy_summary,
         umllr_summary,
         dummy_summary,
         taxonomy_pclr_fold_results,
         taxonomy_pcnn_fold_results,
         taxonomy_ulr_fold_results,
+        taxonomy_unn_fold_results,
         trends_chart_path,
         perf_vs_products_chart_path,
         perf_vs_tags_chart_path,
