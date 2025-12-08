@@ -1304,6 +1304,54 @@ def _load_prediction_details(conn, fold: int, schema: str) -> Dict[int, Dict[str
                     "loss": row["loss"],
                 }
 
+    # Load UNN predictions
+    unn_predictions: Dict[int, Dict[str, Any]] = {}
+    if _table_exists(conn, schema, "taxonomy_unn_predictions"):
+        with conn.cursor(row_factory=dict_row) as cur:
+            cur.execute(
+                sql.SQL(
+                    """
+                    SELECT product_id, true_taxonomy_id, predicted_taxonomy_id, loss
+                    FROM {schema}.taxonomy_unn_predictions
+                    WHERE cv_fold = %s
+                    """
+                ).format(schema=sql.Identifier(schema)),
+                (fold,)
+            )
+            for row in cur:
+                pid = row["product_id"]
+                unn_predictions[pid] = {
+                    "true_taxonomy_id": row["true_taxonomy_id"],
+                    "predicted_taxonomy_id": row["predicted_taxonomy_id"],
+                    "loss": row["loss"],
+                }
+
+    # Load Dummy predictions
+    dummy_predictions: Dict[int, Dict[str, Any]] = {}
+    if _table_exists(conn, schema, "dummy_predictions"):
+        with conn.cursor(row_factory=dict_row) as cur:
+            cur.execute(
+                sql.SQL(
+                    """
+                    SELECT dp.product_id, dp.true_value, dp.predicted_value, dp.loss,
+                           te.taxonomy_id as predicted_taxonomy_id
+                    FROM {schema}.dummy_predictions dp
+                    LEFT JOIN {schema}.umllr_taxonomy_encodings te ON
+                        dp.cv_fold = te.cv_fold AND dp.predicted_value = te.encoded_value
+                    WHERE dp.cv_fold = %s
+                    """
+                ).format(schema=sql.Identifier(schema)),
+                (fold,)
+            )
+            for row in cur:
+                pid = row["product_id"]
+                dummy_predictions[pid] = {
+                    "true_value": row["true_value"],
+                    "predicted_value": row["predicted_value"],
+                    "predicted_taxonomy_id": row["predicted_taxonomy_id"],
+                    "loss": row["loss"],
+                }
+
     # Load product tags and ground truth
     with conn.cursor(row_factory=dict_row) as cur:
         cur.execute(
@@ -1353,6 +1401,8 @@ def _load_prediction_details(conn, fold: int, schema: str) -> Dict[int, Dict[str
                     "lr": lr_predictions.get(pid, {}),
                     "nn": nn_predictions.get(pid, {}),
                     "ulr": ulr_predictions.get(pid, {}),
+                    "unn": unn_predictions.get(pid, {}),
+                    "dummy": dummy_predictions.get(pid, {}),
                 },
                 "umllr_coefficients": {tag: umllr_tag_coeffs.get(tag, 0) for tag in tags},
                 "lr_coefficients": {tag: lr_coeffs.get(tag, {}) for tag in tags},
@@ -1479,6 +1529,42 @@ def _write_prediction_detail_page(
           <td>{html.escape(pred_tax_id)}</td>
           <td>{html.escape(pred_tax_name)}</td>
           <td>{ulr_pred.get("loss", 0.0):.8f}</td>
+        </tr>
+        """)
+
+    # UNN prediction
+    unn_pred = predictions.get("unn", {})
+    if unn_pred:
+        pred_tax_id = unn_pred.get("predicted_taxonomy_id") or ""
+        pred_info = taxonomy_info_by_id.get(pred_tax_id, {}) if pred_tax_id else {}
+        pred_tax_path = pred_info.get("taxonomy_path") or pred_tax_id
+        pred_tax_name = pred_info.get("taxonomy_name") or ""
+
+        predictions_rows.append(f"""
+        <tr>
+          <td>UNN</td>
+          <td>{html.escape(pred_tax_path)}</td>
+          <td>{html.escape(pred_tax_id)}</td>
+          <td>{html.escape(pred_tax_name)}</td>
+          <td>{unn_pred.get("loss", 0.0):.8f}</td>
+        </tr>
+        """)
+
+    # Dummy prediction
+    dummy_pred = predictions.get("dummy", {})
+    if dummy_pred:
+        pred_tax_id = dummy_pred.get("predicted_taxonomy_id") or ""
+        pred_info = taxonomy_info_by_id.get(pred_tax_id, {}) if pred_tax_id else {}
+        pred_tax_path = pred_info.get("taxonomy_path") or pred_tax_id
+        pred_tax_name = pred_info.get("taxonomy_name") or ""
+
+        predictions_rows.append(f"""
+        <tr>
+          <td>Dummy</td>
+          <td>{html.escape(pred_tax_path)}</td>
+          <td>{html.escape(pred_tax_id)}</td>
+          <td>{html.escape(pred_tax_name)}</td>
+          <td>{dummy_pred.get("loss", 0.0):.8f}</td>
         </tr>
         """)
 
