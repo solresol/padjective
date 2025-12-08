@@ -285,11 +285,16 @@ def _load_products(
     max_digit = 0
     raw_entries: List[tuple[int, List[str], Tuple[int, ...], int, str, str]] = []
 
+    # Use valid tags from dataset (respects min_tag_count)
+    valid_tags = set(dataset.feature_names)
+
     for record in dataset.records:
         cv_fold = fold_assignments.get(record.product_id)
         if cv_fold is None:
             continue
-        filtered_tags = [tag.upper() for tag in filter_nested_tags(record.tags)]
+        # Filter nested tags and then filter by valid_tags (min_tag_count)
+        nested_filtered = filter_nested_tags(record.tags)
+        filtered_tags = [tag.upper() for tag in nested_filtered if tag in valid_tags]
         taxonomy_id = record.taxonomy_id or ""
         taxonomy_path = record.taxonomy_path or ""
         digits = _parse_taxonomy_digits(taxonomy_path)
