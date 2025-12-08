@@ -2148,9 +2148,10 @@ def _write_tag_debug_page(
         after_path, after_exp = _format_padic_expansion(residual_after, prime_base)
         before_tax_name = taxonomy_info_by_path.get(before_path, {}).get("taxonomy_name", "")
         after_tax_name = taxonomy_info_by_path.get(after_path, {}).get("taxonomy_name", "")
+        # Note: These are training products, not test products, so no prediction page exists
         product_rows.append(
             f'<tr>'
-            f'<td><a href="../../../../prediction/{fold}/{p["product_id"]}.html">{p["product_id"]}</a></td>'
+            f'<td>{p["product_id"]}</td>'
             f'<td>{html.escape(p["product_title"] or "")}</td>'
             f'<td>{residual_before}</td>'
             f'<td>{html.escape(before_path)}</td>'
