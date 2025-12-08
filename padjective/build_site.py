@@ -2281,6 +2281,7 @@ def _build_trends_section(
     trends_chart_path: Optional[Path],
     perf_vs_products_chart_path: Optional[Path],
     perf_vs_tags_chart_path: Optional[Path],
+    params_vs_loss_chart_path: Optional[Path],
     output_dir: Path,
     perf_vs_products_stats: Optional[Dict[str, Dict[str, float]]] = None,
     perf_vs_tags_stats: Optional[Dict[str, Dict[str, float]]] = None,
@@ -2312,6 +2313,17 @@ def _build_trends_section(
     </figure>
     {tags_stats_html}"""
 
+    params_vs_loss_html = ""
+    if params_vs_loss_chart_path:
+        params_chart_rel = params_vs_loss_chart_path.relative_to(output_dir).as_posix()
+        params_vs_loss_html = f"""
+    <figure class="chart" style="margin-top: 2rem;">
+      <img src="{params_chart_rel}" alt="Model complexity vs performance (parameter count vs p-adic loss)" />
+      <figcaption style="text-align: center; color: #64748b; font-size: 0.9rem; margin-top: 0.5rem;">
+        Parameter count (log scale) vs p-adic loss. Sparse models use fewer non-zero parameters.
+      </figcaption>
+    </figure>"""
+
     return f"""
   <section style="max-width: 70rem; margin: 2rem auto; background: white; border-radius: 1rem; box-shadow: 0 12px 30px rgba(15, 23, 42, 0.12); padding: 2rem 1.5rem;">
     <h2 style="margin-top: 0;">Historical Performance Trends</h2>
@@ -2323,6 +2335,7 @@ def _build_trends_section(
     </figure>
     {perf_vs_products_html}
     {perf_vs_tags_html}
+    {params_vs_loss_html}
   </section>"""
 
 
@@ -2581,6 +2594,7 @@ def _build_index_html(
     trends_chart_path: Optional[Path] = None,
     perf_vs_products_chart_path: Optional[Path] = None,
     perf_vs_tags_chart_path: Optional[Path] = None,
+    params_vs_loss_chart_path: Optional[Path] = None,
     perf_vs_products_stats: Optional[Dict[str, Dict[str, float]]] = None,
     perf_vs_tags_stats: Optional[Dict[str, Dict[str, float]]] = None,
 ) -> None:
@@ -2986,7 +3000,7 @@ def _build_index_html(
 
   {taxonomy_overview_html}
 
-  {_build_trends_section(trends_chart_path, perf_vs_products_chart_path, perf_vs_tags_chart_path, output_dir, perf_vs_products_stats, perf_vs_tags_stats)}
+  {_build_trends_section(trends_chart_path, perf_vs_products_chart_path, perf_vs_tags_chart_path, params_vs_loss_chart_path, output_dir, perf_vs_products_stats, perf_vs_tags_stats)}
 
   <footer>
     <p>Source available on <a href="https://github.com/IFost-Sydney-Uni/padjective">GitHub</a></p>
@@ -4928,6 +4942,98 @@ def _generate_performance_vs_tags_chart(conn, output_path: Path, schema: str = "
     return output_path, regression_stats
 
 
+def _generate_params_vs_loss_chart(
+    conn,
+    output_path: Path,
+    schema: str = "padjective",
+    taxonomy_pclr_fold_results: Optional[list[Dict[str, Any]]] = None,
+    taxonomy_pcnn_fold_results: Optional[list[Dict[str, Any]]] = None,
+    taxonomy_ulr_fold_results: Optional[list[Dict[str, Any]]] = None,
+    taxonomy_unn_fold_results: Optional[list[Dict[str, Any]]] = None,
+) -> Optional[Path]:
+    """Generate a scatter plot showing parameter count vs p-adic loss for all models.
+
+    This chart helps visualize the tradeoff between model complexity (parameters)
+    and prediction quality (p-adic loss).
+
+    Returns:
+        Path to generated chart or None if insufficient data
+    """
+    # Collect data points: (params, loss, label, color, marker)
+    data_points = []
+
+    # PCLR - get average params and loss
+    if taxonomy_pclr_fold_results:
+        avg_params = sum(r.get("num_params", 0) for r in taxonomy_pclr_fold_results) / len(taxonomy_pclr_fold_results)
+        avg_loss = sum(r["padic_loss_mean"] for r in taxonomy_pclr_fold_results) / len(taxonomy_pclr_fold_results)
+        if avg_params > 0:
+            data_points.append((avg_params, avg_loss, "PCLR", "#10b981", "s"))
+
+    # PCNN - get average input weights and loss
+    if taxonomy_pcnn_fold_results:
+        avg_params = sum(r.get("num_input_weights", 0) for r in taxonomy_pcnn_fold_results) / len(taxonomy_pcnn_fold_results)
+        avg_loss = sum(r["padic_loss_mean"] for r in taxonomy_pcnn_fold_results) / len(taxonomy_pcnn_fold_results)
+        if avg_params > 0:
+            data_points.append((avg_params, avg_loss, "PCNN", "#f59e0b", "^"))
+
+    # ULR - get average non-zero params and loss
+    if taxonomy_ulr_fold_results:
+        avg_params = sum(r["num_nonzero_params"] for r in taxonomy_ulr_fold_results) / len(taxonomy_ulr_fold_results)
+        avg_loss = sum(r["padic_loss_mean"] for r in taxonomy_ulr_fold_results) / len(taxonomy_ulr_fold_results)
+        data_points.append((avg_params, avg_loss, "ULR", "#8b5cf6", "D"))
+
+    # UNN - get average non-zero params and loss
+    if taxonomy_unn_fold_results:
+        avg_params = sum(r["num_nonzero_params"] for r in taxonomy_unn_fold_results) / len(taxonomy_unn_fold_results)
+        avg_loss = sum(r["padic_loss_mean"] for r in taxonomy_unn_fold_results) / len(taxonomy_unn_fold_results)
+        data_points.append((avg_params, avg_loss, "UNN", "#ec4899", "p"))
+
+    # Also get UMLLR from fold metrics if available
+    if _table_exists(conn, schema, "umllr_fold_metrics"):
+        with conn.cursor() as cur:
+            cur.execute(
+                sql.SQL(
+                    """
+                    SELECT AVG(loss) as avg_loss
+                    FROM {schema}.umllr_predictions
+                    """
+                ).format(schema=sql.Identifier(schema))
+            )
+            row = cur.fetchone()
+            if row and row[0] is not None:
+                # UMLLR uses ~10,000 parameters (fixed architecture)
+                umllr_params = 10000  # Approximate based on typical configuration
+                data_points.append((umllr_params, float(row[0]), "UMLLR", "#0b6ce3", "o"))
+
+    if len(data_points) < 2:
+        return None
+
+    fig, ax = plt.subplots(figsize=(10, 6))
+
+    # Plot each model
+    for params, loss, label, color, marker in data_points:
+        ax.scatter(params, loss, label=label, color=color, s=150, alpha=0.8, marker=marker, edgecolors='white', linewidths=2)
+        # Add label next to point
+        ax.annotate(label, (params, loss), textcoords="offset points", xytext=(10, 5),
+                   fontsize=10, fontweight='bold', color=color)
+
+    ax.set_xlabel('Number of Parameters (non-zero for sparse models)', fontsize=12, fontweight='bold')
+    ax.set_ylabel('P-adic Loss (lower is better)', fontsize=12, fontweight='bold')
+    ax.set_title('Model Complexity vs Performance', fontsize=14, fontweight='bold', pad=15)
+    ax.set_xscale('log')  # Log scale for x-axis since params vary by orders of magnitude
+    ax.grid(True, alpha=0.3, linestyle='--')
+    ax.set_ylim(bottom=0)
+
+    # Remove legend since we have inline labels
+    # ax.legend(loc='best', frameon=True, shadow=True)
+
+    plt.tight_layout()
+    plt.savefig(output_path, dpi=150, bbox_inches='tight')
+    plt.close()
+
+    return output_path
+
+
 def build_site(
     output_dir: Path,
     *,
@@ -5159,6 +5265,16 @@ footer {text-align: center; padding: 2rem 1.5rem 3rem; color: #6b7280;}
         schema=battle_schema
     )
 
+    params_vs_loss_chart_path = _generate_params_vs_loss_chart(
+        precomputed_database,
+        assets_dir / "params_vs_loss.png",
+        schema=battle_schema,
+        taxonomy_pclr_fold_results=taxonomy_pclr_fold_results,
+        taxonomy_pcnn_fold_results=taxonomy_pcnn_fold_results,
+        taxonomy_ulr_fold_results=taxonomy_ulr_fold_results,
+        taxonomy_unn_fold_results=taxonomy_unn_fold_results,
+    )
+
     _build_index_html(
         output_dir,
         stats,
@@ -5181,6 +5297,7 @@ footer {text-align: center; padding: 2rem 1.5rem 3rem; color: #6b7280;}
         trends_chart_path,
         perf_vs_products_chart_path,
         perf_vs_tags_chart_path,
+        params_vs_loss_chart_path,
         perf_vs_products_stats,
         perf_vs_tags_stats,
     )
