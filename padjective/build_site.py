@@ -2116,44 +2116,59 @@ def _write_tag_debug_page(
         products = cur.fetchall()
 
     # Load all tags for each product, with their coefficients
+    # Need to apply same nested tag filtering as the algorithm
     product_ids = [p["product_id"] for p in products]
     product_tags: Dict[int, list] = {pid: [] for pid in product_ids}
     if product_ids:
+        # First, get raw tags for each product
+        product_raw_tags: Dict[int, list] = {pid: [] for pid in product_ids}
         with conn.cursor(row_factory=dict_row) as cur:
-            # Get all tags for these products that have non-zero coefficients in this fold
-            # Tags are stored as comma-separated string in product_detail JSONB
+            cur.execute(
+                """
+                SELECT
+                    p.id AS product_id,
+                    pd.product_detail->'product'->>'tags' AS tags
+                FROM cantbuymelove.product p
+                JOIN product_details pd ON
+                    p.myshopify_domain = pd.myshopify_domain
+                    AND p.run_name = pd.run_name
+                    AND p.product_handle = pd.product_handle
+                WHERE p.id = ANY(%s)
+                """,
+                (product_ids,)
+            )
+            for row in cur.fetchall():
+                if row["tags"]:
+                    # Parse and filter tags same as algorithm does
+                    raw_tags = [t.strip() for t in row["tags"].split(",") if t.strip()]
+                    filtered = tagbattle.filter_nested_tags(raw_tags)
+                    product_raw_tags[row["product_id"]] = [t.upper() for t in filtered]
+
+        # Now load coefficient info for the filtered tags
+        with conn.cursor(row_factory=dict_row) as cur:
             cur.execute(
                 sql.SQL(
                     """
-                    WITH product_tags AS (
-                        SELECT
-                            p.id AS product_id,
-                            UPPER(TRIM(unnest(string_to_array(
-                                pd.product_detail->'product'->>'tags', ','
-                            )))) AS tag
-                        FROM cantbuymelove.product p
-                        JOIN product_details pd ON
-                            p.myshopify_domain = pd.myshopify_domain
-                            AND p.run_name = pd.run_name
-                            AND p.product_handle = pd.product_handle
-                        WHERE p.id = ANY(%s)
-                    )
-                    SELECT pt.product_id, pt.tag, tc.coefficient, tc.sequence
-                    FROM product_tags pt
-                    JOIN {schema}.umllr_tag_coefficients tc
-                        ON pt.tag = tc.tag AND tc.cv_fold = %s
-                    WHERE tc.coefficient != 0
-                    ORDER BY tc.sequence
+                    SELECT tag, coefficient, sequence
+                    FROM {schema}.umllr_tag_coefficients
+                    WHERE cv_fold = %s AND coefficient != 0
                     """
                 ).format(schema=sql.Identifier(schema)),
-                (product_ids, fold)
+                (fold,)
             )
-            for row in cur.fetchall():
-                product_tags[row["product_id"]].append({
-                    "tag": row["tag"],
-                    "coefficient": row["coefficient"],
-                    "sequence": row["sequence"],
-                })
+            coeff_info = {row["tag"]: {"coefficient": row["coefficient"], "sequence": row["sequence"]} for row in cur.fetchall()}
+
+        # Match filtered tags with coefficients
+        for pid, tags in product_raw_tags.items():
+            for product_tag in tags:
+                if product_tag in coeff_info:
+                    product_tags[pid].append({
+                        "tag": product_tag,
+                        "coefficient": coeff_info[product_tag]["coefficient"],
+                        "sequence": coeff_info[product_tag]["sequence"],
+                    })
+            # Sort by sequence
+            product_tags[pid].sort(key=lambda x: x["sequence"])
 
     # Get the selected coefficient
     selected_coeff = None
