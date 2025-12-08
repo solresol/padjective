@@ -2078,13 +2078,10 @@ def _write_tag_debug_page(
     schema: str,
     prime_base: int,
     taxonomy_info_by_path: Dict[str, Dict[str, str]],
-    tag_rankings: Dict[str, int],
+    current_tag_sequence: int,
 ) -> None:
     """Write a debug page explaining why a tag coefficient was selected."""
     output_path.parent.mkdir(parents=True, exist_ok=True)
-
-    # Get current tag's battle rank
-    current_tag_rank = tag_rankings.get(tag, 0)
 
     # Load candidate coefficients for this tag
     with conn.cursor(row_factory=dict_row) as cur:
@@ -2206,7 +2203,7 @@ def _write_tag_debug_page(
         for t in tags_for_product:
             if t["tag"] == tag:
                 continue  # Skip the current tag
-            if t["sequence"] < current_tag_rank:
+            if t["sequence"] < current_tag_sequence:
                 processed_tags.append(t)
             else:
                 pending_tags.append(t)
@@ -2285,7 +2282,7 @@ def _write_tag_debug_page(
     </table>
 
     <h2>Products with this Tag</h2>
-    <p>These are the training products that have the "{html.escape(tag)}" tag (battle rank {current_tag_rank}).
+    <p>These are the training products that have the "{html.escape(tag)}" tag (processing sequence {current_tag_sequence}).
     The residual is the encoded taxonomy value minus all coefficients from previously processed tags.</p>
     <table class="detail-table">
       <thead>
@@ -2444,6 +2441,7 @@ def _write_umllr_pages(output_dir: Path, summary: Dict[str, Any], conn=None, sch
                 for row in coeff_rows:
                     if row["coefficient"] != 0:
                         tag = row["tag"]
+                        tag_sequence = row["sequence"]
                         tag_url_safe = urllib.parse.quote(tag, safe='')
                         tag_debug_dir = umllr_dir / f"fold_{fold}" / "tags" / tag_url_safe
                         tag_debug_path = tag_debug_dir / "index.html"
@@ -2455,7 +2453,7 @@ def _write_umllr_pages(output_dir: Path, summary: Dict[str, Any], conn=None, sch
                             schema,
                             prime_base,
                             taxonomy_info_by_path,
-                            tag_rankings,
+                            tag_sequence,
                         )
             except Exception as e:
                 print(f"Warning: Could not generate tag debug pages for fold {fold}: {e}")
