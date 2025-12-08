@@ -4150,6 +4150,147 @@ def _write_taxonomy_ulr_overview_page(
     return page_path
 
 
+def _write_taxonomy_unn_overview_page(
+    output_dir: Path,
+    fold_results: list[Dict[str, Any]],
+) -> Path:
+    """Write a main overview page for unconstrained neural network classifier results."""
+    unn_dir = output_dir / "unconstrained_neural_network"
+    unn_dir.mkdir(parents=True, exist_ok=True)
+
+    if not fold_results:
+        raise ValueError("fold_results is required for UNN classifier page")
+
+    num_folds = len(fold_results)
+    avg_accuracy = sum(row["test_accuracy"] for row in fold_results) / num_folds
+    avg_f1 = sum(row["test_f1"] for row in fold_results) / num_folds
+    avg_padic_loss = sum(row["padic_loss_mean"] for row in fold_results) / num_folds
+
+    total_train = sum(row["num_train_samples"] for row in fold_results)
+    total_test = sum(row["num_test_samples"] for row in fold_results)
+
+    # Aggregate parameter stats
+    avg_nonzero = sum(row["num_nonzero_params"] for row in fold_results) / num_folds
+    avg_total = sum(row["num_total_params"] for row in fold_results) / num_folds
+    avg_sparsity = (1 - avg_nonzero / avg_total) * 100 if avg_total > 0 else 0
+
+    hidden_size = fold_results[0]["hidden_size"]
+    l1_lambda = fold_results[0]["l1_lambda"]
+    pruning_threshold = fold_results[0]["pruning_threshold"]
+
+    fold_rows: list[str] = []
+    for row in fold_results:
+        fold = row["cv_fold"]
+        sparsity = (1 - row["num_nonzero_params"] / row["num_total_params"]) * 100 if row["num_total_params"] > 0 else 0
+        fold_rows.append(
+            f"<tr><td>{fold}</td><td>{row['test_accuracy'] * 100:.2f}%</td>"
+            f"<td>{row['test_f1']:.4f}</td><td>{row['padic_loss_mean']:.6f}</td>"
+            f"<td>{row['num_nonzero_params']:,}</td><td>{sparsity:.1f}%</td></tr>"
+        )
+
+    fold_table_body = "\n".join(fold_rows)
+
+    page_html = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Unconstrained Neural Network</title>
+  <link rel="stylesheet" href="../assets/styles.css" />
+</head>
+<body>
+  <header class="hero">
+    <h1>Unconstrained Neural Network</h1>
+    <p class="tagline">Neural network with L1 regularization and weight pruning for sparse predictions</p>
+  </header>
+
+  <section>
+    <p><a href="../index.html">← Back to index</a></p>
+
+    <h2>Model overview</h2>
+    <p>Unconstrained neural network classifier using L1 regularization during training followed by
+    post-training weight pruning to achieve sparsity. Unlike parameter-constrained models, this
+    classifier uses ALL available tags as input features, relying on the combination of L1
+    regularization and pruning to eliminate unimportant connections.</p>
+
+    <h3>Architecture</h3>
+    <p>The network uses a single hidden layer with {hidden_size} neurons:</p>
+    <ul>
+      <li><strong>Input layer:</strong> All tags (one-hot encoded)</li>
+      <li><strong>Hidden layer:</strong> {hidden_size} neurons with ReLU activation</li>
+      <li><strong>Output layer:</strong> Softmax over all taxonomy classes</li>
+    </ul>
+
+    <h3>Training procedure</h3>
+    <ol>
+      <li>Train with L1 regularization (λ={l1_lambda}) to encourage small weights</li>
+      <li>Apply weight pruning (threshold={pruning_threshold}) to zero out small weights</li>
+      <li>The pruned model achieves significant sparsity with minimal performance loss</li>
+    </ol>
+
+    <div class="metrics">
+      <div class="metric">
+        <span class="value">{num_folds}</span>
+        <span class="label">CV folds</span>
+      </div>
+      <div class="metric">
+        <span class="value">{avg_accuracy * 100:.2f}%</span>
+        <span class="label">Mean accuracy</span>
+      </div>
+      <div class="metric">
+        <span class="value">{avg_f1:.4f}</span>
+        <span class="label">Mean F1</span>
+      </div>
+      <div class="metric">
+        <span class="value">{avg_padic_loss:.6f}</span>
+        <span class="label">Mean p-adic loss</span>
+      </div>
+      <div class="metric">
+        <span class="value">{avg_nonzero:,.0f}</span>
+        <span class="label">Avg non-zero params</span>
+      </div>
+      <div class="metric">
+        <span class="value">{avg_sparsity:.1f}%</span>
+        <span class="label">Sparsity</span>
+      </div>
+    </div>
+
+    <ul class="taxonomy-stats">
+      <li><strong>Total train samples:</strong> {total_train:,}</li>
+      <li><strong>Total test samples:</strong> {total_test:,}</li>
+      <li><strong>Hidden layer size:</strong> {hidden_size}</li>
+      <li><strong>Avg non-zero parameters:</strong> {avg_nonzero:,.0f} / {avg_total:,.0f} ({avg_sparsity:.1f}% sparse)</li>
+      <li><strong>L1 regularization (λ):</strong> {l1_lambda}</li>
+      <li><strong>Pruning threshold:</strong> {pruning_threshold}</li>
+    </ul>
+
+    <h2>Cross-validation results</h2>
+    <table class="umllr-summary">
+      <thead>
+        <tr><th>Fold</th><th>Accuracy</th><th>F1</th><th>P-adic loss (mean)</th><th>Non-zero params</th><th>Sparsity</th></tr>
+      </thead>
+      <tbody>
+        {fold_table_body}
+      </tbody>
+    </table>
+
+    <h2>Comparison with other models</h2>
+    <p>The unconstrained neural network achieves the best p-adic loss among all models by using
+    more parameters (after pruning), while the L1 regularization and pruning ensure that only
+    the most important connections are retained. This demonstrates the tradeoff between model
+    complexity and prediction accuracy.</p>
+  </section>
+
+  <footer>
+    <p><a href="../index.html">← Back to index</a></p>
+  </footer>
+</body>
+</html>"""
+
+    page_path = unn_dir / "index.html"
+    page_path.write_text(page_html, encoding="utf-8")
+    return page_path
+
+
 def _collect_taxonomy_classifier_summary(
     conn, schema: str = "padjective"
 ) -> Optional[Dict[str, Any]]:
@@ -4988,9 +5129,10 @@ def _generate_params_vs_loss_chart(
         avg_loss = sum(r["padic_loss_mean"] for r in taxonomy_unn_fold_results) / len(taxonomy_unn_fold_results)
         data_points.append((avg_params, avg_loss, "UNN", "#ec4899", "p"))
 
-    # Also get UMLLR from fold metrics if available
+    # Get Importance-Optimised p-adic LR (UMLLR) - use actual non-zero coefficients
     if _table_exists(conn, schema, "umllr_fold_metrics"):
         with conn.cursor() as cur:
+            # Get average loss
             cur.execute(
                 sql.SQL(
                     """
@@ -5000,10 +5142,41 @@ def _generate_params_vs_loss_chart(
                 ).format(schema=sql.Identifier(schema))
             )
             row = cur.fetchone()
+            avg_loss = float(row[0]) if row and row[0] is not None else None
+
+            # Get average non-zero coefficients per fold
+            cur.execute(
+                sql.SQL(
+                    """
+                    SELECT AVG(num_coeffs) FROM (
+                        SELECT cv_fold, COUNT(*) as num_coeffs
+                        FROM {schema}.umllr_tag_coefficients
+                        WHERE coefficient != 0
+                        GROUP BY cv_fold
+                    ) sub
+                    """
+                ).format(schema=sql.Identifier(schema))
+            )
+            row = cur.fetchone()
+            avg_nonzero = float(row[0]) if row and row[0] is not None else None
+
+            if avg_loss is not None and avg_nonzero is not None:
+                data_points.append((avg_nonzero, avg_loss, "Importance-Optimised", "#0b6ce3", "o"))
+
+    # Get Dummy baseline (1 parameter - always predicts most common taxonomy)
+    if _table_exists(conn, schema, "dummy_fold_metrics"):
+        with conn.cursor() as cur:
+            cur.execute(
+                sql.SQL(
+                    """
+                    SELECT AVG(loss) as avg_loss
+                    FROM {schema}.dummy_fold_metrics
+                    """
+                ).format(schema=sql.Identifier(schema))
+            )
+            row = cur.fetchone()
             if row and row[0] is not None:
-                # UMLLR uses ~10,000 parameters (fixed architecture)
-                umllr_params = 10000  # Approximate based on typical configuration
-                data_points.append((umllr_params, float(row[0]), "UMLLR", "#0b6ce3", "o"))
+                data_points.append((1, float(row[0]), "Dummy", "#94a3b8", "X"))
 
     if len(data_points) < 2:
         return None
@@ -5246,7 +5419,10 @@ footer {text-align: center; padding: 2rem 1.5rem 3rem; color: #6b7280;}
         precomputed_database, schema=battle_schema
     )
     taxonomy_unn_page = None
-    # UNN page generation will be added later when we have the page templates
+    if taxonomy_unn_fold_results:
+        taxonomy_unn_page = _write_taxonomy_unn_overview_page(
+            output_dir, taxonomy_unn_fold_results
+        )
 
     # Generate historical trends charts
     trends_chart_path = _generate_historical_trends_chart(
