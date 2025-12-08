@@ -2078,9 +2078,13 @@ def _write_tag_debug_page(
     schema: str,
     prime_base: int,
     taxonomy_info_by_path: Dict[str, Dict[str, str]],
+    tag_rankings: Dict[str, int],
 ) -> None:
     """Write a debug page explaining why a tag coefficient was selected."""
     output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # Get current tag's battle rank
+    current_tag_rank = tag_rankings.get(tag, 0)
 
     # Load candidate coefficients for this tag
     with conn.cursor(row_factory=dict_row) as cur:
@@ -2114,6 +2118,46 @@ def _write_tag_debug_page(
         )
         products = cur.fetchall()
 
+    # Load all tags for each product, with their coefficients
+    product_ids = [p["product_id"] for p in products]
+    product_tags: Dict[int, list] = {pid: [] for pid in product_ids}
+    if product_ids:
+        with conn.cursor(row_factory=dict_row) as cur:
+            # Get all tags for these products that have non-zero coefficients in this fold
+            # Tags are stored as comma-separated string in product_detail JSONB
+            cur.execute(
+                sql.SQL(
+                    """
+                    WITH product_tags AS (
+                        SELECT
+                            p.id AS product_id,
+                            UPPER(TRIM(unnest(string_to_array(
+                                pd.product_detail->'product'->>'tags', ','
+                            )))) AS tag
+                        FROM cantbuymelove.product p
+                        JOIN product_details pd ON
+                            p.myshopify_domain = pd.myshopify_domain
+                            AND p.run_name = pd.run_name
+                            AND p.product_handle = pd.product_handle
+                        WHERE p.id = ANY(%s)
+                    )
+                    SELECT pt.product_id, pt.tag, tc.coefficient, tc.sequence
+                    FROM product_tags pt
+                    JOIN {schema}.umllr_tag_coefficients tc
+                        ON pt.tag = tc.tag AND tc.cv_fold = %s
+                    WHERE tc.coefficient != 0
+                    ORDER BY tc.sequence
+                    """
+                ).format(schema=sql.Identifier(schema)),
+                (product_ids, fold)
+            )
+            for row in cur.fetchall():
+                product_tags[row["product_id"]].append({
+                    "tag": row["tag"],
+                    "coefficient": row["coefficient"],
+                    "sequence": row["sequence"],
+                })
+
     # Get the selected coefficient
     selected_coeff = None
     for c in candidates:
@@ -2139,26 +2183,49 @@ def _write_tag_debug_page(
             f'</tr>'
         )
 
+    # Helper to format tag link
+    def make_tag_link(t: str) -> str:
+        t_url_safe = urllib.parse.quote(t, safe='')
+        return f'<a href="../{t_url_safe}/index.html">{html.escape(t)}</a>'
+
     # Format product rows
     product_rows = []
     for p in products:
+        product_id = p["product_id"]
         residual_before = p["residual_before"]
         residual_after = p["residual_after"]
         before_path, before_exp = _format_padic_expansion(residual_before, prime_base)
         after_path, after_exp = _format_padic_expansion(residual_after, prime_base)
         before_tax_name = taxonomy_info_by_path.get(before_path, {}).get("taxonomy_name", "")
         after_tax_name = taxonomy_info_by_path.get(after_path, {}).get("taxonomy_name", "")
+
+        # Split tags into processed (lower sequence) and pending (higher sequence)
+        tags_for_product = product_tags.get(product_id, [])
+        processed_tags = []
+        pending_tags = []
+        for t in tags_for_product:
+            if t["tag"] == tag:
+                continue  # Skip the current tag
+            if t["sequence"] < current_tag_rank:
+                processed_tags.append(t)
+            else:
+                pending_tags.append(t)
+
+        # Format as linked lists
+        processed_html = ", ".join(make_tag_link(t["tag"]) for t in processed_tags) if processed_tags else "<em>none</em>"
+        pending_html = ", ".join(make_tag_link(t["tag"]) for t in pending_tags) if pending_tags else "<em>none</em>"
+
         # Note: These are training products, not test products, so no prediction page exists
         product_rows.append(
             f'<tr>'
-            f'<td>{p["product_id"]}</td>'
+            f'<td>{product_id}</td>'
             f'<td>{html.escape(p["product_title"] or "")}</td>'
             f'<td>{residual_before}</td>'
-            f'<td>{html.escape(before_path)}</td>'
             f'<td>{html.escape(before_tax_name)}</td>'
+            f'<td>{processed_html}</td>'
             f'<td>{residual_after}</td>'
-            f'<td>{html.escape(after_path)}</td>'
             f'<td>{html.escape(after_tax_name)}</td>'
+            f'<td>{pending_html}</td>'
             f'</tr>'
         )
 
@@ -2218,19 +2285,19 @@ def _write_tag_debug_page(
     </table>
 
     <h2>Products with this Tag</h2>
-    <p>These are the training products that have the "{html.escape(tag)}" tag. The residual is the
-    encoded taxonomy value minus all coefficients from previously processed tags.</p>
+    <p>These are the training products that have the "{html.escape(tag)}" tag (battle rank {current_tag_rank}).
+    The residual is the encoded taxonomy value minus all coefficients from previously processed tags.</p>
     <table class="detail-table">
       <thead>
         <tr>
           <th>Product ID</th>
           <th>Title</th>
           <th>Residual Before</th>
-          <th>Path Before</th>
           <th>Taxonomy Before</th>
+          <th>Tags Already Processed</th>
           <th>Residual After</th>
-          <th>Path After</th>
           <th>Taxonomy After</th>
+          <th>Tags Not Yet Processed</th>
         </tr>
       </thead>
       <tbody>
@@ -2388,6 +2455,7 @@ def _write_umllr_pages(output_dir: Path, summary: Dict[str, Any], conn=None, sch
                             schema,
                             prime_base,
                             taxonomy_info_by_path,
+                            tag_rankings,
                         )
             except Exception as e:
                 print(f"Warning: Could not generate tag debug pages for fold {fold}: {e}")
