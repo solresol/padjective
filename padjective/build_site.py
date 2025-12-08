@@ -2458,7 +2458,8 @@ def _write_umllr_pages(output_dir: Path, summary: Dict[str, Any], conn=None, sch
                         tag = row["tag"]
                         tag_sequence = row["sequence"]
                         tag_url_safe = urllib.parse.quote(tag, safe='')
-                        tag_debug_dir = umllr_dir / f"fold_{fold}" / "tags" / tag_url_safe
+                        # Use raw tag name for filesystem (spaces OK), URL-encoded for HTML hrefs
+                        tag_debug_dir = umllr_dir / f"fold_{fold}" / "tags" / tag
                         tag_debug_path = tag_debug_dir / "index.html"
                         _write_tag_debug_page(
                             tag_debug_path,
