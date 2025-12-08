@@ -80,6 +80,45 @@ def _format_padic_expansion(value: int, base: int) -> tuple[str, str]:
     return (taxonomy_path, expansion)
 
 
+def _format_long_tag(tag: str, max_length: int = 60) -> str:
+    """Format a tag for display, adding soft breaks at punctuation for long tags.
+
+    Args:
+        tag: The tag string to format
+        max_length: Maximum length before truncating (with ellipsis)
+
+    Returns:
+        HTML-escaped tag with soft break opportunities at punctuation
+    """
+    escaped = html.escape(tag)
+
+    # If short enough, just return escaped version
+    if len(tag) <= max_length:
+        # Still add soft breaks for medium-length tags with punctuation
+        # Use <wbr> (word break opportunity) after common separators
+        for sep in [':', ';', ',', '/', '-', '_', '.']:
+            escaped = escaped.replace(sep, sep + '<wbr>')
+        return escaped
+
+    # For very long tags, truncate and add ellipsis
+    # But first, try to find a good break point
+    truncated = tag[:max_length]
+
+    # Try to break at a punctuation point near the end
+    for sep in [':', ';', ',', '/', '-', '_', '.', ' ']:
+        last_sep = truncated.rfind(sep)
+        if last_sep > max_length // 2:  # Only break if we keep at least half
+            truncated = truncated[:last_sep + 1]
+            break
+
+    escaped_truncated = html.escape(truncated)
+    # Add soft breaks
+    for sep in [':', ';', ',', '/', '-', '_', '.']:
+        escaped_truncated = escaped_truncated.replace(sep, sep + '<wbr>')
+
+    return f'<span title="{html.escape(tag)}">{escaped_truncated}…</span>'
+
+
 def _ensure_clean_directory(path: Path) -> None:
     if path.exists():
         shutil.rmtree(path)
@@ -1478,7 +1517,7 @@ def _write_prediction_detail_page(
 
             umllr_tag_rows.append(f"""
             <tr>
-              <td>{html.escape(tag)}</td>
+              <td>{_format_long_tag(tag)}</td>
               <td>{coef}</td>
               <td>{html.escape(tag_path)}</td>
               <td>{html.escape(tag_expansion)}</td>
@@ -1520,7 +1559,7 @@ def _write_prediction_detail_page(
                 highlight_class = ' class="highlight"' if tax_id == max_tax_id else ''
                 lr_detail_rows.append(f"""
                 <tr{highlight_class}>
-                  <td>{html.escape(tag)}</td>
+                  <td>{_format_long_tag(tag)}</td>
                   <td>{html.escape(tax_path)}</td>
                   <td>{html.escape(tax_name)}</td>
                   <td>{coef:.6f}</td>
@@ -1619,7 +1658,7 @@ def _write_zero_coefficients_page(
         rank_label = str(rank_value) if rank_value is not None else "unranked"
         zero_rows.append(
             "<tr>"
-            f"<td>{html.escape(tag)}</td>"
+            f"<td>{_format_long_tag(tag)}</td>"
             f"<td>{rank_label}</td>"
             "</tr>"
         )
@@ -2006,7 +2045,7 @@ def _write_umllr_pages(output_dir: Path, summary: Dict[str, Any], conn=None, sch
             taxonomy_name = taxonomy_names.get(reversed_path, "")
             non_zero_rows.append(
                 "<tr>"
-                f"<td>{html.escape(tag)}</td>"
+                f"<td>{_format_long_tag(tag)}</td>"
                 f"<td>{coefficient}</td>"
                 f"<td>{html.escape(taxonomy_path)}</td>"
                 f"<td>{html.escape(expansion)}</td>"
@@ -2877,7 +2916,7 @@ def _build_index_html(
 
         top_tags = taxonomy_summary.get("top_tags", [])[:10]
         top_tag_rows = "\n".join(
-            f"<tr><td>{html.escape(row.get('tag') or '')}</td><td>{html.escape(row.get('top_taxonomy_path') or 'Unknown')}</td><td>{row.get('top_weight', 0.0):.4f}</td><td>{row.get('max_abs_weight', 0.0):.4f}</td></tr>"
+            f"<tr><td>{_format_long_tag(row.get('tag') or '')}</td><td>{html.escape(row.get('top_taxonomy_path') or 'Unknown')}</td><td>{row.get('top_weight', 0.0):.4f}</td><td>{row.get('max_abs_weight', 0.0):.4f}</td></tr>"
             for row in top_tags
         )
         if not top_tag_rows:
@@ -3685,7 +3724,7 @@ def _write_taxonomy_classifier_page(
     # Build tag table
     tag_rows = "\n".join(
         f"<tr>"
-        f"<td>{html.escape(row.get('tag') or '')}</td>"
+        f"<td>{_format_long_tag(row.get('tag') or '')}</td>"
         f"<td>{html.escape(row.get('top_taxonomy_id') or '')}</td>"
         f"<td>{html.escape(row.get('top_taxonomy_path') or 'Unknown')}</td>"
         f"<td>{row.get('top_weight', 0.0):.4f}</td>"
@@ -5461,9 +5500,11 @@ table.taxonomy-table tbody tr:nth-child(even), table.tag-taxonomy-table tbody tr
 .umllr-summary thead {background: #f8fafc;}
 .umllr-fold {max-width: 70rem; margin: 0 auto; padding: 2rem 1.5rem;}
 .umllr-fold h1 {margin-top: 0;}
-.umllr-table {width: 100%; border-collapse: collapse; margin-bottom: 2rem; background: white;}
-.umllr-table th, .umllr-table td {border-bottom: 1px solid #e2e8f0; padding: 0.75rem 1rem; text-align: left;}
+.umllr-table {width: 100%; border-collapse: collapse; margin-bottom: 2rem; background: white; table-layout: fixed;}
+.umllr-table th, .umllr-table td {border-bottom: 1px solid #e2e8f0; padding: 0.75rem 1rem; text-align: left; overflow-wrap: break-word; word-wrap: break-word;}
 .umllr-table thead {background: #f8fafc;}
+.umllr-table th:first-child, .umllr-table td:first-child {max-width: 40%; width: 40%; word-break: break-all;}
+.tag-cell {max-width: 300px; overflow: hidden; text-overflow: ellipsis; word-break: break-all;}
 .downloads ul {list-style: none; padding: 0;}
 .downloads li {margin: 0.5rem 0;}
 .downloads a {color: #0b6ce3; text-decoration: none; font-weight: 600;}
