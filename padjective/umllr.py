@@ -59,12 +59,37 @@ class Prediction:
 
 
 @dataclass(frozen=True)
+class CoefficientCandidate:
+    """Debug info for a candidate coefficient value."""
+    candidate_value: int
+    total_loss: float
+    was_selected: bool
+
+
+@dataclass(frozen=True)
+class TagProductResidual:
+    """Debug info for a product's residual before/after a tag is processed."""
+    product_id: int
+    residual_before: int
+    residual_after: int
+
+
+@dataclass(frozen=True)
+class TagDebugInfo:
+    """Debug info for coefficient selection for a single tag."""
+    tag: str
+    candidates: List[CoefficientCandidate]
+    products: List[TagProductResidual]
+
+
+@dataclass(frozen=True)
 class FoldResult:
     cv_fold: int
     coefficients: List[TagCoefficient]
     predictions: List[Prediction]
     loss: float
     default_prediction: int
+    tag_debug: List[TagDebugInfo]  # Debug info for each tag
 
 
 def _ensure_storage(conn, schema: str) -> None:
@@ -74,7 +99,14 @@ def _ensure_storage(conn, schema: str) -> None:
     This function only verifies they exist.
     """
 
-    required_tables = ["umllr_tag_coefficients", "umllr_fold_metrics", "umllr_predictions", "umllr_taxonomy_encodings"]
+    required_tables = [
+        "umllr_tag_coefficients",
+        "umllr_fold_metrics",
+        "umllr_predictions",
+        "umllr_taxonomy_encodings",
+        "umllr_coefficient_candidates",
+        "umllr_tag_products",
+    ]
 
     with conn.cursor() as cur:
         for table in required_tables:
@@ -98,6 +130,8 @@ def _truncate_outputs(conn, schema: str) -> None:
     db.truncate_table(conn, schema, "umllr_fold_metrics")
     db.truncate_table(conn, schema, "umllr_predictions")
     db.truncate_table(conn, schema, "umllr_taxonomy_encodings")
+    db.truncate_table(conn, schema, "umllr_coefficient_candidates")
+    db.truncate_table(conn, schema, "umllr_tag_products")
 
 
 def _parse_tags(tag_string: str | None) -> List[str]:
@@ -175,19 +209,41 @@ def _p_adic_distance(a: int, b: int, base: int) -> float:
     return base ** (-valuation)
 
 
-def _select_coefficient(values: Sequence[int], base: int) -> int:
+def _select_coefficient(
+    values: Sequence[int], base: int
+) -> Tuple[int, List[CoefficientCandidate]]:
+    """Select the best coefficient and return debug info about all candidates tried.
+
+    Returns:
+        Tuple of (selected_coefficient, list of CoefficientCandidate debug info)
+    """
     unique_values = sorted(set(values))
     best_value = unique_values[0]
     best_loss = math.inf
 
+    # Track all candidates and their losses for debugging
+    candidate_losses: List[Tuple[int, float]] = []
+
     for candidate in unique_values:
         total_distance = sum(_p_adic_distance(candidate, value, base) for value in values)
+        candidate_losses.append((candidate, total_distance))
         if total_distance < best_loss or (
             math.isclose(total_distance, best_loss) and candidate < best_value
         ):
             best_loss = total_distance
             best_value = candidate
-    return best_value
+
+    # Build debug info
+    candidates = [
+        CoefficientCandidate(
+            candidate_value=cand,
+            total_loss=loss,
+            was_selected=(cand == best_value),
+        )
+        for cand, loss in candidate_losses
+    ]
+
+    return best_value, candidates
 
 
 def _load_battles(conn, schema: str) -> List[BattleRecord]:
@@ -324,15 +380,36 @@ def _run_fold(
     tag_order = _tag_order(battles, fold, tag_to_products.keys())
 
     coefficients: List[TagCoefficient] = []
+    tag_debug: List[TagDebugInfo] = []
+
     for sequence, tag in enumerate(tag_order):
-        values = [product_residuals[pid] for pid in tag_to_products.get(tag, [])]
+        product_ids = tag_to_products.get(tag, [])
+        values = [product_residuals[pid] for pid in product_ids]
+
         if values:
-            coefficient = _select_coefficient(values, base)
-            for pid in tag_to_products[tag]:
-                product_residuals[pid] -= coefficient
+            coefficient, candidates = _select_coefficient(values, base)
+
+            # Capture residuals before and after for each product
+            product_residual_info = []
+            for pid in product_ids:
+                residual_before = product_residuals[pid]
+                residual_after = residual_before - coefficient
+                product_residual_info.append(
+                    TagProductResidual(
+                        product_id=pid,
+                        residual_before=residual_before,
+                        residual_after=residual_after,
+                    )
+                )
+                # Update the residual
+                product_residuals[pid] = residual_after
         else:
             coefficient = 0
+            candidates = []
+            product_residual_info = []
+
         coefficients.append(TagCoefficient(tag=tag, coefficient=coefficient, sequence=sequence))
+        tag_debug.append(TagDebugInfo(tag=tag, candidates=candidates, products=product_residual_info))
 
     coefficient_lookup = {entry.tag: entry.coefficient for entry in coefficients}
 
@@ -373,6 +450,7 @@ def _run_fold(
         predictions=predictions,
         loss=total_loss,
         default_prediction=default_prediction,
+        tag_debug=tag_debug,
     )
 
 
@@ -389,6 +467,8 @@ def _save_results(
     prediction_rows: List[Tuple[int, int, int, int, float]] = []
     metrics_rows: List[Tuple[int, float, int, int, int]] = []
     encoding_rows: List[Tuple[int, str, str, int]] = []
+    candidate_rows: List[Tuple[int, str, int, float, int, bool]] = []
+    tag_product_rows: List[Tuple[int, str, int, int, int]] = []
 
     for result in results:
         metrics_rows.append((result.cv_fold, result.loss, prime_base, max_digit, result.default_prediction))
@@ -404,6 +484,29 @@ def _save_results(
                     prediction.loss,
                 )
             )
+        # Collect debug info
+        for tag_debug in result.tag_debug:
+            for candidate in tag_debug.candidates:
+                candidate_rows.append(
+                    (
+                        result.cv_fold,
+                        tag_debug.tag,
+                        candidate.candidate_value,
+                        candidate.total_loss,
+                        len(tag_debug.products),  # product_count
+                        candidate.was_selected,
+                    )
+                )
+            for product_info in tag_debug.products:
+                tag_product_rows.append(
+                    (
+                        result.cv_fold,
+                        tag_debug.tag,
+                        product_info.product_id,
+                        product_info.residual_before,
+                        product_info.residual_after,
+                    )
+                )
 
     # Save taxonomy encodings for each fold
     for fold in range(cv_splits):
@@ -440,6 +543,20 @@ def _save_results(
             # Delete old encodings for all folds
             cur.execute(
                 sql.SQL("DELETE FROM {schema}.umllr_taxonomy_encodings WHERE cv_fold = ANY(%s)").format(
+                    schema=sql.Identifier(schema)
+                ),
+                (fold_list,)
+            )
+            # Delete old coefficient candidates for all folds
+            cur.execute(
+                sql.SQL("DELETE FROM {schema}.umllr_coefficient_candidates WHERE cv_fold = ANY(%s)").format(
+                    schema=sql.Identifier(schema)
+                ),
+                (fold_list,)
+            )
+            # Delete old tag products for all folds
+            cur.execute(
+                sql.SQL("DELETE FROM {schema}.umllr_tag_products WHERE cv_fold = ANY(%s)").format(
                     schema=sql.Identifier(schema)
                 ),
                 (fold_list,)
@@ -501,6 +618,24 @@ def _save_results(
                     "VALUES (%s, %s, %s, %s)"
                 ).format(schema=sql.Identifier(schema)),
                 encoding_rows,
+            )
+        if candidate_rows:
+            cur.executemany(
+                sql.SQL(
+                    "INSERT INTO {schema}.umllr_coefficient_candidates "
+                    "(cv_fold, tag, candidate_value, total_loss, product_count, was_selected) "
+                    "VALUES (%s, %s, %s, %s, %s, %s)"
+                ).format(schema=sql.Identifier(schema)),
+                candidate_rows,
+            )
+        if tag_product_rows:
+            cur.executemany(
+                sql.SQL(
+                    "INSERT INTO {schema}.umllr_tag_products "
+                    "(cv_fold, tag, product_id, residual_before, residual_after) "
+                    "VALUES (%s, %s, %s, %s, %s)"
+                ).format(schema=sql.Identifier(schema)),
+                tag_product_rows,
             )
     conn.commit()
 

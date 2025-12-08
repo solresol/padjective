@@ -7,6 +7,7 @@ import html
 import json
 import math
 import shutil
+import urllib.parse
 from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
@@ -2069,6 +2070,183 @@ def _generate_rolling_nonzero_chart(
     return output_path
 
 
+def _write_tag_debug_page(
+    output_path: Path,
+    fold: int,
+    tag: str,
+    conn,
+    schema: str,
+    prime_base: int,
+    taxonomy_info_by_path: Dict[str, Dict[str, str]],
+) -> None:
+    """Write a debug page explaining why a tag coefficient was selected."""
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # Load candidate coefficients for this tag
+    with conn.cursor(row_factory=dict_row) as cur:
+        cur.execute(
+            sql.SQL(
+                """
+                SELECT candidate_value, total_loss, product_count, was_selected
+                FROM {schema}.umllr_coefficient_candidates
+                WHERE cv_fold = %s AND tag = %s
+                ORDER BY total_loss ASC
+                """
+            ).format(schema=sql.Identifier(schema)),
+            (fold, tag)
+        )
+        candidates = cur.fetchall()
+
+    # Load products with this tag and their residuals
+    with conn.cursor(row_factory=dict_row) as cur:
+        cur.execute(
+            sql.SQL(
+                """
+                SELECT tp.product_id, tp.residual_before, tp.residual_after,
+                       p.product_title
+                FROM {schema}.umllr_tag_products tp
+                LEFT JOIN cantbuymelove.product p ON tp.product_id = p.id
+                WHERE tp.cv_fold = %s AND tp.tag = %s
+                ORDER BY tp.residual_before DESC
+                """
+            ).format(schema=sql.Identifier(schema)),
+            (fold, tag)
+        )
+        products = cur.fetchall()
+
+    # Get the selected coefficient
+    selected_coeff = None
+    for c in candidates:
+        if c["was_selected"]:
+            selected_coeff = c["candidate_value"]
+            break
+
+    # Format candidate rows
+    candidate_rows = []
+    for c in candidates:
+        candidate_value = c["candidate_value"]
+        taxonomy_path, expansion = _format_padic_expansion(candidate_value, prime_base)
+        taxonomy_name = taxonomy_info_by_path.get(taxonomy_path, {}).get("taxonomy_name", "")
+        selected_class = ' class="highlight"' if c["was_selected"] else ""
+        candidate_rows.append(
+            f'<tr{selected_class}>'
+            f'<td>{candidate_value}</td>'
+            f'<td>{c["total_loss"]:.6f}</td>'
+            f'<td>{html.escape(taxonomy_path)}</td>'
+            f'<td>{html.escape(expansion)}</td>'
+            f'<td>{html.escape(taxonomy_name)}</td>'
+            f'<td>{"Yes" if c["was_selected"] else "No"}</td>'
+            f'</tr>'
+        )
+
+    # Format product rows
+    product_rows = []
+    for p in products:
+        residual_before = p["residual_before"]
+        residual_after = p["residual_after"]
+        before_path, before_exp = _format_padic_expansion(residual_before, prime_base)
+        after_path, after_exp = _format_padic_expansion(residual_after, prime_base)
+        before_tax_name = taxonomy_info_by_path.get(before_path, {}).get("taxonomy_name", "")
+        after_tax_name = taxonomy_info_by_path.get(after_path, {}).get("taxonomy_name", "")
+        product_rows.append(
+            f'<tr>'
+            f'<td><a href="../../../../prediction/{fold}/{p["product_id"]}.html">{p["product_id"]}</a></td>'
+            f'<td>{html.escape(p["product_title"] or "")}</td>'
+            f'<td>{residual_before}</td>'
+            f'<td>{html.escape(before_path)}</td>'
+            f'<td>{html.escape(before_tax_name)}</td>'
+            f'<td>{residual_after}</td>'
+            f'<td>{html.escape(after_path)}</td>'
+            f'<td>{html.escape(after_tax_name)}</td>'
+            f'</tr>'
+        )
+
+    selected_path, selected_exp = _format_padic_expansion(selected_coeff or 0, prime_base)
+    selected_tax_name = taxonomy_info_by_path.get(selected_path, {}).get("taxonomy_name", "")
+
+    page_html = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Tag Debug: {html.escape(tag)} - Fold {fold}</title>
+  <link rel="stylesheet" href="../../../assets/styles.css" />
+  <style>
+    .highlight {{ background-color: #d4edda !important; }}
+    .detail-table {{ width: 100%; border-collapse: collapse; margin: 1rem 0; }}
+    .detail-table th, .detail-table td {{ padding: 0.5rem; border: 1px solid #dee2e6; text-align: left; }}
+    .detail-table thead {{ background: #f8f9fa; }}
+    .summary-box {{ background: #e7f3ff; border-radius: 0.5rem; padding: 1rem; margin: 1rem 0; }}
+  </style>
+</head>
+<body>
+  <header class="hero">
+    <h1>Tag Coefficient Debug: {html.escape(tag)}</h1>
+    <p class="tagline">Fold {fold} - Understanding why coefficient {selected_coeff} was selected</p>
+  </header>
+
+  <section>
+    <p><a href="../../../fold_{fold}.html">← Back to Fold {fold}</a></p>
+
+    <div class="summary-box">
+      <h2>Summary</h2>
+      <p><strong>Tag:</strong> {html.escape(tag)}</p>
+      <p><strong>Selected Coefficient:</strong> {selected_coeff}</p>
+      <p><strong>Taxonomy Path:</strong> {html.escape(selected_path)}</p>
+      <p><strong>Taxonomy Name:</strong> {html.escape(selected_tax_name)}</p>
+      <p><strong>Products with this tag:</strong> {len(products)}</p>
+      <p><strong>Unique residual values tried:</strong> {len(candidates)}</p>
+    </div>
+
+    <h2>Candidate Coefficients Tried</h2>
+    <p>The algorithm tries each unique residual value as a candidate coefficient and selects the one
+    with the lowest total p-adic loss. The selected row is highlighted.</p>
+    <table class="detail-table">
+      <thead>
+        <tr>
+          <th>Candidate Value</th>
+          <th>Total P-adic Loss</th>
+          <th>Taxonomy Path</th>
+          <th>P-adic Expansion</th>
+          <th>Taxonomy Name</th>
+          <th>Selected?</th>
+        </tr>
+      </thead>
+      <tbody>
+        {"".join(candidate_rows) if candidate_rows else '<tr><td colspan="6">No candidates found</td></tr>'}
+      </tbody>
+    </table>
+
+    <h2>Products with this Tag</h2>
+    <p>These are the training products that have the "{html.escape(tag)}" tag. The residual is the
+    encoded taxonomy value minus all coefficients from previously processed tags.</p>
+    <table class="detail-table">
+      <thead>
+        <tr>
+          <th>Product ID</th>
+          <th>Title</th>
+          <th>Residual Before</th>
+          <th>Path Before</th>
+          <th>Taxonomy Before</th>
+          <th>Residual After</th>
+          <th>Path After</th>
+          <th>Taxonomy After</th>
+        </tr>
+      </thead>
+      <tbody>
+        {"".join(product_rows) if product_rows else '<tr><td colspan="8">No products found</td></tr>'}
+      </tbody>
+    </table>
+  </section>
+
+  <footer>
+    <p><a href="../../../fold_{fold}.html">← Back to Fold {fold}</a></p>
+  </footer>
+</body>
+</html>
+"""
+    output_path.write_text(page_html)
+
+
 def _write_umllr_pages(output_dir: Path, summary: Dict[str, Any], conn=None, schema: str = "padjective") -> Dict[int, Path]:
     pages: Dict[int, Path] = {}
     metrics = summary.get("metrics", [])
@@ -2128,9 +2306,12 @@ def _write_umllr_pages(output_dir: Path, summary: Dict[str, Any], conn=None, sch
             # Database stores paths in the same format: category.subcategory.subsubcategory
             # where least-significant p-adic digit = top-level category
             taxonomy_name = taxonomy_names.get(taxonomy_path, "")
+            # Create link to tag debug page
+            tag_url_safe = urllib.parse.quote(tag, safe='')
+            tag_link = f'<a href="fold_{fold}/tags/{tag_url_safe}/index.html">{_format_long_tag(tag)}</a>'
             non_zero_rows.append(
                 "<tr>"
-                f"<td>{_format_long_tag(tag)}</td>"
+                f"<td>{tag_link}</td>"
                 f"<td>{coefficient}</td>"
                 f"<td>{html.escape(taxonomy_path)}</td>"
                 f"<td>{html.escape(expansion)}</td>"
@@ -2189,6 +2370,26 @@ def _write_umllr_pages(output_dir: Path, summary: Dict[str, Any], conn=None, sch
                     )
             except Exception as e:
                 print(f"Warning: Could not generate prediction detail pages for fold {fold}: {e}")
+
+            # Generate tag debug pages for each non-zero coefficient tag
+            try:
+                for row in coeff_rows:
+                    if row["coefficient"] != 0:
+                        tag = row["tag"]
+                        tag_url_safe = urllib.parse.quote(tag, safe='')
+                        tag_debug_dir = umllr_dir / f"fold_{fold}" / "tags" / tag_url_safe
+                        tag_debug_path = tag_debug_dir / "index.html"
+                        _write_tag_debug_page(
+                            tag_debug_path,
+                            fold,
+                            tag,
+                            conn,
+                            schema,
+                            prime_base,
+                            taxonomy_info_by_path,
+                        )
+            except Exception as e:
+                print(f"Warning: Could not generate tag debug pages for fold {fold}: {e}")
 
         # Build prediction table rows with links to detail pages
         prediction_table_rows_list = []

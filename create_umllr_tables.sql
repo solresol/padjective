@@ -82,6 +82,35 @@ CREATE TABLE IF NOT EXISTS padjective.dummy_predictions (
 CREATE INDEX IF NOT EXISTS padjective_dummy_predictions_fold_idx
     ON padjective.dummy_predictions (cv_fold);
 
+-- Create umllr_coefficient_candidates table for debugging coefficient selection
+CREATE TABLE IF NOT EXISTS padjective.umllr_coefficient_candidates (
+    cv_fold INTEGER NOT NULL,
+    tag TEXT NOT NULL,
+    candidate_value BIGINT NOT NULL,
+    total_loss DOUBLE PRECISION NOT NULL,
+    product_count INTEGER NOT NULL,
+    was_selected BOOLEAN NOT NULL DEFAULT FALSE,
+    PRIMARY KEY (cv_fold, tag, candidate_value)
+);
+
+-- Create index for umllr_coefficient_candidates
+CREATE INDEX IF NOT EXISTS padjective_umllr_coeff_candidates_fold_tag_idx
+    ON padjective.umllr_coefficient_candidates (cv_fold, tag);
+
+-- Create umllr_tag_products table for tracking residuals per product per tag
+CREATE TABLE IF NOT EXISTS padjective.umllr_tag_products (
+    cv_fold INTEGER NOT NULL,
+    tag TEXT NOT NULL,
+    product_id BIGINT NOT NULL,
+    residual_before BIGINT NOT NULL,
+    residual_after BIGINT NOT NULL,
+    PRIMARY KEY (cv_fold, tag, product_id)
+);
+
+-- Create index for umllr_tag_products
+CREATE INDEX IF NOT EXISTS padjective_umllr_tag_products_fold_tag_idx
+    ON padjective.umllr_tag_products (cv_fold, tag);
+
 -- Grant all privileges on schema and tables to padjective user
 GRANT USAGE ON SCHEMA padjective TO padjective;
 GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA padjective TO padjective;
