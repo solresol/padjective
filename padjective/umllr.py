@@ -270,7 +270,7 @@ def _load_products(
     product_table: str,
     fold_assignments: Dict[int, int],
     *,
-    min_tag_count: int = 2,
+    min_tag_count: int = 5,
     min_samples_per_taxonomy: int = 5,
 ) -> tuple[List[ProductRecord], int, int, Dict[str, Tuple[str, int]], data_access.ProductDataset]:
     dataset = data_access.build_feature_dataset(
@@ -797,7 +797,7 @@ def process_database(
     schema: str,
     product_table: str = "cantbuymelove.product",
     cv_splits: int = 5,
-    min_tag_count: int = 2,
+    min_tag_count: int = 5,
     min_samples_per_taxonomy: int = 5,
 ) -> None:
     conn = db.get_connection(dsn)
@@ -873,7 +873,7 @@ def main() -> None:
     parser.add_argument(
         "--min-tag-count",
         type=int,
-        default=2,
+        default=5,
         help="Minimum occurrences required for a tag to participate in training.",
     )
     parser.add_argument(
