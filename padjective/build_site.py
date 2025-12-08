@@ -4876,7 +4876,8 @@ def _generate_historical_trends_chart(conn, output_path: Path, schema: str = "pa
             sql.SQL(
                 """
                 SELECT snapshot_date, num_products, num_tags, num_taxonomies,
-                       umllr_mean_padic_loss, lr_mean_padic_loss, nn_mean_padic_loss
+                       umllr_mean_padic_loss, lr_mean_padic_loss, nn_mean_padic_loss,
+                       dummy_mean_padic_loss, ulr_mean_padic_loss, unn_mean_padic_loss
                 FROM {schema}.model_performance_history
                 ORDER BY snapshot_date
                 """
@@ -4896,6 +4897,9 @@ def _generate_historical_trends_chart(conn, output_path: Path, schema: str = "pa
     umllr_loss = [row[4] if row[4] is not None else None for row in rows]
     lr_loss = [row[5] if row[5] is not None else None for row in rows]
     nn_loss = [row[6] if row[6] is not None else None for row in rows]
+    dummy_loss = [row[7] if row[7] is not None else None for row in rows]
+    ulr_loss = [row[8] if row[8] is not None else None for row in rows]
+    unn_loss = [row[9] if row[9] is not None else None for row in rows]
 
     # Create figure with two subplots
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8), sharex=True)
@@ -4907,6 +4911,12 @@ def _generate_historical_trends_chart(conn, output_path: Path, schema: str = "pa
         ax1.plot(dates, lr_loss, 's-', label='PCLR', color='#10b981', linewidth=2, markersize=6)
     if any(nn_loss):
         ax1.plot(dates, nn_loss, '^-', label='PCNN', color='#f59e0b', linewidth=2, markersize=6)
+    if any(ulr_loss):
+        ax1.plot(dates, ulr_loss, 'D-', label='ULR', color='#8b5cf6', linewidth=2, markersize=6)
+    if any(unn_loss):
+        ax1.plot(dates, unn_loss, 'p-', label='UNN', color='#ec4899', linewidth=2, markersize=6)
+    if any(dummy_loss):
+        ax1.plot(dates, dummy_loss, 'x-', label='Dummy Baseline', color='#94a3b8', linewidth=2, markersize=6)
 
     ax1.set_ylabel('P-adic Loss (lower is better)', fontsize=12, fontweight='bold')
     ax1.set_title('Model Performance Over Time', fontsize=14, fontweight='bold', pad=15)
@@ -4952,7 +4962,8 @@ def _generate_performance_vs_products_chart(conn, output_path: Path, schema: str
             sql.SQL(
                 """
                 SELECT num_products, umllr_mean_padic_loss, lr_mean_padic_loss,
-                       nn_mean_padic_loss, dummy_mean_padic_loss, ulr_mean_padic_loss
+                       nn_mean_padic_loss, dummy_mean_padic_loss, ulr_mean_padic_loss,
+                       unn_mean_padic_loss
                 FROM {schema}.model_performance_history
                 ORDER BY num_products
                 """
@@ -4969,6 +4980,7 @@ def _generate_performance_vs_products_chart(conn, output_path: Path, schema: str
     nn_loss = [row[3] for row in rows]
     dummy_loss = [row[4] for row in rows]
     ulr_loss = [row[5] for row in rows]
+    unn_loss = [row[6] for row in rows]
 
     fig, ax = plt.subplots(figsize=(10, 6))
     regression_stats = {}
@@ -5020,6 +5032,11 @@ def _generate_performance_vs_products_chart(conn, output_path: Path, schema: str
         if stat:
             regression_stats['dummy'] = stat
 
+    if any(v is not None for v in unn_loss):
+        stat = plot_with_regression(num_products, unn_loss, 'UNN', '#ec4899', 'p')
+        if stat:
+            regression_stats['unn'] = stat
+
     ax.set_xlabel('Number of Products', fontsize=12, fontweight='bold')
     ax.set_ylabel('P-adic Loss (lower is better)', fontsize=12, fontweight='bold')
     ax.set_title('Model Performance vs Dataset Size (Products)', fontsize=14, fontweight='bold', pad=15)
@@ -5048,7 +5065,8 @@ def _generate_performance_vs_tags_chart(conn, output_path: Path, schema: str = "
             sql.SQL(
                 """
                 SELECT num_tags, umllr_mean_padic_loss, lr_mean_padic_loss,
-                       nn_mean_padic_loss, dummy_mean_padic_loss, ulr_mean_padic_loss
+                       nn_mean_padic_loss, dummy_mean_padic_loss, ulr_mean_padic_loss,
+                       unn_mean_padic_loss
                 FROM {schema}.model_performance_history
                 ORDER BY num_tags
                 """
@@ -5065,6 +5083,7 @@ def _generate_performance_vs_tags_chart(conn, output_path: Path, schema: str = "
     nn_loss = [row[3] for row in rows]
     dummy_loss = [row[4] for row in rows]
     ulr_loss = [row[5] for row in rows]
+    unn_loss = [row[6] for row in rows]
 
     fig, ax = plt.subplots(figsize=(10, 6))
     regression_stats = {}
@@ -5115,6 +5134,11 @@ def _generate_performance_vs_tags_chart(conn, output_path: Path, schema: str = "
         stat = plot_with_regression(num_tags, dummy_loss, 'Dummy Baseline', '#94a3b8', 'x')
         if stat:
             regression_stats['dummy'] = stat
+
+    if any(v is not None for v in unn_loss):
+        stat = plot_with_regression(num_tags, unn_loss, 'UNN', '#ec4899', 'p')
+        if stat:
+            regression_stats['unn'] = stat
 
     ax.set_xlabel('Number of Distinct Tags', fontsize=12, fontweight='bold')
     ax.set_ylabel('P-adic Loss (lower is better)', fontsize=12, fontweight='bold')
