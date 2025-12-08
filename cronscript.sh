@@ -92,6 +92,17 @@ for fold in 0 1 2 3 4; do
         --fold "$fold"
 done
 
+# Train unconstrained neural network classifiers with L1 regularization and weight pruning (once per fold)
+# Uses ALL tags with L1 regularization during training and post-training pruning for sparsity
+for fold in 0 1 2 3 4; do
+    echo "Training unconstrained neural network classifier for fold $fold..."
+    uv run -m padjective.taxonomy_unn_classifier \
+        "${TAGBATTLE_DSN_ARGS[@]}" \
+        --product-table "$TAGBATTLE_PRODUCT_TABLE" \
+        --results-schema "$TAXONOMY_RESULTS_SCHEMA" \
+        --fold "$fold"
+done
+
 # Snapshot current metrics for historical tracking
 uv run -m padjective.snapshot_metrics \
     "${TAGBATTLE_DSN_ARGS[@]}" \

@@ -4489,6 +4489,80 @@ def _load_taxonomy_ulr_fold_results(conn, schema: str = "padjective") -> Optiona
     return results
 
 
+def _load_taxonomy_unn_fold_results(conn, schema: str = "padjective") -> Optional[list[Dict[str, Any]]]:
+    """Load taxonomy unconstrained neural network fold-based results."""
+    if not _table_exists(conn, schema, "taxonomy_unn_fold_results"):
+        return None
+
+    with conn.cursor(row_factory=dict_row) as cur:
+        cur.execute(
+            sql.SQL(
+                """
+                SELECT cv_fold, test_accuracy, test_f1, test_hierarchical_loss,
+                       padic_loss_total, padic_loss_mean, prime_base,
+                       num_train_samples, num_test_samples, hidden_size,
+                       num_nonzero_params, num_total_params, l1_lambda, pruning_threshold
+                FROM {schema}.taxonomy_unn_fold_results
+                ORDER BY cv_fold
+                """
+            ).format(schema=sql.Identifier(schema))
+        )
+        results = []
+        for row in cur:
+            results.append({
+                "cv_fold": int(row["cv_fold"]),
+                "test_accuracy": float(row["test_accuracy"]),
+                "test_f1": float(row["test_f1"]),
+                "test_hierarchical_loss": float(row["test_hierarchical_loss"]),
+                "padic_loss_total": float(row["padic_loss_total"]),
+                "padic_loss_mean": float(row["padic_loss_mean"]),
+                "prime_base": int(row["prime_base"]),
+                "num_train_samples": int(row["num_train_samples"]),
+                "num_test_samples": int(row["num_test_samples"]),
+                "hidden_size": int(row["hidden_size"]),
+                "num_nonzero_params": int(row["num_nonzero_params"]),
+                "num_total_params": int(row["num_total_params"]),
+                "l1_lambda": float(row["l1_lambda"]) if row["l1_lambda"] is not None else 0.0001,
+                "pruning_threshold": float(row["pruning_threshold"]) if row["pruning_threshold"] is not None else 0.01,
+            })
+
+    if not results:
+        return None
+
+    encoding_cache: Dict[int, Dict[str, int]] = {}
+    for entry in results:
+        fold = entry["cv_fold"]
+        if fold not in encoding_cache:
+            encoding_cache[fold] = _load_taxonomy_encoding_lookup(conn, schema, fold)
+        lookup = encoding_cache[fold]
+        value_pairs: list[tuple[int, int]] = []
+        with conn.cursor(row_factory=dict_row) as pred_cur:
+            pred_cur.execute(
+                sql.SQL(
+                    """
+                    SELECT true_taxonomy_id, predicted_taxonomy_id
+                    FROM {schema}.taxonomy_unn_predictions
+                    WHERE cv_fold = %s
+                    """
+                ).format(schema=sql.Identifier(schema)),
+                (fold,),
+            )
+            for pred_row in pred_cur:
+                true_id = pred_row["true_taxonomy_id"]
+                pred_id = pred_row["predicted_taxonomy_id"]
+                if true_id is None or pred_id is None:
+                    continue
+                true_value = lookup.get(str(true_id))
+                pred_value = lookup.get(str(pred_id))
+                if true_value is None or pred_value is None:
+                    continue
+                value_pairs.append((int(true_value), int(pred_value)))
+        entry["loss_breakdown"] = _padic_breakdown_from_pairs(value_pairs, entry["prime_base"]) if value_pairs else []
+        entry["total_predictions"] = len(value_pairs)
+
+    return results
+
+
 def _generate_taxonomy_distribution_chart(class_distribution: list[dict], output_path: Path, top_n: int = 15) -> Optional[Path]:
     """Generate a horizontal bar chart showing taxonomy class distribution.
 

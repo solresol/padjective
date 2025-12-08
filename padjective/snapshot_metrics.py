@@ -66,7 +66,12 @@ def create_history_table(conn, schema: str = "padjective") -> None:
                 ADD COLUMN IF NOT EXISTS dummy_mean_accuracy REAL,
                 ADD COLUMN IF NOT EXISTS ulr_mean_padic_loss REAL,
                 ADD COLUMN IF NOT EXISTS ulr_mean_accuracy REAL,
-                ADD COLUMN IF NOT EXISTS ulr_mean_nonzero_params REAL
+                ADD COLUMN IF NOT EXISTS ulr_mean_nonzero_params REAL,
+                ADD COLUMN IF NOT EXISTS lr_mean_params REAL,
+                ADD COLUMN IF NOT EXISTS nn_mean_input_weights REAL,
+                ADD COLUMN IF NOT EXISTS unn_mean_padic_loss REAL,
+                ADD COLUMN IF NOT EXISTS unn_mean_accuracy REAL,
+                ADD COLUMN IF NOT EXISTS unn_mean_nonzero_params REAL
                 """
             ).format(schema=sql.Identifier(schema))
         )
@@ -123,11 +128,11 @@ def get_umllr_metrics(conn, schema: str = "padjective") -> tuple[float | None, f
     return mean_padic_loss, None
 
 
-def get_lr_metrics(conn, schema: str = "padjective") -> tuple[float | None, float | None]:
-    """Get PCLR mean p-adic loss and accuracy across all folds.
+def get_lr_metrics(conn, schema: str = "padjective") -> tuple[float | None, float | None, float | None]:
+    """Get PCLR mean p-adic loss, accuracy, and parameter count across all folds.
 
     Returns:
-        tuple: (mean_padic_loss, mean_accuracy)
+        tuple: (mean_padic_loss, mean_accuracy, mean_params)
     """
     with conn.cursor() as cur:
         cur.execute(
@@ -139,17 +144,34 @@ def get_lr_metrics(conn, schema: str = "padjective") -> tuple[float | None, floa
             ).format(schema=sql.Identifier(schema))
         )
         row = cur.fetchone()
+        padic_loss = float(row[0]) if row and row[0] is not None else None
+        accuracy = float(row[1]) if row and row[1] is not None else None
+
+        # Get parameter count from coefficients table
+        mean_params = None
+        cur.execute(
+            sql.SQL(
+                """
+                SELECT AVG(param_count) FROM (
+                    SELECT cv_fold, COUNT(*) as param_count
+                    FROM {schema}.taxonomy_pclr_coefficients
+                    GROUP BY cv_fold
+                ) sub
+                """
+            ).format(schema=sql.Identifier(schema))
+        )
+        row = cur.fetchone()
         if row and row[0] is not None:
-            return float(row[0]), float(row[1]) if row[1] is not None else None
+            mean_params = float(row[0])
 
-    return None, None
+    return padic_loss, accuracy, mean_params
 
 
-def get_nn_metrics(conn, schema: str = "padjective") -> tuple[float | None, float | None]:
-    """Get PCNN mean p-adic loss and accuracy across all folds.
+def get_nn_metrics(conn, schema: str = "padjective") -> tuple[float | None, float | None, float | None]:
+    """Get PCNN mean p-adic loss, accuracy, and input weight count across all folds.
 
     Returns:
-        tuple: (mean_padic_loss, mean_accuracy)
+        tuple: (mean_padic_loss, mean_accuracy, mean_input_weights)
     """
     with conn.cursor() as cur:
         cur.execute(
@@ -161,10 +183,27 @@ def get_nn_metrics(conn, schema: str = "padjective") -> tuple[float | None, floa
             ).format(schema=sql.Identifier(schema))
         )
         row = cur.fetchone()
-        if row and row[0] is not None:
-            return float(row[0]), float(row[1]) if row[1] is not None else None
+        padic_loss = float(row[0]) if row and row[0] is not None else None
+        accuracy = float(row[1]) if row and row[1] is not None else None
 
-    return None, None
+        # Get input weight count from weights table
+        mean_input_weights = None
+        cur.execute(
+            sql.SQL(
+                """
+                SELECT AVG(weight_count) FROM (
+                    SELECT cv_fold, COUNT(*) as weight_count
+                    FROM {schema}.taxonomy_pcnn_input_weights
+                    GROUP BY cv_fold
+                ) sub
+                """
+            ).format(schema=sql.Identifier(schema))
+        )
+        row = cur.fetchone()
+        if row and row[0] is not None:
+            mean_input_weights = float(row[0])
+
+    return padic_loss, accuracy, mean_input_weights
 
 
 def get_dummy_metrics(conn, schema: str = "padjective") -> tuple[float | None, float | None]:
@@ -215,6 +254,45 @@ def get_ulr_metrics(conn, schema: str = "padjective") -> tuple[float | None, flo
     return None, None, None
 
 
+def get_unn_metrics(conn, schema: str = "padjective") -> tuple[float | None, float | None, float | None]:
+    """Get UNN (Unconstrained Neural Network) mean metrics across all folds.
+
+    Returns:
+        tuple: (mean_padic_loss, mean_accuracy, mean_nonzero_params)
+    """
+    # Check if table exists first
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT EXISTS (
+                SELECT FROM information_schema.tables
+                WHERE table_schema = %s AND table_name = 'taxonomy_unn_fold_results'
+            )
+            """,
+            (schema,)
+        )
+        if not cur.fetchone()[0]:
+            return None, None, None
+
+        cur.execute(
+            sql.SQL(
+                """
+                SELECT AVG(padic_loss_mean), AVG(test_accuracy), AVG(num_nonzero_params)
+                FROM {schema}.taxonomy_unn_fold_results
+                """
+            ).format(schema=sql.Identifier(schema))
+        )
+        row = cur.fetchone()
+        if row and row[0] is not None:
+            return (
+                float(row[0]),
+                float(row[1]) if row[1] is not None else None,
+                float(row[2]) if row[2] is not None else None,
+            )
+
+    return None, None, None
+
+
 def snapshot_metrics(
     conn,
     product_table: str = "cantbuymelove.product",
@@ -243,10 +321,11 @@ def snapshot_metrics(
 
     # Gather model metrics
     umllr_padic, umllr_acc = get_umllr_metrics(conn, schema)
-    lr_padic, lr_acc = get_lr_metrics(conn, schema)
-    nn_padic, nn_acc = get_nn_metrics(conn, schema)
+    lr_padic, lr_acc, lr_params = get_lr_metrics(conn, schema)
+    nn_padic, nn_acc, nn_input_weights = get_nn_metrics(conn, schema)
     dummy_padic, dummy_acc = get_dummy_metrics(conn, schema)
     ulr_padic, ulr_acc, ulr_nonzero = get_ulr_metrics(conn, schema)
+    unn_padic, unn_acc, unn_nonzero = get_unn_metrics(conn, schema)
 
     # Insert or update snapshot
     with conn.cursor() as cur:
@@ -257,8 +336,10 @@ def snapshot_metrics(
                 (snapshot_date, num_products, num_tags, num_taxonomies,
                  umllr_mean_padic_loss, lr_mean_padic_loss, nn_mean_padic_loss, dummy_mean_padic_loss,
                  umllr_mean_accuracy, lr_mean_accuracy, nn_mean_accuracy, dummy_mean_accuracy,
-                 ulr_mean_padic_loss, ulr_mean_accuracy, ulr_mean_nonzero_params)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                 ulr_mean_padic_loss, ulr_mean_accuracy, ulr_mean_nonzero_params,
+                 lr_mean_params, nn_mean_input_weights,
+                 unn_mean_padic_loss, unn_mean_accuracy, unn_mean_nonzero_params)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ON CONFLICT (snapshot_date) DO UPDATE SET
                     snapshot_time = now(),
                     num_products = EXCLUDED.num_products,
@@ -274,7 +355,12 @@ def snapshot_metrics(
                     dummy_mean_accuracy = EXCLUDED.dummy_mean_accuracy,
                     ulr_mean_padic_loss = EXCLUDED.ulr_mean_padic_loss,
                     ulr_mean_accuracy = EXCLUDED.ulr_mean_accuracy,
-                    ulr_mean_nonzero_params = EXCLUDED.ulr_mean_nonzero_params
+                    ulr_mean_nonzero_params = EXCLUDED.ulr_mean_nonzero_params,
+                    lr_mean_params = EXCLUDED.lr_mean_params,
+                    nn_mean_input_weights = EXCLUDED.nn_mean_input_weights,
+                    unn_mean_padic_loss = EXCLUDED.unn_mean_padic_loss,
+                    unn_mean_accuracy = EXCLUDED.unn_mean_accuracy,
+                    unn_mean_nonzero_params = EXCLUDED.unn_mean_nonzero_params
                 """
             ).format(schema=sql.Identifier(schema)),
             (
@@ -293,6 +379,11 @@ def snapshot_metrics(
                 ulr_padic,
                 ulr_acc,
                 ulr_nonzero,
+                lr_params,
+                nn_input_weights,
+                unn_padic,
+                unn_acc,
+                unn_nonzero,
             ),
         )
     conn.commit()
@@ -303,6 +394,7 @@ def snapshot_metrics(
     print(f"  PCLR p-adic loss: {lr_padic:.6f}" if lr_padic else "  PCLR: no data")
     print(f"  PCNN p-adic loss: {nn_padic:.6f}" if nn_padic else "  PCNN: no data")
     print(f"  ULR p-adic loss: {ulr_padic:.6f}" if ulr_padic else "  ULR: no data")
+    print(f"  UNN p-adic loss: {unn_padic:.6f}" if unn_padic else "  UNN: no data")
     print(f"  Dummy p-adic loss: {dummy_padic:.6f}" if dummy_padic else "  Dummy: no data")
 
 
