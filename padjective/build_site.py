@@ -2329,13 +2329,13 @@ def _build_trends_section(
                     p_str = f"{p_val:.4f}" if p_val >= 0.0001 else f"{p_val:.2e}"
                     sig = "Yes" if p_val < 0.05 else "No"
                     rows.append(
-                        f"<tr><td>{label}</td>"
-                        f"<td>{s['slope']:.4f}</td>"
-                        f"<td>{s['intercept']:.4f}</td>"
-                        f"<td>{s['r_squared']:.4f}</td>"
-                        f"<td>{p_str}</td>"
-                        f"<td>{sig}</td>"
-                        f"<td>{int(s['n_points'])}</td></tr>"
+                        f"<tr><td style=\"text-align: left;\">{label}</td>"
+                        f"<td style=\"text-align: right;\">{s['slope']:.4f}</td>"
+                        f"<td style=\"text-align: right;\">{s['intercept']:.4f}</td>"
+                        f"<td style=\"text-align: right;\">{s['r_squared']:.4f}</td>"
+                        f"<td style=\"text-align: right;\">{p_str}</td>"
+                        f"<td style=\"text-align: center;\">{sig}</td>"
+                        f"<td style=\"text-align: right;\">{int(s['n_points'])}</td></tr>"
                     )
             if rows:
                 params_stats_html = f"""
