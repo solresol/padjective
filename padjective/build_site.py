@@ -1596,9 +1596,9 @@ def _write_prediction_detail_page(
         coef = umllr_coeffs.get(tag, 0)
         if coef != 0:
             tag_path, tag_expansion = _format_padic_expansion(coef, prime_base)
-            # Reverse to get database format
-            reversed_tag_path = ".".join(reversed(tag_path.split(".")))
-            tag_info = taxonomy_info_by_path.get(reversed_tag_path, {})
+            # tag_path is already in the correct format (e.g., "1.8.6")
+            # Database stores paths in the same format
+            tag_info = taxonomy_info_by_path.get(tag_path, {})
             tag_tax_name = tag_info.get("taxonomy_name", "")
 
             umllr_tag_rows.append(f"""
