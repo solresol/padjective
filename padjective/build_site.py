@@ -2285,6 +2285,7 @@ def _build_trends_section(
     output_dir: Path,
     perf_vs_products_stats: Optional[Dict[str, Dict[str, float]]] = None,
     perf_vs_tags_stats: Optional[Dict[str, Dict[str, float]]] = None,
+    params_vs_loss_stats: Optional[Dict[str, Dict[str, float]]] = None,
 ) -> str:
     """Build HTML section for historical trends charts."""
     if not trends_chart_path:
@@ -2316,13 +2317,58 @@ def _build_trends_section(
     params_vs_loss_html = ""
     if params_vs_loss_chart_path:
         params_chart_rel = params_vs_loss_chart_path.relative_to(output_dir).as_posix()
+
+        # Build regression stats table
+        params_stats_html = ""
+        if params_vs_loss_stats:
+            rows = []
+            for key, label in [('with_dummy', 'With Dummy'), ('without_dummy', 'Without Dummy')]:
+                if key in params_vs_loss_stats:
+                    s = params_vs_loss_stats[key]
+                    p_val = s['p_value']
+                    p_str = f"{p_val:.4f}" if p_val >= 0.0001 else f"{p_val:.2e}"
+                    sig = "Yes" if p_val < 0.05 else "No"
+                    rows.append(
+                        f"<tr><td>{label}</td>"
+                        f"<td>{s['slope']:.4f}</td>"
+                        f"<td>{s['intercept']:.4f}</td>"
+                        f"<td>{s['r_squared']:.4f}</td>"
+                        f"<td>{p_str}</td>"
+                        f"<td>{sig}</td>"
+                        f"<td>{int(s['n_points'])}</td></tr>"
+                    )
+            if rows:
+                params_stats_html = f"""
+    <div style="margin-top: 1rem; overflow-x: auto;">
+      <p style="font-size: 0.9rem; color: #64748b; margin-bottom: 0.5rem;">
+        <strong>Regression: p-adic loss = slope × log₁₀(params) + intercept</strong>
+      </p>
+      <table style="font-size: 0.85rem; border-collapse: collapse; width: 100%;">
+        <thead>
+          <tr style="background: #f1f5f9;">
+            <th style="padding: 0.5rem; text-align: left; border-bottom: 2px solid #e2e8f0;">Line</th>
+            <th style="padding: 0.5rem; text-align: right; border-bottom: 2px solid #e2e8f0;">Slope</th>
+            <th style="padding: 0.5rem; text-align: right; border-bottom: 2px solid #e2e8f0;">Intercept</th>
+            <th style="padding: 0.5rem; text-align: right; border-bottom: 2px solid #e2e8f0;">R²</th>
+            <th style="padding: 0.5rem; text-align: right; border-bottom: 2px solid #e2e8f0;">p-value</th>
+            <th style="padding: 0.5rem; text-align: center; border-bottom: 2px solid #e2e8f0;">Significant?</th>
+            <th style="padding: 0.5rem; text-align: right; border-bottom: 2px solid #e2e8f0;">n</th>
+          </tr>
+        </thead>
+        <tbody>
+          {"".join(rows)}
+        </tbody>
+      </table>
+    </div>"""
+
         params_vs_loss_html = f"""
     <figure class="chart" style="margin-top: 2rem;">
       <img src="{params_chart_rel}" alt="Model complexity vs performance (parameter count vs p-adic loss)" />
       <figcaption style="text-align: center; color: #64748b; font-size: 0.9rem; margin-top: 0.5rem;">
         Parameter count (log scale) vs p-adic loss. Sparse models use fewer non-zero parameters.
       </figcaption>
-    </figure>"""
+    </figure>
+    {params_stats_html}"""
 
     return f"""
   <section style="max-width: 70rem; margin: 2rem auto; background: white; border-radius: 1rem; box-shadow: 0 12px 30px rgba(15, 23, 42, 0.12); padding: 2rem 1.5rem;">
@@ -2597,6 +2643,7 @@ def _build_index_html(
     params_vs_loss_chart_path: Optional[Path] = None,
     perf_vs_products_stats: Optional[Dict[str, Dict[str, float]]] = None,
     perf_vs_tags_stats: Optional[Dict[str, Dict[str, float]]] = None,
+    params_vs_loss_stats: Optional[Dict[str, Dict[str, float]]] = None,
 ) -> None:
     generated = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
 
@@ -3000,7 +3047,7 @@ def _build_index_html(
 
   {taxonomy_overview_html}
 
-  {_build_trends_section(trends_chart_path, perf_vs_products_chart_path, perf_vs_tags_chart_path, params_vs_loss_chart_path, output_dir, perf_vs_products_stats, perf_vs_tags_stats)}
+  {_build_trends_section(trends_chart_path, perf_vs_products_chart_path, perf_vs_tags_chart_path, params_vs_loss_chart_path, output_dir, perf_vs_products_stats, perf_vs_tags_stats, params_vs_loss_stats)}
 
   <footer>
     <p>Source available on <a href="https://github.com/IFost-Sydney-Uni/padjective">GitHub</a></p>
@@ -5091,14 +5138,15 @@ def _generate_params_vs_loss_chart(
     taxonomy_pcnn_fold_results: Optional[list[Dict[str, Any]]] = None,
     taxonomy_ulr_fold_results: Optional[list[Dict[str, Any]]] = None,
     taxonomy_unn_fold_results: Optional[list[Dict[str, Any]]] = None,
-) -> Optional[Path]:
+) -> tuple[Optional[Path], Dict[str, Dict[str, float]]]:
     """Generate a scatter plot showing parameter count vs p-adic loss for all models.
 
     This chart helps visualize the tradeoff between model complexity (parameters)
     and prediction quality (p-adic loss).
 
     Returns:
-        Path to generated chart or None if insufficient data
+        Tuple of (path to generated chart, regression statistics dict)
+        Returns (None, {}) if insufficient data
     """
     # Collect data points: (params, loss, label, color, marker)
     data_points = []
@@ -5179,7 +5227,7 @@ def _generate_params_vs_loss_chart(
                 data_points.append((1, float(row[0]), "Dummy", "#94a3b8", "X"))
 
     if len(data_points) < 2:
-        return None
+        return None, {}
 
     fig, ax = plt.subplots(figsize=(10, 6))
 
@@ -5195,6 +5243,8 @@ def _generate_params_vs_loss_chart(
     all_points = [(params, loss, label) for params, loss, label, _, _ in data_points]
     non_dummy_points = [(params, loss) for params, loss, label in all_points if label != "Dummy"]
 
+    regression_stats: Dict[str, Dict[str, float]] = {}
+
     # Line of best fit WITH dummy (all points)
     if len(all_points) >= 2:
         log_params_all = np.array([np.log10(p) for p, _, _ in all_points])
@@ -5202,6 +5252,16 @@ def _generate_params_vs_loss_chart(
 
         from scipy import stats as scipy_stats
         result_all = scipy_stats.linregress(log_params_all, losses_all)
+
+        regression_stats['with_dummy'] = {
+            'slope': result_all.slope,
+            'intercept': result_all.intercept,
+            'r_squared': result_all.rvalue ** 2,
+            'r_value': result_all.rvalue,
+            'p_value': result_all.pvalue,
+            'std_err': result_all.stderr,
+            'n_points': len(all_points),
+        }
 
         # Generate line across the full x range
         x_range = np.linspace(min(log_params_all) - 0.3, max(log_params_all) + 0.3, 100)
@@ -5218,6 +5278,16 @@ def _generate_params_vs_loss_chart(
         losses_no_dummy = np.array([l for _, l in non_dummy_points])
 
         result_no_dummy = scipy_stats.linregress(log_params_no_dummy, losses_no_dummy)
+
+        regression_stats['without_dummy'] = {
+            'slope': result_no_dummy.slope,
+            'intercept': result_no_dummy.intercept,
+            'r_squared': result_no_dummy.rvalue ** 2,
+            'r_value': result_no_dummy.rvalue,
+            'p_value': result_no_dummy.pvalue,
+            'std_err': result_no_dummy.stderr,
+            'n_points': len(non_dummy_points),
+        }
 
         # Generate line across the non-dummy x range
         x_range_nd = np.linspace(min(log_params_no_dummy) - 0.3, max(log_params_no_dummy) + 0.3, 100)
@@ -5242,7 +5312,7 @@ def _generate_params_vs_loss_chart(
     plt.savefig(output_path, dpi=150, bbox_inches='tight')
     plt.close()
 
-    return output_path
+    return output_path, regression_stats
 
 
 def build_site(
@@ -5479,7 +5549,7 @@ footer {text-align: center; padding: 2rem 1.5rem 3rem; color: #6b7280;}
         schema=battle_schema
     )
 
-    params_vs_loss_chart_path = _generate_params_vs_loss_chart(
+    params_vs_loss_chart_path, params_vs_loss_stats = _generate_params_vs_loss_chart(
         precomputed_database,
         assets_dir / "params_vs_loss.png",
         schema=battle_schema,
@@ -5514,6 +5584,7 @@ footer {text-align: center; padding: 2rem 1.5rem 3rem; color: #6b7280;}
         params_vs_loss_chart_path,
         perf_vs_products_stats,
         perf_vs_tags_stats,
+        params_vs_loss_stats,
     )
 
     metadata = {
