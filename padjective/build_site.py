@@ -2038,11 +2038,10 @@ def _write_umllr_pages(output_dir: Path, summary: Dict[str, Any], conn=None, sch
                 zero_coeff_tags.append(tag)
                 continue
             taxonomy_path, expansion = _format_padic_expansion(coefficient, prime_base)
-            # Reverse taxonomy_path to match database format for lookup
-            # taxonomy_path is "1.1.10.2.8" (least-significant-first)
-            # database has "8.2.10.1.1" (most-significant-first)
-            reversed_path = ".".join(reversed(taxonomy_path.split(".")))
-            taxonomy_name = taxonomy_names.get(reversed_path, "")
+            # taxonomy_path is least-significant-first (e.g., "12.6.2")
+            # Database stores paths in the same format: category.subcategory.subsubcategory
+            # where least-significant p-adic digit = top-level category
+            taxonomy_name = taxonomy_names.get(taxonomy_path, "")
             non_zero_rows.append(
                 "<tr>"
                 f"<td>{_format_long_tag(tag)}</td>"
