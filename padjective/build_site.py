@@ -5823,13 +5823,13 @@ def _generate_unconstrained_log_chart(
     if taxonomy_ulr_fold_results:
         avg_params = sum(r["num_nonzero_params"] for r in taxonomy_ulr_fold_results) / len(taxonomy_ulr_fold_results)
         avg_loss = sum(r["padic_loss_mean"] for r in taxonomy_ulr_fold_results) / len(taxonomy_ulr_fold_results)
-        data_points.append((avg_params, avg_loss, "ULR", "#8b5cf6", "D"))
+        data_points.append((avg_params, avg_loss, "Unconstrained Logistic Regression with L1", "#8b5cf6", "D"))
 
     # UNN - get average non-zero params and loss
     if taxonomy_unn_fold_results:
         avg_params = sum(r["num_nonzero_params"] for r in taxonomy_unn_fold_results) / len(taxonomy_unn_fold_results)
         avg_loss = sum(r["padic_loss_mean"] for r in taxonomy_unn_fold_results) / len(taxonomy_unn_fold_results)
-        data_points.append((avg_params, avg_loss, "UNN", "#ec4899", "p"))
+        data_points.append((avg_params, avg_loss, "Unconstrained Neural Network with L1", "#ec4899", "p"))
 
     # Get Importance-Optimised p-adic LR (UMLLR) - use actual non-zero coefficients
     if _table_exists(conn, schema, "umllr_fold_metrics"):
@@ -5863,7 +5863,7 @@ def _generate_unconstrained_log_chart(
             avg_nonzero = float(row[0]) if row and row[0] is not None else None
 
             if avg_loss is not None and avg_nonzero is not None:
-                data_points.append((avg_nonzero, avg_loss, "Importance-Optimised", "#0b6ce3", "o"))
+                data_points.append((avg_nonzero, avg_loss, "Importance-Optimised $p$-adic Linear Regression", "#0b6ce3", "o"))
 
     # Get Dummy baseline (1 parameter - always predicts most common taxonomy)
     if _table_exists(conn, schema, "dummy_fold_metrics"):
@@ -5878,7 +5878,7 @@ def _generate_unconstrained_log_chart(
             )
             row = cur.fetchone()
             if row and row[0] is not None:
-                data_points.append((1, float(row[0]), "Dummy", "#94a3b8", "X"))
+                data_points.append((1, float(row[0]), "Dummy Baseline", "#94a3b8", "X"))
 
     if len(data_points) < 2:
         return None, None
