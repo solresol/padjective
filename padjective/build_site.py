@@ -5273,6 +5273,50 @@ def _load_taxonomy_unn_fold_results(conn, schema: str = "padjective") -> Optiona
     return results
 
 
+def _load_taxonomy_dt_fold_results(conn, schema: str = "padjective") -> Optional[list[Dict[str, Any]]]:
+    """Load taxonomy decision tree fold-based results."""
+    if not _table_exists(conn, schema, "taxonomy_dt_fold_results"):
+        return None
+
+    with conn.cursor(row_factory=dict_row) as cur:
+        cur.execute(
+            sql.SQL(
+                """
+                SELECT cv_fold, test_accuracy, test_f1, test_hierarchical_loss,
+                       padic_loss_total, padic_loss_mean, prime_base,
+                       num_train_samples, num_test_samples, num_tags,
+                       tree_depth, num_leaves, num_nodes, num_classes, effective_params
+                FROM {schema}.taxonomy_dt_fold_results
+                ORDER BY cv_fold
+                """
+            ).format(schema=sql.Identifier(schema))
+        )
+        results = []
+        for row in cur:
+            results.append({
+                "cv_fold": int(row["cv_fold"]),
+                "test_accuracy": float(row["test_accuracy"]),
+                "test_f1": float(row["test_f1"]),
+                "test_hierarchical_loss": float(row["test_hierarchical_loss"]),
+                "padic_loss_total": float(row["padic_loss_total"]),
+                "padic_loss_mean": float(row["padic_loss_mean"]),
+                "prime_base": int(row["prime_base"]),
+                "num_train_samples": int(row["num_train_samples"]),
+                "num_test_samples": int(row["num_test_samples"]),
+                "num_tags": int(row["num_tags"]),
+                "tree_depth": int(row["tree_depth"]),
+                "num_leaves": int(row["num_leaves"]),
+                "num_nodes": int(row["num_nodes"]),
+                "num_classes": int(row["num_classes"]) if row["num_classes"] is not None else 199,
+                "effective_params": float(row["effective_params"]) if row["effective_params"] is not None else float(row["num_nodes"]) * 7.64,
+            })
+
+    if not results:
+        return None
+
+    return results
+
+
 def _generate_taxonomy_distribution_chart(class_distribution: list[dict], output_path: Path, top_n: int = 15) -> Optional[Path]:
     """Generate a horizontal bar chart showing taxonomy class distribution.
 
@@ -5829,11 +5873,12 @@ def _generate_unconstrained_log_chart(
     schema: str,
     taxonomy_ulr_fold_results: Optional[list[Dict[str, Any]]] = None,
     taxonomy_unn_fold_results: Optional[list[Dict[str, Any]]] = None,
+    taxonomy_dt_fold_results: Optional[list[Dict[str, Any]]] = None,
 ) -> Tuple[Optional[Path], Optional[Dict[str, Any]]]:
     """Generate a log-log scatter plot showing only unconstrained models (no PCLR/PCNN).
 
     Shows parameter count vs p-adic loss with both axes on log scale.
-    Includes Importance-Optimised, ULR, UNN, and Dummy baseline.
+    Includes Importance-Optimised, ULR, UNN, Decision Tree, and Dummy baseline.
 
     Returns:
         Tuple of (path to generated chart, regression stats dict) or (None, None) if insufficient data
@@ -5852,6 +5897,12 @@ def _generate_unconstrained_log_chart(
         avg_params = sum(r["num_nonzero_params"] for r in taxonomy_unn_fold_results) / len(taxonomy_unn_fold_results)
         avg_loss = sum(r["padic_loss_mean"] for r in taxonomy_unn_fold_results) / len(taxonomy_unn_fold_results)
         data_points.append((avg_params, avg_loss, "Unconstrained Neural Network with L1", "#ec4899", "p"))
+
+    # Decision Tree - use effective_params (num_nodes * log2(num_classes))
+    if taxonomy_dt_fold_results:
+        avg_params = sum(r["effective_params"] for r in taxonomy_dt_fold_results) / len(taxonomy_dt_fold_results)
+        avg_loss = sum(r["padic_loss_mean"] for r in taxonomy_dt_fold_results) / len(taxonomy_dt_fold_results)
+        data_points.append((avg_params, avg_loss, "Decision Tree", "#14b8a6", "h"))
 
     # Get Importance-Optimised p-adic LR (UMLLR) - use actual non-zero coefficients
     if _table_exists(conn, schema, "umllr_fold_metrics"):
@@ -6182,6 +6233,10 @@ footer {text-align: center; padding: 2rem 1.5rem 3rem; color: #6b7280;}
             output_dir, taxonomy_unn_fold_results
         )
 
+    taxonomy_dt_fold_results = _load_taxonomy_dt_fold_results(
+        precomputed_database, schema=battle_schema
+    )
+
     # Generate historical trends charts
     trends_chart_path = _generate_historical_trends_chart(
         precomputed_database,
@@ -6215,6 +6270,7 @@ footer {text-align: center; padding: 2rem 1.5rem 3rem; color: #6b7280;}
         schema=battle_schema,
         taxonomy_ulr_fold_results=taxonomy_ulr_fold_results,
         taxonomy_unn_fold_results=taxonomy_unn_fold_results,
+        taxonomy_dt_fold_results=taxonomy_dt_fold_results,
     )
 
     _build_index_html(

@@ -349,6 +349,10 @@ def main() -> None:
         finally:
             padic_conn.close()
 
+        # Calculate effective_params for display
+        num_classes = len(np.unique(y_train))
+        effective_params = stats.num_nodes * np.log2(num_classes)
+
         print(f"\nFold {args.fold} Results:")
         print(f"  Test accuracy: {test_accuracy:.4f}")
         print(f"  Test F1 (weighted): {test_f1:.4f}")
@@ -359,6 +363,8 @@ def main() -> None:
         print(f"  Tree depth: {stats.tree_depth}")
         print(f"  Number of leaves: {stats.num_leaves}")
         print(f"  Number of nodes: {stats.num_nodes}")
+        print(f"  Number of classes: {num_classes}")
+        print(f"  Effective params (nodes × log₂(classes)): {effective_params:.1f}")
 
         # Save fold results to database
         save_conn = db.get_connection(args.dsn)
@@ -385,9 +391,22 @@ def main() -> None:
                             tree_depth INTEGER NOT NULL,
                             num_leaves INTEGER NOT NULL,
                             num_nodes INTEGER NOT NULL,
+                            num_classes INTEGER NOT NULL,
+                            effective_params DOUBLE PRECISION NOT NULL,
                             max_depth_param INTEGER,
                             trained_at TIMESTAMPTZ NOT NULL DEFAULT now()
                         )
+                        """
+                    ).format(schema=sql.Identifier(args.results_schema))
+                )
+
+                # Add columns if they don't exist (for migration)
+                cur.execute(
+                    sql.SQL(
+                        """
+                        ALTER TABLE {schema}.taxonomy_dt_fold_results
+                        ADD COLUMN IF NOT EXISTS num_classes INTEGER,
+                        ADD COLUMN IF NOT EXISTS effective_params DOUBLE PRECISION
                         """
                     ).format(schema=sql.Identifier(args.results_schema))
                 )
@@ -430,6 +449,11 @@ def main() -> None:
                 )
 
                 # Insert new results
+                # effective_params = num_nodes * log2(num_classes)
+                # This accounts for the information content of each decision node
+                num_classes = len(model.classes_)
+                effective_params = stats.num_nodes * np.log2(num_classes)
+
                 cur.execute(
                     sql.SQL(
                         """
@@ -437,14 +461,14 @@ def main() -> None:
                         (cv_fold, test_accuracy, test_f1, test_hierarchical_loss,
                          padic_loss_total, padic_loss_mean, prime_base,
                          num_train_samples, num_test_samples, num_tags,
-                         tree_depth, num_leaves, num_nodes, max_depth_param)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                         tree_depth, num_leaves, num_nodes, num_classes, effective_params, max_depth_param)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                         """
                     ).format(schema=sql.Identifier(args.results_schema)),
                     (args.fold, test_accuracy, test_f1, test_hierarchical,
                      padic_loss, padic_loss_mean, prime_base,
                      len(y_train), len(y_test), len(feature_names),
-                     stats.tree_depth, stats.num_leaves, stats.num_nodes, args.max_depth)
+                     stats.tree_depth, stats.num_leaves, stats.num_nodes, num_classes, effective_params, args.max_depth)
                 )
 
                 # Save individual predictions
