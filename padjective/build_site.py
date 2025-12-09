@@ -5456,6 +5456,9 @@ def _generate_performance_vs_products_chart(conn, output_path: Path, schema: str
             # Calculate regression with scipy for p-value
             x_arr = np.array(valid_x)
             y_arr = np.array(valid_y)
+            # Check if x values have any variance (all identical = can't regress)
+            if len(set(valid_x)) < 2:
+                return None
             result = stats.linregress(x_arr, y_arr)
             x_line = np.linspace(min(valid_x), max(valid_x), 100)
             y_line = result.slope * x_line + result.intercept
@@ -5559,6 +5562,9 @@ def _generate_performance_vs_tags_chart(conn, output_path: Path, schema: str = "
             # Calculate regression with scipy for p-value
             x_arr = np.array(valid_x)
             y_arr = np.array(valid_y)
+            # Check if x values have any variance (all identical = can't regress)
+            if len(set(valid_x)) < 2:
+                return None
             result = stats.linregress(x_arr, y_arr)
             x_line = np.linspace(min(valid_x), max(valid_x), 100)
             y_line = result.slope * x_line + result.intercept
