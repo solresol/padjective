@@ -106,6 +106,17 @@ for fold in 0 1 2 3 4; do
         --fold "$fold"
 done
 
+# Train decision tree classifiers (once per fold)
+# Uses ALL tags - tree depth provides natural complexity control
+for fold in 0 1 2 3 4; do
+    echo "Training decision tree classifier for fold $fold..."
+    uv run -m padjective.taxonomy_dt_classifier \
+        "${TAGBATTLE_DSN_ARGS[@]}" \
+        --product-table "$TAGBATTLE_PRODUCT_TABLE" \
+        --results-schema "$TAXONOMY_RESULTS_SCHEMA" \
+        --fold "$fold"
+done
+
 # Snapshot current metrics for historical tracking
 uv run -m padjective.snapshot_metrics \
     "${TAGBATTLE_DSN_ARGS[@]}" \

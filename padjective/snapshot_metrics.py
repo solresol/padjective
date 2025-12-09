@@ -71,7 +71,10 @@ def create_history_table(conn, schema: str = "padjective") -> None:
                 ADD COLUMN IF NOT EXISTS nn_mean_input_weights REAL,
                 ADD COLUMN IF NOT EXISTS unn_mean_padic_loss REAL,
                 ADD COLUMN IF NOT EXISTS unn_mean_accuracy REAL,
-                ADD COLUMN IF NOT EXISTS unn_mean_nonzero_params REAL
+                ADD COLUMN IF NOT EXISTS unn_mean_nonzero_params REAL,
+                ADD COLUMN IF NOT EXISTS dt_mean_padic_loss REAL,
+                ADD COLUMN IF NOT EXISTS dt_mean_accuracy REAL,
+                ADD COLUMN IF NOT EXISTS dt_mean_tree_depth REAL
                 """
             ).format(schema=sql.Identifier(schema))
         )
@@ -293,6 +296,45 @@ def get_unn_metrics(conn, schema: str = "padjective") -> tuple[float | None, flo
     return None, None, None
 
 
+def get_dt_metrics(conn, schema: str = "padjective") -> tuple[float | None, float | None, float | None]:
+    """Get DT (Decision Tree) mean metrics across all folds.
+
+    Returns:
+        tuple: (mean_padic_loss, mean_accuracy, mean_tree_depth)
+    """
+    # Check if table exists first
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT EXISTS (
+                SELECT FROM information_schema.tables
+                WHERE table_schema = %s AND table_name = 'taxonomy_dt_fold_results'
+            )
+            """,
+            (schema,)
+        )
+        if not cur.fetchone()[0]:
+            return None, None, None
+
+        cur.execute(
+            sql.SQL(
+                """
+                SELECT AVG(padic_loss_mean), AVG(test_accuracy), AVG(tree_depth)
+                FROM {schema}.taxonomy_dt_fold_results
+                """
+            ).format(schema=sql.Identifier(schema))
+        )
+        row = cur.fetchone()
+        if row and row[0] is not None:
+            return (
+                float(row[0]),
+                float(row[1]) if row[1] is not None else None,
+                float(row[2]) if row[2] is not None else None,
+            )
+
+    return None, None, None
+
+
 def snapshot_metrics(
     conn,
     product_table: str = "cantbuymelove.product",
@@ -326,6 +368,7 @@ def snapshot_metrics(
     dummy_padic, dummy_acc = get_dummy_metrics(conn, schema)
     ulr_padic, ulr_acc, ulr_nonzero = get_ulr_metrics(conn, schema)
     unn_padic, unn_acc, unn_nonzero = get_unn_metrics(conn, schema)
+    dt_padic, dt_acc, dt_depth = get_dt_metrics(conn, schema)
 
     # Insert or update snapshot
     with conn.cursor() as cur:
@@ -338,8 +381,9 @@ def snapshot_metrics(
                  umllr_mean_accuracy, lr_mean_accuracy, nn_mean_accuracy, dummy_mean_accuracy,
                  ulr_mean_padic_loss, ulr_mean_accuracy, ulr_mean_nonzero_params,
                  lr_mean_params, nn_mean_input_weights,
-                 unn_mean_padic_loss, unn_mean_accuracy, unn_mean_nonzero_params)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                 unn_mean_padic_loss, unn_mean_accuracy, unn_mean_nonzero_params,
+                 dt_mean_padic_loss, dt_mean_accuracy, dt_mean_tree_depth)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ON CONFLICT (snapshot_date) DO UPDATE SET
                     snapshot_time = now(),
                     num_products = EXCLUDED.num_products,
@@ -360,7 +404,10 @@ def snapshot_metrics(
                     nn_mean_input_weights = EXCLUDED.nn_mean_input_weights,
                     unn_mean_padic_loss = EXCLUDED.unn_mean_padic_loss,
                     unn_mean_accuracy = EXCLUDED.unn_mean_accuracy,
-                    unn_mean_nonzero_params = EXCLUDED.unn_mean_nonzero_params
+                    unn_mean_nonzero_params = EXCLUDED.unn_mean_nonzero_params,
+                    dt_mean_padic_loss = EXCLUDED.dt_mean_padic_loss,
+                    dt_mean_accuracy = EXCLUDED.dt_mean_accuracy,
+                    dt_mean_tree_depth = EXCLUDED.dt_mean_tree_depth
                 """
             ).format(schema=sql.Identifier(schema)),
             (
@@ -384,6 +431,9 @@ def snapshot_metrics(
                 unn_padic,
                 unn_acc,
                 unn_nonzero,
+                dt_padic,
+                dt_acc,
+                dt_depth,
             ),
         )
     conn.commit()
@@ -395,6 +445,7 @@ def snapshot_metrics(
     print(f"  PCNN p-adic loss: {nn_padic:.6f}" if nn_padic else "  PCNN: no data")
     print(f"  ULR p-adic loss: {ulr_padic:.6f}" if ulr_padic else "  ULR: no data")
     print(f"  UNN p-adic loss: {unn_padic:.6f}" if unn_padic else "  UNN: no data")
+    print(f"  DT p-adic loss: {dt_padic:.6f}" if dt_padic else "  DT: no data")
     print(f"  Dummy p-adic loss: {dummy_padic:.6f}" if dummy_padic else "  Dummy: no data")
 
 
