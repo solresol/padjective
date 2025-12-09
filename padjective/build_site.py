@@ -3097,6 +3097,7 @@ def _build_index_html(
     taxonomy_pcnn_fold_results: Optional[list[Dict[str, Any]]] = None,
     taxonomy_ulr_fold_results: Optional[list[Dict[str, Any]]] = None,
     taxonomy_unn_fold_results: Optional[list[Dict[str, Any]]] = None,
+    taxonomy_dt_fold_results: Optional[list[Dict[str, Any]]] = None,
     trends_chart_path: Optional[Path] = None,
     perf_vs_products_chart_path: Optional[Path] = None,
     perf_vs_tags_chart_path: Optional[Path] = None,
@@ -3287,6 +3288,25 @@ def _build_index_html(
     {taxonomy_unn_link or '<span class="card-link disabled">No report available</span>'}
   </div>"""
 
+    dt_card = ""
+    if taxonomy_dt_fold_results:
+        avg_loss = sum(r["padic_loss_mean"] for r in taxonomy_dt_fold_results) / len(taxonomy_dt_fold_results)
+        avg_effective_params = sum(r["effective_params"] for r in taxonomy_dt_fold_results) / len(taxonomy_dt_fold_results)
+        dt_card = f"""
+  <div class="model-card">
+    <h3>Decision Tree</h3>
+    <p>Unconstrained tree using ALL tags</p>
+    <div class="card-metric">
+      <span class="value">{avg_loss:.4f}</span>
+      <span class="label">Avg p-adic loss</span>
+    </div>
+    <div class="card-metric" style="margin-top: 0.5rem;">
+      <span class="value">{avg_effective_params:,.0f}</span>
+      <span class="label">Effective params</span>
+    </div>
+    <span class="card-link disabled">No report available</span>
+  </div>"""
+
     # Combine model cards
     all_cards: list[str] = []
     if umllr_card:
@@ -3297,6 +3317,8 @@ def _build_index_html(
         all_cards.append(ulr_card)
     if unn_card:
         all_cards.append(unn_card)
+    if dt_card:
+        all_cards.append(dt_card)
     if taxonomy_card:
         all_cards.append(taxonomy_card)
     if dummy_card:
@@ -6292,6 +6314,7 @@ footer {text-align: center; padding: 2rem 1.5rem 3rem; color: #6b7280;}
         taxonomy_pcnn_fold_results,
         taxonomy_ulr_fold_results,
         taxonomy_unn_fold_results,
+        taxonomy_dt_fold_results,
         trends_chart_path,
         perf_vs_products_chart_path,
         perf_vs_tags_chart_path,
