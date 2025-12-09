@@ -2690,6 +2690,7 @@ def _build_trends_section(
     perf_vs_products_chart_path: Optional[Path],
     perf_vs_tags_chart_path: Optional[Path],
     params_vs_loss_chart_path: Optional[Path],
+    unconstrained_log_chart_path: Optional[Path],
     output_dir: Path,
     perf_vs_products_stats: Optional[Dict[str, Dict[str, float]]] = None,
     perf_vs_tags_stats: Optional[Dict[str, Dict[str, float]]] = None,
@@ -2778,6 +2779,17 @@ def _build_trends_section(
     </figure>
     {params_stats_html}"""
 
+    unconstrained_log_html = ""
+    if unconstrained_log_chart_path:
+        unconstrained_chart_rel = unconstrained_log_chart_path.relative_to(output_dir).as_posix()
+        unconstrained_log_html = f"""
+    <figure class="chart" style="margin-top: 2rem;">
+      <img src="{unconstrained_chart_rel}" alt="Unconstrained models: complexity vs performance (log-log scale)" />
+      <figcaption style="text-align: center; color: #64748b; font-size: 0.9rem; margin-top: 0.5rem;">
+        Unconstrained models only (no PCLR/PCNN). Both axes on log scale.
+      </figcaption>
+    </figure>"""
+
     return f"""
   <section style="max-width: 70rem; margin: 2rem auto; background: white; border-radius: 1rem; box-shadow: 0 12px 30px rgba(15, 23, 42, 0.12); padding: 2rem 1.5rem;">
     <h2 style="margin-top: 0;">Historical Performance Trends</h2>
@@ -2790,6 +2802,7 @@ def _build_trends_section(
     {perf_vs_products_html}
     {perf_vs_tags_html}
     {params_vs_loss_html}
+    {unconstrained_log_html}
   </section>"""
 
 
@@ -3049,6 +3062,7 @@ def _build_index_html(
     perf_vs_products_chart_path: Optional[Path] = None,
     perf_vs_tags_chart_path: Optional[Path] = None,
     params_vs_loss_chart_path: Optional[Path] = None,
+    unconstrained_log_chart_path: Optional[Path] = None,
     perf_vs_products_stats: Optional[Dict[str, Dict[str, float]]] = None,
     perf_vs_tags_stats: Optional[Dict[str, Dict[str, float]]] = None,
     params_vs_loss_stats: Optional[Dict[str, Dict[str, float]]] = None,
@@ -3455,7 +3469,7 @@ def _build_index_html(
 
   {taxonomy_overview_html}
 
-  {_build_trends_section(trends_chart_path, perf_vs_products_chart_path, perf_vs_tags_chart_path, params_vs_loss_chart_path, output_dir, perf_vs_products_stats, perf_vs_tags_stats, params_vs_loss_stats)}
+  {_build_trends_section(trends_chart_path, perf_vs_products_chart_path, perf_vs_tags_chart_path, params_vs_loss_chart_path, unconstrained_log_chart_path, output_dir, perf_vs_products_stats, perf_vs_tags_stats, params_vs_loss_stats)}
 
   <footer>
     <p>Source available on <a href="https://github.com/IFost-Sydney-Uni/padjective">GitHub</a></p>
@@ -5747,6 +5761,134 @@ def _generate_params_vs_loss_chart(
     return output_path, regression_stats
 
 
+def _generate_unconstrained_log_chart(
+    conn,
+    output_path: Path,
+    schema: str,
+    taxonomy_ulr_fold_results: Optional[list[Dict[str, Any]]] = None,
+    taxonomy_unn_fold_results: Optional[list[Dict[str, Any]]] = None,
+) -> Optional[Path]:
+    """Generate a log-log scatter plot showing only unconstrained models (no PCLR/PCNN).
+
+    Shows parameter count vs p-adic loss with both axes on log scale.
+    Includes Importance-Optimised, ULR, UNN, and Dummy baseline.
+
+    Returns:
+        Path to generated chart, or None if insufficient data
+    """
+    # Collect data points: (params, loss, label, color, marker)
+    data_points = []
+
+    # ULR - get average non-zero params and loss
+    if taxonomy_ulr_fold_results:
+        avg_params = sum(r["num_nonzero_params"] for r in taxonomy_ulr_fold_results) / len(taxonomy_ulr_fold_results)
+        avg_loss = sum(r["padic_loss_mean"] for r in taxonomy_ulr_fold_results) / len(taxonomy_ulr_fold_results)
+        data_points.append((avg_params, avg_loss, "ULR", "#8b5cf6", "D"))
+
+    # UNN - get average non-zero params and loss
+    if taxonomy_unn_fold_results:
+        avg_params = sum(r["num_nonzero_params"] for r in taxonomy_unn_fold_results) / len(taxonomy_unn_fold_results)
+        avg_loss = sum(r["padic_loss_mean"] for r in taxonomy_unn_fold_results) / len(taxonomy_unn_fold_results)
+        data_points.append((avg_params, avg_loss, "UNN", "#ec4899", "p"))
+
+    # Get Importance-Optimised p-adic LR (UMLLR) - use actual non-zero coefficients
+    if _table_exists(conn, schema, "umllr_fold_metrics"):
+        with conn.cursor() as cur:
+            # Get average loss
+            cur.execute(
+                sql.SQL(
+                    """
+                    SELECT AVG(loss) as avg_loss
+                    FROM {schema}.umllr_predictions
+                    """
+                ).format(schema=sql.Identifier(schema))
+            )
+            row = cur.fetchone()
+            avg_loss = float(row[0]) if row and row[0] is not None else None
+
+            # Get average non-zero coefficients per fold
+            cur.execute(
+                sql.SQL(
+                    """
+                    SELECT AVG(num_coeffs) FROM (
+                        SELECT cv_fold, COUNT(*) as num_coeffs
+                        FROM {schema}.umllr_tag_coefficients
+                        WHERE coefficient != 0
+                        GROUP BY cv_fold
+                    ) sub
+                    """
+                ).format(schema=sql.Identifier(schema))
+            )
+            row = cur.fetchone()
+            avg_nonzero = float(row[0]) if row and row[0] is not None else None
+
+            if avg_loss is not None and avg_nonzero is not None:
+                data_points.append((avg_nonzero, avg_loss, "Importance-Optimised", "#0b6ce3", "o"))
+
+    # Get Dummy baseline (1 parameter - always predicts most common taxonomy)
+    if _table_exists(conn, schema, "dummy_fold_metrics"):
+        with conn.cursor() as cur:
+            cur.execute(
+                sql.SQL(
+                    """
+                    SELECT AVG(loss) as avg_loss
+                    FROM {schema}.dummy_fold_metrics
+                    """
+                ).format(schema=sql.Identifier(schema))
+            )
+            row = cur.fetchone()
+            if row and row[0] is not None:
+                data_points.append((1, float(row[0]), "Dummy", "#94a3b8", "X"))
+
+    if len(data_points) < 2:
+        return None
+
+    fig, ax = plt.subplots(figsize=(10, 6))
+
+    # Plot each model
+    for params, loss, label, color, marker in data_points:
+        ax.scatter(params, loss, label=label, color=color, s=150, alpha=0.8, marker=marker, edgecolors='white', linewidths=2)
+        # Add label next to point
+        ax.annotate(label, (params, loss), textcoords="offset points", xytext=(10, 5),
+                   fontsize=10, fontweight='bold', color=color)
+
+    # Compute line of best fit using log(params) vs log(loss)
+    non_dummy_points = [(params, loss) for params, loss, label, _, _ in data_points if label != "Dummy"]
+
+    if len(non_dummy_points) >= 2:
+        log_params = np.array([np.log10(p) for p, _ in non_dummy_points])
+        log_losses = np.array([np.log10(l) for _, l in non_dummy_points])
+
+        from scipy import stats as scipy_stats
+        result = scipy_stats.linregress(log_params, log_losses)
+
+        # Generate line across the x range
+        x_range = np.linspace(min(log_params) - 0.3, max(log_params) + 0.3, 100)
+        y_fit = result.slope * x_range + result.intercept
+
+        # Convert back from log scale for plotting
+        x_range_params = 10 ** x_range
+        y_range_loss = 10 ** y_fit
+        ax.plot(x_range_params, y_range_loss, '-', color='#ef4444', linewidth=2, alpha=0.7,
+                label=f'Fit (R²={result.rvalue**2:.3f})')
+
+    ax.set_xlabel('Number of Parameters (non-zero)', fontsize=12, fontweight='bold')
+    ax.set_ylabel('P-adic Loss (lower is better)', fontsize=12, fontweight='bold')
+    ax.set_title('Unconstrained Models: Complexity vs Performance (Log Scale)', fontsize=14, fontweight='bold', pad=15)
+    ax.set_xscale('log')
+    ax.set_yscale('log')
+    ax.grid(True, alpha=0.3, linestyle='--')
+
+    # Add legend
+    ax.legend(loc='upper right', frameon=True, shadow=True, fontsize=9)
+
+    plt.tight_layout()
+    plt.savefig(output_path, dpi=150, bbox_inches='tight')
+    plt.close()
+
+    return output_path
+
+
 def build_site(
     output_dir: Path,
     *,
@@ -5993,6 +6135,14 @@ footer {text-align: center; padding: 2rem 1.5rem 3rem; color: #6b7280;}
         taxonomy_unn_fold_results=taxonomy_unn_fold_results,
     )
 
+    unconstrained_log_chart_path = _generate_unconstrained_log_chart(
+        precomputed_database,
+        assets_dir / "unconstrained_log_chart.png",
+        schema=battle_schema,
+        taxonomy_ulr_fold_results=taxonomy_ulr_fold_results,
+        taxonomy_unn_fold_results=taxonomy_unn_fold_results,
+    )
+
     _build_index_html(
         output_dir,
         stats,
@@ -6016,6 +6166,7 @@ footer {text-align: center; padding: 2rem 1.5rem 3rem; color: #6b7280;}
         perf_vs_products_chart_path,
         perf_vs_tags_chart_path,
         params_vs_loss_chart_path,
+        unconstrained_log_chart_path,
         perf_vs_products_stats,
         perf_vs_tags_stats,
         params_vs_loss_stats,
