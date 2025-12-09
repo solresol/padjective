@@ -3090,6 +3090,7 @@ def _build_index_html(
     taxonomy_pcnn_page: Optional[Path],
     taxonomy_ulr_page: Optional[Path] = None,
     taxonomy_unn_page: Optional[Path] = None,
+    taxonomy_dt_page: Optional[Path] = None,
     taxonomy_summary: Optional[Dict[str, Any]] = None,
     umllr_summary: Optional[Dict[str, Any]] = None,
     dummy_summary: Optional[Dict[str, Any]] = None,
@@ -3289,6 +3290,12 @@ def _build_index_html(
   </div>"""
 
     dt_card = ""
+    taxonomy_dt_link = ""
+    if taxonomy_dt_page:
+        taxonomy_dt_link = (
+            f'<a href="{taxonomy_dt_page.relative_to(output_dir).as_posix()}" class="card-link">View model →</a>'
+        )
+
     if taxonomy_dt_fold_results:
         avg_loss = sum(r["padic_loss_mean"] for r in taxonomy_dt_fold_results) / len(taxonomy_dt_fold_results)
         avg_effective_params = sum(r["effective_params"] for r in taxonomy_dt_fold_results) / len(taxonomy_dt_fold_results)
@@ -3304,7 +3311,7 @@ def _build_index_html(
       <span class="value">{avg_effective_params:,.0f}</span>
       <span class="label">Effective params</span>
     </div>
-    <span class="card-link disabled">No report available</span>
+    {taxonomy_dt_link or '<span class="card-link disabled">No report available</span>'}
   </div>"""
 
     # Combine model cards
@@ -5339,6 +5346,198 @@ def _load_taxonomy_dt_fold_results(conn, schema: str = "padjective") -> Optional
     return results
 
 
+def _load_taxonomy_dt_feature_importances(conn, schema: str = "padjective") -> Optional[Dict[int, list[Dict[str, Any]]]]:
+    """Load feature importances for decision tree models by fold."""
+    if not _table_exists(conn, schema, "taxonomy_dt_feature_importance"):
+        return None
+
+    with conn.cursor(row_factory=dict_row) as cur:
+        cur.execute(
+            sql.SQL(
+                """
+                SELECT cv_fold, tag, importance, rank
+                FROM {schema}.taxonomy_dt_feature_importance
+                ORDER BY cv_fold, rank
+                """
+            ).format(schema=sql.Identifier(schema))
+        )
+        results: Dict[int, list[Dict[str, Any]]] = {}
+        for row in cur:
+            fold = int(row["cv_fold"])
+            if fold not in results:
+                results[fold] = []
+            results[fold].append({
+                "tag": row["tag"],
+                "importance": float(row["importance"]),
+                "rank": int(row["rank"]),
+            })
+
+    if not results:
+        return None
+
+    return results
+
+
+def _write_taxonomy_dt_overview_page(
+    output_dir: Path,
+    fold_results: list[Dict[str, Any]],
+    feature_importances: Optional[Dict[int, list[Dict[str, Any]]]] = None,
+) -> Path:
+    """Write a main overview page for decision tree classifier results."""
+    dt_dir = output_dir / "decision_tree"
+    dt_dir.mkdir(parents=True, exist_ok=True)
+
+    if not fold_results:
+        raise ValueError("fold_results is required for DT classifier page")
+
+    num_folds = len(fold_results)
+    avg_accuracy = sum(row["test_accuracy"] for row in fold_results) / num_folds
+    avg_f1 = sum(row["test_f1"] for row in fold_results) / num_folds
+    avg_padic_loss = sum(row["padic_loss_mean"] for row in fold_results) / num_folds
+
+    total_train = sum(row["num_train_samples"] for row in fold_results)
+    total_test = sum(row["num_test_samples"] for row in fold_results)
+
+    avg_tree_depth = sum(row["tree_depth"] for row in fold_results) / num_folds
+    avg_num_nodes = sum(row["num_nodes"] for row in fold_results) / num_folds
+    avg_num_leaves = sum(row["num_leaves"] for row in fold_results) / num_folds
+    avg_effective_params = sum(row["effective_params"] for row in fold_results) / num_folds
+
+    num_tags = fold_results[0]["num_tags"]
+    num_classes = fold_results[0]["num_classes"]
+
+    fold_rows: list[str] = []
+    for row in fold_results:
+        fold = row["cv_fold"]
+        fold_rows.append(
+            f"<tr><td>{fold}</td><td>{row['test_accuracy'] * 100:.2f}%</td>"
+            f"<td>{row['test_f1']:.4f}</td><td>{row['padic_loss_mean']:.6f}</td>"
+            f"<td>{row['tree_depth']}</td><td>{row['num_nodes']:,}</td>"
+            f"<td>{row['effective_params']:,.0f}</td></tr>"
+        )
+
+    fold_table_body = "\n".join(fold_rows)
+
+    # Build feature importance section - aggregate across folds
+    feature_importance_html = ""
+    if feature_importances:
+        # Aggregate importance scores across folds
+        tag_scores: Dict[str, list[float]] = {}
+        for fold, importances in feature_importances.items():
+            for imp in importances:
+                tag = imp["tag"]
+                if tag not in tag_scores:
+                    tag_scores[tag] = []
+                tag_scores[tag].append(imp["importance"])
+
+        # Calculate average importance and sort
+        avg_importances = [
+            (tag, sum(scores) / len(scores), len(scores))
+            for tag, scores in tag_scores.items()
+        ]
+        avg_importances.sort(key=lambda x: x[1], reverse=True)
+
+        # Show top 50 features
+        top_features = avg_importances[:50]
+        importance_rows = []
+        for rank, (tag, avg_imp, num_folds_present) in enumerate(top_features, 1):
+            escaped_tag = html.escape(tag)
+            importance_rows.append(
+                f"<tr><td>{rank}</td><td>{escaped_tag}</td><td>{avg_imp:.6f}</td>"
+                f"<td>{num_folds_present}/{num_folds}</td></tr>"
+            )
+        importance_table_body = "\n".join(importance_rows)
+
+        feature_importance_html = f"""
+    <h2>Feature importances (Top 50)</h2>
+    <p>Feature importances are averaged across all {num_folds} folds. The "Folds" column shows how many folds used this feature.</p>
+    <table class="umllr-summary">
+      <thead>
+        <tr><th>Rank</th><th>Tag</th><th>Avg Importance</th><th>Folds</th></tr>
+      </thead>
+      <tbody>
+        {importance_table_body}
+      </tbody>
+    </table>
+"""
+
+    page_html = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Decision Tree Classifier</title>
+  <link rel="stylesheet" href="../assets/styles.css" />
+</head>
+<body>
+  <header class="hero">
+    <h1>Decision Tree Classifier</h1>
+    <p class="tagline">Interpretable tree-based model using ALL tags</p>
+  </header>
+
+  <section>
+    <p><a href="../index.html">← Back to index</a></p>
+
+    <h2>Model overview</h2>
+    <p>Decision tree classifier for predicting taxonomy IDs from product tags. Unlike parameter-constrained models, this classifier uses ALL available tags. The tree structure provides natural interpretability - each decision node tests whether a specific tag is present, leading to a taxonomy prediction at the leaves.</p>
+
+    <div class="metrics">
+      <div class="metric">
+        <span class="value">{num_folds}</span>
+        <span class="label">CV folds</span>
+      </div>
+      <div class="metric">
+        <span class="value">{avg_accuracy * 100:.2f}%</span>
+        <span class="label">Mean accuracy</span>
+      </div>
+      <div class="metric">
+        <span class="value">{avg_f1:.4f}</span>
+        <span class="label">Mean F1</span>
+      </div>
+      <div class="metric">
+        <span class="value">{avg_padic_loss:.6f}</span>
+        <span class="label">Mean p-adic loss</span>
+      </div>
+      <div class="metric">
+        <span class="value">{avg_effective_params:,.0f}</span>
+        <span class="label">Avg effective params</span>
+      </div>
+    </div>
+
+    <ul class="taxonomy-stats">
+      <li><strong>Total train samples:</strong> {total_train:,}</li>
+      <li><strong>Total test samples:</strong> {total_test:,}</li>
+      <li><strong>Number of tags (input features):</strong> {num_tags:,}</li>
+      <li><strong>Number of classes:</strong> {num_classes}</li>
+      <li><strong>Avg tree depth:</strong> {avg_tree_depth:.1f}</li>
+      <li><strong>Avg number of nodes:</strong> {avg_num_nodes:,.0f}</li>
+      <li><strong>Avg number of leaves:</strong> {avg_num_leaves:,.0f}</li>
+      <li><strong>Effective params formula:</strong> nodes × log₂(classes) = {avg_num_nodes:,.0f} × {np.log2(num_classes):.2f} ≈ {avg_effective_params:,.0f}</li>
+    </ul>
+
+    <h2>Cross-validation results</h2>
+    <table class="umllr-summary">
+      <thead>
+        <tr><th>Fold</th><th>Accuracy</th><th>F1</th><th>P-adic loss (mean)</th><th>Tree depth</th><th>Nodes</th><th>Effective params</th></tr>
+      </thead>
+      <tbody>
+        {fold_table_body}
+      </tbody>
+    </table>
+
+{feature_importance_html}
+  </section>
+
+  <footer>
+    <p><a href="../index.html">← Back to index</a></p>
+  </footer>
+</body>
+</html>"""
+
+    page_path = dt_dir / "index.html"
+    page_path.write_text(page_html, encoding="utf-8")
+    return page_path
+
+
 def _generate_taxonomy_distribution_chart(class_distribution: list[dict], output_path: Path, top_n: int = 15) -> Optional[Path]:
     """Generate a horizontal bar chart showing taxonomy class distribution.
 
@@ -6258,6 +6457,14 @@ footer {text-align: center; padding: 2rem 1.5rem 3rem; color: #6b7280;}
     taxonomy_dt_fold_results = _load_taxonomy_dt_fold_results(
         precomputed_database, schema=battle_schema
     )
+    taxonomy_dt_page = None
+    if taxonomy_dt_fold_results:
+        taxonomy_dt_feature_importances = _load_taxonomy_dt_feature_importances(
+            precomputed_database, schema=battle_schema
+        )
+        taxonomy_dt_page = _write_taxonomy_dt_overview_page(
+            output_dir, taxonomy_dt_fold_results, taxonomy_dt_feature_importances
+        )
 
     # Generate historical trends charts
     trends_chart_path = _generate_historical_trends_chart(
@@ -6307,6 +6514,7 @@ footer {text-align: center; padding: 2rem 1.5rem 3rem; color: #6b7280;}
         taxonomy_pcnn_page,
         taxonomy_ulr_page,
         taxonomy_unn_page,
+        taxonomy_dt_page,
         taxonomy_summary,
         umllr_summary,
         dummy_summary,
