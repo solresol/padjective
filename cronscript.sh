@@ -45,7 +45,7 @@ uv run -m padjective.taxonomy_classifier_schema \
     --schema "$TAXONOMY_RESULTS_SCHEMA"
 
 # Train taxonomy classifiers (once per fold)
-# Use --max-tags 109 for fair comparison with umllr (~10,000 parameters)
+# Use --max-tags 32 to get 32 × 199 = 6,368 parameters (close to 6,466 unique tags)
 for fold in 0 1 2 3 4; do
     echo "Training taxonomy classifier for fold $fold..."
     uv run -m padjective.taxonomy_classifier \
@@ -54,7 +54,7 @@ for fold in 0 1 2 3 4; do
         --results-schema "$TAXONOMY_RESULTS_SCHEMA" \
         --output-dir "$TAXONOMY_CLASSIFIER_REPORT_DIR" \
         --fold "$fold" \
-        --max-tags 109
+        --max-tags 32
 done
 
 # Train full taxonomy classifier (populates taxonomy_pclr_models summary table for index card)
@@ -64,10 +64,13 @@ uv run -m padjective.taxonomy_classifier \
     --product-table "$TAGBATTLE_PRODUCT_TABLE" \
     --results-schema "$TAXONOMY_RESULTS_SCHEMA" \
     --output-dir "$TAXONOMY_CLASSIFIER_REPORT_DIR" \
-    --max-tags 109
+    --max-tags 32
 
 # Train parameter constrained neural network classifiers (once per fold)
-# Use --max-tags 109 and --hidden-layers 49 for fair comparison with umllr (~10,000 parameters)
+# Use --max-tags 32 and --hidden-layers 27 for ~6,200 parameters:
+#   Input-to-Hidden: 32 × 27 + 27 = 891 parameters
+#   Hidden-to-Output: 27 × 199 + 199 = 5,572 parameters
+#   Total: 6,463 parameters
 for fold in 0 1 2 3 4; do
     echo "Training parameter constrained neural network classifier for fold $fold..."
     uv run -m padjective.taxonomy_pcnn_classifier \
@@ -75,8 +78,8 @@ for fold in 0 1 2 3 4; do
         --product-table "$TAGBATTLE_PRODUCT_TABLE" \
         --model-database "$TAXONOMY_PCNN_CLASSIFIER_DB" \
         --output-dir "$TAXONOMY_PCNN_CLASSIFIER_REPORT_DIR" \
-        --hidden-layers "49" \
-        --max-tags 109 \
+        --hidden-layers "27" \
+        --max-tags 32 \
         --fold "$fold"
 done
 
