@@ -2695,6 +2695,7 @@ def _build_trends_section(
     perf_vs_products_stats: Optional[Dict[str, Dict[str, float]]] = None,
     perf_vs_tags_stats: Optional[Dict[str, Dict[str, float]]] = None,
     params_vs_loss_stats: Optional[Dict[str, Dict[str, float]]] = None,
+    unconstrained_log_stats: Optional[Dict[str, Any]] = None,
 ) -> str:
     """Build HTML section for historical trends charts."""
     if not trends_chart_path:
@@ -2782,13 +2783,51 @@ def _build_trends_section(
     unconstrained_log_html = ""
     if unconstrained_log_chart_path:
         unconstrained_chart_rel = unconstrained_log_chart_path.relative_to(output_dir).as_posix()
+
+        # Build regression stats HTML for unconstrained log chart
+        unconstrained_stats_html = ""
+        if unconstrained_log_stats:
+            s = unconstrained_log_stats
+            p_val = s['p_value']
+            p_str = f"{p_val:.4f}" if p_val >= 0.0001 else f"{p_val:.2e}"
+            sig = "Yes" if p_val < 0.05 else "No"
+            unconstrained_stats_html = f"""
+    <div style="margin-top: 1rem; overflow-x: auto;">
+      <p style="font-size: 0.9rem; color: #64748b; margin-bottom: 0.5rem;">
+        <strong>Regression: log₁₀(loss) = slope × log₁₀(params) + intercept</strong>
+      </p>
+      <table style="font-size: 0.85rem; border-collapse: collapse; width: 100%;">
+        <thead>
+          <tr style="background: #f1f5f9;">
+            <th style="padding: 0.5rem; text-align: right; border-bottom: 2px solid #e2e8f0;">Slope</th>
+            <th style="padding: 0.5rem; text-align: right; border-bottom: 2px solid #e2e8f0;">Intercept</th>
+            <th style="padding: 0.5rem; text-align: right; border-bottom: 2px solid #e2e8f0;">R²</th>
+            <th style="padding: 0.5rem; text-align: right; border-bottom: 2px solid #e2e8f0;">p-value</th>
+            <th style="padding: 0.5rem; text-align: center; border-bottom: 2px solid #e2e8f0;">Significant?</th>
+            <th style="padding: 0.5rem; text-align: right; border-bottom: 2px solid #e2e8f0;">n</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td style="text-align: right;">{s['slope']:.4f}</td>
+            <td style="text-align: right;">{s['intercept']:.4f}</td>
+            <td style="text-align: right;">{s['r_squared']:.4f}</td>
+            <td style="text-align: right;">{p_str}</td>
+            <td style="text-align: center;">{sig}</td>
+            <td style="text-align: right;">{int(s['n_points'])}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>"""
+
         unconstrained_log_html = f"""
     <figure class="chart" style="margin-top: 2rem;">
       <img src="{unconstrained_chart_rel}" alt="Unconstrained models: complexity vs performance (log-log scale)" />
       <figcaption style="text-align: center; color: #64748b; font-size: 0.9rem; margin-top: 0.5rem;">
         Unconstrained models only (no PCLR/PCNN). Both axes on log scale.
       </figcaption>
-    </figure>"""
+    </figure>
+    {unconstrained_stats_html}"""
 
     return f"""
   <section style="max-width: 70rem; margin: 2rem auto; background: white; border-radius: 1rem; box-shadow: 0 12px 30px rgba(15, 23, 42, 0.12); padding: 2rem 1.5rem;">
@@ -3066,6 +3105,7 @@ def _build_index_html(
     perf_vs_products_stats: Optional[Dict[str, Dict[str, float]]] = None,
     perf_vs_tags_stats: Optional[Dict[str, Dict[str, float]]] = None,
     params_vs_loss_stats: Optional[Dict[str, Dict[str, float]]] = None,
+    unconstrained_log_stats: Optional[Dict[str, Any]] = None,
 ) -> None:
     generated = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
 
@@ -3469,7 +3509,7 @@ def _build_index_html(
 
   {taxonomy_overview_html}
 
-  {_build_trends_section(trends_chart_path, perf_vs_products_chart_path, perf_vs_tags_chart_path, params_vs_loss_chart_path, unconstrained_log_chart_path, output_dir, perf_vs_products_stats, perf_vs_tags_stats, params_vs_loss_stats)}
+  {_build_trends_section(trends_chart_path, perf_vs_products_chart_path, perf_vs_tags_chart_path, params_vs_loss_chart_path, unconstrained_log_chart_path, output_dir, perf_vs_products_stats, perf_vs_tags_stats, params_vs_loss_stats, unconstrained_log_stats)}
 
   <footer>
     <p>Source available on <a href="https://github.com/IFost-Sydney-Uni/padjective">GitHub</a></p>
@@ -5767,14 +5807,14 @@ def _generate_unconstrained_log_chart(
     schema: str,
     taxonomy_ulr_fold_results: Optional[list[Dict[str, Any]]] = None,
     taxonomy_unn_fold_results: Optional[list[Dict[str, Any]]] = None,
-) -> Optional[Path]:
+) -> Tuple[Optional[Path], Optional[Dict[str, Any]]]:
     """Generate a log-log scatter plot showing only unconstrained models (no PCLR/PCNN).
 
     Shows parameter count vs p-adic loss with both axes on log scale.
     Includes Importance-Optimised, ULR, UNN, and Dummy baseline.
 
     Returns:
-        Path to generated chart, or None if insufficient data
+        Tuple of (path to generated chart, regression stats dict) or (None, None) if insufficient data
     """
     # Collect data points: (params, loss, label, color, marker)
     data_points = []
@@ -5841,8 +5881,9 @@ def _generate_unconstrained_log_chart(
                 data_points.append((1, float(row[0]), "Dummy", "#94a3b8", "X"))
 
     if len(data_points) < 2:
-        return None
+        return None, None
 
+    regression_stats = None
     fig, ax = plt.subplots(figsize=(10, 6))
 
     # Plot each model
@@ -5862,6 +5903,17 @@ def _generate_unconstrained_log_chart(
         from scipy import stats as scipy_stats
         result = scipy_stats.linregress(log_params, log_losses)
 
+        # Store regression stats for HTML display
+        regression_stats = {
+            'slope': result.slope,
+            'intercept': result.intercept,
+            'r_squared': result.rvalue ** 2,
+            'r_value': result.rvalue,
+            'p_value': result.pvalue,
+            'std_err': result.stderr,
+            'n_points': len(all_points),
+        }
+
         # Generate line across the x range (extend to include all points with margin)
         x_range = np.linspace(min(log_params) - 0.3, max(log_params) + 0.3, 100)
         y_fit = result.slope * x_range + result.intercept
@@ -5870,7 +5922,7 @@ def _generate_unconstrained_log_chart(
         x_range_params = 10 ** x_range
         y_range_loss = 10 ** y_fit
         ax.plot(x_range_params, y_range_loss, '-', color='#ef4444', linewidth=2, alpha=0.7,
-                label=f'Fit (R²={result.rvalue**2:.3f}, p={result.pvalue:.2e})')
+                label=f'Fit (R²={result.rvalue**2:.3f})')
 
     ax.set_xlabel('Number of Parameters (non-zero)', fontsize=12, fontweight='bold')
     ax.set_ylabel('P-adic Loss (lower is better)', fontsize=12, fontweight='bold')
@@ -5886,7 +5938,7 @@ def _generate_unconstrained_log_chart(
     plt.savefig(output_path, dpi=150, bbox_inches='tight')
     plt.close()
 
-    return output_path
+    return output_path, regression_stats
 
 
 def build_site(
@@ -6135,7 +6187,7 @@ footer {text-align: center; padding: 2rem 1.5rem 3rem; color: #6b7280;}
         taxonomy_unn_fold_results=taxonomy_unn_fold_results,
     )
 
-    unconstrained_log_chart_path = _generate_unconstrained_log_chart(
+    unconstrained_log_chart_path, unconstrained_log_stats = _generate_unconstrained_log_chart(
         precomputed_database,
         assets_dir / "unconstrained_log_chart.png",
         schema=battle_schema,
@@ -6170,6 +6222,7 @@ footer {text-align: center; padding: 2rem 1.5rem 3rem; color: #6b7280;}
         perf_vs_products_stats,
         perf_vs_tags_stats,
         params_vs_loss_stats,
+        unconstrained_log_stats,
     )
 
     metadata = {
