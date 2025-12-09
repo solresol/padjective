@@ -5852,17 +5852,17 @@ def _generate_unconstrained_log_chart(
         ax.annotate(label, (params, loss), textcoords="offset points", xytext=(10, 5),
                    fontsize=10, fontweight='bold', color=color)
 
-    # Compute line of best fit using log(params) vs log(loss)
-    non_dummy_points = [(params, loss) for params, loss, label, _, _ in data_points if label != "Dummy"]
+    # Compute line of best fit using log(params) vs log(loss) - include ALL points including Dummy
+    all_points = [(params, loss) for params, loss, _, _, _ in data_points]
 
-    if len(non_dummy_points) >= 2:
-        log_params = np.array([np.log10(p) for p, _ in non_dummy_points])
-        log_losses = np.array([np.log10(l) for _, l in non_dummy_points])
+    if len(all_points) >= 2:
+        log_params = np.array([np.log10(p) for p, _ in all_points])
+        log_losses = np.array([np.log10(l) for _, l in all_points])
 
         from scipy import stats as scipy_stats
         result = scipy_stats.linregress(log_params, log_losses)
 
-        # Generate line across the x range
+        # Generate line across the x range (extend to include all points with margin)
         x_range = np.linspace(min(log_params) - 0.3, max(log_params) + 0.3, 100)
         y_fit = result.slope * x_range + result.intercept
 
@@ -5870,7 +5870,7 @@ def _generate_unconstrained_log_chart(
         x_range_params = 10 ** x_range
         y_range_loss = 10 ** y_fit
         ax.plot(x_range_params, y_range_loss, '-', color='#ef4444', linewidth=2, alpha=0.7,
-                label=f'Fit (R²={result.rvalue**2:.3f})')
+                label=f'Fit (R²={result.rvalue**2:.3f}, p={result.pvalue:.2e})')
 
     ax.set_xlabel('Number of Parameters (non-zero)', fontsize=12, fontweight='bold')
     ax.set_ylabel('P-adic Loss (lower is better)', fontsize=12, fontweight='bold')
