@@ -3316,20 +3316,20 @@ def _build_index_html(
 
     # Combine model cards
     all_cards: list[str] = []
-    if umllr_card:
-        all_cards.append(umllr_card)
-    if pcnn_card:
-        all_cards.append(pcnn_card)
-    if ulr_card:
-        all_cards.append(ulr_card)
-    if unn_card:
-        all_cards.append(unn_card)
-    if dt_card:
-        all_cards.append(dt_card)
-    if taxonomy_card:
-        all_cards.append(taxonomy_card)
     if dummy_card:
         all_cards.append(dummy_card)
+    if umllr_card:
+        all_cards.append(umllr_card)
+    if ulr_card:
+        all_cards.append(ulr_card)
+    if dt_card:
+        all_cards.append(dt_card)
+    if unn_card:
+        all_cards.append(unn_card)
+    if pcnn_card:
+        all_cards.append(pcnn_card)
+    if taxonomy_card:
+        all_cards.append(taxonomy_card)
     elo_card = f"""
   <div class="model-card">
     <h3>ELO-Inspired Rankings</h3>
