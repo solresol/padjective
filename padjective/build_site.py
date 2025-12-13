@@ -120,6 +120,266 @@ def _format_long_tag(tag: str, max_length: int = 60) -> str:
     return f'<span title="{html.escape(tag)}">{escaped_truncated}…</span>'
 
 
+def _padic_valuation(n: int, p: int) -> int:
+    """Calculate p-adic valuation of n (how many times p divides n).
+
+    Returns infinity (represented as float('inf')) for n=0.
+    """
+    if n == 0:
+        return float('inf')
+    v = 0
+    n = abs(n)
+    while n % p == 0:
+        n //= p
+        v += 1
+    return v
+
+
+def _has_strict_refinement(
+    product_tags: list[str],
+    tag_coefficients: Dict[str, int],
+    prime_base: int
+) -> bool:
+    """Check if a product has strict refinement.
+
+    Strict refinement means all non-zero coefficient tags have distinct
+    p-adic valuations when sorted. Degenerate cases (0 or 1 non-zero
+    coefficients) count as having strict refinement.
+
+    Args:
+        product_tags: List of tags for the product
+        tag_coefficients: Map from tag to coefficient value
+        prime_base: Prime base for p-adic valuation
+
+    Returns:
+        True if the product has strict refinement
+    """
+    # Get valuations for all non-zero coefficient tags
+    valuations = []
+    for tag in product_tags:
+        coef = tag_coefficients.get(tag, 0)
+        if coef != 0:
+            val = _padic_valuation(coef, prime_base)
+            valuations.append(val)
+
+    # Degenerate cases count as strict refinement
+    if len(valuations) <= 1:
+        return True
+
+    # Sort and check if strictly increasing (all distinct)
+    sorted_vals = sorted(valuations)
+    for i in range(1, len(sorted_vals)):
+        if sorted_vals[i] <= sorted_vals[i-1]:
+            return False
+    return True
+
+
+def _compute_strict_refinement_analysis(
+    prediction_details: Dict[int, Dict[str, Any]],
+    tag_coefficients: Dict[str, int],
+    prime_base: int
+) -> Dict[str, Any]:
+    """Compute strict refinement analysis for a fold.
+
+    Returns a dict containing:
+    - contingency_table: 2x2 table of (strict/not strict) vs (perfect/imperfect)
+    - chi_squared: chi-squared statistic
+    - chi_squared_p: p-value for chi-squared test
+    - u_statistic: Mann-Whitney U statistic
+    - u_p_value: p-value for U-test
+    - strict_losses: list of p-adic losses for strict refinement products
+    - non_strict_losses: list of p-adic losses for non-strict refinement products
+    """
+    strict_perfect = 0
+    strict_imperfect = 0
+    non_strict_perfect = 0
+    non_strict_imperfect = 0
+
+    strict_losses = []
+    non_strict_losses = []
+
+    for pid, detail in prediction_details.items():
+        tags = detail.get("tags", [])
+        umllr_pred = detail.get("predictions", {}).get("umllr", {})
+
+        true_val = umllr_pred.get("true_value")
+        pred_val = umllr_pred.get("predicted_value")
+        loss = umllr_pred.get("loss", 0.0)
+
+        if true_val is None or pred_val is None:
+            continue
+
+        is_strict = _has_strict_refinement(tags, tag_coefficients, prime_base)
+        is_perfect = (true_val == pred_val)
+
+        if is_strict:
+            strict_losses.append(loss)
+            if is_perfect:
+                strict_perfect += 1
+            else:
+                strict_imperfect += 1
+        else:
+            non_strict_losses.append(loss)
+            if is_perfect:
+                non_strict_perfect += 1
+            else:
+                non_strict_imperfect += 1
+
+    # Build contingency table: rows = (strict, non-strict), cols = (perfect, imperfect)
+    contingency_table = [
+        [strict_perfect, strict_imperfect],
+        [non_strict_perfect, non_strict_imperfect]
+    ]
+
+    # Chi-squared test
+    chi_squared = None
+    chi_squared_p = None
+    total = strict_perfect + strict_imperfect + non_strict_perfect + non_strict_imperfect
+    if total > 0 and all(sum(row) > 0 for row in contingency_table) and all(
+        contingency_table[0][i] + contingency_table[1][i] > 0 for i in range(2)
+    ):
+        try:
+            chi2_result = stats.chi2_contingency(contingency_table)
+            chi_squared = chi2_result.statistic
+            chi_squared_p = chi2_result.pvalue
+        except Exception:
+            pass
+
+    # Mann-Whitney U-test for losses
+    u_statistic = None
+    u_p_value = None
+    if len(strict_losses) > 0 and len(non_strict_losses) > 0:
+        try:
+            u_result = stats.mannwhitneyu(
+                strict_losses, non_strict_losses, alternative='two-sided'
+            )
+            u_statistic = u_result.statistic
+            u_p_value = u_result.pvalue
+        except Exception:
+            pass
+
+    return {
+        "contingency_table": contingency_table,
+        "chi_squared": chi_squared,
+        "chi_squared_p": chi_squared_p,
+        "u_statistic": u_statistic,
+        "u_p_value": u_p_value,
+        "strict_losses": strict_losses,
+        "non_strict_losses": non_strict_losses,
+        "strict_perfect": strict_perfect,
+        "strict_imperfect": strict_imperfect,
+        "non_strict_perfect": non_strict_perfect,
+        "non_strict_imperfect": non_strict_imperfect,
+    }
+
+
+def _format_strict_refinement_html(analysis: Dict[str, Any]) -> str:
+    """Format strict refinement analysis as HTML."""
+    ct = analysis["contingency_table"]
+    strict_perfect = ct[0][0]
+    strict_imperfect = ct[0][1]
+    non_strict_perfect = ct[1][0]
+    non_strict_imperfect = ct[1][1]
+
+    strict_total = strict_perfect + strict_imperfect
+    non_strict_total = non_strict_perfect + non_strict_imperfect
+    perfect_total = strict_perfect + non_strict_perfect
+    imperfect_total = strict_imperfect + non_strict_imperfect
+    grand_total = strict_total + non_strict_total
+
+    if grand_total == 0:
+        return ""
+
+    # Build contingency table HTML
+    table_html = f"""
+    <h2>Strict Refinement Analysis</h2>
+    <p>Strict refinement: all non-zero coefficient tags have distinct p-adic valuations.
+    Degenerate cases (0 or 1 non-zero coefficients) count as strict.</p>
+
+    <h3>Contingency Table</h3>
+    <table class="umllr-table">
+      <thead>
+        <tr><th></th><th>Perfect Prediction</th><th>Imperfect Prediction</th><th>Total</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Strict Refinement</strong></td>
+          <td>{strict_perfect}</td>
+          <td>{strict_imperfect}</td>
+          <td>{strict_total}</td>
+        </tr>
+        <tr>
+          <td><strong>Non-Strict</strong></td>
+          <td>{non_strict_perfect}</td>
+          <td>{non_strict_imperfect}</td>
+          <td>{non_strict_total}</td>
+        </tr>
+        <tr>
+          <td><strong>Total</strong></td>
+          <td>{perfect_total}</td>
+          <td>{imperfect_total}</td>
+          <td>{grand_total}</td>
+        </tr>
+      </tbody>
+    </table>
+"""
+
+    # Chi-squared test results
+    chi_squared = analysis.get("chi_squared")
+    chi_squared_p = analysis.get("chi_squared_p")
+    if chi_squared is not None and chi_squared_p is not None:
+        table_html += f"""
+    <p><strong>Chi-squared test:</strong> χ² = {chi_squared:.4f}, p = {chi_squared_p:.4g}</p>
+"""
+    else:
+        table_html += """
+    <p><strong>Chi-squared test:</strong> Could not compute (insufficient data)</p>
+"""
+
+    # U-test results
+    u_stat = analysis.get("u_statistic")
+    u_p = analysis.get("u_p_value")
+    strict_losses = analysis.get("strict_losses", [])
+    non_strict_losses = analysis.get("non_strict_losses", [])
+
+    table_html += """
+    <h3>P-adic Loss Comparison (Mann-Whitney U-test)</h3>
+"""
+
+    if strict_losses:
+        strict_mean = sum(strict_losses) / len(strict_losses)
+        strict_median = sorted(strict_losses)[len(strict_losses) // 2]
+        table_html += f"""
+    <p><strong>Strict refinement:</strong> n={len(strict_losses)}, mean loss={strict_mean:.6f}, median loss={strict_median:.6f}</p>
+"""
+    else:
+        table_html += """
+    <p><strong>Strict refinement:</strong> No products</p>
+"""
+
+    if non_strict_losses:
+        non_strict_mean = sum(non_strict_losses) / len(non_strict_losses)
+        non_strict_median = sorted(non_strict_losses)[len(non_strict_losses) // 2]
+        table_html += f"""
+    <p><strong>Non-strict:</strong> n={len(non_strict_losses)}, mean loss={non_strict_mean:.6f}, median loss={non_strict_median:.6f}</p>
+"""
+    else:
+        table_html += """
+    <p><strong>Non-strict:</strong> No products</p>
+"""
+
+    if u_stat is not None and u_p is not None:
+        table_html += f"""
+    <p><strong>Mann-Whitney U-test:</strong> U = {u_stat:.1f}, p = {u_p:.4g}</p>
+"""
+    else:
+        table_html += """
+    <p><strong>Mann-Whitney U-test:</strong> Could not compute (insufficient data)</p>
+"""
+
+    return table_html
+
+
 def _ensure_clean_directory(path: Path) -> None:
     if path.exists():
         shutil.rmtree(path)
@@ -2576,6 +2836,16 @@ def _write_umllr_pages(output_dir: Path, summary: Dict[str, Any], conn=None, sch
     </figure>
 """
 
+        # Compute strict refinement analysis
+        strict_refinement_html = ""
+        if prediction_details and prime_base > 1:
+            # Build tag coefficients dict from coeff_rows
+            tag_coefficients = {row["tag"]: int(row["coefficient"]) for row in coeff_rows}
+            strict_analysis = _compute_strict_refinement_analysis(
+                prediction_details, tag_coefficients, prime_base
+            )
+            strict_refinement_html = _format_strict_refinement_html(strict_analysis)
+
         page_contents = f"""
 <!DOCTYPE html>
 <html lang="en">
@@ -2590,6 +2860,7 @@ def _write_umllr_pages(output_dir: Path, summary: Dict[str, Any], conn=None, sch
     <p><a href="../index.html">Back to index</a></p>
     <p><strong>P-adic loss (mean):</strong> {mean_loss:.8f} &middot; <strong>Test samples:</strong> {num_predictions:,} &middot; <strong>Accuracy:</strong> {accuracy_text} &middot; <strong>F1:</strong> {f1_text} &middot; <strong>Prime base:</strong> {metric['prime_base']} &middot; <strong>Max digit:</strong> {metric['max_digit']}</p>
 {breakdown_html}
+{strict_refinement_html}
 {digit_chart_html}
 {log_proportion_chart_html}
 {rolling_chart_html}
