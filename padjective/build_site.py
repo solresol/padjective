@@ -174,6 +174,18 @@ def _has_strict_refinement(
     return True
 
 
+def _count_nonzero_coefficients(
+    product_tags: list[str],
+    tag_coefficients: Dict[str, int]
+) -> int:
+    """Count how many of a product's tags have non-zero coefficients."""
+    count = 0
+    for tag in product_tags:
+        if tag_coefficients.get(tag, 0) != 0:
+            count += 1
+    return count
+
+
 def _compute_strict_refinement_analysis(
     prediction_details: Dict[int, Dict[str, Any]],
     tag_coefficients: Dict[str, int],
@@ -181,22 +193,25 @@ def _compute_strict_refinement_analysis(
 ) -> Dict[str, Any]:
     """Compute strict refinement analysis for a fold.
 
-    Returns a dict containing:
-    - contingency_table: 2x2 table of (strict/not strict) vs (perfect/imperfect)
-    - chi_squared: chi-squared statistic
-    - chi_squared_p: p-value for chi-squared test
-    - u_statistic: Mann-Whitney U statistic
-    - u_p_value: p-value for U-test
-    - strict_losses: list of p-adic losses for strict refinement products
-    - non_strict_losses: list of p-adic losses for non-strict refinement products
+    Returns a dict containing analysis for both:
+    1. All products (including degenerate cases with 0-1 non-zero coefficients)
+    2. Non-degenerate only (products with 2+ non-zero coefficients)
     """
+    # Inclusive counts (includes degenerate cases)
     strict_perfect = 0
     strict_imperfect = 0
     non_strict_perfect = 0
     non_strict_imperfect = 0
-
     strict_losses = []
     non_strict_losses = []
+
+    # Non-degenerate counts (excludes products with 0-1 non-zero coefficients)
+    nd_strict_perfect = 0
+    nd_strict_imperfect = 0
+    nd_non_strict_perfect = 0
+    nd_non_strict_imperfect = 0
+    nd_strict_losses = []
+    nd_non_strict_losses = []
 
     for pid, detail in prediction_details.items():
         tags = detail.get("tags", [])
@@ -211,7 +226,10 @@ def _compute_strict_refinement_analysis(
 
         is_strict = _has_strict_refinement(tags, tag_coefficients, prime_base)
         is_perfect = (true_val == pred_val)
+        num_nonzero = _count_nonzero_coefficients(tags, tag_coefficients)
+        is_degenerate = (num_nonzero <= 1)
 
+        # Inclusive analysis
         if is_strict:
             strict_losses.append(loss)
             if is_perfect:
@@ -225,40 +243,65 @@ def _compute_strict_refinement_analysis(
             else:
                 non_strict_imperfect += 1
 
-    # Build contingency table: rows = (strict, non-strict), cols = (perfect, imperfect)
+        # Non-degenerate analysis
+        if not is_degenerate:
+            if is_strict:
+                nd_strict_losses.append(loss)
+                if is_perfect:
+                    nd_strict_perfect += 1
+                else:
+                    nd_strict_imperfect += 1
+            else:
+                nd_non_strict_losses.append(loss)
+                if is_perfect:
+                    nd_non_strict_perfect += 1
+                else:
+                    nd_non_strict_imperfect += 1
+
+    def _compute_tests(ct, s_losses, ns_losses):
+        """Compute chi-squared and U-test for a contingency table."""
+        chi_sq, chi_p, u_stat, u_p = None, None, None, None
+        total = sum(ct[0]) + sum(ct[1])
+        if total > 0 and all(sum(row) > 0 for row in ct) and all(
+            ct[0][i] + ct[1][i] > 0 for i in range(2)
+        ):
+            try:
+                chi2_result = stats.chi2_contingency(ct)
+                chi_sq = chi2_result.statistic
+                chi_p = chi2_result.pvalue
+            except Exception:
+                pass
+        if len(s_losses) > 0 and len(ns_losses) > 0:
+            try:
+                u_result = stats.mannwhitneyu(
+                    s_losses, ns_losses, alternative='two-sided'
+                )
+                u_stat = u_result.statistic
+                u_p = u_result.pvalue
+            except Exception:
+                pass
+        return chi_sq, chi_p, u_stat, u_p
+
+    # Inclusive contingency table
     contingency_table = [
         [strict_perfect, strict_imperfect],
         [non_strict_perfect, non_strict_imperfect]
     ]
+    chi_squared, chi_squared_p, u_statistic, u_p_value = _compute_tests(
+        contingency_table, strict_losses, non_strict_losses
+    )
 
-    # Chi-squared test
-    chi_squared = None
-    chi_squared_p = None
-    total = strict_perfect + strict_imperfect + non_strict_perfect + non_strict_imperfect
-    if total > 0 and all(sum(row) > 0 for row in contingency_table) and all(
-        contingency_table[0][i] + contingency_table[1][i] > 0 for i in range(2)
-    ):
-        try:
-            chi2_result = stats.chi2_contingency(contingency_table)
-            chi_squared = chi2_result.statistic
-            chi_squared_p = chi2_result.pvalue
-        except Exception:
-            pass
-
-    # Mann-Whitney U-test for losses
-    u_statistic = None
-    u_p_value = None
-    if len(strict_losses) > 0 and len(non_strict_losses) > 0:
-        try:
-            u_result = stats.mannwhitneyu(
-                strict_losses, non_strict_losses, alternative='two-sided'
-            )
-            u_statistic = u_result.statistic
-            u_p_value = u_result.pvalue
-        except Exception:
-            pass
+    # Non-degenerate contingency table
+    nd_contingency_table = [
+        [nd_strict_perfect, nd_strict_imperfect],
+        [nd_non_strict_perfect, nd_non_strict_imperfect]
+    ]
+    nd_chi_squared, nd_chi_squared_p, nd_u_statistic, nd_u_p_value = _compute_tests(
+        nd_contingency_table, nd_strict_losses, nd_non_strict_losses
+    )
 
     return {
+        # Inclusive results
         "contingency_table": contingency_table,
         "chi_squared": chi_squared,
         "chi_squared_p": chi_squared_p,
@@ -270,12 +313,33 @@ def _compute_strict_refinement_analysis(
         "strict_imperfect": strict_imperfect,
         "non_strict_perfect": non_strict_perfect,
         "non_strict_imperfect": non_strict_imperfect,
+        # Non-degenerate results
+        "nd_contingency_table": nd_contingency_table,
+        "nd_chi_squared": nd_chi_squared,
+        "nd_chi_squared_p": nd_chi_squared_p,
+        "nd_u_statistic": nd_u_statistic,
+        "nd_u_p_value": nd_u_p_value,
+        "nd_strict_losses": nd_strict_losses,
+        "nd_non_strict_losses": nd_non_strict_losses,
+        "nd_strict_perfect": nd_strict_perfect,
+        "nd_strict_imperfect": nd_strict_imperfect,
+        "nd_non_strict_perfect": nd_non_strict_perfect,
+        "nd_non_strict_imperfect": nd_non_strict_imperfect,
     }
 
 
-def _format_strict_refinement_html(analysis: Dict[str, Any]) -> str:
-    """Format strict refinement analysis as HTML."""
-    ct = analysis["contingency_table"]
+def _format_single_refinement_analysis(
+    ct: list,
+    chi_squared: Optional[float],
+    chi_squared_p: Optional[float],
+    u_stat: Optional[float],
+    u_p: Optional[float],
+    strict_losses: list,
+    non_strict_losses: list,
+    title: str,
+    description: str
+) -> str:
+    """Format a single strict refinement analysis as HTML."""
     strict_perfect = ct[0][0]
     strict_imperfect = ct[0][1]
     non_strict_perfect = ct[1][0]
@@ -290,13 +354,10 @@ def _format_strict_refinement_html(analysis: Dict[str, Any]) -> str:
     if grand_total == 0:
         return ""
 
-    # Build contingency table HTML
     table_html = f"""
-    <h2>Strict Refinement Analysis</h2>
-    <p>Strict refinement: all non-zero coefficient tags have distinct p-adic valuations.
-    Degenerate cases (0 or 1 non-zero coefficients) count as strict.</p>
+    <h3>{title}</h3>
+    <p>{description}</p>
 
-    <h3>Contingency Table</h3>
     <table class="umllr-table">
       <thead>
         <tr><th></th><th>Perfect Prediction</th><th>Imperfect Prediction</th><th>Total</th></tr>
@@ -324,9 +385,6 @@ def _format_strict_refinement_html(analysis: Dict[str, Any]) -> str:
     </table>
 """
 
-    # Chi-squared test results
-    chi_squared = analysis.get("chi_squared")
-    chi_squared_p = analysis.get("chi_squared_p")
     if chi_squared is not None and chi_squared_p is not None:
         table_html += f"""
     <p><strong>Chi-squared test:</strong> χ² = {chi_squared:.4f}, p = {chi_squared_p:.4g}</p>
@@ -336,48 +394,69 @@ def _format_strict_refinement_html(analysis: Dict[str, Any]) -> str:
     <p><strong>Chi-squared test:</strong> Could not compute (insufficient data)</p>
 """
 
-    # U-test results
-    u_stat = analysis.get("u_statistic")
-    u_p = analysis.get("u_p_value")
-    strict_losses = analysis.get("strict_losses", [])
-    non_strict_losses = analysis.get("non_strict_losses", [])
-
     table_html += """
-    <h3>P-adic Loss Comparison (Mann-Whitney U-test)</h3>
-"""
+    <p><strong>P-adic Loss Comparison (Mann-Whitney U-test):</strong> """
 
     if strict_losses:
         strict_mean = sum(strict_losses) / len(strict_losses)
         strict_median = sorted(strict_losses)[len(strict_losses) // 2]
-        table_html += f"""
-    <p><strong>Strict refinement:</strong> n={len(strict_losses)}, mean loss={strict_mean:.6f}, median loss={strict_median:.6f}</p>
-"""
+        table_html += f"Strict: n={len(strict_losses)}, mean={strict_mean:.6f}, median={strict_median:.6f}"
     else:
-        table_html += """
-    <p><strong>Strict refinement:</strong> No products</p>
-"""
+        table_html += "Strict: No products"
+
+    table_html += " · "
 
     if non_strict_losses:
         non_strict_mean = sum(non_strict_losses) / len(non_strict_losses)
         non_strict_median = sorted(non_strict_losses)[len(non_strict_losses) // 2]
-        table_html += f"""
-    <p><strong>Non-strict:</strong> n={len(non_strict_losses)}, mean loss={non_strict_mean:.6f}, median loss={non_strict_median:.6f}</p>
-"""
+        table_html += f"Non-strict: n={len(non_strict_losses)}, mean={non_strict_mean:.6f}, median={non_strict_median:.6f}"
     else:
-        table_html += """
-    <p><strong>Non-strict:</strong> No products</p>
-"""
+        table_html += "Non-strict: No products"
 
     if u_stat is not None and u_p is not None:
-        table_html += f"""
-    <p><strong>Mann-Whitney U-test:</strong> U = {u_stat:.1f}, p = {u_p:.4g}</p>
-"""
+        table_html += f" · U = {u_stat:.1f}, p = {u_p:.4g}"
     else:
-        table_html += """
-    <p><strong>Mann-Whitney U-test:</strong> Could not compute (insufficient data)</p>
-"""
+        table_html += " · U-test: insufficient data"
+
+    table_html += "</p>\n"
 
     return table_html
+
+
+def _format_strict_refinement_html(analysis: Dict[str, Any]) -> str:
+    """Format strict refinement analysis as HTML."""
+    result = """
+    <h2>Strict Refinement Analysis</h2>
+    <p>Strict refinement: all non-zero coefficient tags have distinct p-adic valuations.</p>
+"""
+
+    # Inclusive analysis (degenerate cases count as strict)
+    result += _format_single_refinement_analysis(
+        ct=analysis["contingency_table"],
+        chi_squared=analysis.get("chi_squared"),
+        chi_squared_p=analysis.get("chi_squared_p"),
+        u_stat=analysis.get("u_statistic"),
+        u_p=analysis.get("u_p_value"),
+        strict_losses=analysis.get("strict_losses", []),
+        non_strict_losses=analysis.get("non_strict_losses", []),
+        title="All Products (including degenerate cases)",
+        description="Degenerate cases (0 or 1 non-zero coefficients) count as strict refinement."
+    )
+
+    # Non-degenerate analysis
+    result += _format_single_refinement_analysis(
+        ct=analysis["nd_contingency_table"],
+        chi_squared=analysis.get("nd_chi_squared"),
+        chi_squared_p=analysis.get("nd_chi_squared_p"),
+        u_stat=analysis.get("nd_u_statistic"),
+        u_p=analysis.get("nd_u_p_value"),
+        strict_losses=analysis.get("nd_strict_losses", []),
+        non_strict_losses=analysis.get("nd_non_strict_losses", []),
+        title="Non-Degenerate Only (2+ non-zero coefficients)",
+        description="Excludes products with fewer than 2 tags with non-zero coefficients."
+    )
+
+    return result
 
 
 def _ensure_clean_directory(path: Path) -> None:
