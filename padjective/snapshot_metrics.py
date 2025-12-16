@@ -74,7 +74,9 @@ def create_history_table(conn, schema: str = "padjective") -> None:
                 ADD COLUMN IF NOT EXISTS unn_mean_nonzero_params REAL,
                 ADD COLUMN IF NOT EXISTS dt_mean_padic_loss REAL,
                 ADD COLUMN IF NOT EXISTS dt_mean_accuracy REAL,
-                ADD COLUMN IF NOT EXISTS dt_mean_tree_depth REAL
+                ADD COLUMN IF NOT EXISTS dt_mean_tree_depth REAL,
+                ADD COLUMN IF NOT EXISTS zubarev_mean_padic_loss REAL,
+                ADD COLUMN IF NOT EXISTS zubarev_mean_nonzero_params REAL
                 """
             ).format(schema=sql.Identifier(schema))
         )
@@ -335,6 +337,57 @@ def get_dt_metrics(conn, schema: str = "padjective") -> tuple[float | None, floa
     return None, None, None
 
 
+def get_zubarev_metrics(conn, schema: str = "padjective") -> tuple[float | None, float | None]:
+    """Get Zubarev p-adic polynomial regression mean metrics across all folds.
+
+    Returns:
+        tuple: (mean_padic_loss, mean_nonzero_params)
+    """
+    # Check if table exists first
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT EXISTS (
+                SELECT FROM information_schema.tables
+                WHERE table_schema = %s AND table_name = 'zubarev_fold_metrics'
+            )
+            """,
+            (schema,)
+        )
+        if not cur.fetchone()[0]:
+            return None, None
+
+        # Get mean p-adic loss from predictions
+        cur.execute(
+            sql.SQL(
+                """
+                SELECT AVG(loss)
+                FROM {schema}.zubarev_predictions
+                """
+            ).format(schema=sql.Identifier(schema))
+        )
+        row = cur.fetchone()
+        mean_padic_loss = float(row[0]) if row and row[0] is not None else None
+
+        # Get mean non-zero coefficients per fold
+        cur.execute(
+            sql.SQL(
+                """
+                SELECT AVG(num_nonzero) FROM (
+                    SELECT cv_fold, COUNT(*) as num_nonzero
+                    FROM {schema}.zubarev_tag_coefficients
+                    WHERE coefficient != 0
+                    GROUP BY cv_fold
+                ) sub
+                """
+            ).format(schema=sql.Identifier(schema))
+        )
+        row = cur.fetchone()
+        mean_nonzero = float(row[0]) if row and row[0] is not None else None
+
+    return mean_padic_loss, mean_nonzero
+
+
 def snapshot_metrics(
     conn,
     product_table: str = "cantbuymelove.product",
@@ -369,6 +422,7 @@ def snapshot_metrics(
     ulr_padic, ulr_acc, ulr_nonzero = get_ulr_metrics(conn, schema)
     unn_padic, unn_acc, unn_nonzero = get_unn_metrics(conn, schema)
     dt_padic, dt_acc, dt_depth = get_dt_metrics(conn, schema)
+    zubarev_padic, zubarev_nonzero = get_zubarev_metrics(conn, schema)
 
     # Insert or update snapshot
     with conn.cursor() as cur:
@@ -382,8 +436,9 @@ def snapshot_metrics(
                  ulr_mean_padic_loss, ulr_mean_accuracy, ulr_mean_nonzero_params,
                  lr_mean_params, nn_mean_input_weights,
                  unn_mean_padic_loss, unn_mean_accuracy, unn_mean_nonzero_params,
-                 dt_mean_padic_loss, dt_mean_accuracy, dt_mean_tree_depth)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                 dt_mean_padic_loss, dt_mean_accuracy, dt_mean_tree_depth,
+                 zubarev_mean_padic_loss, zubarev_mean_nonzero_params)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ON CONFLICT (snapshot_date) DO UPDATE SET
                     snapshot_time = now(),
                     num_products = EXCLUDED.num_products,
@@ -407,7 +462,9 @@ def snapshot_metrics(
                     unn_mean_nonzero_params = EXCLUDED.unn_mean_nonzero_params,
                     dt_mean_padic_loss = EXCLUDED.dt_mean_padic_loss,
                     dt_mean_accuracy = EXCLUDED.dt_mean_accuracy,
-                    dt_mean_tree_depth = EXCLUDED.dt_mean_tree_depth
+                    dt_mean_tree_depth = EXCLUDED.dt_mean_tree_depth,
+                    zubarev_mean_padic_loss = EXCLUDED.zubarev_mean_padic_loss,
+                    zubarev_mean_nonzero_params = EXCLUDED.zubarev_mean_nonzero_params
                 """
             ).format(schema=sql.Identifier(schema)),
             (
@@ -434,6 +491,8 @@ def snapshot_metrics(
                 dt_padic,
                 dt_acc,
                 dt_depth,
+                zubarev_padic,
+                zubarev_nonzero,
             ),
         )
     conn.commit()
@@ -446,6 +505,7 @@ def snapshot_metrics(
     print(f"  ULR p-adic loss: {ulr_padic:.6f}" if ulr_padic else "  ULR: no data")
     print(f"  UNN p-adic loss: {unn_padic:.6f}" if unn_padic else "  UNN: no data")
     print(f"  DT p-adic loss: {dt_padic:.6f}" if dt_padic else "  DT: no data")
+    print(f"  Zubarev p-adic loss: {zubarev_padic:.6f}" if zubarev_padic else "  Zubarev: no data")
     print(f"  Dummy p-adic loss: {dummy_padic:.6f}" if dummy_padic else "  Dummy: no data")
 
 

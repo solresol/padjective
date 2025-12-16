@@ -2986,6 +2986,9 @@ def _format_regression_stats_html(stats: Optional[Dict[str, Dict[str, float]]], 
         'lr': 'PCLR',
         'nn': 'PCNN',
         'ulr': 'ULR',
+        'unn': 'UNN',
+        'dt': 'Decision Tree',
+        'zubarev': 'Zubarev',
         'dummy': 'Dummy Baseline',
     }
     model_colors = {
@@ -2993,11 +2996,14 @@ def _format_regression_stats_html(stats: Optional[Dict[str, Dict[str, float]]], 
         'lr': '#10b981',
         'nn': '#f59e0b',
         'ulr': '#8b5cf6',
+        'unn': '#ec4899',
+        'dt': '#14b8a6',
+        'zubarev': '#f97316',
         'dummy': '#94a3b8',
     }
 
     rows = []
-    for key in ['umllr', 'lr', 'nn', 'ulr', 'dummy']:
+    for key in ['umllr', 'lr', 'nn', 'ulr', 'unn', 'dt', 'zubarev', 'dummy']:
         if key in stats:
             s = stats[key]
             color = model_colors[key]
@@ -6536,7 +6542,7 @@ def _generate_performance_vs_products_chart(conn, output_path: Path, schema: str
                 """
                 SELECT num_products, umllr_mean_padic_loss, lr_mean_padic_loss,
                        nn_mean_padic_loss, dummy_mean_padic_loss, ulr_mean_padic_loss,
-                       unn_mean_padic_loss, dt_mean_padic_loss
+                       unn_mean_padic_loss, dt_mean_padic_loss, zubarev_mean_padic_loss
                 FROM {schema}.model_performance_history
                 ORDER BY num_products
                 """
@@ -6555,6 +6561,7 @@ def _generate_performance_vs_products_chart(conn, output_path: Path, schema: str
     ulr_loss = [row[5] for row in rows]
     unn_loss = [row[6] for row in rows]
     dt_loss = [row[7] for row in rows]
+    zubarev_loss = [row[8] for row in rows]
 
     fig, ax = plt.subplots(figsize=(10, 6))
     regression_stats = {}
@@ -6619,6 +6626,11 @@ def _generate_performance_vs_products_chart(conn, output_path: Path, schema: str
         if stat:
             regression_stats['unn'] = stat
 
+    if any(v is not None for v in zubarev_loss):
+        stat = plot_with_regression(num_products, zubarev_loss, 'Zubarev', '#f97316', 's')
+        if stat:
+            regression_stats['zubarev'] = stat
+
     ax.set_xlabel('Number of Products', fontsize=12, fontweight='bold')
     ax.set_ylabel('P-adic Loss (lower is better)', fontsize=12, fontweight='bold')
     ax.set_title('Model Performance vs Dataset Size (Products)', fontsize=14, fontweight='bold', pad=15)
@@ -6648,7 +6660,7 @@ def _generate_performance_vs_tags_chart(conn, output_path: Path, schema: str = "
                 """
                 SELECT num_tags, umllr_mean_padic_loss, lr_mean_padic_loss,
                        nn_mean_padic_loss, dummy_mean_padic_loss, ulr_mean_padic_loss,
-                       unn_mean_padic_loss, dt_mean_padic_loss
+                       unn_mean_padic_loss, dt_mean_padic_loss, zubarev_mean_padic_loss
                 FROM {schema}.model_performance_history
                 ORDER BY num_tags
                 """
@@ -6667,6 +6679,7 @@ def _generate_performance_vs_tags_chart(conn, output_path: Path, schema: str = "
     ulr_loss = [row[5] for row in rows]
     unn_loss = [row[6] for row in rows]
     dt_loss = [row[7] for row in rows]
+    zubarev_loss = [row[8] for row in rows]
 
     fig, ax = plt.subplots(figsize=(10, 6))
     regression_stats = {}
@@ -6731,6 +6744,11 @@ def _generate_performance_vs_tags_chart(conn, output_path: Path, schema: str = "
         if stat:
             regression_stats['unn'] = stat
 
+    if any(v is not None for v in zubarev_loss):
+        stat = plot_with_regression(num_tags, zubarev_loss, 'Zubarev', '#f97316', 's')
+        if stat:
+            regression_stats['zubarev'] = stat
+
     ax.set_xlabel('Number of Distinct Tags', fontsize=12, fontweight='bold')
     ax.set_ylabel('P-adic Loss (lower is better)', fontsize=12, fontweight='bold')
     ax.set_title('Model Performance vs Feature Space (Distinct Tags)', fontsize=14, fontweight='bold', pad=15)
@@ -6753,6 +6771,8 @@ def _generate_params_vs_loss_chart(
     taxonomy_pcnn_fold_results: Optional[list[Dict[str, Any]]] = None,
     taxonomy_ulr_fold_results: Optional[list[Dict[str, Any]]] = None,
     taxonomy_unn_fold_results: Optional[list[Dict[str, Any]]] = None,
+    taxonomy_dt_fold_results: Optional[list[Dict[str, Any]]] = None,
+    zubarev_fold_results: Optional[list[Dict[str, Any]]] = None,
 ) -> tuple[Optional[Path], Dict[str, Dict[str, float]]]:
     """Generate a scatter plot showing parameter count vs p-adic loss for all models.
 
@@ -6791,6 +6811,18 @@ def _generate_params_vs_loss_chart(
         avg_params = sum(r["num_nonzero_params"] for r in taxonomy_unn_fold_results) / len(taxonomy_unn_fold_results)
         avg_loss = sum(r["padic_loss_mean"] for r in taxonomy_unn_fold_results) / len(taxonomy_unn_fold_results)
         data_points.append((avg_params, avg_loss, "UNN", "#ec4899", "p"))
+
+    # Decision Tree - use effective_params (num_nodes * log2(num_classes))
+    if taxonomy_dt_fold_results:
+        avg_params = sum(r["effective_params"] for r in taxonomy_dt_fold_results) / len(taxonomy_dt_fold_results)
+        avg_loss = sum(r["padic_loss_mean"] for r in taxonomy_dt_fold_results) / len(taxonomy_dt_fold_results)
+        data_points.append((avg_params, avg_loss, "Decision Tree", "#14b8a6", "h"))
+
+    # Zubarev - stochastic p-adic polynomial regression
+    if zubarev_fold_results:
+        avg_params = sum(r["num_nonzero_params"] for r in zubarev_fold_results) / len(zubarev_fold_results)
+        avg_loss = sum(r["padic_loss_mean"] for r in zubarev_fold_results) / len(zubarev_fold_results)
+        data_points.append((avg_params, avg_loss, "Zubarev", "#f97316", "s"))
 
     # Get Importance-Optimised p-adic LR (UMLLR) - use actual non-zero coefficients
     if _table_exists(conn, schema, "umllr_fold_metrics"):
@@ -7356,6 +7388,8 @@ footer {text-align: center; padding: 2rem 1.5rem 3rem; color: #6b7280;}
         taxonomy_pcnn_fold_results=taxonomy_pcnn_fold_results,
         taxonomy_ulr_fold_results=taxonomy_ulr_fold_results,
         taxonomy_unn_fold_results=taxonomy_unn_fold_results,
+        taxonomy_dt_fold_results=taxonomy_dt_fold_results,
+        zubarev_fold_results=zubarev_fold_results,
     )
 
     unconstrained_log_chart_path, unconstrained_log_stats = _generate_unconstrained_log_chart(
