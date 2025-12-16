@@ -3449,6 +3449,7 @@ def _build_index_html(
     taxonomy_ulr_fold_results: Optional[list[Dict[str, Any]]] = None,
     taxonomy_unn_fold_results: Optional[list[Dict[str, Any]]] = None,
     taxonomy_dt_fold_results: Optional[list[Dict[str, Any]]] = None,
+    zubarev_fold_results: Optional[list[Dict[str, Any]]] = None,
     trends_chart_path: Optional[Path] = None,
     perf_vs_products_chart_path: Optional[Path] = None,
     perf_vs_tags_chart_path: Optional[Path] = None,
@@ -3664,12 +3665,35 @@ def _build_index_html(
     {taxonomy_dt_link or '<span class="card-link disabled">No report available</span>'}
   </div>"""
 
+    # Zubarev p-adic polynomial regression card
+    zubarev_card = ""
+    if zubarev_fold_results:
+        avg_loss = sum(r["padic_loss_mean"] for r in zubarev_fold_results) / len(zubarev_fold_results)
+        avg_nonzero = sum(r["num_nonzero_params"] for r in zubarev_fold_results) / len(zubarev_fold_results)
+        avg_iters = sum(r["iterations_used"] for r in zubarev_fold_results) / len(zubarev_fold_results)
+        zubarev_card = f"""
+  <div class="model-card">
+    <h3>Zubarev Polynomial Regression</h3>
+    <p>Stochastic p-adic optimization with Mahler basis (arXiv:2503.23488)</p>
+    <div class="card-metric">
+      <span class="value">{avg_loss:.4f}</span>
+      <span class="label">Avg p-adic loss</span>
+    </div>
+    <div class="card-metric" style="margin-top: 0.5rem;">
+      <span class="value">{avg_nonzero:,.0f}</span>
+      <span class="label">Non-zero coefficients</span>
+    </div>
+    <span class="card-link disabled">~{avg_iters:,.0f} iterations</span>
+  </div>"""
+
     # Combine model cards
     all_cards: list[str] = []
     if dummy_card:
         all_cards.append(dummy_card)
     if umllr_card:
         all_cards.append(umllr_card)
+    if zubarev_card:
+        all_cards.append(zubarev_card)
     if ulr_card:
         all_cards.append(ulr_card)
     if dt_card:
@@ -5728,6 +5752,76 @@ def _load_taxonomy_dt_feature_importances(conn, schema: str = "padjective") -> O
     return results
 
 
+def _load_zubarev_fold_results(conn, schema: str = "padjective") -> Optional[list[Dict[str, Any]]]:
+    """Load Zubarev p-adic polynomial regression fold-based results."""
+    if not _table_exists(conn, schema, "zubarev_fold_metrics"):
+        return None
+
+    with conn.cursor(row_factory=dict_row) as cur:
+        # Get fold metrics
+        cur.execute(
+            sql.SQL(
+                """
+                SELECT cv_fold, loss, prime_base, max_digit, default_prediction,
+                       iterations_used, final_temperature
+                FROM {schema}.zubarev_fold_metrics
+                ORDER BY cv_fold
+                """
+            ).format(schema=sql.Identifier(schema))
+        )
+        metrics = {row["cv_fold"]: dict(row) for row in cur}
+
+        if not metrics:
+            return None
+
+        # Get prediction counts and compute mean loss per fold
+        cur.execute(
+            sql.SQL(
+                """
+                SELECT cv_fold, COUNT(*) as num_predictions, AVG(loss) as padic_loss_mean
+                FROM {schema}.zubarev_predictions
+                GROUP BY cv_fold
+                ORDER BY cv_fold
+                """
+            ).format(schema=sql.Identifier(schema))
+        )
+        pred_stats = {row["cv_fold"]: dict(row) for row in cur}
+
+        # Get non-zero coefficient counts per fold
+        cur.execute(
+            sql.SQL(
+                """
+                SELECT cv_fold, COUNT(*) as num_nonzero
+                FROM {schema}.zubarev_tag_coefficients
+                WHERE coefficient != 0
+                GROUP BY cv_fold
+                ORDER BY cv_fold
+                """
+            ).format(schema=sql.Identifier(schema))
+        )
+        coeff_counts = {row["cv_fold"]: row["num_nonzero"] for row in cur}
+
+        results = []
+        for fold in sorted(metrics.keys()):
+            m = metrics[fold]
+            ps = pred_stats.get(fold, {})
+            results.append({
+                "cv_fold": int(fold),
+                "padic_loss_total": float(m["loss"]),
+                "padic_loss_mean": float(ps.get("padic_loss_mean", 0)),
+                "prime_base": int(m["prime_base"]),
+                "num_test_samples": int(ps.get("num_predictions", 0)),
+                "num_nonzero_params": int(coeff_counts.get(fold, 0)),
+                "iterations_used": int(m["iterations_used"]),
+                "final_temperature": float(m["final_temperature"]),
+            })
+
+    if not results:
+        return None
+
+    return results
+
+
 def _write_taxonomy_dt_overview_page(
     output_dir: Path,
     fold_results: list[Dict[str, Any]],
@@ -6445,6 +6539,7 @@ def _generate_unconstrained_log_chart(
     taxonomy_ulr_fold_results: Optional[list[Dict[str, Any]]] = None,
     taxonomy_unn_fold_results: Optional[list[Dict[str, Any]]] = None,
     taxonomy_dt_fold_results: Optional[list[Dict[str, Any]]] = None,
+    zubarev_fold_results: Optional[list[Dict[str, Any]]] = None,
 ) -> Tuple[Optional[Path], Optional[Dict[str, Any]]]:
     """Generate a log-log scatter plot showing only unconstrained models (no PCLR/PCNN).
 
@@ -6474,6 +6569,12 @@ def _generate_unconstrained_log_chart(
         avg_params = sum(r["effective_params"] for r in taxonomy_dt_fold_results) / len(taxonomy_dt_fold_results)
         avg_loss = sum(r["padic_loss_mean"] for r in taxonomy_dt_fold_results) / len(taxonomy_dt_fold_results)
         data_points.append((avg_params, avg_loss, "Decision Tree", "#14b8a6", "h"))
+
+    # Zubarev - stochastic p-adic polynomial regression
+    if zubarev_fold_results:
+        avg_params = sum(r["num_nonzero_params"] for r in zubarev_fold_results) / len(zubarev_fold_results)
+        avg_loss = sum(r["padic_loss_mean"] for r in zubarev_fold_results) / len(zubarev_fold_results)
+        data_points.append((avg_params, avg_loss, "Zubarev Polynomial Regression", "#f97316", "s"))
 
     # Get Importance-Optimised p-adic LR (UMLLR) - use actual non-zero coefficients
     if _table_exists(conn, schema, "umllr_fold_metrics"):
@@ -6816,6 +6917,11 @@ footer {text-align: center; padding: 2rem 1.5rem 3rem; color: #6b7280;}
             output_dir, taxonomy_dt_fold_results, taxonomy_dt_feature_importances
         )
 
+    # Load Zubarev p-adic polynomial regression results
+    zubarev_fold_results = _load_zubarev_fold_results(
+        precomputed_database, schema=battle_schema
+    )
+
     # Generate historical trends charts
     trends_chart_path = _generate_historical_trends_chart(
         precomputed_database,
@@ -6850,6 +6956,7 @@ footer {text-align: center; padding: 2rem 1.5rem 3rem; color: #6b7280;}
         taxonomy_ulr_fold_results=taxonomy_ulr_fold_results,
         taxonomy_unn_fold_results=taxonomy_unn_fold_results,
         taxonomy_dt_fold_results=taxonomy_dt_fold_results,
+        zubarev_fold_results=zubarev_fold_results,
     )
 
     _build_index_html(
@@ -6873,6 +6980,7 @@ footer {text-align: center; padding: 2rem 1.5rem 3rem; color: #6b7280;}
         taxonomy_ulr_fold_results,
         taxonomy_unn_fold_results,
         taxonomy_dt_fold_results,
+        zubarev_fold_results,
         trends_chart_path,
         perf_vs_products_chart_path,
         perf_vs_tags_chart_path,

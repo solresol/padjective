@@ -117,6 +117,15 @@ for fold in 0 1 2 3 4; do
         --fold "$fold"
 done
 
+# Train Zubarev p-adic polynomial regression (stochastic alternative to UMLLR)
+# Uses Mahler basis with simulated annealing optimization
+echo "Training Zubarev p-adic polynomial regression..."
+uv run -m padjective.zubarev \
+    "${TAGBATTLE_DSN_ARGS[@]}" \
+    --schema "$TAGBATTLE_SCHEMA" \
+    --product-table "$TAGBATTLE_PRODUCT_TABLE" \
+    --max-iterations 10000
+
 # Snapshot current metrics for historical tracking
 uv run -m padjective.snapshot_metrics \
     "${TAGBATTLE_DSN_ARGS[@]}" \
