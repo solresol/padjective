@@ -259,7 +259,7 @@ def _load_products(
 
     for product_id, tags, digits, cv_fold, taxonomy_id, taxonomy_path in raw_entries:
         encoded = _encode_path(digits, prime_base)
-        records.append(ProductRecord(product_id, filtered_tags, encoded, cv_fold))
+        records.append(ProductRecord(product_id, tags, encoded, cv_fold))
         if taxonomy_id and taxonomy_id not in taxonomy_encodings:
             taxonomy_encodings[taxonomy_id] = (taxonomy_path, encoded)
 
