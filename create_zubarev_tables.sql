@@ -61,6 +61,22 @@ CREATE TABLE IF NOT EXISTS padjective.zubarev_mahler_weights (
     PRIMARY KEY (cv_fold, k)
 );
 
+-- Create zubarev_iteration_history table for tracking loss over optimization
+CREATE TABLE IF NOT EXISTS padjective.zubarev_iteration_history (
+    cv_fold INTEGER NOT NULL,
+    iteration INTEGER NOT NULL,
+    train_loss DOUBLE PRECISION NOT NULL,
+    validation_loss DOUBLE PRECISION NOT NULL,
+    best_loss DOUBLE PRECISION NOT NULL,
+    temperature DOUBLE PRECISION NOT NULL,
+    acceptance_rate DOUBLE PRECISION NOT NULL,
+    PRIMARY KEY (cv_fold, iteration)
+);
+
+-- Create index for zubarev_iteration_history
+CREATE INDEX IF NOT EXISTS padjective_zubarev_iteration_history_fold_idx
+    ON padjective.zubarev_iteration_history (cv_fold);
+
 -- Grant all privileges on schema and tables to padjective user
 GRANT USAGE ON SCHEMA padjective TO padjective;
 GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA padjective TO padjective;

@@ -69,6 +69,17 @@ class Prediction:
 
 
 @dataclass(frozen=True)
+class IterationRecord:
+    """Record of optimization state at a specific iteration."""
+    iteration: int
+    train_loss: float
+    validation_loss: float
+    best_loss: float
+    temperature: float
+    acceptance_rate: float  # Recent acceptance rate
+
+
+@dataclass(frozen=True)
 class FoldResult:
     cv_fold: int
     coefficients: List[TagCoefficient]
@@ -78,6 +89,7 @@ class FoldResult:
     default_prediction: int
     iterations_used: int
     final_temperature: float
+    iteration_history: List[IterationRecord]  # Loss tracking over iterations
 
 
 def _next_prime(min_value: int) -> int:
@@ -352,6 +364,7 @@ def _initialize_coefficients_umllr_style(
 
 def _stochastic_optimize(
     training: Sequence[ProductRecord],
+    validation: Sequence[ProductRecord],
     initial_coefficients: Dict[str, int],
     base: int,
     *,
@@ -362,13 +375,15 @@ def _stochastic_optimize(
     min_temperature: float = 0.001,
     perturbation_scale: int = 1000,
     seed: int | None = None,
-) -> Tuple[Dict[str, int], List[int], float, int]:
+    log_interval: int = 100,
+) -> Tuple[Dict[str, int], List[int], float, int, List[IterationRecord]]:
     """Zubarev-style stochastic optimization.
 
     Uses p-adic random walk with simulated annealing.
 
     Args:
-        training: Training records
+        training: Training records (for optimization)
+        validation: Validation records (for tracking generalization)
         initial_coefficients: Starting point (e.g., from UMLLR initialization)
         base: Prime base for p-adic arithmetic
         mahler_degree: Degree of Mahler polynomial (0 = linear only)
@@ -378,9 +393,10 @@ def _stochastic_optimize(
         min_temperature: Stop when temperature falls below this
         perturbation_scale: Scale of random perturbations
         seed: Random seed for reproducibility
+        log_interval: How often to record iteration history
 
     Returns:
-        (optimized_coefficients, mahler_weights, final_loss, iterations_used)
+        (optimized_coefficients, mahler_weights, final_loss, iterations_used, iteration_history)
     """
     if seed is not None:
         random.seed(seed)
@@ -405,8 +421,24 @@ def _stochastic_optimize(
     best_mahler = list(mahler_weights)
     best_loss = current_loss
 
+    # Iteration history tracking
+    iteration_history: List[IterationRecord] = []
+    recent_accepts = 0
+    recent_proposals = 0
+
     temperature = initial_temperature
     iteration = 0
+
+    # Record initial state
+    val_loss = _compute_loss(validation, coefficients, mahler_weights, default_prediction, base) if validation else 0.0
+    iteration_history.append(IterationRecord(
+        iteration=0,
+        train_loss=current_loss / len(training) if training else 0.0,
+        validation_loss=val_loss / len(validation) if validation else 0.0,
+        best_loss=best_loss / len(training) if training else 0.0,
+        temperature=temperature,
+        acceptance_rate=1.0,
+    ))
 
     while iteration < max_iterations and temperature > min_temperature:
         # Choose what to perturb: coefficient or Mahler weight
@@ -429,8 +461,11 @@ def _stochastic_optimize(
             new_loss = _compute_loss(training, coefficients, mahler_weights, default_prediction, base)
 
             # Metropolis acceptance criterion
+            recent_proposals += 1
+            accepted = False
             if new_loss < current_loss:
                 current_loss = new_loss
+                accepted = True
                 if new_loss < best_loss:
                     best_loss = new_loss
                     best_coefficients = dict(coefficients)
@@ -441,10 +476,13 @@ def _stochastic_optimize(
                 acceptance_prob = math.exp(-delta_loss / temperature)
                 if random.random() < acceptance_prob:
                     current_loss = new_loss
+                    accepted = True
                 else:
                     mahler_weights[k] = old_weight
             else:
                 mahler_weights[k] = old_weight
+            if accepted:
+                recent_accepts += 1
         else:
             # Perturb a coefficient
             if not tags:
@@ -478,8 +516,11 @@ def _stochastic_optimize(
             new_loss = _compute_loss(training, coefficients, mahler_weights, default_prediction, base)
 
             # Metropolis acceptance criterion
+            recent_proposals += 1
+            accepted = False
             if new_loss < current_loss:
                 current_loss = new_loss
+                accepted = True
                 if new_loss < best_loss:
                     best_loss = new_loss
                     best_coefficients = dict(coefficients)
@@ -489,15 +530,47 @@ def _stochastic_optimize(
                 acceptance_prob = math.exp(-delta_loss / temperature)
                 if random.random() < acceptance_prob:
                     current_loss = new_loss
+                    accepted = True
                 else:
                     coefficients[tag] = old_coeff
             else:
                 coefficients[tag] = old_coeff
+            if accepted:
+                recent_accepts += 1
 
         iteration += 1
         temperature *= cooling_rate
 
-    return best_coefficients, best_mahler, best_loss, iteration
+        # Record history at intervals
+        if iteration % log_interval == 0:
+            val_loss = _compute_loss(validation, coefficients, mahler_weights, default_prediction, base) if validation else 0.0
+            accept_rate = recent_accepts / recent_proposals if recent_proposals > 0 else 0.0
+            iteration_history.append(IterationRecord(
+                iteration=iteration,
+                train_loss=current_loss / len(training) if training else 0.0,
+                validation_loss=val_loss / len(validation) if validation else 0.0,
+                best_loss=best_loss / len(training) if training else 0.0,
+                temperature=temperature,
+                acceptance_rate=accept_rate,
+            ))
+            # Reset acceptance tracking for next interval
+            recent_accepts = 0
+            recent_proposals = 0
+
+    # Record final state (only if not already recorded at a log interval)
+    if iteration % log_interval != 0:
+        val_loss = _compute_loss(validation, coefficients, mahler_weights, default_prediction, base) if validation else 0.0
+        accept_rate = recent_accepts / recent_proposals if recent_proposals > 0 else 0.0
+        iteration_history.append(IterationRecord(
+            iteration=iteration,
+            train_loss=current_loss / len(training) if training else 0.0,
+            validation_loss=val_loss / len(validation) if validation else 0.0,
+            best_loss=best_loss / len(training) if training else 0.0,
+            temperature=temperature,
+            acceptance_rate=accept_rate,
+        ))
+
+    return best_coefficients, best_mahler, best_loss, iteration, iteration_history
 
 
 def _select_default_prediction(
@@ -534,20 +607,32 @@ def _run_fold(
     mahler_degree: int = 0,
     max_iterations: int = 10000,
     seed: int | None = None,
+    validation_fraction: float = 0.2,
 ) -> FoldResult:
     """Run Zubarev regression for a single CV fold."""
-    training = [r for r in records if r.cv_fold != fold]
+    all_training = [r for r in records if r.cv_fold != fold]
     testing = [r for r in records if r.cv_fold == fold]
 
-    # Initialize using UMLLR's greedy method
+    # Split training into train/validation for monitoring
+    fold_seed = seed + fold if seed is not None else None
+    if fold_seed is not None:
+        random.seed(fold_seed)
+
+    shuffled = list(all_training)
+    random.shuffle(shuffled)
+    val_size = int(len(shuffled) * validation_fraction)
+    validation = shuffled[:val_size]
+    training = shuffled[val_size:]
+
+    # Initialize using UMLLR's greedy method (on full training data for better init)
     initial_coefficients = _initialize_coefficients_umllr_style(
-        training, battles, fold, base
+        all_training, battles, fold, base
     )
 
-    # Stochastic optimization
-    fold_seed = seed + fold if seed is not None else None
-    optimized_coefficients, mahler_weights, train_loss, iterations_used = _stochastic_optimize(
+    # Stochastic optimization with validation tracking
+    optimized_coefficients, mahler_weights, train_loss, iterations_used, iteration_history = _stochastic_optimize(
         training,
+        validation,
         initial_coefficients,
         base,
         mahler_degree=mahler_degree,
@@ -606,6 +691,7 @@ def _run_fold(
         default_prediction=default_prediction,
         iterations_used=iterations_used,
         final_temperature=final_temp,
+        iteration_history=iteration_history,
     )
 
 
@@ -616,6 +702,7 @@ def _ensure_storage(conn, schema: str) -> None:
         "zubarev_fold_metrics",
         "zubarev_predictions",
         "zubarev_mahler_weights",
+        "zubarev_iteration_history",
     ]
 
     with conn.cursor() as cur:
@@ -648,6 +735,7 @@ def _save_results(
     prediction_rows: List[Tuple[int, int, int, int, float]] = []
     metrics_rows: List[Tuple[int, float, int, int, int, int, float]] = []
     mahler_rows: List[Tuple[int, int, int]] = []
+    history_rows: List[Tuple[int, int, float, float, float, float, float]] = []
 
     for result in results:
         metrics_rows.append((
@@ -671,6 +759,16 @@ def _save_results(
             ))
         for k, weight in enumerate(result.mahler_weights):
             mahler_rows.append((result.cv_fold, k, weight))
+        for record in result.iteration_history:
+            history_rows.append((
+                result.cv_fold,
+                record.iteration,
+                record.train_loss,
+                record.validation_loss,
+                record.best_loss,
+                record.temperature,
+                record.acceptance_rate,
+            ))
 
     with conn.cursor() as cur:
         fold_list = list(range(cv_splits))
@@ -696,6 +794,12 @@ def _save_results(
             )
             cur.execute(
                 sql.SQL("DELETE FROM {schema}.zubarev_mahler_weights WHERE cv_fold = ANY(%s)").format(
+                    schema=sql.Identifier(schema)
+                ),
+                (fold_list,)
+            )
+            cur.execute(
+                sql.SQL("DELETE FROM {schema}.zubarev_iteration_history WHERE cv_fold = ANY(%s)").format(
                     schema=sql.Identifier(schema)
                 ),
                 (fold_list,)
@@ -734,6 +838,15 @@ def _save_results(
                     "VALUES (%s, %s, %s)"
                 ).format(schema=sql.Identifier(schema)),
                 mahler_rows,
+            )
+        if history_rows:
+            cur.executemany(
+                sql.SQL(
+                    "INSERT INTO {schema}.zubarev_iteration_history "
+                    "(cv_fold, iteration, train_loss, validation_loss, best_loss, temperature, acceptance_rate) "
+                    "VALUES (%s, %s, %s, %s, %s, %s, %s)"
+                ).format(schema=sql.Identifier(schema)),
+                history_rows,
             )
     conn.commit()
 

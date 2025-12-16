@@ -3441,6 +3441,7 @@ def _build_index_html(
     taxonomy_ulr_page: Optional[Path] = None,
     taxonomy_unn_page: Optional[Path] = None,
     taxonomy_dt_page: Optional[Path] = None,
+    zubarev_page: Optional[Path] = None,
     taxonomy_summary: Optional[Dict[str, Any]] = None,
     umllr_summary: Optional[Dict[str, Any]] = None,
     dummy_summary: Optional[Dict[str, Any]] = None,
@@ -3671,6 +3672,11 @@ def _build_index_html(
         avg_loss = sum(r["padic_loss_mean"] for r in zubarev_fold_results) / len(zubarev_fold_results)
         avg_nonzero = sum(r["num_nonzero_params"] for r in zubarev_fold_results) / len(zubarev_fold_results)
         avg_iters = sum(r["iterations_used"] for r in zubarev_fold_results) / len(zubarev_fold_results)
+        zubarev_link = ""
+        if zubarev_page:
+            zubarev_link = f'<a href="{zubarev_page.relative_to(output_dir).as_posix()}" class="card-link">View fold details →</a>'
+        else:
+            zubarev_link = f'<span class="card-link disabled">~{avg_iters:,.0f} iterations</span>'
         zubarev_card = f"""
   <div class="model-card">
     <h3>Zubarev Polynomial Regression</h3>
@@ -3683,7 +3689,7 @@ def _build_index_html(
       <span class="value">{avg_nonzero:,.0f}</span>
       <span class="label">Non-zero coefficients</span>
     </div>
-    <span class="card-link disabled">~{avg_iters:,.0f} iterations</span>
+    {zubarev_link}
   </div>"""
 
     # Combine model cards
@@ -5752,6 +5758,42 @@ def _load_taxonomy_dt_feature_importances(conn, schema: str = "padjective") -> O
     return results
 
 
+def _load_zubarev_iteration_history(conn, schema: str = "padjective") -> Optional[Dict[int, list[Dict[str, Any]]]]:
+    """Load Zubarev iteration history for all folds."""
+    if not _table_exists(conn, schema, "zubarev_iteration_history"):
+        return None
+
+    with conn.cursor(row_factory=dict_row) as cur:
+        cur.execute(
+            sql.SQL(
+                """
+                SELECT cv_fold, iteration, train_loss, validation_loss, best_loss,
+                       temperature, acceptance_rate
+                FROM {schema}.zubarev_iteration_history
+                ORDER BY cv_fold, iteration
+                """
+            ).format(schema=sql.Identifier(schema))
+        )
+        results: Dict[int, list[Dict[str, Any]]] = {}
+        for row in cur:
+            fold = int(row["cv_fold"])
+            if fold not in results:
+                results[fold] = []
+            results[fold].append({
+                "iteration": int(row["iteration"]),
+                "train_loss": float(row["train_loss"]),
+                "validation_loss": float(row["validation_loss"]),
+                "best_loss": float(row["best_loss"]),
+                "temperature": float(row["temperature"]),
+                "acceptance_rate": float(row["acceptance_rate"]),
+            })
+
+    if not results:
+        return None
+
+    return results
+
+
 def _load_zubarev_fold_results(conn, schema: str = "padjective") -> Optional[list[Dict[str, Any]]]:
     """Load Zubarev p-adic polynomial regression fold-based results."""
     if not _table_exists(conn, schema, "zubarev_fold_metrics"):
@@ -5978,6 +6020,362 @@ def _write_taxonomy_dt_overview_page(
 </html>"""
 
     page_path = dt_dir / "index.html"
+    page_path.write_text(page_html, encoding="utf-8")
+    return page_path
+
+
+def _generate_zubarev_loss_chart(
+    iteration_history: list[Dict[str, Any]],
+    output_path: Path,
+    fold: int,
+) -> Optional[Path]:
+    """Generate a chart showing loss over optimization iterations.
+
+    Args:
+        iteration_history: List of dicts with iteration, train_loss, validation_loss, best_loss
+        output_path: Where to save the chart
+        fold: Fold number for title
+
+    Returns:
+        Path to generated chart, or None if insufficient data
+    """
+    if not iteration_history or len(iteration_history) < 2:
+        return None
+
+    iterations = [r["iteration"] for r in iteration_history]
+    train_loss = [r["train_loss"] for r in iteration_history]
+    val_loss = [r["validation_loss"] for r in iteration_history]
+    best_loss = [r["best_loss"] for r in iteration_history]
+
+    fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8), sharex=True)
+
+    # Top plot: Loss curves
+    ax1.plot(iterations, train_loss, label="Train loss", color="#0b6ce3", linewidth=2)
+    ax1.plot(iterations, val_loss, label="Validation loss", color="#f97316", linewidth=2)
+    ax1.plot(iterations, best_loss, label="Best loss", color="#10b981", linewidth=2, linestyle="--")
+    ax1.set_ylabel("Mean p-adic loss", fontsize=12)
+    ax1.set_title(f"Zubarev Optimization - Fold {fold}", fontsize=14, fontweight="bold")
+    ax1.legend(loc="upper right")
+    ax1.grid(True, alpha=0.3)
+    ax1.set_xlim(0, max(iterations))
+
+    # Bottom plot: Temperature and acceptance rate
+    ax2_temp = ax2
+    ax2_accept = ax2.twinx()
+
+    temperatures = [r["temperature"] for r in iteration_history]
+    accept_rates = [r["acceptance_rate"] for r in iteration_history]
+
+    ax2_temp.plot(iterations, temperatures, label="Temperature", color="#8b5cf6", linewidth=2)
+    ax2_accept.plot(iterations, accept_rates, label="Acceptance rate", color="#ec4899", linewidth=2)
+
+    ax2_temp.set_xlabel("Iteration", fontsize=12)
+    ax2_temp.set_ylabel("Temperature", fontsize=12, color="#8b5cf6")
+    ax2_accept.set_ylabel("Acceptance rate", fontsize=12, color="#ec4899")
+    ax2_temp.tick_params(axis="y", labelcolor="#8b5cf6")
+    ax2_accept.tick_params(axis="y", labelcolor="#ec4899")
+
+    # Combined legend
+    lines1, labels1 = ax2_temp.get_legend_handles_labels()
+    lines2, labels2 = ax2_accept.get_legend_handles_labels()
+    ax2_temp.legend(lines1 + lines2, labels1 + labels2, loc="upper right")
+    ax2_temp.grid(True, alpha=0.3)
+
+    plt.tight_layout()
+    plt.savefig(output_path, dpi=100, bbox_inches="tight")
+    plt.close(fig)
+
+    return output_path
+
+
+def _write_zubarev_fold_pages(
+    output_dir: Path,
+    fold_results: list[Dict[str, Any]],
+    iteration_history: Optional[Dict[int, list[Dict[str, Any]]]] = None,
+) -> Dict[int, Path]:
+    """Write individual fold pages for Zubarev regression with loss charts.
+
+    Args:
+        output_dir: Base output directory
+        fold_results: List of fold result dicts
+        iteration_history: Dict mapping fold -> list of iteration records
+
+    Returns:
+        Dict mapping fold number to page path
+    """
+    zubarev_dir = output_dir / "zubarev"
+    zubarev_dir.mkdir(parents=True, exist_ok=True)
+
+    fold_pages: Dict[int, Path] = {}
+
+    for result in fold_results:
+        fold = result["cv_fold"]
+        fold_dir = zubarev_dir / f"fold_{fold}"
+        fold_dir.mkdir(parents=True, exist_ok=True)
+
+        # Generate loss chart if we have iteration history
+        chart_html = ""
+        if iteration_history and fold in iteration_history:
+            chart_path = fold_dir / "loss_chart.png"
+            generated_chart = _generate_zubarev_loss_chart(
+                iteration_history[fold], chart_path, fold
+            )
+            if generated_chart:
+                chart_html = f"""
+    <figure class="chart">
+      <img src="loss_chart.png" alt="Loss over optimization iterations" />
+      <figcaption>Train, validation, and best loss over optimization iterations</figcaption>
+    </figure>"""
+
+        # Build metrics summary
+        page_html = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Zubarev Regression - Fold {fold}</title>
+  <link rel="stylesheet" href="../../assets/styles.css" />
+  <style>
+.zubarev-metrics {{
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 1rem;
+  margin: 1.5rem 0;
+}}
+.zubarev-metrics .metric {{
+  background: #f8fafc;
+  padding: 1rem;
+  border-radius: 0.5rem;
+  text-align: center;
+}}
+.zubarev-metrics .metric .value {{
+  display: block;
+  font-size: 1.5rem;
+  font-weight: bold;
+  color: #0b6ce3;
+}}
+.zubarev-metrics .metric .label {{
+  display: block;
+  font-size: 0.875rem;
+  color: #64748b;
+}}
+.chart {{
+  margin: 2rem 0;
+  text-align: center;
+}}
+.chart img {{
+  max-width: 100%;
+  border-radius: 0.5rem;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}}
+.chart figcaption {{
+  margin-top: 0.5rem;
+  color: #64748b;
+  font-style: italic;
+}}
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Zubarev Polynomial Regression - Fold {fold}</h1>
+    <p>Stochastic p-adic optimization with simulated annealing</p>
+  </header>
+
+  <section class="content">
+    <div class="zubarev-metrics">
+      <div class="metric">
+        <span class="value">{result['padic_loss_mean']:.4f}</span>
+        <span class="label">Mean p-adic loss</span>
+      </div>
+      <div class="metric">
+        <span class="value">{result['padic_loss_total']:.2f}</span>
+        <span class="label">Total p-adic loss</span>
+      </div>
+      <div class="metric">
+        <span class="value">{result['num_nonzero_params']:,}</span>
+        <span class="label">Non-zero coefficients</span>
+      </div>
+      <div class="metric">
+        <span class="value">{result['iterations_used']:,}</span>
+        <span class="label">Iterations</span>
+      </div>
+      <div class="metric">
+        <span class="value">{result['num_test_samples']:,}</span>
+        <span class="label">Test samples</span>
+      </div>
+      <div class="metric">
+        <span class="value">{result['final_temperature']:.6f}</span>
+        <span class="label">Final temperature</span>
+      </div>
+    </div>
+
+    <h2>Optimization Progress</h2>
+    {chart_html if chart_html else '<p>No iteration history available for this fold.</p>'}
+
+    <h2>Method Details</h2>
+    <ul>
+      <li><strong>Prime base:</strong> {result['prime_base']}</li>
+      <li><strong>Initialization:</strong> UMLLR greedy coefficients</li>
+      <li><strong>Optimization:</strong> Simulated annealing with p-adic perturbations</li>
+      <li><strong>Reference:</strong> <a href="https://arxiv.org/abs/2503.23488">arXiv:2503.23488</a> (Zubarev, 2025)</li>
+    </ul>
+  </section>
+
+  <footer>
+    <p><a href="../index.html">← Back to Zubarev overview</a> | <a href="../../index.html">← Back to index</a></p>
+  </footer>
+</body>
+</html>"""
+
+        page_path = fold_dir / "index.html"
+        page_path.write_text(page_html, encoding="utf-8")
+        fold_pages[fold] = page_path
+
+    return fold_pages
+
+
+def _write_zubarev_overview_page(
+    output_dir: Path,
+    fold_results: list[Dict[str, Any]],
+    fold_pages: Dict[int, Path],
+) -> Path:
+    """Write the main overview page for Zubarev regression.
+
+    Args:
+        output_dir: Base output directory
+        fold_results: List of fold result dicts
+        fold_pages: Dict mapping fold number to individual fold page paths
+
+    Returns:
+        Path to the overview page
+    """
+    zubarev_dir = output_dir / "zubarev"
+    zubarev_dir.mkdir(parents=True, exist_ok=True)
+
+    # Compute averages
+    avg_loss = sum(r["padic_loss_mean"] for r in fold_results) / len(fold_results)
+    avg_nonzero = sum(r["num_nonzero_params"] for r in fold_results) / len(fold_results)
+    avg_iters = sum(r["iterations_used"] for r in fold_results) / len(fold_results)
+    total_test = sum(r["num_test_samples"] for r in fold_results)
+    prime_base = fold_results[0]["prime_base"]
+
+    # Build fold table
+    fold_rows = []
+    for result in fold_results:
+        fold = result["cv_fold"]
+        fold_link = fold_pages.get(fold)
+        fold_name = f'<a href="fold_{fold}/index.html">Fold {fold}</a>' if fold_link else f"Fold {fold}"
+        fold_rows.append(
+            f"<tr><td>{fold_name}</td><td>{result['padic_loss_mean']:.4f}</td>"
+            f"<td>{result['num_nonzero_params']:,}</td><td>{result['iterations_used']:,}</td>"
+            f"<td>{result['num_test_samples']:,}</td></tr>"
+        )
+    fold_table_body = "\n".join(fold_rows)
+
+    page_html = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Zubarev P-adic Polynomial Regression</title>
+  <link rel="stylesheet" href="../assets/styles.css" />
+  <style>
+.zubarev-summary {{
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1.5rem 0;
+}}
+.zubarev-summary th, .zubarev-summary td {{
+  padding: 0.75rem;
+  text-align: left;
+  border-bottom: 1px solid #e2e8f0;
+}}
+.zubarev-summary th {{
+  background: #f8fafc;
+  font-weight: 600;
+}}
+.zubarev-summary tr:hover {{
+  background: #f1f5f9;
+}}
+.metrics-grid {{
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 1.5rem;
+  margin: 2rem 0;
+}}
+.metrics-grid .metric {{
+  background: white;
+  padding: 1.5rem;
+  border-radius: 0.75rem;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+  text-align: center;
+}}
+.metrics-grid .metric .value {{
+  display: block;
+  font-size: 2rem;
+  font-weight: bold;
+  color: #0b6ce3;
+}}
+.metrics-grid .metric .label {{
+  display: block;
+  font-size: 0.875rem;
+  color: #64748b;
+  margin-top: 0.25rem;
+}}
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Zubarev P-adic Polynomial Regression</h1>
+    <p>Stochastic optimization with Mahler basis functions</p>
+  </header>
+
+  <section class="content">
+    <div class="metrics-grid">
+      <div class="metric">
+        <span class="value">{avg_loss:.4f}</span>
+        <span class="label">Avg p-adic loss</span>
+      </div>
+      <div class="metric">
+        <span class="value">{avg_nonzero:,.0f}</span>
+        <span class="label">Avg non-zero coefficients</span>
+      </div>
+      <div class="metric">
+        <span class="value">{avg_iters:,.0f}</span>
+        <span class="label">Avg iterations</span>
+      </div>
+      <div class="metric">
+        <span class="value">{total_test:,}</span>
+        <span class="label">Total test samples</span>
+      </div>
+    </div>
+
+    <h2>Method Description</h2>
+    <p>This model implements Zubarev's p-adic polynomial regression method from
+    <a href="https://arxiv.org/abs/2503.23488">arXiv:2503.23488</a>. Key features:</p>
+    <ul>
+      <li><strong>Initialization:</strong> Starts from UMLLR greedy coefficients</li>
+      <li><strong>Optimization:</strong> Simulated annealing with temperature-controlled random walk</li>
+      <li><strong>Perturbations:</strong> P-adic-aware (prefers powers of {prime_base})</li>
+      <li><strong>Optional:</strong> Mahler polynomial basis for non-linear transforms</li>
+    </ul>
+
+    <h2>Cross-validation Results</h2>
+    <table class="zubarev-summary">
+      <thead>
+        <tr><th>Fold</th><th>Mean p-adic loss</th><th>Non-zero coeffs</th><th>Iterations</th><th>Test samples</th></tr>
+      </thead>
+      <tbody>
+        {fold_table_body}
+      </tbody>
+    </table>
+  </section>
+
+  <footer>
+    <p><a href="../index.html">← Back to index</a></p>
+  </footer>
+</body>
+</html>"""
+
+    page_path = zubarev_dir / "index.html"
     page_path.write_text(page_html, encoding="utf-8")
     return page_path
 
@@ -6921,6 +7319,17 @@ footer {text-align: center; padding: 2rem 1.5rem 3rem; color: #6b7280;}
     zubarev_fold_results = _load_zubarev_fold_results(
         precomputed_database, schema=battle_schema
     )
+    zubarev_page = None
+    if zubarev_fold_results:
+        zubarev_iteration_history = _load_zubarev_iteration_history(
+            precomputed_database, schema=battle_schema
+        )
+        zubarev_fold_pages = _write_zubarev_fold_pages(
+            output_dir, zubarev_fold_results, zubarev_iteration_history
+        )
+        zubarev_page = _write_zubarev_overview_page(
+            output_dir, zubarev_fold_results, zubarev_fold_pages
+        )
 
     # Generate historical trends charts
     trends_chart_path = _generate_historical_trends_chart(
@@ -6972,6 +7381,7 @@ footer {text-align: center; padding: 2rem 1.5rem 3rem; color: #6b7280;}
         taxonomy_ulr_page,
         taxonomy_unn_page,
         taxonomy_dt_page,
+        zubarev_page,
         taxonomy_summary,
         umllr_summary,
         dummy_summary,
