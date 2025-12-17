@@ -6313,10 +6313,15 @@ def _write_zubarev_fold_pages(
             prime_base = result['prime_base']
 
             # Sort by p-adic magnitude (lower magnitude = more important)
+            # Then by coefficient value, then by tag name for stable ordering
             # Limit to top 50
             sorted_coeffs = sorted(
                 fold_coeffs,
-                key=lambda c: _padic_magnitude(c["coefficient"], prime_base)
+                key=lambda c: (
+                    _padic_magnitude(c["coefficient"], prime_base),
+                    c["coefficient"],
+                    c["tag"]
+                )
             )[:50]
 
             coeff_rows = []
