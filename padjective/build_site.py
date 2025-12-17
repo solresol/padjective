@@ -3457,6 +3457,8 @@ def _build_index_html(
     taxonomy_unn_fold_results: Optional[list[Dict[str, Any]]] = None,
     taxonomy_dt_fold_results: Optional[list[Dict[str, Any]]] = None,
     zubarev_fold_results: Optional[list[Dict[str, Any]]] = None,
+    zubarev_zeros_page: Optional[Path] = None,
+    zubarev_zeros_fold_results: Optional[list[Dict[str, Any]]] = None,
     trends_chart_path: Optional[Path] = None,
     perf_vs_products_chart_path: Optional[Path] = None,
     perf_vs_tags_chart_path: Optional[Path] = None,
@@ -3672,8 +3674,8 @@ def _build_index_html(
     {taxonomy_dt_link or '<span class="card-link disabled">No report available</span>'}
   </div>"""
 
-    # Zubarev p-adic polynomial regression card
-    zubarev_card = ""
+    # Zubarev p-adic polynomial regression card (UMLLR initialization)
+    zubarev_umllr_card = ""
     if zubarev_fold_results:
         avg_loss = sum(r["padic_loss_mean"] for r in zubarev_fold_results) / len(zubarev_fold_results)
         avg_nonzero = sum(r["num_nonzero_params"] for r in zubarev_fold_results) / len(zubarev_fold_results)
@@ -3683,10 +3685,10 @@ def _build_index_html(
             zubarev_link = f'<a href="{zubarev_page.relative_to(output_dir).as_posix()}" class="card-link">View fold details →</a>'
         else:
             zubarev_link = f'<span class="card-link disabled">~{avg_iters:,.0f} iterations</span>'
-        zubarev_card = f"""
+        zubarev_umllr_card = f"""
   <div class="model-card">
-    <h3>Zubarev Polynomial Regression</h3>
-    <p>Stochastic p-adic optimization with Mahler basis (arXiv:2503.23488)</p>
+    <h3>Zubarev Regression (UMLLR init)</h3>
+    <p>Stochastic p-adic optimization starting from UMLLR (arXiv:2503.23488)</p>
     <div class="card-metric">
       <span class="value">{avg_loss:.4f}</span>
       <span class="label">Avg p-adic loss</span>
@@ -3698,14 +3700,42 @@ def _build_index_html(
     {zubarev_link}
   </div>"""
 
+    # Zubarev p-adic polynomial regression card (zeros initialization)
+    zubarev_zeros_card = ""
+    if zubarev_zeros_fold_results:
+        avg_loss_zeros = sum(r["padic_loss_mean"] for r in zubarev_zeros_fold_results) / len(zubarev_zeros_fold_results)
+        avg_nonzero_zeros = sum(r["num_nonzero_params"] for r in zubarev_zeros_fold_results) / len(zubarev_zeros_fold_results)
+        avg_iters_zeros = sum(r["iterations_used"] for r in zubarev_zeros_fold_results) / len(zubarev_zeros_fold_results)
+        zubarev_zeros_link = ""
+        if zubarev_zeros_page:
+            zubarev_zeros_link = f'<a href="{zubarev_zeros_page.relative_to(output_dir).as_posix()}" class="card-link">View fold details →</a>'
+        else:
+            zubarev_zeros_link = f'<span class="card-link disabled">~{avg_iters_zeros:,.0f} iterations</span>'
+        zubarev_zeros_card = f"""
+  <div class="model-card">
+    <h3>Zubarev Regression (Zeros init)</h3>
+    <p>Stochastic p-adic optimization starting from zeros (arXiv:2503.23488)</p>
+    <div class="card-metric">
+      <span class="value">{avg_loss_zeros:.4f}</span>
+      <span class="label">Avg p-adic loss</span>
+    </div>
+    <div class="card-metric" style="margin-top: 0.5rem;">
+      <span class="value">{avg_nonzero_zeros:,.0f}</span>
+      <span class="label">Non-zero coefficients</span>
+    </div>
+    {zubarev_zeros_link}
+  </div>"""
+
     # Combine model cards
     all_cards: list[str] = []
     if dummy_card:
         all_cards.append(dummy_card)
     if umllr_card:
         all_cards.append(umllr_card)
-    if zubarev_card:
-        all_cards.append(zubarev_card)
+    if zubarev_umllr_card:
+        all_cards.append(zubarev_umllr_card)
+    if zubarev_zeros_card:
+        all_cards.append(zubarev_zeros_card)
     if ulr_card:
         all_cards.append(ulr_card)
     if dt_card:
@@ -7726,6 +7756,8 @@ footer {text-align: center; padding: 2rem 1.5rem 3rem; color: #6b7280;}
         taxonomy_unn_fold_results,
         taxonomy_dt_fold_results,
         zubarev_fold_results,
+        zubarev_zeros_page,
+        zubarev_zeros_fold_results,
         trends_chart_path,
         perf_vs_products_chart_path,
         perf_vs_tags_chart_path,
