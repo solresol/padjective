@@ -134,7 +134,7 @@ uv run -m padjective.zubarev \
     "${TAGBATTLE_DSN_ARGS[@]}" \
     --schema "$TAGBATTLE_SCHEMA" \
     --product-table "$TAGBATTLE_PRODUCT_TABLE" \
-    --max-iterations 10000 \
+    --max-iterations 50000 \
     --initialization-method zeros
 
 # Snapshot current metrics for historical tracking
