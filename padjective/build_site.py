@@ -7069,6 +7069,7 @@ def _generate_params_vs_loss_chart(
     taxonomy_unn_fold_results: Optional[list[Dict[str, Any]]] = None,
     taxonomy_dt_fold_results: Optional[list[Dict[str, Any]]] = None,
     zubarev_fold_results: Optional[list[Dict[str, Any]]] = None,
+    zubarev_zeros_fold_results: Optional[list[Dict[str, Any]]] = None,
 ) -> tuple[Optional[Path], Dict[str, Dict[str, float]]]:
     """Generate a scatter plot showing parameter count vs p-adic loss for all models.
 
@@ -7266,6 +7267,7 @@ def _generate_unconstrained_log_chart(
     taxonomy_unn_fold_results: Optional[list[Dict[str, Any]]] = None,
     taxonomy_dt_fold_results: Optional[list[Dict[str, Any]]] = None,
     zubarev_fold_results: Optional[list[Dict[str, Any]]] = None,
+    zubarev_zeros_fold_results: Optional[list[Dict[str, Any]]] = None,
 ) -> Tuple[Optional[Path], Optional[Dict[str, Any]]]:
     """Generate a log-log scatter plot showing only unconstrained models (no PCLR/PCNN).
 
@@ -7296,11 +7298,17 @@ def _generate_unconstrained_log_chart(
         avg_loss = sum(r["padic_loss_mean"] for r in taxonomy_dt_fold_results) / len(taxonomy_dt_fold_results)
         data_points.append((avg_params, avg_loss, "Decision Tree", "#14b8a6", "h"))
 
-    # Zubarev - stochastic p-adic polynomial regression
+    # Zubarev - stochastic p-adic polynomial regression (UMLLR initialization)
     if zubarev_fold_results:
         avg_params = sum(r["num_nonzero_params"] for r in zubarev_fold_results) / len(zubarev_fold_results)
         avg_loss = sum(r["padic_loss_mean"] for r in zubarev_fold_results) / len(zubarev_fold_results)
-        data_points.append((avg_params, avg_loss, "Zubarev Polynomial Regression", "#f97316", "s"))
+        data_points.append((avg_params, avg_loss, "Zubarev (UMLLR init)", "#f97316", "s"))
+
+    # Zubarev - stochastic p-adic polynomial regression (zeros initialization)
+    if zubarev_zeros_fold_results:
+        avg_params = sum(r["num_nonzero_params"] for r in zubarev_zeros_fold_results) / len(zubarev_zeros_fold_results)
+        avg_loss = sum(r["padic_loss_mean"] for r in zubarev_zeros_fold_results) / len(zubarev_zeros_fold_results)
+        data_points.append((avg_params, avg_loss, "Zubarev (Zeros init)", "#fb923c", "s"))
 
     # Get Importance-Optimised p-adic LR (UMLLR) - use actual non-zero coefficients
     if _table_exists(conn, schema, "umllr_fold_metrics"):
@@ -7721,6 +7729,7 @@ footer {text-align: center; padding: 2rem 1.5rem 3rem; color: #6b7280;}
         taxonomy_unn_fold_results=taxonomy_unn_fold_results,
         taxonomy_dt_fold_results=taxonomy_dt_fold_results,
         zubarev_fold_results=zubarev_fold_results,
+        zubarev_zeros_fold_results=zubarev_zeros_fold_results,
     )
 
     unconstrained_log_chart_path, unconstrained_log_stats = _generate_unconstrained_log_chart(
@@ -7731,6 +7740,7 @@ footer {text-align: center; padding: 2rem 1.5rem 3rem; color: #6b7280;}
         taxonomy_unn_fold_results=taxonomy_unn_fold_results,
         taxonomy_dt_fold_results=taxonomy_dt_fold_results,
         zubarev_fold_results=zubarev_fold_results,
+        zubarev_zeros_fold_results=zubarev_zeros_fold_results,
     )
 
     _build_index_html(
