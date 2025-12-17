@@ -5764,7 +5764,7 @@ def _load_taxonomy_dt_feature_importances(conn, schema: str = "padjective") -> O
     return results
 
 
-def _load_zubarev_iteration_history(conn, schema: str = "padjective") -> Optional[Dict[int, list[Dict[str, Any]]]]:
+def _load_zubarev_iteration_history(conn, schema: str = "padjective", initialization_method: str = "umllr") -> Optional[Dict[int, list[Dict[str, Any]]]]:
     """Load Zubarev iteration history for all folds."""
     if not _table_exists(conn, schema, "zubarev_iteration_history"):
         return None
@@ -5776,9 +5776,11 @@ def _load_zubarev_iteration_history(conn, schema: str = "padjective") -> Optiona
                 SELECT cv_fold, iteration, train_loss, validation_loss, best_loss,
                        temperature, acceptance_rate
                 FROM {schema}.zubarev_iteration_history
+                WHERE initialization_method = %s
                 ORDER BY cv_fold, iteration
                 """
-            ).format(schema=sql.Identifier(schema))
+            ).format(schema=sql.Identifier(schema)),
+            (initialization_method,)
         )
         results: Dict[int, list[Dict[str, Any]]] = {}
         for row in cur:
@@ -5906,7 +5908,7 @@ def _format_padic_digits(value: int, base: int) -> str:
     return ".".join(str(d) for d in digits)
 
 
-def _load_zubarev_coefficients(conn, schema: str = "padjective") -> Optional[Dict[int, list[Dict[str, Any]]]]:
+def _load_zubarev_coefficients(conn, schema: str = "padjective", initialization_method: str = "umllr") -> Optional[Dict[int, list[Dict[str, Any]]]]:
     """Load Zubarev tag coefficients for all folds."""
     if not _table_exists(conn, schema, "zubarev_tag_coefficients"):
         return None
@@ -5917,10 +5919,11 @@ def _load_zubarev_coefficients(conn, schema: str = "padjective") -> Optional[Dic
                 """
                 SELECT cv_fold, tag, coefficient, sequence
                 FROM {schema}.zubarev_tag_coefficients
-                WHERE coefficient != 0
+                WHERE coefficient != 0 AND initialization_method = %s
                 ORDER BY cv_fold, sequence
                 """
-            ).format(schema=sql.Identifier(schema))
+            ).format(schema=sql.Identifier(schema)),
+            (initialization_method,)
         )
         results: Dict[int, list[Dict[str, Any]]] = {}
         for row in cur:
@@ -5970,7 +5973,7 @@ def _load_taxonomy_encodings(conn, schema: str = "padjective") -> Dict[int, tupl
     return encodings
 
 
-def _load_zubarev_fold_results(conn, schema: str = "padjective") -> Optional[list[Dict[str, Any]]]:
+def _load_zubarev_fold_results(conn, schema: str = "padjective", initialization_method: str = "umllr") -> Optional[list[Dict[str, Any]]]:
     """Load Zubarev p-adic polynomial regression fold-based results."""
     if not _table_exists(conn, schema, "zubarev_fold_metrics"):
         return None
@@ -5983,9 +5986,11 @@ def _load_zubarev_fold_results(conn, schema: str = "padjective") -> Optional[lis
                 SELECT cv_fold, loss, prime_base, max_digit, default_prediction,
                        iterations_used, final_temperature
                 FROM {schema}.zubarev_fold_metrics
+                WHERE initialization_method = %s
                 ORDER BY cv_fold
                 """
-            ).format(schema=sql.Identifier(schema))
+            ).format(schema=sql.Identifier(schema)),
+            (initialization_method,)
         )
         metrics = {row["cv_fold"]: dict(row) for row in cur}
 
@@ -5998,10 +6003,12 @@ def _load_zubarev_fold_results(conn, schema: str = "padjective") -> Optional[lis
                 """
                 SELECT cv_fold, COUNT(*) as num_predictions, AVG(loss) as padic_loss_mean
                 FROM {schema}.zubarev_predictions
+                WHERE initialization_method = %s
                 GROUP BY cv_fold
                 ORDER BY cv_fold
                 """
-            ).format(schema=sql.Identifier(schema))
+            ).format(schema=sql.Identifier(schema)),
+            (initialization_method,)
         )
         pred_stats = {row["cv_fold"]: dict(row) for row in cur}
 
@@ -6011,11 +6018,12 @@ def _load_zubarev_fold_results(conn, schema: str = "padjective") -> Optional[lis
                 """
                 SELECT cv_fold, COUNT(*) as num_nonzero
                 FROM {schema}.zubarev_tag_coefficients
-                WHERE coefficient != 0
+                WHERE coefficient != 0 AND initialization_method = %s
                 GROUP BY cv_fold
                 ORDER BY cv_fold
                 """
-            ).format(schema=sql.Identifier(schema))
+            ).format(schema=sql.Identifier(schema)),
+            (initialization_method,)
         )
         coeff_counts = {row["cv_fold"]: row["num_nonzero"] for row in cur}
 
@@ -6269,6 +6277,7 @@ def _write_zubarev_fold_pages(
     iteration_history: Optional[Dict[int, list[Dict[str, Any]]]] = None,
     coefficients: Optional[Dict[int, list[Dict[str, Any]]]] = None,
     taxonomy_encodings: Optional[Dict[int, tuple[str, str]]] = None,
+    initialization_method: str = "umllr",
 ) -> Dict[int, Path]:
     """Write individual fold pages for Zubarev regression with loss charts.
 
@@ -6278,11 +6287,12 @@ def _write_zubarev_fold_pages(
         iteration_history: Dict mapping fold -> list of iteration records
         coefficients: Dict mapping fold -> list of tag coefficients
         taxonomy_encodings: Dict mapping encoded values to (taxonomy_id, taxonomy_path)
+        initialization_method: Initialization method ('umllr' or 'zeros')
 
     Returns:
         Dict mapping fold number to page path
     """
-    zubarev_dir = output_dir / "zubarev"
+    zubarev_dir = output_dir / f"zubarev_{initialization_method}"
     zubarev_dir.mkdir(parents=True, exist_ok=True)
 
     fold_pages: Dict[int, Path] = {}
@@ -6358,12 +6368,15 @@ def _write_zubarev_fold_pages(
       </tbody>
     </table>"""
 
+        # Format initialization method for display
+        init_display = "UMLLR" if initialization_method == "umllr" else "Zeros"
+
         # Build metrics summary
         page_html = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Zubarev Regression - Fold {fold}</title>
+  <title>Zubarev Regression ({init_display} init) - Fold {fold}</title>
   <link rel="stylesheet" href="../../assets/styles.css" />
   <style>
 .zubarev-metrics {{
@@ -6428,7 +6441,7 @@ def _write_zubarev_fold_pages(
 </head>
 <body>
   <header>
-    <h1>Zubarev Polynomial Regression - Fold {fold}</h1>
+    <h1>Zubarev Polynomial Regression ({init_display} init) - Fold {fold}</h1>
     <p>Stochastic p-adic optimization with simulated annealing</p>
   </header>
 
@@ -6468,7 +6481,7 @@ def _write_zubarev_fold_pages(
     <h2>Method Details</h2>
     <ul>
       <li><strong>Prime base:</strong> {result['prime_base']}</li>
-      <li><strong>Initialization:</strong> UMLLR greedy coefficients</li>
+      <li><strong>Initialization:</strong> {init_display} ({'UMLLR greedy coefficients' if initialization_method == 'umllr' else 'All zeros'})</li>
       <li><strong>Optimization:</strong> Simulated annealing with p-adic perturbations</li>
       <li><strong>Reference:</strong> <a href="https://arxiv.org/abs/2503.23488">arXiv:2503.23488</a> (Zubarev, 2025)</li>
     </ul>
@@ -6491,6 +6504,7 @@ def _write_zubarev_overview_page(
     output_dir: Path,
     fold_results: list[Dict[str, Any]],
     fold_pages: Dict[int, Path],
+    initialization_method: str = "umllr",
 ) -> Path:
     """Write the main overview page for Zubarev regression.
 
@@ -6498,11 +6512,12 @@ def _write_zubarev_overview_page(
         output_dir: Base output directory
         fold_results: List of fold result dicts
         fold_pages: Dict mapping fold number to individual fold page paths
+        initialization_method: Initialization method ('umllr' or 'zeros')
 
     Returns:
         Path to the overview page
     """
-    zubarev_dir = output_dir / "zubarev"
+    zubarev_dir = output_dir / f"zubarev_{initialization_method}"
     zubarev_dir.mkdir(parents=True, exist_ok=True)
 
     # Compute averages
@@ -6525,11 +6540,14 @@ def _write_zubarev_overview_page(
         )
     fold_table_body = "\n".join(fold_rows)
 
+    # Format initialization method for display
+    init_display = "UMLLR" if initialization_method == "umllr" else "Zeros"
+
     page_html = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Zubarev P-adic Polynomial Regression</title>
+  <title>Zubarev P-adic Polynomial Regression ({init_display} init)</title>
   <link rel="stylesheet" href="../assets/styles.css" />
   <style>
 .zubarev-summary {{
@@ -6578,7 +6596,7 @@ def _write_zubarev_overview_page(
 </head>
 <body>
   <header>
-    <h1>Zubarev P-adic Polynomial Regression</h1>
+    <h1>Zubarev P-adic Polynomial Regression ({init_display} init)</h1>
     <p>Stochastic optimization with Mahler basis functions</p>
   </header>
 
@@ -6606,7 +6624,7 @@ def _write_zubarev_overview_page(
     <p>This model implements Zubarev's p-adic polynomial regression method from
     <a href="https://arxiv.org/abs/2503.23488">arXiv:2503.23488</a>. Key features:</p>
     <ul>
-      <li><strong>Initialization:</strong> Starts from UMLLR greedy coefficients</li>
+      <li><strong>Initialization:</strong> {'Starts from UMLLR greedy coefficients' if initialization_method == 'umllr' else 'Starts from all zeros'}</li>
       <li><strong>Optimization:</strong> Simulated annealing with temperature-controlled random walk</li>
       <li><strong>Perturbations:</strong> P-adic-aware (prefers powers of {prime_base})</li>
       <li><strong>Optional:</strong> Mahler polynomial basis for non-linear transforms</li>
@@ -7595,27 +7613,56 @@ footer {text-align: center; padding: 2rem 1.5rem 3rem; color: #6b7280;}
             output_dir, taxonomy_dt_fold_results, taxonomy_dt_feature_importances
         )
 
-    # Load Zubarev p-adic polynomial regression results
-    zubarev_fold_results = _load_zubarev_fold_results(
-        precomputed_database, schema=battle_schema
+    # Load Zubarev p-adic polynomial regression results (UMLLR initialization)
+    zubarev_umllr_fold_results = _load_zubarev_fold_results(
+        precomputed_database, schema=battle_schema, initialization_method="umllr"
     )
-    zubarev_page = None
-    if zubarev_fold_results:
-        zubarev_iteration_history = _load_zubarev_iteration_history(
-            precomputed_database, schema=battle_schema
+    zubarev_umllr_page = None
+    if zubarev_umllr_fold_results:
+        zubarev_umllr_iteration_history = _load_zubarev_iteration_history(
+            precomputed_database, schema=battle_schema, initialization_method="umllr"
         )
-        zubarev_coefficients = _load_zubarev_coefficients(
-            precomputed_database, schema=battle_schema
+        zubarev_umllr_coefficients = _load_zubarev_coefficients(
+            precomputed_database, schema=battle_schema, initialization_method="umllr"
         )
         taxonomy_encodings = _load_taxonomy_encodings(
             precomputed_database, schema=battle_schema
         )
-        zubarev_fold_pages = _write_zubarev_fold_pages(
-            output_dir, zubarev_fold_results, zubarev_iteration_history, zubarev_coefficients, taxonomy_encodings
+        zubarev_umllr_fold_pages = _write_zubarev_fold_pages(
+            output_dir, zubarev_umllr_fold_results, zubarev_umllr_iteration_history,
+            zubarev_umllr_coefficients, taxonomy_encodings, initialization_method="umllr"
         )
-        zubarev_page = _write_zubarev_overview_page(
-            output_dir, zubarev_fold_results, zubarev_fold_pages
+        zubarev_umllr_page = _write_zubarev_overview_page(
+            output_dir, zubarev_umllr_fold_results, zubarev_umllr_fold_pages, initialization_method="umllr"
         )
+
+    # Load Zubarev p-adic polynomial regression results (zeros initialization)
+    zubarev_zeros_fold_results = _load_zubarev_fold_results(
+        precomputed_database, schema=battle_schema, initialization_method="zeros"
+    )
+    zubarev_zeros_page = None
+    if zubarev_zeros_fold_results:
+        zubarev_zeros_iteration_history = _load_zubarev_iteration_history(
+            precomputed_database, schema=battle_schema, initialization_method="zeros"
+        )
+        zubarev_zeros_coefficients = _load_zubarev_coefficients(
+            precomputed_database, schema=battle_schema, initialization_method="zeros"
+        )
+        if not taxonomy_encodings:  # Only load if not already loaded
+            taxonomy_encodings = _load_taxonomy_encodings(
+                precomputed_database, schema=battle_schema
+            )
+        zubarev_zeros_fold_pages = _write_zubarev_fold_pages(
+            output_dir, zubarev_zeros_fold_results, zubarev_zeros_iteration_history,
+            zubarev_zeros_coefficients, taxonomy_encodings, initialization_method="zeros"
+        )
+        zubarev_zeros_page = _write_zubarev_overview_page(
+            output_dir, zubarev_zeros_fold_results, zubarev_zeros_fold_pages, initialization_method="zeros"
+        )
+
+    # Keep backward compatibility with old variable name for charts
+    zubarev_fold_results = zubarev_umllr_fold_results
+    zubarev_page = zubarev_umllr_page
 
     # Generate historical trends charts
     trends_chart_path = _generate_historical_trends_chart(
