@@ -5800,6 +5800,39 @@ def _load_zubarev_iteration_history(conn, schema: str = "padjective") -> Optiona
     return results
 
 
+def _load_zubarev_coefficients(conn, schema: str = "padjective") -> Optional[Dict[int, list[Dict[str, Any]]]]:
+    """Load Zubarev tag coefficients for all folds."""
+    if not _table_exists(conn, schema, "zubarev_tag_coefficients"):
+        return None
+
+    with conn.cursor(row_factory=dict_row) as cur:
+        cur.execute(
+            sql.SQL(
+                """
+                SELECT cv_fold, tag, coefficient, sequence
+                FROM {schema}.zubarev_tag_coefficients
+                WHERE coefficient != 0
+                ORDER BY cv_fold, sequence
+                """
+            ).format(schema=sql.Identifier(schema))
+        )
+        results: Dict[int, list[Dict[str, Any]]] = {}
+        for row in cur:
+            fold = int(row["cv_fold"])
+            if fold not in results:
+                results[fold] = []
+            results[fold].append({
+                "tag": str(row["tag"]),
+                "coefficient": int(row["coefficient"]),
+                "sequence": int(row["sequence"]),
+            })
+
+    if not results:
+        return None
+
+    return results
+
+
 def _load_zubarev_fold_results(conn, schema: str = "padjective") -> Optional[list[Dict[str, Any]]]:
     """Load Zubarev p-adic polynomial regression fold-based results."""
     if not _table_exists(conn, schema, "zubarev_fold_metrics"):
@@ -6057,8 +6090,7 @@ def _generate_zubarev_loss_chart(
 
     # Top plot: Loss curves
     ax1.plot(iterations, train_loss, label="Train loss", color="#0b6ce3", linewidth=2)
-    ax1.plot(iterations, val_loss, label="Validation loss", color="#f97316", linewidth=2)
-    ax1.plot(iterations, best_loss, label="Best loss", color="#10b981", linewidth=2, linestyle="--")
+    ax1.plot(iterations, val_loss, label="Test loss", color="#f97316", linewidth=2)
     ax1.set_ylabel("Mean p-adic loss", fontsize=12)
     ax1.set_title(f"Zubarev Optimization - Fold {fold}", fontsize=14, fontweight="bold")
     ax1.legend(loc="upper right")
@@ -6098,6 +6130,7 @@ def _write_zubarev_fold_pages(
     output_dir: Path,
     fold_results: list[Dict[str, Any]],
     iteration_history: Optional[Dict[int, list[Dict[str, Any]]]] = None,
+    coefficients: Optional[Dict[int, list[Dict[str, Any]]]] = None,
 ) -> Dict[int, Path]:
     """Write individual fold pages for Zubarev regression with loss charts.
 
@@ -6105,6 +6138,7 @@ def _write_zubarev_fold_pages(
         output_dir: Base output directory
         fold_results: List of fold result dicts
         iteration_history: Dict mapping fold -> list of iteration records
+        coefficients: Dict mapping fold -> list of tag coefficients
 
     Returns:
         Dict mapping fold number to page path
@@ -6130,8 +6164,33 @@ def _write_zubarev_fold_pages(
                 chart_html = f"""
     <figure class="chart">
       <img src="loss_chart.png" alt="Loss over optimization iterations" />
-      <figcaption>Train, validation, and best loss over optimization iterations</figcaption>
+      <figcaption>Train and test loss over optimization iterations</figcaption>
     </figure>"""
+
+        # Generate coefficient table if we have coefficients
+        coefficient_table_html = ""
+        if coefficients and fold in coefficients:
+            fold_coeffs = coefficients[fold]
+            # Limit to top 50 by absolute value
+            sorted_coeffs = sorted(fold_coeffs, key=lambda c: abs(c["coefficient"]), reverse=True)[:50]
+            coeff_rows = []
+            for idx, coeff in enumerate(sorted_coeffs, 1):
+                escaped_tag = html.escape(coeff["tag"])
+                coeff_rows.append(
+                    f'<tr><td>{idx}</td><td>{escaped_tag}</td><td>{coeff["coefficient"]:,}</td></tr>'
+                )
+            coeff_table_body = "\n".join(coeff_rows)
+            coefficient_table_html = f"""
+    <h2>Tag Coefficients (Top 50 by Magnitude)</h2>
+    <p>Showing the {len(sorted_coeffs)} most influential tags (ranked by absolute coefficient value).</p>
+    <table class="coefficient-table">
+      <thead>
+        <tr><th>Rank</th><th>Tag</th><th>Coefficient</th></tr>
+      </thead>
+      <tbody>
+        {coeff_table_body}
+      </tbody>
+    </table>"""
 
         # Build metrics summary
         page_html = f"""<!DOCTYPE html>
@@ -6178,6 +6237,23 @@ def _write_zubarev_fold_pages(
   color: #64748b;
   font-style: italic;
 }}
+.coefficient-table {{
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1.5rem 0;
+}}
+.coefficient-table th, .coefficient-table td {{
+  padding: 0.75rem;
+  text-align: left;
+  border-bottom: 1px solid #e2e8f0;
+}}
+.coefficient-table th {{
+  background: #f8fafc;
+  font-weight: 600;
+}}
+.coefficient-table tbody tr:hover {{
+  background: #f8fafc;
+}}
   </style>
 </head>
 <body>
@@ -6216,6 +6292,8 @@ def _write_zubarev_fold_pages(
 
     <h2>Optimization Progress</h2>
     {chart_html if chart_html else '<p>No iteration history available for this fold.</p>'}
+
+    {coefficient_table_html}
 
     <h2>Method Details</h2>
     <ul>
@@ -7356,8 +7434,11 @@ footer {text-align: center; padding: 2rem 1.5rem 3rem; color: #6b7280;}
         zubarev_iteration_history = _load_zubarev_iteration_history(
             precomputed_database, schema=battle_schema
         )
+        zubarev_coefficients = _load_zubarev_coefficients(
+            precomputed_database, schema=battle_schema
+        )
         zubarev_fold_pages = _write_zubarev_fold_pages(
-            output_dir, zubarev_fold_results, zubarev_iteration_history
+            output_dir, zubarev_fold_results, zubarev_iteration_history, zubarev_coefficients
         )
         zubarev_page = _write_zubarev_overview_page(
             output_dir, zubarev_fold_results, zubarev_fold_pages
