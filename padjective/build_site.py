@@ -5800,6 +5800,112 @@ def _load_zubarev_iteration_history(conn, schema: str = "padjective") -> Optiona
     return results
 
 
+def _padic_valuation(value: int, base: int) -> int:
+    """Compute p-adic valuation v_p(x) = max k such that p^k divides x.
+
+    Higher valuation means smaller p-adic magnitude.
+    """
+    if value == 0:
+        return float('inf')
+
+    x = abs(value)
+    v = 0
+    while x % base == 0:
+        x //= base
+        v += 1
+    return v
+
+
+def _padic_magnitude(value: int, base: int) -> float:
+    """Compute p-adic magnitude: base^(-valuation).
+
+    Lower magnitude is "larger" in p-adic sense (more important).
+    Returns infinity for 0.
+    """
+    if value == 0:
+        return float('inf')
+    return base ** (-_padic_valuation(value, base))
+
+
+def _decode_padic_integer(value: int, base: int) -> list[int]:
+    """Decode a p-adic integer into its digit sequence.
+
+    Args:
+        value: The p-adic integer to decode
+        base: The prime base
+
+    Returns:
+        List of digits [d0, d1, d2, ...] where value = d0 + d1*base + d2*base^2 + ...
+    """
+    if value == 0:
+        return [0]
+
+    digits = []
+    remaining = abs(value)
+
+    while remaining > 0:
+        digit = remaining % base
+        digits.append(digit)
+        remaining //= base
+
+    return digits
+
+
+def _format_padic_expression(value: int, base: int) -> str:
+    """Format a p-adic integer as a human-readable expression.
+
+    Args:
+        value: The p-adic integer
+        base: The prime base
+
+    Returns:
+        String like "3 + 2×71 + 9×71²" or "0"
+    """
+    if value == 0:
+        return "0"
+
+    digits = _decode_padic_integer(value, base)
+
+    if len(digits) == 1:
+        return str(digits[0])
+
+    terms = []
+    for power, digit in enumerate(digits):
+        if digit == 0:
+            continue
+        if power == 0:
+            terms.append(str(digit))
+        elif power == 1:
+            if digit == 1:
+                terms.append(f"{base}")
+            else:
+                terms.append(f"{digit}×{base}")
+        else:
+            if digit == 1:
+                terms.append(f"{base}^{power}")
+            else:
+                terms.append(f"{digit}×{base}^{power}")
+
+    return " + ".join(terms) if terms else "0"
+
+
+def _format_padic_digits(value: int, base: int) -> str:
+    """Format a p-adic integer as digit notation.
+
+    Args:
+        value: The p-adic integer
+        base: The prime base
+
+    Returns:
+        String like "9.2.3" (least significant digit first)
+    """
+    if value == 0:
+        return "0"
+
+    digits = _decode_padic_integer(value, base)
+    return ".".join(str(d) for d in digits)
+
+
 def _load_zubarev_coefficients(conn, schema: str = "padjective") -> Optional[Dict[int, list[Dict[str, Any]]]]:
     """Load Zubarev tag coefficients for all folds."""
     if not _table_exists(conn, schema, "zubarev_tag_coefficients"):
@@ -5831,6 +5937,37 @@ def _load_zubarev_coefficients(conn, schema: str = "padjective") -> Optional[Dic
         return None
 
     return results
+
+
+def _load_taxonomy_encodings(conn, schema: str = "padjective") -> Dict[int, tuple[str, str]]:
+    """Load taxonomy encodings (maps encoded_value -> (taxonomy_id, taxonomy_path)).
+
+    Returns:
+        Dict mapping encoded integer values to (taxonomy_id, taxonomy_path) tuples
+    """
+    encodings: Dict[int, tuple[str, str]] = {}
+
+    if not _table_exists(conn, schema, "umllr_taxonomy_encodings"):
+        return encodings
+
+    with conn.cursor(row_factory=dict_row) as cur:
+        cur.execute(
+            sql.SQL(
+                """
+                SELECT DISTINCT taxonomy_id, taxonomy_path, encoded_value
+                FROM {schema}.umllr_taxonomy_encodings
+                """
+            ).format(schema=sql.Identifier(schema))
+        )
+        for row in cur:
+            encoded_val = int(row["encoded_value"])
+            taxonomy_id = str(row["taxonomy_id"])
+            taxonomy_path = str(row["taxonomy_path"])
+            # Keep first occurrence if there are duplicates
+            if encoded_val not in encodings:
+                encodings[encoded_val] = (taxonomy_id, taxonomy_path)
+
+    return encodings
 
 
 def _load_zubarev_fold_results(conn, schema: str = "padjective") -> Optional[list[Dict[str, Any]]]:
@@ -6131,6 +6268,7 @@ def _write_zubarev_fold_pages(
     fold_results: list[Dict[str, Any]],
     iteration_history: Optional[Dict[int, list[Dict[str, Any]]]] = None,
     coefficients: Optional[Dict[int, list[Dict[str, Any]]]] = None,
+    taxonomy_encodings: Optional[Dict[int, tuple[str, str]]] = None,
 ) -> Dict[int, Path]:
     """Write individual fold pages for Zubarev regression with loss charts.
 
@@ -6139,6 +6277,7 @@ def _write_zubarev_fold_pages(
         fold_results: List of fold result dicts
         iteration_history: Dict mapping fold -> list of iteration records
         coefficients: Dict mapping fold -> list of tag coefficients
+        taxonomy_encodings: Dict mapping encoded values to (taxonomy_id, taxonomy_path)
 
     Returns:
         Dict mapping fold number to page path
@@ -6171,21 +6310,44 @@ def _write_zubarev_fold_pages(
         coefficient_table_html = ""
         if coefficients and fold in coefficients:
             fold_coeffs = coefficients[fold]
-            # Limit to top 50 by absolute value
-            sorted_coeffs = sorted(fold_coeffs, key=lambda c: abs(c["coefficient"]), reverse=True)[:50]
+            prime_base = result['prime_base']
+
+            # Sort by p-adic magnitude (lower magnitude = more important)
+            # Limit to top 50
+            sorted_coeffs = sorted(
+                fold_coeffs,
+                key=lambda c: _padic_magnitude(c["coefficient"], prime_base)
+            )[:50]
+
             coeff_rows = []
             for idx, coeff in enumerate(sorted_coeffs, 1):
                 escaped_tag = html.escape(coeff["tag"])
+                coeff_val = coeff["coefficient"]
+
+                # Format p-adic expression and digits
+                padic_expr = _format_padic_expression(coeff_val, prime_base)
+                padic_digits = _format_padic_digits(coeff_val, prime_base)
+
+                # Look up taxonomy if coefficient matches
+                taxonomy_info = ""
+                if taxonomy_encodings and coeff_val in taxonomy_encodings:
+                    taxonomy_id, taxonomy_path = taxonomy_encodings[coeff_val]
+                    escaped_path = html.escape(taxonomy_path)
+                    taxonomy_info = f'{escaped_path}'
+
                 coeff_rows.append(
-                    f'<tr><td>{idx}</td><td>{escaped_tag}</td><td>{coeff["coefficient"]:,}</td></tr>'
+                    f'<tr><td>{idx}</td><td>{escaped_tag}</td><td>{coeff_val:,}</td>'
+                    f'<td class="padic-expr">{padic_expr}</td><td>{padic_digits}</td>'
+                    f'<td>{taxonomy_info}</td></tr>'
                 )
+
             coeff_table_body = "\n".join(coeff_rows)
             coefficient_table_html = f"""
-    <h2>Tag Coefficients (Top 50 by Magnitude)</h2>
-    <p>Showing the {len(sorted_coeffs)} most influential tags (ranked by absolute coefficient value).</p>
+    <h2>Tag Coefficients (Top 50 by P-adic Magnitude)</h2>
+    <p>Showing the {len(sorted_coeffs)} most influential tags (ranked by p-adic magnitude, where lower magnitude indicates higher importance).</p>
     <table class="coefficient-table">
       <thead>
-        <tr><th>Rank</th><th>Tag</th><th>Coefficient</th></tr>
+        <tr><th>Rank</th><th>Tag</th><th>Coefficient</th><th>P-adic Expression</th><th>Digits</th><th>Taxonomy</th></tr>
       </thead>
       <tbody>
         {coeff_table_body}
@@ -6253,6 +6415,10 @@ def _write_zubarev_fold_pages(
 }}
 .coefficient-table tbody tr:hover {{
   background: #f8fafc;
+}}
+.coefficient-table .padic-expr {{
+  font-family: 'Courier New', monospace;
+  font-size: 0.9em;
 }}
   </style>
 </head>
@@ -7437,8 +7603,11 @@ footer {text-align: center; padding: 2rem 1.5rem 3rem; color: #6b7280;}
         zubarev_coefficients = _load_zubarev_coefficients(
             precomputed_database, schema=battle_schema
         )
+        taxonomy_encodings = _load_taxonomy_encodings(
+            precomputed_database, schema=battle_schema
+        )
         zubarev_fold_pages = _write_zubarev_fold_pages(
-            output_dir, zubarev_fold_results, zubarev_iteration_history, zubarev_coefficients
+            output_dir, zubarev_fold_results, zubarev_iteration_history, zubarev_coefficients, taxonomy_encodings
         )
         zubarev_page = _write_zubarev_overview_page(
             output_dir, zubarev_fold_results, zubarev_fold_pages
