@@ -5972,13 +5972,13 @@ def _load_zubarev_coefficients(conn, schema: str = "padjective", initialization_
     return results
 
 
-def _load_taxonomy_encodings(conn, schema: str = "padjective") -> Dict[int, tuple[str, str]]:
-    """Load taxonomy encodings (maps encoded_value -> (taxonomy_id, taxonomy_path)).
+def _load_taxonomy_encodings(conn, schema: str = "padjective") -> Dict[int, tuple[str, str, str]]:
+    """Load taxonomy encodings (maps encoded_value -> (taxonomy_id, taxonomy_path, taxonomy_name)).
 
     Returns:
-        Dict mapping encoded integer values to (taxonomy_id, taxonomy_path) tuples
+        Dict mapping encoded integer values to (taxonomy_id, taxonomy_path, taxonomy_name) tuples
     """
-    encodings: Dict[int, tuple[str, str]] = {}
+    encodings: Dict[int, tuple[str, str, str]] = {}
 
     if not _table_exists(conn, schema, "umllr_taxonomy_encodings"):
         return encodings
@@ -5987,8 +5987,9 @@ def _load_taxonomy_encodings(conn, schema: str = "padjective") -> Dict[int, tupl
         cur.execute(
             sql.SQL(
                 """
-                SELECT DISTINCT taxonomy_id, taxonomy_path, encoded_value
-                FROM {schema}.umllr_taxonomy_encodings
+                SELECT DISTINCT e.taxonomy_id, e.taxonomy_path, e.encoded_value, t.taxonomy_name
+                FROM {schema}.umllr_taxonomy_encodings e
+                LEFT JOIN cantbuymelove.taxonomy t ON e.taxonomy_id = t.taxonomy_id
                 """
             ).format(schema=sql.Identifier(schema))
         )
@@ -5996,9 +5997,10 @@ def _load_taxonomy_encodings(conn, schema: str = "padjective") -> Dict[int, tupl
             encoded_val = int(row["encoded_value"])
             taxonomy_id = str(row["taxonomy_id"])
             taxonomy_path = str(row["taxonomy_path"])
+            taxonomy_name = str(row["taxonomy_name"]) if row["taxonomy_name"] else ""
             # Keep first occurrence if there are duplicates
             if encoded_val not in encodings:
-                encodings[encoded_val] = (taxonomy_id, taxonomy_path)
+                encodings[encoded_val] = (taxonomy_id, taxonomy_path, taxonomy_name)
 
     return encodings
 
@@ -6306,7 +6308,7 @@ def _write_zubarev_fold_pages(
     fold_results: list[Dict[str, Any]],
     iteration_history: Optional[Dict[int, list[Dict[str, Any]]]] = None,
     coefficients: Optional[Dict[int, list[Dict[str, Any]]]] = None,
-    taxonomy_encodings: Optional[Dict[int, tuple[str, str]]] = None,
+    taxonomy_encodings: Optional[Dict[int, tuple[str, str, str]]] = None,
     initialization_method: str = "umllr",
 ) -> Dict[int, Path]:
     """Write individual fold pages for Zubarev regression with loss charts.
@@ -6316,7 +6318,7 @@ def _write_zubarev_fold_pages(
         fold_results: List of fold result dicts
         iteration_history: Dict mapping fold -> list of iteration records
         coefficients: Dict mapping fold -> list of tag coefficients
-        taxonomy_encodings: Dict mapping encoded values to (taxonomy_id, taxonomy_path)
+        taxonomy_encodings: Dict mapping encoded values to (taxonomy_id, taxonomy_path, taxonomy_name)
         initialization_method: Initialization method ('umllr' or 'zeros')
 
     Returns:
@@ -6352,12 +6354,12 @@ def _write_zubarev_fold_pages(
             fold_coeffs = coefficients[fold]
             prime_base = result['prime_base']
 
-            # Sort by p-adic magnitude (lower magnitude = more important)
+            # Sort by p-adic magnitude (higher magnitude = p-adically larger = more important)
             # Then by coefficient value, then by tag name for stable ordering
             sorted_coeffs = sorted(
                 fold_coeffs,
                 key=lambda c: (
-                    _padic_magnitude(c["coefficient"], prime_base),
+                    -_padic_magnitude(c["coefficient"], prime_base),  # Negative for descending
                     c["coefficient"],
                     c["tag"]
                 )
@@ -6375,9 +6377,10 @@ def _write_zubarev_fold_pages(
                 # Look up taxonomy if coefficient matches
                 taxonomy_info = ""
                 if taxonomy_encodings and coeff_val in taxonomy_encodings:
-                    taxonomy_id, taxonomy_path = taxonomy_encodings[coeff_val]
-                    escaped_path = html.escape(taxonomy_path)
-                    taxonomy_info = f'{escaped_path}'
+                    taxonomy_id, taxonomy_path, taxonomy_name = taxonomy_encodings[coeff_val]
+                    display_name = taxonomy_name if taxonomy_name else taxonomy_path
+                    escaped_name = html.escape(display_name)
+                    taxonomy_info = f'{escaped_name}'
 
                 coeff_rows.append(
                     f'<tr><td>{idx}</td><td>{escaped_tag}</td><td>{coeff_val:,}</td>'
@@ -6388,7 +6391,7 @@ def _write_zubarev_fold_pages(
             coeff_table_body = "\n".join(coeff_rows)
             coefficient_table_html = f"""
     <h2>All Tag Coefficients (by P-adic Magnitude)</h2>
-    <p>Showing all {len(sorted_coeffs)} non-zero coefficients, ranked by p-adic magnitude (lower magnitude = higher importance).</p>
+    <p>Showing all {len(sorted_coeffs)} non-zero coefficients, ranked by p-adic magnitude (p-adically largest first).</p>
     <table class="coefficient-table">
       <thead>
         <tr><th>Rank</th><th>Tag</th><th>Coefficient</th><th>P-adic Expression</th><th>Digits</th><th>Taxonomy</th></tr>
