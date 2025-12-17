@@ -7298,18 +7298,6 @@ def _generate_unconstrained_log_chart(
         avg_loss = sum(r["padic_loss_mean"] for r in taxonomy_dt_fold_results) / len(taxonomy_dt_fold_results)
         data_points.append((avg_params, avg_loss, "Decision Tree", "#14b8a6", "h"))
 
-    # Zubarev - stochastic p-adic polynomial regression (UMLLR initialization)
-    if zubarev_fold_results:
-        avg_params = sum(r["num_nonzero_params"] for r in zubarev_fold_results) / len(zubarev_fold_results)
-        avg_loss = sum(r["padic_loss_mean"] for r in zubarev_fold_results) / len(zubarev_fold_results)
-        data_points.append((avg_params, avg_loss, "Zubarev (UMLLR init)", "#f97316", "s"))
-
-    # Zubarev - stochastic p-adic polynomial regression (zeros initialization)
-    if zubarev_zeros_fold_results:
-        avg_params = sum(r["num_nonzero_params"] for r in zubarev_zeros_fold_results) / len(zubarev_zeros_fold_results)
-        avg_loss = sum(r["padic_loss_mean"] for r in zubarev_zeros_fold_results) / len(zubarev_zeros_fold_results)
-        data_points.append((avg_params, avg_loss, "Zubarev (Zeros init)", "#fb923c", "s"))
-
     # Get Importance-Optimised p-adic LR (UMLLR) - use actual non-zero coefficients
     if _table_exists(conn, schema, "umllr_fold_metrics"):
         with conn.cursor() as cur:
