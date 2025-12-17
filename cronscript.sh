@@ -119,12 +119,23 @@ done
 
 # Train Zubarev p-adic polynomial regression (stochastic alternative to UMLLR)
 # Uses Mahler basis with simulated annealing optimization
-echo "Training Zubarev p-adic polynomial regression..."
+# Train with UMLLR initialization
+echo "Training Zubarev p-adic polynomial regression (UMLLR initialization)..."
 uv run -m padjective.zubarev \
     "${TAGBATTLE_DSN_ARGS[@]}" \
     --schema "$TAGBATTLE_SCHEMA" \
     --product-table "$TAGBATTLE_PRODUCT_TABLE" \
-    --max-iterations 10000
+    --max-iterations 10000 \
+    --initialization-method umllr
+
+# Train with zeros initialization
+echo "Training Zubarev p-adic polynomial regression (zeros initialization)..."
+uv run -m padjective.zubarev \
+    "${TAGBATTLE_DSN_ARGS[@]}" \
+    --schema "$TAGBATTLE_SCHEMA" \
+    --product-table "$TAGBATTLE_PRODUCT_TABLE" \
+    --max-iterations 10000 \
+    --initialization-method zeros
 
 # Snapshot current metrics for historical tracking
 uv run -m padjective.snapshot_metrics \

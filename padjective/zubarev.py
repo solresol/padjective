@@ -608,6 +608,7 @@ def _run_fold(
     max_iterations: int = 10000,
     seed: int | None = None,
     validation_fraction: float = 0.2,
+    initialization_method: str = 'umllr',
 ) -> FoldResult:
     """Run Zubarev regression for a single CV fold."""
     all_training = [r for r in records if r.cv_fold != fold]
@@ -624,10 +625,20 @@ def _run_fold(
     validation = shuffled[:val_size]
     training = shuffled[val_size:]
 
-    # Initialize using UMLLR's greedy method (on full training data for better init)
-    initial_coefficients = _initialize_coefficients_umllr_style(
-        all_training, battles, fold, base
-    )
+    # Initialize coefficients based on method
+    if initialization_method == 'umllr':
+        # Initialize using UMLLR's greedy method (on full training data for better init)
+        initial_coefficients = _initialize_coefficients_umllr_style(
+            all_training, battles, fold, base
+        )
+    elif initialization_method == 'zeros':
+        # Initialize all coefficients to zero
+        all_tags = set()
+        for record in all_training:
+            all_tags.update(record.tags)
+        initial_coefficients = {tag: 0 for tag in all_tags}
+    else:
+        raise ValueError(f"Unknown initialization_method: {initialization_method}")
 
     # Stochastic optimization with validation tracking
     optimized_coefficients, mahler_weights, train_loss, iterations_used, iteration_history = _stochastic_optimize(
@@ -729,13 +740,14 @@ def _save_results(
     prime_base: int,
     max_digit: int,
     cv_splits: int,
+    initialization_method: str = 'umllr',
 ) -> None:
     """Save Zubarev results to database."""
-    coeff_rows: List[Tuple[int, str, int, int]] = []
-    prediction_rows: List[Tuple[int, int, int, int, float]] = []
-    metrics_rows: List[Tuple[int, float, int, int, int, int, float]] = []
-    mahler_rows: List[Tuple[int, int, int]] = []
-    history_rows: List[Tuple[int, int, float, float, float, float, float]] = []
+    coeff_rows: List[Tuple[int, str, int, int, str]] = []
+    prediction_rows: List[Tuple[int, int, int, int, float, str]] = []
+    metrics_rows: List[Tuple[int, float, int, int, int, int, float, str]] = []
+    mahler_rows: List[Tuple[int, int, int, str]] = []
+    history_rows: List[Tuple[int, int, float, float, float, float, float, str]] = []
 
     for result in results:
         metrics_rows.append((
@@ -746,9 +758,10 @@ def _save_results(
             result.default_prediction,
             result.iterations_used,
             result.final_temperature,
+            initialization_method,
         ))
         for entry in result.coefficients:
-            coeff_rows.append((result.cv_fold, entry.tag, entry.coefficient, entry.sequence))
+            coeff_rows.append((result.cv_fold, entry.tag, entry.coefficient, entry.sequence, initialization_method))
         for prediction in result.predictions:
             prediction_rows.append((
                 result.cv_fold,
@@ -756,9 +769,10 @@ def _save_results(
                 prediction.true_value,
                 prediction.predicted_value,
                 prediction.loss,
+                initialization_method,
             ))
         for k, weight in enumerate(result.mahler_weights):
-            mahler_rows.append((result.cv_fold, k, weight))
+            mahler_rows.append((result.cv_fold, k, weight, initialization_method))
         for record in result.iteration_history:
             history_rows.append((
                 result.cv_fold,
@@ -768,6 +782,7 @@ def _save_results(
                 record.best_loss,
                 record.temperature,
                 record.acceptance_rate,
+                initialization_method,
             ))
 
     with conn.cursor() as cur:
@@ -775,41 +790,41 @@ def _save_results(
 
         if fold_list:
             cur.execute(
-                sql.SQL("DELETE FROM {schema}.zubarev_tag_coefficients WHERE cv_fold = ANY(%s)").format(
+                sql.SQL("DELETE FROM {schema}.zubarev_tag_coefficients WHERE cv_fold = ANY(%s) AND initialization_method = %s").format(
                     schema=sql.Identifier(schema)
                 ),
-                (fold_list,)
+                (fold_list, initialization_method)
             )
             cur.execute(
-                sql.SQL("DELETE FROM {schema}.zubarev_fold_metrics WHERE cv_fold = ANY(%s)").format(
+                sql.SQL("DELETE FROM {schema}.zubarev_fold_metrics WHERE cv_fold = ANY(%s) AND initialization_method = %s").format(
                     schema=sql.Identifier(schema)
                 ),
-                (fold_list,)
+                (fold_list, initialization_method)
             )
             cur.execute(
-                sql.SQL("DELETE FROM {schema}.zubarev_predictions WHERE cv_fold = ANY(%s)").format(
+                sql.SQL("DELETE FROM {schema}.zubarev_predictions WHERE cv_fold = ANY(%s) AND initialization_method = %s").format(
                     schema=sql.Identifier(schema)
                 ),
-                (fold_list,)
+                (fold_list, initialization_method)
             )
             cur.execute(
-                sql.SQL("DELETE FROM {schema}.zubarev_mahler_weights WHERE cv_fold = ANY(%s)").format(
+                sql.SQL("DELETE FROM {schema}.zubarev_mahler_weights WHERE cv_fold = ANY(%s) AND initialization_method = %s").format(
                     schema=sql.Identifier(schema)
                 ),
-                (fold_list,)
+                (fold_list, initialization_method)
             )
             cur.execute(
-                sql.SQL("DELETE FROM {schema}.zubarev_iteration_history WHERE cv_fold = ANY(%s)").format(
+                sql.SQL("DELETE FROM {schema}.zubarev_iteration_history WHERE cv_fold = ANY(%s) AND initialization_method = %s").format(
                     schema=sql.Identifier(schema)
                 ),
-                (fold_list,)
+                (fold_list, initialization_method)
             )
 
         if coeff_rows:
             cur.executemany(
                 sql.SQL(
-                    "INSERT INTO {schema}.zubarev_tag_coefficients (cv_fold, tag, coefficient, sequence) "
-                    "VALUES (%s, %s, %s, %s)"
+                    "INSERT INTO {schema}.zubarev_tag_coefficients (cv_fold, tag, coefficient, sequence, initialization_method) "
+                    "VALUES (%s, %s, %s, %s, %s)"
                 ).format(schema=sql.Identifier(schema)),
                 coeff_rows,
             )
@@ -817,8 +832,8 @@ def _save_results(
             cur.executemany(
                 sql.SQL(
                     "INSERT INTO {schema}.zubarev_fold_metrics "
-                    "(cv_fold, loss, prime_base, max_digit, default_prediction, iterations_used, final_temperature) "
-                    "VALUES (%s, %s, %s, %s, %s, %s, %s)"
+                    "(cv_fold, loss, prime_base, max_digit, default_prediction, iterations_used, final_temperature, initialization_method) "
+                    "VALUES (%s, %s, %s, %s, %s, %s, %s, %s)"
                 ).format(schema=sql.Identifier(schema)),
                 metrics_rows,
             )
@@ -826,16 +841,16 @@ def _save_results(
             cur.executemany(
                 sql.SQL(
                     "INSERT INTO {schema}.zubarev_predictions "
-                    "(cv_fold, product_id, true_value, predicted_value, loss) "
-                    "VALUES (%s, %s, %s, %s, %s)"
+                    "(cv_fold, product_id, true_value, predicted_value, loss, initialization_method) "
+                    "VALUES (%s, %s, %s, %s, %s, %s)"
                 ).format(schema=sql.Identifier(schema)),
                 prediction_rows,
             )
         if mahler_rows:
             cur.executemany(
                 sql.SQL(
-                    "INSERT INTO {schema}.zubarev_mahler_weights (cv_fold, k, weight) "
-                    "VALUES (%s, %s, %s)"
+                    "INSERT INTO {schema}.zubarev_mahler_weights (cv_fold, k, weight, initialization_method) "
+                    "VALUES (%s, %s, %s, %s)"
                 ).format(schema=sql.Identifier(schema)),
                 mahler_rows,
             )
@@ -843,8 +858,8 @@ def _save_results(
             cur.executemany(
                 sql.SQL(
                     "INSERT INTO {schema}.zubarev_iteration_history "
-                    "(cv_fold, iteration, train_loss, validation_loss, best_loss, temperature, acceptance_rate) "
-                    "VALUES (%s, %s, %s, %s, %s, %s, %s)"
+                    "(cv_fold, iteration, train_loss, validation_loss, best_loss, temperature, acceptance_rate, initialization_method) "
+                    "VALUES (%s, %s, %s, %s, %s, %s, %s, %s)"
                 ).format(schema=sql.Identifier(schema)),
                 history_rows,
             )
@@ -861,6 +876,7 @@ def process_database(
     mahler_degree: int = 0,
     max_iterations: int = 10000,
     seed: int = 42,
+    initialization_method: str = 'umllr',
 ) -> None:
     """Main entry point for Zubarev regression."""
     conn = db.get_connection(dsn)
@@ -897,18 +913,20 @@ def process_database(
                 mahler_degree=mahler_degree,
                 max_iterations=max_iterations,
                 seed=seed,
+                initialization_method=initialization_method,
             )
             for fold in range(cv_splits)
         ]
 
-        _save_results(conn, schema, results, prime_base, max_digit, cv_splits)
+        _save_results(conn, schema, results, prime_base, max_digit, cv_splits, initialization_method)
 
         # Print summary
-        print(f"\nZubarev P-adic Polynomial Regression Results")
+        print(f"\nZubarev P-adic Polynomial Regression Results ({initialization_method} initialization)")
         print(f"=" * 50)
         print(f"Prime base: {prime_base}")
         print(f"Mahler degree: {mahler_degree}")
         print(f"Max iterations: {max_iterations}")
+        print(f"Initialization: {initialization_method}")
         print()
         for result in results:
             avg_loss = result.loss / len(result.predictions) if result.predictions else 0
@@ -973,6 +991,12 @@ def main() -> None:
         default=42,
         help="Random seed for reproducibility.",
     )
+    parser.add_argument(
+        "--initialization-method",
+        choices=['umllr', 'zeros'],
+        default='umllr',
+        help="Initialization method: 'umllr' (greedy UMLLR coefficients) or 'zeros' (all zeros).",
+    )
     args = parser.parse_args()
 
     process_database(
@@ -985,6 +1009,7 @@ def main() -> None:
         mahler_degree=args.mahler_degree,
         max_iterations=args.max_iterations,
         seed=args.seed,
+        initialization_method=args.initialization_method,
     )
 
 
