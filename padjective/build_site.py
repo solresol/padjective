@@ -6314,7 +6314,6 @@ def _write_zubarev_fold_pages(
 
             # Sort by p-adic magnitude (lower magnitude = more important)
             # Then by coefficient value, then by tag name for stable ordering
-            # Limit to top 50
             sorted_coeffs = sorted(
                 fold_coeffs,
                 key=lambda c: (
@@ -6322,7 +6321,7 @@ def _write_zubarev_fold_pages(
                     c["coefficient"],
                     c["tag"]
                 )
-            )[:50]
+            )
 
             coeff_rows = []
             for idx, coeff in enumerate(sorted_coeffs, 1):
@@ -6348,8 +6347,8 @@ def _write_zubarev_fold_pages(
 
             coeff_table_body = "\n".join(coeff_rows)
             coefficient_table_html = f"""
-    <h2>Tag Coefficients (Top 50 by P-adic Magnitude)</h2>
-    <p>Showing the {len(sorted_coeffs)} most influential tags (ranked by p-adic magnitude, where lower magnitude indicates higher importance).</p>
+    <h2>All Tag Coefficients (by P-adic Magnitude)</h2>
+    <p>Showing all {len(sorted_coeffs)} non-zero coefficients, ranked by p-adic magnitude (lower magnitude = higher importance).</p>
     <table class="coefficient-table">
       <thead>
         <tr><th>Rank</th><th>Tag</th><th>Coefficient</th><th>P-adic Expression</th><th>Digits</th><th>Taxonomy</th></tr>
