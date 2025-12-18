@@ -3459,6 +3459,10 @@ def _build_index_html(
     zubarev_fold_results: Optional[list[Dict[str, Any]]] = None,
     zubarev_zeros_page: Optional[Path] = None,
     zubarev_zeros_fold_results: Optional[list[Dict[str, Any]]] = None,
+    zubarev_umllr_m1_page: Optional[Path] = None,
+    zubarev_umllr_m1_fold_results: Optional[list[Dict[str, Any]]] = None,
+    zubarev_umllr_m2_page: Optional[Path] = None,
+    zubarev_umllr_m2_fold_results: Optional[list[Dict[str, Any]]] = None,
     trends_chart_path: Optional[Path] = None,
     perf_vs_products_chart_path: Optional[Path] = None,
     perf_vs_tags_chart_path: Optional[Path] = None,
@@ -3726,6 +3730,58 @@ def _build_index_html(
     {zubarev_zeros_link}
   </div>"""
 
+    # Zubarev p-adic polynomial regression card (UMLLR initialization, Mahler degree 1)
+    zubarev_umllr_m1_card = ""
+    if zubarev_umllr_m1_fold_results:
+        avg_loss_m1 = sum(r["padic_loss_mean"] for r in zubarev_umllr_m1_fold_results) / len(zubarev_umllr_m1_fold_results)
+        avg_nonzero_m1 = sum(r["num_nonzero_params"] for r in zubarev_umllr_m1_fold_results) / len(zubarev_umllr_m1_fold_results)
+        avg_iters_m1 = sum(r["iterations_used"] for r in zubarev_umllr_m1_fold_results) / len(zubarev_umllr_m1_fold_results)
+        zubarev_m1_link = ""
+        if zubarev_umllr_m1_page:
+            zubarev_m1_link = f'<a href="{zubarev_umllr_m1_page.relative_to(output_dir).as_posix()}" class="card-link">View fold details →</a>'
+        else:
+            zubarev_m1_link = f'<span class="card-link disabled">~{avg_iters_m1:,.0f} iterations</span>'
+        zubarev_umllr_m1_card = f"""
+  <div class="model-card">
+    <h3>Zubarev Mahler-1 (UMLLR init)</h3>
+    <p>Mahler affine basis (degree 1) with UMLLR initialization</p>
+    <div class="card-metric">
+      <span class="value">{avg_loss_m1:.4f}</span>
+      <span class="label">Avg p-adic loss</span>
+    </div>
+    <div class="card-metric" style="margin-top: 0.5rem;">
+      <span class="value">{avg_nonzero_m1:,.0f}</span>
+      <span class="label">Non-zero coefficients</span>
+    </div>
+    {zubarev_m1_link}
+  </div>"""
+
+    # Zubarev p-adic polynomial regression card (UMLLR initialization, Mahler degree 2)
+    zubarev_umllr_m2_card = ""
+    if zubarev_umllr_m2_fold_results:
+        avg_loss_m2 = sum(r["padic_loss_mean"] for r in zubarev_umllr_m2_fold_results) / len(zubarev_umllr_m2_fold_results)
+        avg_nonzero_m2 = sum(r["num_nonzero_params"] for r in zubarev_umllr_m2_fold_results) / len(zubarev_umllr_m2_fold_results)
+        avg_iters_m2 = sum(r["iterations_used"] for r in zubarev_umllr_m2_fold_results) / len(zubarev_umllr_m2_fold_results)
+        zubarev_m2_link = ""
+        if zubarev_umllr_m2_page:
+            zubarev_m2_link = f'<a href="{zubarev_umllr_m2_page.relative_to(output_dir).as_posix()}" class="card-link">View fold details →</a>'
+        else:
+            zubarev_m2_link = f'<span class="card-link disabled">~{avg_iters_m2:,.0f} iterations</span>'
+        zubarev_umllr_m2_card = f"""
+  <div class="model-card">
+    <h3>Zubarev Mahler-2 (UMLLR init)</h3>
+    <p>Mahler quadratic basis (degree 2) with UMLLR initialization</p>
+    <div class="card-metric">
+      <span class="value">{avg_loss_m2:.4f}</span>
+      <span class="label">Avg p-adic loss</span>
+    </div>
+    <div class="card-metric" style="margin-top: 0.5rem;">
+      <span class="value">{avg_nonzero_m2:,.0f}</span>
+      <span class="label">Non-zero coefficients</span>
+    </div>
+    {zubarev_m2_link}
+  </div>"""
+
     # Combine model cards
     all_cards: list[str] = []
     if dummy_card:
@@ -3736,6 +3792,10 @@ def _build_index_html(
         all_cards.append(zubarev_umllr_card)
     if zubarev_zeros_card:
         all_cards.append(zubarev_zeros_card)
+    if zubarev_umllr_m1_card:
+        all_cards.append(zubarev_umllr_m1_card)
+    if zubarev_umllr_m2_card:
+        all_cards.append(zubarev_umllr_m2_card)
     if ulr_card:
         all_cards.append(ulr_card)
     if dt_card:
@@ -5794,7 +5854,7 @@ def _load_taxonomy_dt_feature_importances(conn, schema: str = "padjective") -> O
     return results
 
 
-def _load_zubarev_iteration_history(conn, schema: str = "padjective", initialization_method: str = "umllr") -> Optional[Dict[int, list[Dict[str, Any]]]]:
+def _load_zubarev_iteration_history(conn, schema: str = "padjective", initialization_method: str = "umllr", mahler_degree: int = 0) -> Optional[Dict[int, list[Dict[str, Any]]]]:
     """Load Zubarev iteration history for all folds."""
     if not _table_exists(conn, schema, "zubarev_iteration_history"):
         return None
@@ -5806,11 +5866,11 @@ def _load_zubarev_iteration_history(conn, schema: str = "padjective", initializa
                 SELECT cv_fold, iteration, train_loss, validation_loss, best_loss,
                        temperature, acceptance_rate
                 FROM {schema}.zubarev_iteration_history
-                WHERE initialization_method = %s
+                WHERE initialization_method = %s AND mahler_degree = %s
                 ORDER BY cv_fold, iteration
                 """
             ).format(schema=sql.Identifier(schema)),
-            (initialization_method,)
+            (initialization_method, mahler_degree)
         )
         results: Dict[int, list[Dict[str, Any]]] = {}
         for row in cur:
@@ -5938,7 +5998,7 @@ def _format_padic_digits(value: int, base: int) -> str:
     return ".".join(str(d) for d in digits)
 
 
-def _load_zubarev_coefficients(conn, schema: str = "padjective", initialization_method: str = "umllr") -> Optional[Dict[int, list[Dict[str, Any]]]]:
+def _load_zubarev_coefficients(conn, schema: str = "padjective", initialization_method: str = "umllr", mahler_degree: int = 0) -> Optional[Dict[int, list[Dict[str, Any]]]]:
     """Load Zubarev tag coefficients for all folds."""
     if not _table_exists(conn, schema, "zubarev_tag_coefficients"):
         return None
@@ -5949,11 +6009,11 @@ def _load_zubarev_coefficients(conn, schema: str = "padjective", initialization_
                 """
                 SELECT cv_fold, tag, coefficient, sequence
                 FROM {schema}.zubarev_tag_coefficients
-                WHERE coefficient != 0 AND initialization_method = %s
+                WHERE coefficient != 0 AND initialization_method = %s AND mahler_degree = %s
                 ORDER BY cv_fold, sequence
                 """
             ).format(schema=sql.Identifier(schema)),
-            (initialization_method,)
+            (initialization_method, mahler_degree)
         )
         results: Dict[int, list[Dict[str, Any]]] = {}
         for row in cur:
@@ -6005,7 +6065,7 @@ def _load_taxonomy_encodings(conn, schema: str = "padjective") -> Dict[int, tupl
     return encodings
 
 
-def _load_zubarev_fold_results(conn, schema: str = "padjective", initialization_method: str = "umllr") -> Optional[list[Dict[str, Any]]]:
+def _load_zubarev_fold_results(conn, schema: str = "padjective", initialization_method: str = "umllr", mahler_degree: int = 0) -> Optional[list[Dict[str, Any]]]:
     """Load Zubarev p-adic polynomial regression fold-based results."""
     if not _table_exists(conn, schema, "zubarev_fold_metrics"):
         return None
@@ -6018,11 +6078,11 @@ def _load_zubarev_fold_results(conn, schema: str = "padjective", initialization_
                 SELECT cv_fold, loss, prime_base, max_digit, default_prediction,
                        iterations_used, final_temperature
                 FROM {schema}.zubarev_fold_metrics
-                WHERE initialization_method = %s
+                WHERE initialization_method = %s AND mahler_degree = %s
                 ORDER BY cv_fold
                 """
             ).format(schema=sql.Identifier(schema)),
-            (initialization_method,)
+            (initialization_method, mahler_degree)
         )
         metrics = {row["cv_fold"]: dict(row) for row in cur}
 
@@ -6035,12 +6095,12 @@ def _load_zubarev_fold_results(conn, schema: str = "padjective", initialization_
                 """
                 SELECT cv_fold, COUNT(*) as num_predictions, AVG(loss) as padic_loss_mean
                 FROM {schema}.zubarev_predictions
-                WHERE initialization_method = %s
+                WHERE initialization_method = %s AND mahler_degree = %s
                 GROUP BY cv_fold
                 ORDER BY cv_fold
                 """
             ).format(schema=sql.Identifier(schema)),
-            (initialization_method,)
+            (initialization_method, mahler_degree)
         )
         pred_stats = {row["cv_fold"]: dict(row) for row in cur}
 
@@ -6050,12 +6110,12 @@ def _load_zubarev_fold_results(conn, schema: str = "padjective", initialization_
                 """
                 SELECT cv_fold, COUNT(*) as num_nonzero
                 FROM {schema}.zubarev_tag_coefficients
-                WHERE coefficient != 0 AND initialization_method = %s
+                WHERE coefficient != 0 AND initialization_method = %s AND mahler_degree = %s
                 GROUP BY cv_fold
                 ORDER BY cv_fold
                 """
             ).format(schema=sql.Identifier(schema)),
-            (initialization_method,)
+            (initialization_method, mahler_degree)
         )
         coeff_counts = {row["cv_fold"]: row["num_nonzero"] for row in cur}
 
@@ -6600,7 +6660,16 @@ def _write_zubarev_overview_page(
     fold_table_body = "\n".join(fold_rows)
 
     # Format initialization method for display
-    init_display = "UMLLR" if initialization_method == "umllr" else "Zeros"
+    if initialization_method == "umllr":
+        init_display = "UMLLR"
+    elif initialization_method == "zeros":
+        init_display = "Zeros"
+    elif initialization_method == "umllr_mahler1":
+        init_display = "UMLLR, Mahler degree 1"
+    elif initialization_method == "umllr_mahler2":
+        init_display = "UMLLR, Mahler degree 2"
+    else:
+        init_display = initialization_method
 
     page_html = f"""<!DOCTYPE html>
 <html lang="en">
@@ -7715,6 +7784,54 @@ footer {text-align: center; padding: 2rem 1.5rem 3rem; color: #6b7280;}
             output_dir, zubarev_zeros_fold_results, zubarev_zeros_fold_pages, initialization_method="zeros"
         )
 
+    # Load Zubarev p-adic polynomial regression results (UMLLR initialization, Mahler degree 1)
+    zubarev_umllr_m1_fold_results = _load_zubarev_fold_results(
+        precomputed_database, schema=battle_schema, initialization_method="umllr", mahler_degree=1
+    )
+    zubarev_umllr_m1_page = None
+    if zubarev_umllr_m1_fold_results:
+        zubarev_umllr_m1_iteration_history = _load_zubarev_iteration_history(
+            precomputed_database, schema=battle_schema, initialization_method="umllr", mahler_degree=1
+        )
+        zubarev_umllr_m1_coefficients = _load_zubarev_coefficients(
+            precomputed_database, schema=battle_schema, initialization_method="umllr", mahler_degree=1
+        )
+        if not taxonomy_encodings:
+            taxonomy_encodings = _load_taxonomy_encodings(
+                precomputed_database, schema=battle_schema
+            )
+        zubarev_umllr_m1_fold_pages = _write_zubarev_fold_pages(
+            output_dir, zubarev_umllr_m1_fold_results, zubarev_umllr_m1_iteration_history,
+            zubarev_umllr_m1_coefficients, taxonomy_encodings, initialization_method="umllr_mahler1"
+        )
+        zubarev_umllr_m1_page = _write_zubarev_overview_page(
+            output_dir, zubarev_umllr_m1_fold_results, zubarev_umllr_m1_fold_pages, initialization_method="umllr_mahler1"
+        )
+
+    # Load Zubarev p-adic polynomial regression results (UMLLR initialization, Mahler degree 2)
+    zubarev_umllr_m2_fold_results = _load_zubarev_fold_results(
+        precomputed_database, schema=battle_schema, initialization_method="umllr", mahler_degree=2
+    )
+    zubarev_umllr_m2_page = None
+    if zubarev_umllr_m2_fold_results:
+        zubarev_umllr_m2_iteration_history = _load_zubarev_iteration_history(
+            precomputed_database, schema=battle_schema, initialization_method="umllr", mahler_degree=2
+        )
+        zubarev_umllr_m2_coefficients = _load_zubarev_coefficients(
+            precomputed_database, schema=battle_schema, initialization_method="umllr", mahler_degree=2
+        )
+        if not taxonomy_encodings:
+            taxonomy_encodings = _load_taxonomy_encodings(
+                precomputed_database, schema=battle_schema
+            )
+        zubarev_umllr_m2_fold_pages = _write_zubarev_fold_pages(
+            output_dir, zubarev_umllr_m2_fold_results, zubarev_umllr_m2_iteration_history,
+            zubarev_umllr_m2_coefficients, taxonomy_encodings, initialization_method="umllr_mahler2"
+        )
+        zubarev_umllr_m2_page = _write_zubarev_overview_page(
+            output_dir, zubarev_umllr_m2_fold_results, zubarev_umllr_m2_fold_pages, initialization_method="umllr_mahler2"
+        )
+
     # Keep backward compatibility with old variable name for charts
     zubarev_fold_results = zubarev_umllr_fold_results
     zubarev_page = zubarev_umllr_page
@@ -7785,6 +7902,10 @@ footer {text-align: center; padding: 2rem 1.5rem 3rem; color: #6b7280;}
         zubarev_fold_results,
         zubarev_zeros_page,
         zubarev_zeros_fold_results,
+        zubarev_umllr_m1_page,
+        zubarev_umllr_m1_fold_results,
+        zubarev_umllr_m2_page,
+        zubarev_umllr_m2_fold_results,
         trends_chart_path,
         perf_vs_products_chart_path,
         perf_vs_tags_chart_path,
