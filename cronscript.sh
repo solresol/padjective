@@ -137,6 +137,16 @@ uv run -m padjective.zubarev \
     --max-iterations 50000 \
     --initialization-method zeros
 
+# Train with UMLLR initialization and Mahler degree 1
+echo "Training Zubarev p-adic polynomial regression (UMLLR initialization, Mahler degree 1)..."
+uv run -m padjective.zubarev \
+    "${TAGBATTLE_DSN_ARGS[@]}" \
+    --schema "$TAGBATTLE_SCHEMA" \
+    --product-table "$TAGBATTLE_PRODUCT_TABLE" \
+    --max-iterations 10000 \
+    --initialization-method umllr \
+    --mahler-degree 1
+
 # Train with UMLLR initialization and Mahler degree 2
 echo "Training Zubarev p-adic polynomial regression (UMLLR initialization, Mahler degree 2)..."
 uv run -m padjective.zubarev \
