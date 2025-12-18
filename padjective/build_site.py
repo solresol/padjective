@@ -2988,7 +2988,10 @@ def _format_regression_stats_html(stats: Optional[Dict[str, Dict[str, float]]], 
         'ulr': 'ULR',
         'unn': 'UNN',
         'dt': 'Decision Tree',
-        'zubarev': 'Zubarev',
+        'zubarev_umllr': 'Zubarev (UMLLR)',
+        'zubarev_zeros': 'Zubarev (zeros)',
+        'zubarev_umllr_m1': 'Zubarev (M1)',
+        'zubarev_umllr_m2': 'Zubarev (M2)',
         'dummy': 'Dummy Baseline',
     }
     model_colors = {
@@ -2998,12 +3001,15 @@ def _format_regression_stats_html(stats: Optional[Dict[str, Dict[str, float]]], 
         'ulr': '#8b5cf6',
         'unn': '#ec4899',
         'dt': '#14b8a6',
-        'zubarev': '#f97316',
+        'zubarev_umllr': '#f97316',
+        'zubarev_zeros': '#f59e0b',
+        'zubarev_umllr_m1': '#ea580c',
+        'zubarev_umllr_m2': '#c2410c',
         'dummy': '#94a3b8',
     }
 
     rows = []
-    for key in ['umllr', 'lr', 'nn', 'ulr', 'unn', 'dt', 'zubarev', 'dummy']:
+    for key in ['umllr', 'lr', 'nn', 'ulr', 'unn', 'dt', 'zubarev_umllr', 'zubarev_zeros', 'zubarev_umllr_m1', 'zubarev_umllr_m2', 'dummy']:
         if key in stats:
             s = stats[key]
             color = model_colors[key]
