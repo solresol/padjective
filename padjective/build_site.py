@@ -6258,19 +6258,45 @@ def _generate_zubarev_loss_chart(
     if not iteration_history or len(iteration_history) < 2:
         return None
 
-    iterations = [r["iteration"] for r in iteration_history]
-    train_loss = [r["train_loss"] for r in iteration_history]
-    val_loss = [r["validation_loss"] for r in iteration_history]
+    iterations = np.array([r["iteration"] for r in iteration_history])
+    train_loss = np.array([r["train_loss"] for r in iteration_history])
+    val_loss = np.array([r["validation_loss"] for r in iteration_history])
     best_loss = [r["best_loss"] for r in iteration_history]
 
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8), sharex=True)
 
     # Top plot: Loss curves
-    ax1.plot(iterations, train_loss, label="Train loss", color="#0b6ce3", linewidth=2)
-    ax1.plot(iterations, val_loss, label="Test loss", color="#f97316", linewidth=2)
+    ax1.plot(iterations, train_loss, label="Train loss", color="#0b6ce3", linewidth=2, alpha=0.7)
+    ax1.plot(iterations, val_loss, label="Test loss", color="#f97316", linewidth=2, alpha=0.7)
+
+    # Fit exponential curves: f(x) = a * exp(-b * x) + c
+    def exp_decay(x, a, b, c):
+        return a * np.exp(-b * x) + c
+
+    try:
+        from scipy.optimize import curve_fit
+        # Fit train loss
+        train_params, _ = curve_fit(exp_decay, iterations, train_loss,
+                                     p0=[train_loss[0], 0.001, min(train_loss)],
+                                     maxfev=5000)
+        train_fit = exp_decay(iterations, *train_params)
+        ax1.plot(iterations, train_fit, '--', color="#0b6ce3", linewidth=1.5, alpha=0.5,
+                label=f"Train fit: {train_params[0]:.3f}·exp(-{train_params[1]:.6f}·x)+{train_params[2]:.3f}")
+
+        # Fit test loss
+        val_params, _ = curve_fit(exp_decay, iterations, val_loss,
+                                  p0=[val_loss[0], 0.001, min(val_loss)],
+                                  maxfev=5000)
+        val_fit = exp_decay(iterations, *val_params)
+        ax1.plot(iterations, val_fit, '--', color="#f97316", linewidth=1.5, alpha=0.5,
+                label=f"Test fit: {val_params[0]:.3f}·exp(-{val_params[1]:.6f}·x)+{val_params[2]:.3f}")
+    except Exception:
+        # If curve fitting fails, just continue without it
+        pass
+
     ax1.set_ylabel("Mean p-adic loss", fontsize=12)
     ax1.set_title(f"Zubarev Optimization - Fold {fold}", fontsize=14, fontweight="bold")
-    ax1.legend(loc="upper right")
+    ax1.legend(loc="upper right", fontsize=9)
     ax1.grid(True, alpha=0.3)
     ax1.set_xlim(0, max(iterations))
 
