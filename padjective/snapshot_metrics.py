@@ -76,7 +76,15 @@ def create_history_table(conn, schema: str = "padjective") -> None:
                 ADD COLUMN IF NOT EXISTS dt_mean_accuracy REAL,
                 ADD COLUMN IF NOT EXISTS dt_mean_tree_depth REAL,
                 ADD COLUMN IF NOT EXISTS zubarev_mean_padic_loss REAL,
-                ADD COLUMN IF NOT EXISTS zubarev_mean_nonzero_params REAL
+                ADD COLUMN IF NOT EXISTS zubarev_mean_nonzero_params REAL,
+                ADD COLUMN IF NOT EXISTS zubarev_umllr_mean_padic_loss REAL,
+                ADD COLUMN IF NOT EXISTS zubarev_umllr_mean_nonzero_params REAL,
+                ADD COLUMN IF NOT EXISTS zubarev_zeros_mean_padic_loss REAL,
+                ADD COLUMN IF NOT EXISTS zubarev_zeros_mean_nonzero_params REAL,
+                ADD COLUMN IF NOT EXISTS zubarev_umllr_m1_mean_padic_loss REAL,
+                ADD COLUMN IF NOT EXISTS zubarev_umllr_m1_mean_nonzero_params REAL,
+                ADD COLUMN IF NOT EXISTS zubarev_umllr_m2_mean_padic_loss REAL,
+                ADD COLUMN IF NOT EXISTS zubarev_umllr_m2_mean_nonzero_params REAL
                 """
             ).format(schema=sql.Identifier(schema))
         )
@@ -337,8 +345,14 @@ def get_dt_metrics(conn, schema: str = "padjective") -> tuple[float | None, floa
     return None, None, None
 
 
-def get_zubarev_metrics(conn, schema: str = "padjective") -> tuple[float | None, float | None]:
+def get_zubarev_metrics(conn, schema: str = "padjective", initialization_method: str = "umllr", mahler_degree: int = 0) -> tuple[float | None, float | None]:
     """Get Zubarev p-adic polynomial regression mean metrics across all folds.
+
+    Args:
+        conn: Database connection
+        schema: Schema name for results tables
+        initialization_method: Initialization method ('umllr' or 'zeros')
+        mahler_degree: Mahler polynomial degree (0, 1, or 2)
 
     Returns:
         tuple: (mean_padic_loss, mean_nonzero_params)
@@ -363,8 +377,10 @@ def get_zubarev_metrics(conn, schema: str = "padjective") -> tuple[float | None,
                 """
                 SELECT AVG(loss)
                 FROM {schema}.zubarev_predictions
+                WHERE initialization_method = %s AND mahler_degree = %s
                 """
-            ).format(schema=sql.Identifier(schema))
+            ).format(schema=sql.Identifier(schema)),
+            (initialization_method, mahler_degree)
         )
         row = cur.fetchone()
         mean_padic_loss = float(row[0]) if row and row[0] is not None else None
@@ -376,11 +392,12 @@ def get_zubarev_metrics(conn, schema: str = "padjective") -> tuple[float | None,
                 SELECT AVG(num_nonzero) FROM (
                     SELECT cv_fold, COUNT(*) as num_nonzero
                     FROM {schema}.zubarev_tag_coefficients
-                    WHERE coefficient != 0
+                    WHERE coefficient != 0 AND initialization_method = %s AND mahler_degree = %s
                     GROUP BY cv_fold
                 ) sub
                 """
-            ).format(schema=sql.Identifier(schema))
+            ).format(schema=sql.Identifier(schema)),
+            (initialization_method, mahler_degree)
         )
         row = cur.fetchone()
         mean_nonzero = float(row[0]) if row and row[0] is not None else None
@@ -422,7 +439,11 @@ def snapshot_metrics(
     ulr_padic, ulr_acc, ulr_nonzero = get_ulr_metrics(conn, schema)
     unn_padic, unn_acc, unn_nonzero = get_unn_metrics(conn, schema)
     dt_padic, dt_acc, dt_depth = get_dt_metrics(conn, schema)
-    zubarev_padic, zubarev_nonzero = get_zubarev_metrics(conn, schema)
+    zubarev_padic, zubarev_nonzero = get_zubarev_metrics(conn, schema, initialization_method="umllr", mahler_degree=0)
+    zubarev_umllr_padic, zubarev_umllr_nonzero = get_zubarev_metrics(conn, schema, initialization_method="umllr", mahler_degree=0)
+    zubarev_zeros_padic, zubarev_zeros_nonzero = get_zubarev_metrics(conn, schema, initialization_method="zeros", mahler_degree=0)
+    zubarev_umllr_m1_padic, zubarev_umllr_m1_nonzero = get_zubarev_metrics(conn, schema, initialization_method="umllr", mahler_degree=1)
+    zubarev_umllr_m2_padic, zubarev_umllr_m2_nonzero = get_zubarev_metrics(conn, schema, initialization_method="umllr", mahler_degree=2)
 
     # Insert or update snapshot
     with conn.cursor() as cur:
@@ -437,8 +458,12 @@ def snapshot_metrics(
                  lr_mean_params, nn_mean_input_weights,
                  unn_mean_padic_loss, unn_mean_accuracy, unn_mean_nonzero_params,
                  dt_mean_padic_loss, dt_mean_accuracy, dt_mean_tree_depth,
-                 zubarev_mean_padic_loss, zubarev_mean_nonzero_params)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                 zubarev_mean_padic_loss, zubarev_mean_nonzero_params,
+                 zubarev_umllr_mean_padic_loss, zubarev_umllr_mean_nonzero_params,
+                 zubarev_zeros_mean_padic_loss, zubarev_zeros_mean_nonzero_params,
+                 zubarev_umllr_m1_mean_padic_loss, zubarev_umllr_m1_mean_nonzero_params,
+                 zubarev_umllr_m2_mean_padic_loss, zubarev_umllr_m2_mean_nonzero_params)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ON CONFLICT (snapshot_date) DO UPDATE SET
                     snapshot_time = now(),
                     num_products = EXCLUDED.num_products,
@@ -464,7 +489,15 @@ def snapshot_metrics(
                     dt_mean_accuracy = EXCLUDED.dt_mean_accuracy,
                     dt_mean_tree_depth = EXCLUDED.dt_mean_tree_depth,
                     zubarev_mean_padic_loss = EXCLUDED.zubarev_mean_padic_loss,
-                    zubarev_mean_nonzero_params = EXCLUDED.zubarev_mean_nonzero_params
+                    zubarev_mean_nonzero_params = EXCLUDED.zubarev_mean_nonzero_params,
+                    zubarev_umllr_mean_padic_loss = EXCLUDED.zubarev_umllr_mean_padic_loss,
+                    zubarev_umllr_mean_nonzero_params = EXCLUDED.zubarev_umllr_mean_nonzero_params,
+                    zubarev_zeros_mean_padic_loss = EXCLUDED.zubarev_zeros_mean_padic_loss,
+                    zubarev_zeros_mean_nonzero_params = EXCLUDED.zubarev_zeros_mean_nonzero_params,
+                    zubarev_umllr_m1_mean_padic_loss = EXCLUDED.zubarev_umllr_m1_mean_padic_loss,
+                    zubarev_umllr_m1_mean_nonzero_params = EXCLUDED.zubarev_umllr_m1_mean_nonzero_params,
+                    zubarev_umllr_m2_mean_padic_loss = EXCLUDED.zubarev_umllr_m2_mean_padic_loss,
+                    zubarev_umllr_m2_mean_nonzero_params = EXCLUDED.zubarev_umllr_m2_mean_nonzero_params
                 """
             ).format(schema=sql.Identifier(schema)),
             (
@@ -493,6 +526,14 @@ def snapshot_metrics(
                 dt_depth,
                 zubarev_padic,
                 zubarev_nonzero,
+                zubarev_umllr_padic,
+                zubarev_umllr_nonzero,
+                zubarev_zeros_padic,
+                zubarev_zeros_nonzero,
+                zubarev_umllr_m1_padic,
+                zubarev_umllr_m1_nonzero,
+                zubarev_umllr_m2_padic,
+                zubarev_umllr_m2_nonzero,
             ),
         )
     conn.commit()
@@ -505,7 +546,10 @@ def snapshot_metrics(
     print(f"  ULR p-adic loss: {ulr_padic:.6f}" if ulr_padic else "  ULR: no data")
     print(f"  UNN p-adic loss: {unn_padic:.6f}" if unn_padic else "  UNN: no data")
     print(f"  DT p-adic loss: {dt_padic:.6f}" if dt_padic else "  DT: no data")
-    print(f"  Zubarev p-adic loss: {zubarev_padic:.6f}" if zubarev_padic else "  Zubarev: no data")
+    print(f"  Zubarev (UMLLR) p-adic loss: {zubarev_umllr_padic:.6f}" if zubarev_umllr_padic else "  Zubarev (UMLLR): no data")
+    print(f"  Zubarev (zeros) p-adic loss: {zubarev_zeros_padic:.6f}" if zubarev_zeros_padic else "  Zubarev (zeros): no data")
+    print(f"  Zubarev (UMLLR M1) p-adic loss: {zubarev_umllr_m1_padic:.6f}" if zubarev_umllr_m1_padic else "  Zubarev (UMLLR M1): no data")
+    print(f"  Zubarev (UMLLR M2) p-adic loss: {zubarev_umllr_m2_padic:.6f}" if zubarev_umllr_m2_padic else "  Zubarev (UMLLR M2): no data")
     print(f"  Dummy p-adic loss: {dummy_padic:.6f}" if dummy_padic else "  Dummy: no data")
 
 

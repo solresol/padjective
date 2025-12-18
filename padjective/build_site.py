@@ -6847,7 +6847,9 @@ def _generate_historical_trends_chart(conn, output_path: Path, schema: str = "pa
                 SELECT snapshot_date, num_products, num_tags, num_taxonomies,
                        umllr_mean_padic_loss, lr_mean_padic_loss, nn_mean_padic_loss,
                        dummy_mean_padic_loss, ulr_mean_padic_loss, unn_mean_padic_loss,
-                       dt_mean_padic_loss
+                       dt_mean_padic_loss,
+                       zubarev_umllr_mean_padic_loss, zubarev_zeros_mean_padic_loss,
+                       zubarev_umllr_m1_mean_padic_loss, zubarev_umllr_m2_mean_padic_loss
                 FROM {schema}.model_performance_history
                 ORDER BY snapshot_date
                 """
@@ -6871,6 +6873,10 @@ def _generate_historical_trends_chart(conn, output_path: Path, schema: str = "pa
     ulr_loss = [row[8] if row[8] is not None else None for row in rows]
     unn_loss = [row[9] if row[9] is not None else None for row in rows]
     dt_loss = [row[10] if row[10] is not None else None for row in rows]
+    zubarev_umllr_loss = [row[11] if row[11] is not None else None for row in rows]
+    zubarev_zeros_loss = [row[12] if row[12] is not None else None for row in rows]
+    zubarev_umllr_m1_loss = [row[13] if row[13] is not None else None for row in rows]
+    zubarev_umllr_m2_loss = [row[14] if row[14] is not None else None for row in rows]
 
     # Create figure with two subplots
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8), sharex=True)
@@ -6888,6 +6894,14 @@ def _generate_historical_trends_chart(conn, output_path: Path, schema: str = "pa
         ax1.plot(dates, unn_loss, 'p-', label='UNN', color='#ec4899', linewidth=2, markersize=6)
     if any(dt_loss):
         ax1.plot(dates, dt_loss, 'h-', label='DT', color='#14b8a6', linewidth=2, markersize=6)
+    if any(zubarev_umllr_loss):
+        ax1.plot(dates, zubarev_umllr_loss, 'v-', label='Zubarev (UMLLR)', color='#f97316', linewidth=2, markersize=6)
+    if any(zubarev_zeros_loss):
+        ax1.plot(dates, zubarev_zeros_loss, '<-', label='Zubarev (zeros)', color='#f59e0b', linewidth=2, markersize=6)
+    if any(zubarev_umllr_m1_loss):
+        ax1.plot(dates, zubarev_umllr_m1_loss, '>-', label='Zubarev (M1)', color='#ea580c', linewidth=2, markersize=6)
+    if any(zubarev_umllr_m2_loss):
+        ax1.plot(dates, zubarev_umllr_m2_loss, '+-', label='Zubarev (M2)', color='#c2410c', linewidth=2, markersize=6)
     if any(dummy_loss):
         ax1.plot(dates, dummy_loss, 'x-', label='Dummy Baseline', color='#94a3b8', linewidth=2, markersize=6)
 
@@ -6936,7 +6950,9 @@ def _generate_performance_vs_products_chart(conn, output_path: Path, schema: str
                 """
                 SELECT num_products, umllr_mean_padic_loss, lr_mean_padic_loss,
                        nn_mean_padic_loss, dummy_mean_padic_loss, ulr_mean_padic_loss,
-                       unn_mean_padic_loss, dt_mean_padic_loss, zubarev_mean_padic_loss
+                       unn_mean_padic_loss, dt_mean_padic_loss,
+                       zubarev_umllr_mean_padic_loss, zubarev_zeros_mean_padic_loss,
+                       zubarev_umllr_m1_mean_padic_loss, zubarev_umllr_m2_mean_padic_loss
                 FROM {schema}.model_performance_history
                 ORDER BY num_products
                 """
@@ -6955,7 +6971,10 @@ def _generate_performance_vs_products_chart(conn, output_path: Path, schema: str
     ulr_loss = [row[5] for row in rows]
     unn_loss = [row[6] for row in rows]
     dt_loss = [row[7] for row in rows]
-    zubarev_loss = [row[8] for row in rows]
+    zubarev_umllr_loss = [row[8] for row in rows]
+    zubarev_zeros_loss = [row[9] for row in rows]
+    zubarev_umllr_m1_loss = [row[10] for row in rows]
+    zubarev_umllr_m2_loss = [row[11] for row in rows]
 
     fig, ax = plt.subplots(figsize=(10, 6))
     regression_stats = {}
@@ -7020,10 +7039,25 @@ def _generate_performance_vs_products_chart(conn, output_path: Path, schema: str
         if stat:
             regression_stats['unn'] = stat
 
-    if any(v is not None for v in zubarev_loss):
-        stat = plot_with_regression(num_products, zubarev_loss, 'Zubarev', '#f97316', 's')
+    if any(v is not None for v in zubarev_umllr_loss):
+        stat = plot_with_regression(num_products, zubarev_umllr_loss, 'Zubarev (UMLLR)', '#f97316', 'v')
         if stat:
-            regression_stats['zubarev'] = stat
+            regression_stats['zubarev_umllr'] = stat
+
+    if any(v is not None for v in zubarev_zeros_loss):
+        stat = plot_with_regression(num_products, zubarev_zeros_loss, 'Zubarev (zeros)', '#f59e0b', '<')
+        if stat:
+            regression_stats['zubarev_zeros'] = stat
+
+    if any(v is not None for v in zubarev_umllr_m1_loss):
+        stat = plot_with_regression(num_products, zubarev_umllr_m1_loss, 'Zubarev (M1)', '#ea580c', '>')
+        if stat:
+            regression_stats['zubarev_umllr_m1'] = stat
+
+    if any(v is not None for v in zubarev_umllr_m2_loss):
+        stat = plot_with_regression(num_products, zubarev_umllr_m2_loss, 'Zubarev (M2)', '#c2410c', '+')
+        if stat:
+            regression_stats['zubarev_umllr_m2'] = stat
 
     ax.set_xlabel('Number of Products', fontsize=12, fontweight='bold')
     ax.set_ylabel('P-adic Loss (lower is better)', fontsize=12, fontweight='bold')
@@ -7054,7 +7088,9 @@ def _generate_performance_vs_tags_chart(conn, output_path: Path, schema: str = "
                 """
                 SELECT num_tags, umllr_mean_padic_loss, lr_mean_padic_loss,
                        nn_mean_padic_loss, dummy_mean_padic_loss, ulr_mean_padic_loss,
-                       unn_mean_padic_loss, dt_mean_padic_loss, zubarev_mean_padic_loss
+                       unn_mean_padic_loss, dt_mean_padic_loss,
+                       zubarev_umllr_mean_padic_loss, zubarev_zeros_mean_padic_loss,
+                       zubarev_umllr_m1_mean_padic_loss, zubarev_umllr_m2_mean_padic_loss
                 FROM {schema}.model_performance_history
                 ORDER BY num_tags
                 """
@@ -7073,7 +7109,10 @@ def _generate_performance_vs_tags_chart(conn, output_path: Path, schema: str = "
     ulr_loss = [row[5] for row in rows]
     unn_loss = [row[6] for row in rows]
     dt_loss = [row[7] for row in rows]
-    zubarev_loss = [row[8] for row in rows]
+    zubarev_umllr_loss = [row[8] for row in rows]
+    zubarev_zeros_loss = [row[9] for row in rows]
+    zubarev_umllr_m1_loss = [row[10] for row in rows]
+    zubarev_umllr_m2_loss = [row[11] for row in rows]
 
     fig, ax = plt.subplots(figsize=(10, 6))
     regression_stats = {}
@@ -7138,10 +7177,25 @@ def _generate_performance_vs_tags_chart(conn, output_path: Path, schema: str = "
         if stat:
             regression_stats['unn'] = stat
 
-    if any(v is not None for v in zubarev_loss):
-        stat = plot_with_regression(num_tags, zubarev_loss, 'Zubarev', '#f97316', 's')
+    if any(v is not None for v in zubarev_umllr_loss):
+        stat = plot_with_regression(num_tags, zubarev_umllr_loss, 'Zubarev (UMLLR)', '#f97316', 'v')
         if stat:
-            regression_stats['zubarev'] = stat
+            regression_stats['zubarev_umllr'] = stat
+
+    if any(v is not None for v in zubarev_zeros_loss):
+        stat = plot_with_regression(num_tags, zubarev_zeros_loss, 'Zubarev (zeros)', '#f59e0b', '<')
+        if stat:
+            regression_stats['zubarev_zeros'] = stat
+
+    if any(v is not None for v in zubarev_umllr_m1_loss):
+        stat = plot_with_regression(num_tags, zubarev_umllr_m1_loss, 'Zubarev (M1)', '#ea580c', '>')
+        if stat:
+            regression_stats['zubarev_umllr_m1'] = stat
+
+    if any(v is not None for v in zubarev_umllr_m2_loss):
+        stat = plot_with_regression(num_tags, zubarev_umllr_m2_loss, 'Zubarev (M2)', '#c2410c', '+')
+        if stat:
+            regression_stats['zubarev_umllr_m2'] = stat
 
     ax.set_xlabel('Number of Distinct Tags', fontsize=12, fontweight='bold')
     ax.set_ylabel('P-adic Loss (lower is better)', fontsize=12, fontweight='bold')
@@ -7168,6 +7222,8 @@ def _generate_params_vs_loss_chart(
     taxonomy_dt_fold_results: Optional[list[Dict[str, Any]]] = None,
     zubarev_fold_results: Optional[list[Dict[str, Any]]] = None,
     zubarev_zeros_fold_results: Optional[list[Dict[str, Any]]] = None,
+    zubarev_umllr_m1_fold_results: Optional[list[Dict[str, Any]]] = None,
+    zubarev_umllr_m2_fold_results: Optional[list[Dict[str, Any]]] = None,
 ) -> tuple[Optional[Path], Dict[str, Dict[str, float]]]:
     """Generate a scatter plot showing parameter count vs p-adic loss for all models.
 
@@ -7213,11 +7269,29 @@ def _generate_params_vs_loss_chart(
         avg_loss = sum(r["padic_loss_mean"] for r in taxonomy_dt_fold_results) / len(taxonomy_dt_fold_results)
         data_points.append((avg_params, avg_loss, "Decision Tree", "#14b8a6", "h"))
 
-    # Zubarev - stochastic p-adic polynomial regression
+    # Zubarev - stochastic p-adic polynomial regression (UMLLR init, degree 0)
     if zubarev_fold_results:
         avg_params = sum(r["num_nonzero_params"] for r in zubarev_fold_results) / len(zubarev_fold_results)
         avg_loss = sum(r["padic_loss_mean"] for r in zubarev_fold_results) / len(zubarev_fold_results)
-        data_points.append((avg_params, avg_loss, "Zubarev", "#f97316", "s"))
+        data_points.append((avg_params, avg_loss, "Zubarev (UMLLR)", "#f97316", "v"))
+
+    # Zubarev - stochastic p-adic polynomial regression (zeros init)
+    if zubarev_zeros_fold_results:
+        avg_params = sum(r["num_nonzero_params"] for r in zubarev_zeros_fold_results) / len(zubarev_zeros_fold_results)
+        avg_loss = sum(r["padic_loss_mean"] for r in zubarev_zeros_fold_results) / len(zubarev_zeros_fold_results)
+        data_points.append((avg_params, avg_loss, "Zubarev (zeros)", "#f59e0b", "<"))
+
+    # Zubarev - stochastic p-adic polynomial regression (UMLLR init, Mahler degree 1)
+    if zubarev_umllr_m1_fold_results:
+        avg_params = sum(r["num_nonzero_params"] for r in zubarev_umllr_m1_fold_results) / len(zubarev_umllr_m1_fold_results)
+        avg_loss = sum(r["padic_loss_mean"] for r in zubarev_umllr_m1_fold_results) / len(zubarev_umllr_m1_fold_results)
+        data_points.append((avg_params, avg_loss, "Zubarev (M1)", "#ea580c", ">"))
+
+    # Zubarev - stochastic p-adic polynomial regression (UMLLR init, Mahler degree 2)
+    if zubarev_umllr_m2_fold_results:
+        avg_params = sum(r["num_nonzero_params"] for r in zubarev_umllr_m2_fold_results) / len(zubarev_umllr_m2_fold_results)
+        avg_loss = sum(r["padic_loss_mean"] for r in zubarev_umllr_m2_fold_results) / len(zubarev_umllr_m2_fold_results)
+        data_points.append((avg_params, avg_loss, "Zubarev (M2)", "#c2410c", "+"))
 
     # Get Importance-Optimised p-adic LR (UMLLR) - use actual non-zero coefficients
     if _table_exists(conn, schema, "umllr_fold_metrics"):
@@ -7348,7 +7422,7 @@ def _generate_params_vs_loss_chart(
     ax.set_ylim(bottom=0)
 
     # Add legend for the regression lines
-    ax.legend(loc='upper right', frameon=True, shadow=True, fontsize=9)
+    ax.legend(loc='lower left', frameon=True, shadow=True, fontsize=9)
 
     plt.tight_layout()
     plt.savefig(output_path, dpi=150, bbox_inches='tight')
@@ -7864,6 +7938,8 @@ footer {text-align: center; padding: 2rem 1.5rem 3rem; color: #6b7280;}
         taxonomy_dt_fold_results=taxonomy_dt_fold_results,
         zubarev_fold_results=zubarev_fold_results,
         zubarev_zeros_fold_results=zubarev_zeros_fold_results,
+        zubarev_umllr_m1_fold_results=zubarev_umllr_m1_fold_results,
+        zubarev_umllr_m2_fold_results=zubarev_umllr_m2_fold_results,
     )
 
     unconstrained_log_chart_path, unconstrained_log_stats = _generate_unconstrained_log_chart(
