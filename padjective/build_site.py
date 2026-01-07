@@ -3123,10 +3123,11 @@ def _format_extrapolation_analysis_html(
 
     umllr_stats = regression_stats['umllr']
 
-    # Models to compare against - unconstrained models that currently outperform
+    # Models to compare against - unconstrained models and other baselines
     comparison_models = {
         'unn': ('UNN (Unconstrained Neural Networks)', '#ec4899'),
         'ulr': ('ULR (Unconstrained Logistic Regression)', '#8b5cf6'),
+        'dt': ('Decision Tree', '#14b8a6'),
     }
 
     extrapolations = []
