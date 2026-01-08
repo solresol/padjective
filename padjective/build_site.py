@@ -2975,6 +2975,283 @@ def _write_umllr_pages(output_dir: Path, summary: Dict[str, Any], conn=None, sch
 
 
 
+def _calculate_crossover_point(
+    model1_stats: Dict[str, float],
+    model2_stats: Dict[str, float],
+) -> Optional[float]:
+    """Calculate the x-value where two regression lines intersect.
+
+    Returns None if lines are parallel or if crossover is in the past (negative x).
+    """
+    slope1, intercept1 = model1_stats['slope'], model1_stats['intercept']
+    slope2, intercept2 = model2_stats['slope'], model2_stats['intercept']
+
+    # Check if slopes are too similar (parallel lines)
+    if abs(slope1 - slope2) < 1e-10:
+        return None
+
+    # Calculate intersection: slope1 * x + intercept1 = slope2 * x + intercept2
+    # => x = (intercept2 - intercept1) / (slope1 - slope2)
+    crossover_x = (intercept2 - intercept1) / (slope1 - slope2)
+
+    # Only return if crossover is in the future (positive x increase)
+    if crossover_x > 0:
+        return crossover_x
+    return None
+
+
+def _calculate_crossover_confidence(
+    x_data1: list, y_data1: list,
+    x_data2: list, y_data2: list,
+    crossover_x: float,
+    n_bootstrap: int = 1000,
+) -> Optional[Dict[str, float]]:
+    """Calculate confidence interval for crossover point using bootstrap.
+
+    Returns dict with 'lower_ci', 'upper_ci', and 'std_err' or None if insufficient data.
+    """
+    # Filter out None values
+    valid_pairs1 = [(x, y) for x, y in zip(x_data1, y_data1) if y is not None]
+    valid_pairs2 = [(x, y) for x, y in zip(x_data2, y_data2) if y is not None]
+
+    if len(valid_pairs1) < 2 or len(valid_pairs2) < 2:
+        return None
+
+    x1, y1 = zip(*valid_pairs1)
+    x2, y2 = zip(*valid_pairs2)
+    x1, y1 = np.array(x1), np.array(y1)
+    x2, y2 = np.array(x2), np.array(y2)
+
+    crossovers = []
+    rng = np.random.RandomState(42)  # Fixed seed for reproducibility
+
+    for _ in range(n_bootstrap):
+        # Bootstrap sample for model 1
+        idx1 = rng.choice(len(x1), size=len(x1), replace=True)
+        result1 = stats.linregress(x1[idx1], y1[idx1])
+
+        # Bootstrap sample for model 2
+        idx2 = rng.choice(len(x2), size=len(x2), replace=True)
+        result2 = stats.linregress(x2[idx2], y2[idx2])
+
+        # Calculate crossover for this bootstrap sample
+        if abs(result1.slope - result2.slope) > 1e-10:
+            cross_x = (result2.intercept - result1.intercept) / (result1.slope - result2.slope)
+            if cross_x > 0:  # Only include positive crossovers
+                crossovers.append(cross_x)
+
+    if len(crossovers) < 10:  # Need enough valid samples
+        return None
+
+    crossovers = np.array(crossovers)
+    return {
+        'lower_ci': np.percentile(crossovers, 2.5),
+        'upper_ci': np.percentile(crossovers, 97.5),
+        'std_err': np.std(crossovers),
+        'mean': np.mean(crossovers),
+    }
+
+
+def _estimate_dataset_growth(
+    dates: list,
+    values: list,
+) -> Optional[Dict[str, float]]:
+    """Estimate growth rate and predict future values based on historical data.
+
+    Returns dict with 'daily_growth', 'r_squared', and prediction parameters.
+    """
+    # Filter out None values
+    valid_pairs = [(d, v) for d, v in zip(dates, values) if v is not None and d is not None]
+    if len(valid_pairs) < 2:
+        return None
+
+    dates_valid, values_valid = zip(*valid_pairs)
+
+    # Convert dates to days since first measurement
+    first_date = dates_valid[0]
+    days_since_start = np.array([(d - first_date).days for d in dates_valid])
+    values_arr = np.array(values_valid)
+
+    # Linear regression on values vs days
+    result = stats.linregress(days_since_start, values_arr)
+
+    return {
+        'daily_growth': result.slope,
+        'intercept': result.intercept,
+        'r_squared': result.rvalue ** 2,
+        'p_value': result.pvalue,
+        'first_date': first_date,
+        'last_value': values_valid[-1],
+        'last_days': days_since_start[-1],
+    }
+
+
+def _predict_date_for_value(
+    growth_stats: Dict[str, float],
+    target_value: float,
+) -> Optional[datetime]:
+    """Predict when dataset will reach target value based on growth stats."""
+    if growth_stats['daily_growth'] <= 0:
+        return None
+
+    # Solve: target_value = slope * days + intercept
+    # => days = (target_value - intercept) / slope
+    days_needed = (target_value - growth_stats['intercept']) / growth_stats['daily_growth']
+
+    if days_needed < growth_stats['last_days']:
+        # Target already achieved
+        return None
+
+    # Calculate date
+    from datetime import timedelta
+    target_date = growth_stats['first_date'] + timedelta(days=int(days_needed))
+    return target_date
+
+
+def _format_extrapolation_analysis_html(
+    regression_stats: Dict[str, Dict[str, float]],
+    x_data_dict: Dict[str, list],
+    y_data_dict: Dict[str, list],
+    dates: Optional[list],
+    x_values: list,
+    x_label: str,
+    dataset_type: str,  # "products" or "tags"
+) -> str:
+    """Format extrapolation analysis showing when UMLLR will outperform other models."""
+    if 'umllr' not in regression_stats:
+        return ""
+
+    umllr_stats = regression_stats['umllr']
+
+    # Models to compare against - unconstrained models and other baselines
+    comparison_models = {
+        'unn': ('UNN (Unconstrained Neural Networks)', '#ec4899'),
+        'ulr': ('ULR (Unconstrained Logistic Regression)', '#8b5cf6'),
+        'dt': ('Decision Tree', '#14b8a6'),
+    }
+
+    extrapolations = []
+
+    for model_key, (model_name, color) in comparison_models.items():
+        if model_key not in regression_stats:
+            continue
+
+        model_stats = regression_stats[model_key]
+
+        # Check if UMLLR is improving faster (more negative slope)
+        if umllr_stats['slope'] >= model_stats['slope']:
+            # UMLLR is not improving faster, won't catch up
+            continue
+
+        # Calculate crossover point
+        crossover_x = _calculate_crossover_point(umllr_stats, model_stats)
+        if crossover_x is None:
+            continue
+
+        # Calculate confidence interval
+        umllr_x = x_data_dict.get('umllr', [])
+        umllr_y = y_data_dict.get('umllr', [])
+        model_x = x_data_dict.get(model_key, [])
+        model_y = y_data_dict.get(model_key, [])
+
+        confidence = _calculate_crossover_confidence(
+            umllr_x, umllr_y,
+            model_x, model_y,
+            crossover_x
+        )
+
+        # Estimate when dataset will reach this size
+        date_prediction = None
+        if dates and x_values:
+            growth_stats = _estimate_dataset_growth(dates, x_values)
+            if growth_stats:
+                date_prediction = _predict_date_for_value(growth_stats, crossover_x)
+
+        extrapolations.append({
+            'model_name': model_name,
+            'model_key': model_key,
+            'color': color,
+            'crossover_x': crossover_x,
+            'confidence': confidence,
+            'date_prediction': date_prediction,
+            'growth_stats': growth_stats if dates and x_values else None,
+        })
+
+    if not extrapolations:
+        return ""
+
+    # Build HTML
+    rows = []
+    for ext in extrapolations:
+        crossover_str = f"{ext['crossover_x']:,.0f}"
+
+        if ext['confidence']:
+            conf = ext['confidence']
+            confidence_str = (
+                f"{conf['lower_ci']:,.0f} - {conf['upper_ci']:,.0f} "
+                f"(95% CI, σ={conf['std_err']:,.0f})"
+            )
+            # Calculate probability based on how far current max is from crossover
+            current_max = max(x_values) if x_values else 0
+            if ext['confidence']['mean'] > current_max:
+                # Simple probability estimate: if crossover CI doesn't include current value
+                prob_str = ">95%" if conf['lower_ci'] > current_max else "~50-95%"
+            else:
+                prob_str = "Already achieved"
+        else:
+            confidence_str = "N/A (insufficient data)"
+            prob_str = "N/A"
+
+        if ext['date_prediction']:
+            date_str = ext['date_prediction'].strftime('%Y-%m-%d')
+            if ext['growth_stats']:
+                growth_rate = ext['growth_stats']['daily_growth']
+                r2 = ext['growth_stats']['r_squared']
+                date_str += f" (±uncertain, R²={r2:.3f}, growth={growth_rate:.1f}/{x_label}/day)"
+        else:
+            date_str = "N/A (already achieved or negative growth)"
+
+        rows.append(
+            f'<tr>'
+            f'<td style="color: {ext["color"]}; font-weight: bold;">{ext["model_name"]}</td>'
+            f'<td style="text-align: right;">{crossover_str}</td>'
+            f'<td style="text-align: right;">{confidence_str}</td>'
+            f'<td style="text-align: right;">{prob_str}</td>'
+            f'<td style="text-align: right;">{date_str}</td>'
+            f'</tr>'
+        )
+
+    return f"""
+    <div style="margin-top: 2rem;">
+      <h3>Extrapolation Analysis: When Will Importance-Optimised p-adic LR Outperform Other Models?</h3>
+      <p style="margin: 1rem 0;">
+        Based on current regression trends, we can extrapolate when Importance-Optimised p-adic LR
+        will achieve better performance (lower p-adic loss) than other models as the dataset grows.
+        The confidence intervals are calculated using bootstrap resampling (n=1000).
+      </p>
+      <table style="width: 100%; border-collapse: collapse; margin-top: 1rem; font-size: 0.9rem;">
+        <thead>
+          <tr style="background: #f8fafc; border-bottom: 2px solid #e2e8f0;">
+            <th style="padding: 0.5rem; text-align: left;">Model</th>
+            <th style="padding: 0.5rem; text-align: right;">Crossover Point<br>({x_label}s)</th>
+            <th style="padding: 0.5rem; text-align: right;">95% Confidence Interval</th>
+            <th style="padding: 0.5rem; text-align: right;">Probability</th>
+            <th style="padding: 0.5rem; text-align: right;">Estimated Date</th>
+          </tr>
+        </thead>
+        <tbody>
+          {''.join(rows)}
+        </tbody>
+      </table>
+      <p style="margin-top: 1rem; font-size: 0.85rem; font-style: italic;">
+        <strong>Statistical Notes:</strong> The crossover points are calculated by finding where the
+        regression lines intersect. The 95% confidence intervals are derived from bootstrap resampling
+        of the regression parameters. The probability estimates indicate the likelihood that the crossover
+        will occur given the current trends. Date predictions are based on linear extrapolation of dataset
+        growth and should be interpreted with caution.
+      </p>
+    </div>"""
+
 
 def _format_regression_stats_html(stats: Optional[Dict[str, Dict[str, float]]], x_label: str) -> str:
     """Format regression statistics as an HTML table."""
@@ -3058,6 +3335,16 @@ def _build_trends_section(
     perf_vs_tags_stats: Optional[Dict[str, Dict[str, float]]] = None,
     params_vs_loss_stats: Optional[Dict[str, Dict[str, float]]] = None,
     unconstrained_log_stats: Optional[Dict[str, Any]] = None,
+    products_x_data: Optional[Dict[str, list]] = None,
+    products_y_data: Optional[Dict[str, list]] = None,
+    products_dates: Optional[list] = None,
+    products_x_values: Optional[list] = None,
+    tags_x_data: Optional[Dict[str, list]] = None,
+    tags_y_data: Optional[Dict[str, list]] = None,
+    tags_dates: Optional[list] = None,
+    tags_x_values: Optional[list] = None,
+    products_trajectory_path: Optional[Path] = None,
+    tags_trajectory_path: Optional[Path] = None,
 ) -> str:
     """Build HTML section for historical trends charts."""
     if not trends_chart_path:
@@ -3070,21 +3357,71 @@ def _build_trends_section(
     if perf_vs_products_chart_path:
         products_chart_rel = perf_vs_products_chart_path.relative_to(output_dir).as_posix()
         products_stats_html = _format_regression_stats_html(perf_vs_products_stats, "product")
+
+        # Add extrapolation analysis
+        products_extrapolation_html = ""
+        if perf_vs_products_stats and products_x_data and products_y_data:
+            products_extrapolation_html = _format_extrapolation_analysis_html(
+                perf_vs_products_stats,
+                products_x_data,
+                products_y_data,
+                products_dates,
+                products_x_values,
+                "product",
+                "products"
+            )
+
+        # Add trajectory chart
+        products_trajectory_html = ""
+        if products_trajectory_path:
+            trajectory_rel = products_trajectory_path.relative_to(output_dir).as_posix()
+            products_trajectory_html = f"""
+    <figure class="chart" style="margin-top: 2rem;">
+      <img src="{trajectory_rel}" alt="Model performance trajectory vs number of products" />
+    </figure>"""
+
         perf_vs_products_html = f"""
     <figure class="chart" style="margin-top: 2rem;">
       <img src="{products_chart_rel}" alt="Model performance vs number of products" />
     </figure>
-    {products_stats_html}"""
+    {products_stats_html}
+    {products_extrapolation_html}
+    {products_trajectory_html}"""
 
     perf_vs_tags_html = ""
     if perf_vs_tags_chart_path:
         tags_chart_rel = perf_vs_tags_chart_path.relative_to(output_dir).as_posix()
         tags_stats_html = _format_regression_stats_html(perf_vs_tags_stats, "tag")
+
+        # Add extrapolation analysis
+        tags_extrapolation_html = ""
+        if perf_vs_tags_stats and tags_x_data and tags_y_data:
+            tags_extrapolation_html = _format_extrapolation_analysis_html(
+                perf_vs_tags_stats,
+                tags_x_data,
+                tags_y_data,
+                tags_dates,
+                tags_x_values,
+                "tag",
+                "tags"
+            )
+
+        # Add trajectory chart
+        tags_trajectory_html = ""
+        if tags_trajectory_path:
+            trajectory_rel = tags_trajectory_path.relative_to(output_dir).as_posix()
+            tags_trajectory_html = f"""
+    <figure class="chart" style="margin-top: 2rem;">
+      <img src="{trajectory_rel}" alt="Model performance trajectory vs number of distinct tags" />
+    </figure>"""
+
         perf_vs_tags_html = f"""
     <figure class="chart" style="margin-top: 2rem;">
       <img src="{tags_chart_rel}" alt="Model performance vs number of distinct tags" />
     </figure>
-    {tags_stats_html}"""
+    {tags_stats_html}
+    {tags_extrapolation_html}
+    {tags_trajectory_html}"""
 
     params_vs_loss_html = ""
     if params_vs_loss_chart_path:
@@ -4020,7 +4357,7 @@ def _build_index_html(
 
   {taxonomy_overview_html}
 
-  {_build_trends_section(trends_chart_path, perf_vs_products_chart_path, perf_vs_tags_chart_path, params_vs_loss_chart_path, unconstrained_log_chart_path, output_dir, perf_vs_products_stats, perf_vs_tags_stats, params_vs_loss_stats, unconstrained_log_stats)}
+  {_build_trends_section(trends_chart_path, perf_vs_products_chart_path, perf_vs_tags_chart_path, params_vs_loss_chart_path, unconstrained_log_chart_path, output_dir, perf_vs_products_stats, perf_vs_tags_stats, params_vs_loss_stats, unconstrained_log_stats, products_x_data, products_y_data, products_dates, products_x_values, tags_x_data, tags_y_data, tags_dates, tags_x_values, products_trajectory_path, tags_trajectory_path)}
 
   <footer>
     <p>Source available on <a href="https://github.com/IFost-Sydney-Uni/padjective">GitHub</a></p>
@@ -6941,14 +7278,14 @@ def _generate_historical_trends_chart(conn, output_path: Path, schema: str = "pa
     return output_path
 
 
-def _generate_performance_vs_products_chart(conn, output_path: Path, schema: str = "padjective") -> Tuple[Optional[Path], Optional[Dict[str, Dict[str, float]]]]:
+def _generate_performance_vs_products_chart(conn, output_path: Path, schema: str = "padjective"):
     """Generate a scatter plot showing model performance vs number of products.
 
     Returns:
-        Tuple of (path to generated chart, regression statistics dict) or (None, None) if no data
+        Tuple of (path, regression_stats, x_data_dict, y_data_dict, dates, x_values) or (None, None, None, None, None, None)
     """
     if not _table_exists(conn, schema, "model_performance_history"):
-        return None, None
+        return None, None, None, None, None, None
 
     with conn.cursor() as cur:
         cur.execute(
@@ -6958,7 +7295,8 @@ def _generate_performance_vs_products_chart(conn, output_path: Path, schema: str
                        nn_mean_padic_loss, dummy_mean_padic_loss, ulr_mean_padic_loss,
                        unn_mean_padic_loss, dt_mean_padic_loss,
                        zubarev_umllr_mean_padic_loss, zubarev_zeros_mean_padic_loss,
-                       zubarev_umllr_m1_mean_padic_loss, zubarev_umllr_m2_mean_padic_loss
+                       zubarev_umllr_m1_mean_padic_loss, zubarev_umllr_m2_mean_padic_loss,
+                       snapshot_date
                 FROM {schema}.model_performance_history
                 ORDER BY num_products
                 """
@@ -6967,7 +7305,7 @@ def _generate_performance_vs_products_chart(conn, output_path: Path, schema: str
         rows = cur.fetchall()
 
     if not rows or len(rows) < 2:
-        return None, None
+        return None, None, None, None, None, None
 
     num_products = [row[0] for row in rows]
     umllr_loss = [row[1] for row in rows]
@@ -6981,6 +7319,35 @@ def _generate_performance_vs_products_chart(conn, output_path: Path, schema: str
     zubarev_zeros_loss = [row[9] for row in rows]
     zubarev_umllr_m1_loss = [row[10] for row in rows]
     zubarev_umllr_m2_loss = [row[11] for row in rows]
+    dates = [row[12] for row in rows]
+
+    # Build data dictionaries for extrapolation analysis
+    x_data_dict = {
+        'umllr': num_products,
+        'lr': num_products,
+        'nn': num_products,
+        'ulr': num_products,
+        'unn': num_products,
+        'dt': num_products,
+        'zubarev_umllr': num_products,
+        'zubarev_zeros': num_products,
+        'zubarev_umllr_m1': num_products,
+        'zubarev_umllr_m2': num_products,
+        'dummy': num_products,
+    }
+    y_data_dict = {
+        'umllr': umllr_loss,
+        'lr': lr_loss,
+        'nn': nn_loss,
+        'ulr': ulr_loss,
+        'unn': unn_loss,
+        'dt': dt_loss,
+        'zubarev_umllr': zubarev_umllr_loss,
+        'zubarev_zeros': zubarev_zeros_loss,
+        'zubarev_umllr_m1': zubarev_umllr_m1_loss,
+        'zubarev_umllr_m2': zubarev_umllr_m2_loss,
+        'dummy': dummy_loss,
+    }
 
     fig, ax = plt.subplots(figsize=(10, 6))
     regression_stats = {}
@@ -7076,17 +7443,17 @@ def _generate_performance_vs_products_chart(conn, output_path: Path, schema: str
     plt.savefig(output_path, dpi=150, bbox_inches='tight')
     plt.close()
 
-    return output_path, regression_stats
+    return output_path, regression_stats, x_data_dict, y_data_dict, dates, num_products
 
 
-def _generate_performance_vs_tags_chart(conn, output_path: Path, schema: str = "padjective") -> Tuple[Optional[Path], Optional[Dict[str, Dict[str, float]]]]:
+def _generate_performance_vs_tags_chart(conn, output_path: Path, schema: str = "padjective"):
     """Generate a scatter plot showing model performance vs number of distinct tags.
 
     Returns:
-        Tuple of (path to generated chart, regression statistics dict) or (None, None) if no data
+        Tuple of (path, regression_stats, x_data_dict, y_data_dict, dates, x_values) or (None, None, None, None, None, None)
     """
     if not _table_exists(conn, schema, "model_performance_history"):
-        return None, None
+        return None, None, None, None, None, None
 
     with conn.cursor() as cur:
         cur.execute(
@@ -7096,7 +7463,8 @@ def _generate_performance_vs_tags_chart(conn, output_path: Path, schema: str = "
                        nn_mean_padic_loss, dummy_mean_padic_loss, ulr_mean_padic_loss,
                        unn_mean_padic_loss, dt_mean_padic_loss,
                        zubarev_umllr_mean_padic_loss, zubarev_zeros_mean_padic_loss,
-                       zubarev_umllr_m1_mean_padic_loss, zubarev_umllr_m2_mean_padic_loss
+                       zubarev_umllr_m1_mean_padic_loss, zubarev_umllr_m2_mean_padic_loss,
+                       snapshot_date
                 FROM {schema}.model_performance_history
                 ORDER BY num_tags
                 """
@@ -7105,7 +7473,7 @@ def _generate_performance_vs_tags_chart(conn, output_path: Path, schema: str = "
         rows = cur.fetchall()
 
     if not rows or len(rows) < 2:
-        return None, None
+        return None, None, None, None, None, None
 
     num_tags = [row[0] for row in rows]
     umllr_loss = [row[1] for row in rows]
@@ -7119,6 +7487,35 @@ def _generate_performance_vs_tags_chart(conn, output_path: Path, schema: str = "
     zubarev_zeros_loss = [row[9] for row in rows]
     zubarev_umllr_m1_loss = [row[10] for row in rows]
     zubarev_umllr_m2_loss = [row[11] for row in rows]
+    dates = [row[12] for row in rows]
+
+    # Build data dictionaries for extrapolation analysis
+    x_data_dict = {
+        'umllr': num_tags,
+        'lr': num_tags,
+        'nn': num_tags,
+        'ulr': num_tags,
+        'unn': num_tags,
+        'dt': num_tags,
+        'zubarev_umllr': num_tags,
+        'zubarev_zeros': num_tags,
+        'zubarev_umllr_m1': num_tags,
+        'zubarev_umllr_m2': num_tags,
+        'dummy': num_tags,
+    }
+    y_data_dict = {
+        'umllr': umllr_loss,
+        'lr': lr_loss,
+        'nn': nn_loss,
+        'ulr': ulr_loss,
+        'unn': unn_loss,
+        'dt': dt_loss,
+        'zubarev_umllr': zubarev_umllr_loss,
+        'zubarev_zeros': zubarev_zeros_loss,
+        'zubarev_umllr_m1': zubarev_umllr_m1_loss,
+        'zubarev_umllr_m2': zubarev_umllr_m2_loss,
+        'dummy': dummy_loss,
+    }
 
     fig, ax = plt.subplots(figsize=(10, 6))
     regression_stats = {}
@@ -7214,7 +7611,78 @@ def _generate_performance_vs_tags_chart(conn, output_path: Path, schema: str = "
     plt.savefig(output_path, dpi=150, bbox_inches='tight')
     plt.close()
 
-    return output_path, regression_stats
+    return output_path, regression_stats, x_data_dict, y_data_dict, dates, num_tags
+
+
+def _generate_trajectory_chart(
+    x_data_dict: Dict[str, list],
+    y_data_dict: Dict[str, list],
+    output_path: Path,
+    x_label: str,
+) -> Optional[Path]:
+    """Generate a trajectory chart showing the progression of each model over time.
+
+    Shows arrows from oldest/smallest data point to newest for each model.
+    """
+    model_config = {
+        'umllr': ('Importance-Optimised p-adic LR', '#0b6ce3', 'o'),
+        'lr': ('PCLR', '#10b981', 's'),
+        'nn': ('PCNN', '#f59e0b', '^'),
+        'ulr': ('ULR', '#8b5cf6', 'D'),
+        'unn': ('UNN', '#ec4899', 'p'),
+        'dt': ('Decision Tree', '#14b8a6', 'h'),
+        'zubarev_umllr': ('Zubarev (UMLLR)', '#f97316', 'v'),
+        'zubarev_zeros': ('Zubarev (zeros)', '#f59e0b', '<'),
+        'zubarev_umllr_m1': ('Zubarev (M1)', '#ea580c', '>'),
+        'zubarev_umllr_m2': ('Zubarev (M2)', '#c2410c', '+'),
+    }
+
+    fig, ax = plt.subplots(figsize=(10, 6))
+
+    for model_key, (name, color, marker) in model_config.items():
+        if model_key not in x_data_dict or model_key not in y_data_dict:
+            continue
+
+        x_data = x_data_dict[model_key]
+        y_data = y_data_dict[model_key]
+
+        # Filter out None values
+        valid_pairs = [(x, y) for x, y in zip(x_data, y_data) if y is not None and x is not None]
+        if len(valid_pairs) < 2:
+            continue
+
+        x_valid, y_valid = zip(*valid_pairs)
+
+        # Plot all points
+        ax.scatter(x_valid, y_valid, label=name, color=color, s=60, alpha=0.6, marker=marker)
+
+        # Draw arrow from first to last point
+        ax.annotate(
+            '',
+            xy=(x_valid[-1], y_valid[-1]),  # End point (newest)
+            xytext=(x_valid[0], y_valid[0]),  # Start point (oldest)
+            arrowprops=dict(
+                arrowstyle='->',
+                color=color,
+                lw=2,
+                alpha=0.7,
+                connectionstyle='arc3,rad=0.1'
+            )
+        )
+
+    ax.set_xlabel(f'{x_label.title()}s', fontsize=12, fontweight='bold')
+    ax.set_ylabel('P-adic Loss (lower is better)', fontsize=12, fontweight='bold')
+    ax.set_title(f'Model Performance Trajectory\n(Arrows show progression from oldest → newest data)',
+                 fontsize=14, fontweight='bold', pad=15)
+    ax.legend(loc='best', frameon=True, shadow=True, fontsize=9)
+    ax.grid(True, alpha=0.3, linestyle='--')
+    ax.set_ylim(bottom=0)
+
+    plt.tight_layout()
+    plt.savefig(output_path, dpi=150, bbox_inches='tight')
+    plt.close()
+
+    return output_path
 
 
 def _generate_params_vs_loss_chart(
@@ -7922,16 +8390,37 @@ footer {text-align: center; padding: 2rem 1.5rem 3rem; color: #6b7280;}
         assets_dir / "historical_trends.png",
         schema=battle_schema
     )
-    perf_vs_products_chart_path, perf_vs_products_stats = _generate_performance_vs_products_chart(
+    (perf_vs_products_chart_path, perf_vs_products_stats,
+     products_x_data, products_y_data, products_dates, products_x_values) = _generate_performance_vs_products_chart(
         precomputed_database,
         assets_dir / "performance_vs_products.png",
         schema=battle_schema
     )
-    perf_vs_tags_chart_path, perf_vs_tags_stats = _generate_performance_vs_tags_chart(
+    (perf_vs_tags_chart_path, perf_vs_tags_stats,
+     tags_x_data, tags_y_data, tags_dates, tags_x_values) = _generate_performance_vs_tags_chart(
         precomputed_database,
         assets_dir / "performance_vs_tags.png",
         schema=battle_schema
     )
+
+    # Generate trajectory charts
+    products_trajectory_path = None
+    if products_x_data and products_y_data:
+        products_trajectory_path = _generate_trajectory_chart(
+            products_x_data,
+            products_y_data,
+            assets_dir / "trajectory_vs_products.png",
+            "product"
+        )
+
+    tags_trajectory_path = None
+    if tags_x_data and tags_y_data:
+        tags_trajectory_path = _generate_trajectory_chart(
+            tags_x_data,
+            tags_y_data,
+            assets_dir / "trajectory_vs_tags.png",
+            "tag"
+        )
 
     params_vs_loss_chart_path, params_vs_loss_stats = _generate_params_vs_loss_chart(
         precomputed_database,
