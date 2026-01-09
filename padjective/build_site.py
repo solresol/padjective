@@ -3815,6 +3815,16 @@ def _build_index_html(
     perf_vs_tags_stats: Optional[Dict[str, Dict[str, float]]] = None,
     params_vs_loss_stats: Optional[Dict[str, Dict[str, float]]] = None,
     unconstrained_log_stats: Optional[Dict[str, Any]] = None,
+    products_x_data: Optional[Dict[str, list]] = None,
+    products_y_data: Optional[Dict[str, list]] = None,
+    products_dates: Optional[Dict[str, list]] = None,
+    products_x_values: Optional[Dict[str, list]] = None,
+    tags_x_data: Optional[Dict[str, list]] = None,
+    tags_y_data: Optional[Dict[str, list]] = None,
+    tags_dates: Optional[Dict[str, list]] = None,
+    tags_x_values: Optional[Dict[str, list]] = None,
+    products_trajectory_path: Optional[Path] = None,
+    tags_trajectory_path: Optional[Path] = None,
 ) -> None:
     generated = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
 
@@ -7823,7 +7833,12 @@ def _generate_params_vs_loss_chart(
 
     # Plot each model
     for params, loss, label, color, marker in data_points:
-        ax.scatter(params, loss, label=label, color=color, s=150, alpha=0.8, marker=marker, edgecolors='white', linewidths=2)
+        # Only set edgecolors for filled markers (avoid warning for unfilled markers like '+')
+        scatter_kwargs = {'label': label, 'color': color, 's': 150, 'alpha': 0.8, 'marker': marker}
+        if marker not in ['+', 'x', '.', ',']:
+            scatter_kwargs['edgecolors'] = 'white'
+            scatter_kwargs['linewidths'] = 2
+        ax.scatter(params, loss, **scatter_kwargs)
         # Add label next to point
         ax.annotate(label, (params, loss), textcoords="offset points", xytext=(10, 5),
                    fontsize=10, fontweight='bold', color=color)
@@ -8001,7 +8016,12 @@ def _generate_unconstrained_log_chart(
 
     # Plot each model
     for params, loss, label, color, marker in data_points:
-        ax.scatter(params, loss, label=label, color=color, s=150, alpha=0.8, marker=marker, edgecolors='white', linewidths=2)
+        # Only set edgecolors for filled markers (avoid warning for unfilled markers like '+')
+        scatter_kwargs = {'label': label, 'color': color, 's': 150, 'alpha': 0.8, 'marker': marker}
+        if marker not in ['+', 'x', '.', ',']:
+            scatter_kwargs['edgecolors'] = 'white'
+            scatter_kwargs['linewidths'] = 2
+        ax.scatter(params, loss, **scatter_kwargs)
         # Add label next to point
         ax.annotate(label, (params, loss), textcoords="offset points", xytext=(10, 5),
                    fontsize=10, fontweight='bold', color=color)
@@ -8486,6 +8506,16 @@ footer {text-align: center; padding: 2rem 1.5rem 3rem; color: #6b7280;}
         perf_vs_tags_stats,
         params_vs_loss_stats,
         unconstrained_log_stats,
+        products_x_data,
+        products_y_data,
+        products_dates,
+        products_x_values,
+        tags_x_data,
+        tags_y_data,
+        tags_dates,
+        tags_x_values,
+        products_trajectory_path,
+        tags_trajectory_path,
     )
 
     metadata = {
