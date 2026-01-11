@@ -3330,6 +3330,7 @@ def _build_trends_section(
     perf_vs_tags_chart_path: Optional[Path],
     params_vs_loss_chart_path: Optional[Path],
     unconstrained_log_chart_path: Optional[Path],
+    trajectory_chart_path: Optional[Path],
     output_dir: Path,
     perf_vs_products_stats: Optional[Dict[str, Dict[str, float]]] = None,
     perf_vs_tags_stats: Optional[Dict[str, Dict[str, float]]] = None,
@@ -3506,6 +3507,17 @@ def _build_trends_section(
     </figure>
     {unconstrained_stats_html}"""
 
+    trajectory_html = ""
+    if trajectory_chart_path:
+        trajectory_rel = trajectory_chart_path.relative_to(output_dir).as_posix()
+        trajectory_html = f"""
+    <figure class="chart" style="margin-top: 2rem;">
+      <img src="{trajectory_rel}" alt="Model performance trajectory over time" />
+      <figcaption style="text-align: center; color: #64748b; font-size: 0.9rem; margin-top: 0.5rem;">
+        Arrows show how each model's complexity and performance have changed over time.
+      </figcaption>
+    </figure>"""
+
     return f"""
   <section style="max-width: 70rem; margin: 2rem auto; background: white; border-radius: 1rem; box-shadow: 0 12px 30px rgba(15, 23, 42, 0.12); padding: 2rem 1.5rem;">
     <h2 style="margin-top: 0;">Historical Performance Trends</h2>
@@ -3519,6 +3531,7 @@ def _build_trends_section(
     {perf_vs_tags_html}
     {params_vs_loss_html}
     {unconstrained_log_html}
+    {trajectory_html}
   </section>"""
 
 
@@ -3789,6 +3802,7 @@ def _build_index_html(
     perf_vs_tags_chart_path: Optional[Path] = None,
     params_vs_loss_chart_path: Optional[Path] = None,
     unconstrained_log_chart_path: Optional[Path] = None,
+    trajectory_chart_path: Optional[Path] = None,
     perf_vs_products_stats: Optional[Dict[str, Dict[str, float]]] = None,
     perf_vs_tags_stats: Optional[Dict[str, Dict[str, float]]] = None,
     params_vs_loss_stats: Optional[Dict[str, Dict[str, float]]] = None,
@@ -4343,7 +4357,7 @@ def _build_index_html(
 
   {taxonomy_overview_html}
 
-  {_build_trends_section(trends_chart_path, perf_vs_products_chart_path, perf_vs_tags_chart_path, params_vs_loss_chart_path, unconstrained_log_chart_path, output_dir, perf_vs_products_stats, perf_vs_tags_stats, params_vs_loss_stats, unconstrained_log_stats, products_x_data, products_y_data, products_dates, products_x_values, tags_x_data, tags_y_data, tags_dates, tags_x_values)}
+  {_build_trends_section(trends_chart_path, perf_vs_products_chart_path, perf_vs_tags_chart_path, params_vs_loss_chart_path, unconstrained_log_chart_path, trajectory_chart_path, output_dir, perf_vs_products_stats, perf_vs_tags_stats, params_vs_loss_stats, unconstrained_log_stats, products_x_data, products_y_data, products_dates, products_x_values, tags_x_data, tags_y_data, tags_dates, tags_x_values)}
 
   <footer>
     <p>Source available on <a href="https://github.com/IFost-Sydney-Uni/padjective">GitHub</a></p>
@@ -7600,6 +7614,132 @@ def _generate_performance_vs_tags_chart(conn, output_path: Path, schema: str = "
     return output_path, regression_stats, x_data_dict, y_data_dict, dates, num_tags
 
 
+def _generate_model_trajectory_chart(
+    conn,
+    output_path: Path,
+    schema: str = "padjective",
+) -> Optional[Path]:
+    """Generate a trajectory chart showing model performance evolution over time.
+
+    Shows the oldest and newest data points for each unconstrained model,
+    with arrows indicating the direction of change. Uses log-log scale like
+    the Unconstrained Models complexity vs performance chart.
+
+    Returns:
+        Path to generated chart, or None if insufficient data
+    """
+    if not _table_exists(conn, schema, "model_performance_history"):
+        return None
+
+    with conn.cursor() as cur:
+        # Get historical data with params and loss for ULR, UNN, DT
+        cur.execute(
+            sql.SQL(
+                """
+                SELECT snapshot_date, num_taxonomies,
+                       ulr_mean_nonzero_params, ulr_mean_padic_loss,
+                       unn_mean_nonzero_params, unn_mean_padic_loss,
+                       dt_mean_tree_depth, dt_mean_padic_loss
+                FROM {schema}.model_performance_history
+                WHERE ulr_mean_nonzero_params IS NOT NULL
+                   OR unn_mean_nonzero_params IS NOT NULL
+                   OR dt_mean_tree_depth IS NOT NULL
+                ORDER BY snapshot_date
+                """
+            ).format(schema=sql.Identifier(schema))
+        )
+        rows = cur.fetchall()
+
+    if not rows:
+        return None
+
+    # Extract data for each model
+    model_data = {
+        'ulr': {'params': [], 'loss': [], 'dates': [], 'label': 'Unconstrained Logistic Regression', 'color': '#8b5cf6', 'marker': 'D'},
+        'unn': {'params': [], 'loss': [], 'dates': [], 'label': 'Unconstrained Neural Network', 'color': '#ec4899', 'marker': 'p'},
+        'dt': {'params': [], 'loss': [], 'dates': [], 'label': 'Decision Tree', 'color': '#14b8a6', 'marker': 'h'},
+    }
+
+    for row in rows:
+        snapshot_date, num_taxonomies, ulr_params, ulr_loss, unn_params, unn_loss, dt_depth, dt_loss = row
+
+        if ulr_params is not None and ulr_loss is not None:
+            model_data['ulr']['params'].append(ulr_params)
+            model_data['ulr']['loss'].append(ulr_loss)
+            model_data['ulr']['dates'].append(snapshot_date)
+
+        if unn_params is not None and unn_loss is not None:
+            model_data['unn']['params'].append(unn_params)
+            model_data['unn']['loss'].append(unn_loss)
+            model_data['unn']['dates'].append(snapshot_date)
+
+        if dt_depth is not None and dt_loss is not None and num_taxonomies is not None:
+            # Estimate effective params: approximate num_nodes from depth, then multiply by log2(num_classes)
+            # A balanced tree of depth d has 2^d - 1 nodes, but real trees are sparse
+            # Use depth * log2(num_taxonomies) as a rough complexity measure
+            effective_params = dt_depth * np.log2(num_taxonomies) if num_taxonomies > 1 else dt_depth
+            model_data['dt']['params'].append(effective_params)
+            model_data['dt']['loss'].append(dt_loss)
+            model_data['dt']['dates'].append(snapshot_date)
+
+    # Check if we have enough data for at least one model
+    has_data = any(len(m['params']) >= 2 for m in model_data.values())
+    if not has_data:
+        return None
+
+    fig, ax = plt.subplots(figsize=(10, 6))
+
+    for model_key, data in model_data.items():
+        if len(data['params']) < 2:
+            continue
+
+        # Get oldest and newest points
+        oldest_params = data['params'][0]
+        oldest_loss = data['loss'][0]
+        newest_params = data['params'][-1]
+        newest_loss = data['loss'][-1]
+
+        color = data['color']
+        marker = data['marker']
+        label = data['label']
+
+        # Plot oldest point (hollow)
+        ax.scatter(oldest_params, oldest_loss, color=color, s=100, alpha=0.6, marker=marker,
+                   facecolors='none', edgecolors=color, linewidths=2, label=f'{label} (oldest)')
+
+        # Plot newest point (filled)
+        ax.scatter(newest_params, newest_loss, color=color, s=100, alpha=0.8, marker=marker,
+                   edgecolors='white', linewidths=1, label=f'{label} (newest)')
+
+        # Draw arrow from oldest to newest
+        ax.annotate(
+            '',
+            xy=(newest_params, newest_loss),
+            xytext=(oldest_params, oldest_loss),
+            arrowprops=dict(
+                arrowstyle='->',
+                color=color,
+                lw=2,
+                alpha=0.7,
+            )
+        )
+
+    ax.set_xlabel('Number of Parameters (non-zero)', fontsize=12, fontweight='bold')
+    ax.set_ylabel('P-adic Loss (lower is better)', fontsize=12, fontweight='bold')
+    ax.set_title('Model Performance Trajectory\n(Arrows show progression from oldest → newest data)',
+                 fontsize=14, fontweight='bold', pad=15)
+    ax.set_xscale('log')
+    ax.set_yscale('log')
+    ax.grid(True, alpha=0.3, linestyle='--')
+    ax.legend(loc='best', frameon=True, shadow=True, fontsize=9)
+
+    plt.tight_layout()
+    plt.savefig(output_path, dpi=150, bbox_inches='tight')
+    plt.close()
+
+    return output_path
+
+
 def _generate_params_vs_loss_chart(
     conn,
     output_path: Path,
@@ -8354,6 +8494,12 @@ footer {text-align: center; padding: 2rem 1.5rem 3rem; color: #6b7280;}
         zubarev_zeros_fold_results=zubarev_zeros_fold_results,
     )
 
+    trajectory_chart_path = _generate_model_trajectory_chart(
+        precomputed_database,
+        assets_dir / "model_trajectory.png",
+        schema=battle_schema,
+    )
+
     _build_index_html(
         output_dir,
         stats,
@@ -8388,6 +8534,7 @@ footer {text-align: center; padding: 2rem 1.5rem 3rem; color: #6b7280;}
         perf_vs_tags_chart_path,
         params_vs_loss_chart_path,
         unconstrained_log_chart_path,
+        trajectory_chart_path,
         perf_vs_products_stats,
         perf_vs_tags_stats,
         params_vs_loss_stats,
