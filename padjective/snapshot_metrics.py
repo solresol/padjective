@@ -84,7 +84,9 @@ def create_history_table(conn, schema: str = "padjective") -> None:
                 ADD COLUMN IF NOT EXISTS zubarev_umllr_m1_mean_padic_loss REAL,
                 ADD COLUMN IF NOT EXISTS zubarev_umllr_m1_mean_nonzero_params REAL,
                 ADD COLUMN IF NOT EXISTS zubarev_umllr_m2_mean_padic_loss REAL,
-                ADD COLUMN IF NOT EXISTS zubarev_umllr_m2_mean_nonzero_params REAL
+                ADD COLUMN IF NOT EXISTS zubarev_umllr_m2_mean_nonzero_params REAL,
+                ADD COLUMN IF NOT EXISTS umllr_mean_nonzero_params REAL,
+                ADD COLUMN IF NOT EXISTS dt_mean_effective_params REAL
                 """
             ).format(schema=sql.Identifier(schema))
         )
@@ -118,11 +120,11 @@ def get_dataset_stats(
     return num_products, num_tags, num_taxonomies
 
 
-def get_umllr_metrics(conn, schema: str = "padjective") -> tuple[float | None, float | None]:
-    """Get umllr mean p-adic loss across all folds.
+def get_umllr_metrics(conn, schema: str = "padjective") -> tuple[float | None, float | None, float | None]:
+    """Get umllr mean p-adic loss and non-zero params across all folds.
 
     Returns:
-        tuple: (mean_padic_loss, mean_accuracy)
+        tuple: (mean_padic_loss, mean_accuracy, mean_nonzero_params)
     """
     with conn.cursor() as cur:
         # Get mean p-adic loss from predictions
@@ -137,8 +139,26 @@ def get_umllr_metrics(conn, schema: str = "padjective") -> tuple[float | None, f
         row = cur.fetchone()
         mean_padic_loss = float(row[0]) if row and row[0] is not None else None
 
+        # Get average non-zero coefficients per fold
+        mean_nonzero = None
+        cur.execute(
+            sql.SQL(
+                """
+                SELECT AVG(num_coeffs) FROM (
+                    SELECT cv_fold, COUNT(*) as num_coeffs
+                    FROM {schema}.umllr_tag_coefficients
+                    WHERE coefficient != 0
+                    GROUP BY cv_fold
+                ) sub
+                """
+            ).format(schema=sql.Identifier(schema))
+        )
+        row = cur.fetchone()
+        if row and row[0] is not None:
+            mean_nonzero = float(row[0])
+
     # umllr doesn't track accuracy, so return None
-    return mean_padic_loss, None
+    return mean_padic_loss, None, mean_nonzero
 
 
 def get_lr_metrics(conn, schema: str = "padjective") -> tuple[float | None, float | None, float | None]:
@@ -306,11 +326,11 @@ def get_unn_metrics(conn, schema: str = "padjective") -> tuple[float | None, flo
     return None, None, None
 
 
-def get_dt_metrics(conn, schema: str = "padjective") -> tuple[float | None, float | None, float | None]:
+def get_dt_metrics(conn, schema: str = "padjective") -> tuple[float | None, float | None, float | None, float | None]:
     """Get DT (Decision Tree) mean metrics across all folds.
 
     Returns:
-        tuple: (mean_padic_loss, mean_accuracy, mean_tree_depth)
+        tuple: (mean_padic_loss, mean_accuracy, mean_tree_depth, mean_effective_params)
     """
     # Check if table exists first
     with conn.cursor() as cur:
@@ -324,12 +344,12 @@ def get_dt_metrics(conn, schema: str = "padjective") -> tuple[float | None, floa
             (schema,)
         )
         if not cur.fetchone()[0]:
-            return None, None, None
+            return None, None, None, None
 
         cur.execute(
             sql.SQL(
                 """
-                SELECT AVG(padic_loss_mean), AVG(test_accuracy), AVG(tree_depth)
+                SELECT AVG(padic_loss_mean), AVG(test_accuracy), AVG(tree_depth), AVG(effective_params)
                 FROM {schema}.taxonomy_dt_fold_results
                 """
             ).format(schema=sql.Identifier(schema))
@@ -340,9 +360,10 @@ def get_dt_metrics(conn, schema: str = "padjective") -> tuple[float | None, floa
                 float(row[0]),
                 float(row[1]) if row[1] is not None else None,
                 float(row[2]) if row[2] is not None else None,
+                float(row[3]) if row[3] is not None else None,
             )
 
-    return None, None, None
+    return None, None, None, None
 
 
 def get_zubarev_metrics(conn, schema: str = "padjective", initialization_method: str = "umllr", mahler_degree: int = 0) -> tuple[float | None, float | None]:
@@ -432,13 +453,13 @@ def snapshot_metrics(
     num_products, num_tags, num_taxonomies = get_dataset_stats(conn, product_table)
 
     # Gather model metrics
-    umllr_padic, umllr_acc = get_umllr_metrics(conn, schema)
+    umllr_padic, umllr_acc, umllr_nonzero = get_umllr_metrics(conn, schema)
     lr_padic, lr_acc, lr_params = get_lr_metrics(conn, schema)
     nn_padic, nn_acc, nn_input_weights = get_nn_metrics(conn, schema)
     dummy_padic, dummy_acc = get_dummy_metrics(conn, schema)
     ulr_padic, ulr_acc, ulr_nonzero = get_ulr_metrics(conn, schema)
     unn_padic, unn_acc, unn_nonzero = get_unn_metrics(conn, schema)
-    dt_padic, dt_acc, dt_depth = get_dt_metrics(conn, schema)
+    dt_padic, dt_acc, dt_depth, dt_effective_params = get_dt_metrics(conn, schema)
     zubarev_padic, zubarev_nonzero = get_zubarev_metrics(conn, schema, initialization_method="umllr", mahler_degree=0)
     zubarev_umllr_padic, zubarev_umllr_nonzero = get_zubarev_metrics(conn, schema, initialization_method="umllr", mahler_degree=0)
     zubarev_zeros_padic, zubarev_zeros_nonzero = get_zubarev_metrics(conn, schema, initialization_method="zeros", mahler_degree=0)
@@ -462,8 +483,9 @@ def snapshot_metrics(
                  zubarev_umllr_mean_padic_loss, zubarev_umllr_mean_nonzero_params,
                  zubarev_zeros_mean_padic_loss, zubarev_zeros_mean_nonzero_params,
                  zubarev_umllr_m1_mean_padic_loss, zubarev_umllr_m1_mean_nonzero_params,
-                 zubarev_umllr_m2_mean_padic_loss, zubarev_umllr_m2_mean_nonzero_params)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                 zubarev_umllr_m2_mean_padic_loss, zubarev_umllr_m2_mean_nonzero_params,
+                 umllr_mean_nonzero_params, dt_mean_effective_params)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ON CONFLICT (snapshot_date) DO UPDATE SET
                     snapshot_time = now(),
                     num_products = EXCLUDED.num_products,
@@ -497,7 +519,9 @@ def snapshot_metrics(
                     zubarev_umllr_m1_mean_padic_loss = EXCLUDED.zubarev_umllr_m1_mean_padic_loss,
                     zubarev_umllr_m1_mean_nonzero_params = EXCLUDED.zubarev_umllr_m1_mean_nonzero_params,
                     zubarev_umllr_m2_mean_padic_loss = EXCLUDED.zubarev_umllr_m2_mean_padic_loss,
-                    zubarev_umllr_m2_mean_nonzero_params = EXCLUDED.zubarev_umllr_m2_mean_nonzero_params
+                    zubarev_umllr_m2_mean_nonzero_params = EXCLUDED.zubarev_umllr_m2_mean_nonzero_params,
+                    umllr_mean_nonzero_params = EXCLUDED.umllr_mean_nonzero_params,
+                    dt_mean_effective_params = EXCLUDED.dt_mean_effective_params
                 """
             ).format(schema=sql.Identifier(schema)),
             (
@@ -534,6 +558,8 @@ def snapshot_metrics(
                 zubarev_umllr_m1_nonzero,
                 zubarev_umllr_m2_padic,
                 zubarev_umllr_m2_nonzero,
+                umllr_nonzero,
+                dt_effective_params,
             ),
         )
     conn.commit()
