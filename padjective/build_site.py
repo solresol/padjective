@@ -3343,8 +3343,6 @@ def _build_trends_section(
     tags_y_data: Optional[Dict[str, list]] = None,
     tags_dates: Optional[list] = None,
     tags_x_values: Optional[list] = None,
-    products_trajectory_path: Optional[Path] = None,
-    tags_trajectory_path: Optional[Path] = None,
 ) -> str:
     """Build HTML section for historical trends charts."""
     if not trends_chart_path:
@@ -3371,22 +3369,12 @@ def _build_trends_section(
                 "products"
             )
 
-        # Add trajectory chart
-        products_trajectory_html = ""
-        if products_trajectory_path:
-            trajectory_rel = products_trajectory_path.relative_to(output_dir).as_posix()
-            products_trajectory_html = f"""
-    <figure class="chart" style="margin-top: 2rem;">
-      <img src="{trajectory_rel}" alt="Model performance trajectory vs number of products" />
-    </figure>"""
-
         perf_vs_products_html = f"""
     <figure class="chart" style="margin-top: 2rem;">
       <img src="{products_chart_rel}" alt="Model performance vs number of products" />
     </figure>
     {products_stats_html}
-    {products_extrapolation_html}
-    {products_trajectory_html}"""
+    {products_extrapolation_html}"""
 
     perf_vs_tags_html = ""
     if perf_vs_tags_chart_path:
@@ -3406,22 +3394,12 @@ def _build_trends_section(
                 "tags"
             )
 
-        # Add trajectory chart
-        tags_trajectory_html = ""
-        if tags_trajectory_path:
-            trajectory_rel = tags_trajectory_path.relative_to(output_dir).as_posix()
-            tags_trajectory_html = f"""
-    <figure class="chart" style="margin-top: 2rem;">
-      <img src="{trajectory_rel}" alt="Model performance trajectory vs number of distinct tags" />
-    </figure>"""
-
         perf_vs_tags_html = f"""
     <figure class="chart" style="margin-top: 2rem;">
       <img src="{tags_chart_rel}" alt="Model performance vs number of distinct tags" />
     </figure>
     {tags_stats_html}
-    {tags_extrapolation_html}
-    {tags_trajectory_html}"""
+    {tags_extrapolation_html}"""
 
     params_vs_loss_html = ""
     if params_vs_loss_chart_path:
@@ -3823,8 +3801,6 @@ def _build_index_html(
     tags_y_data: Optional[Dict[str, list]] = None,
     tags_dates: Optional[Dict[str, list]] = None,
     tags_x_values: Optional[Dict[str, list]] = None,
-    products_trajectory_path: Optional[Path] = None,
-    tags_trajectory_path: Optional[Path] = None,
 ) -> None:
     generated = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
 
@@ -4367,7 +4343,7 @@ def _build_index_html(
 
   {taxonomy_overview_html}
 
-  {_build_trends_section(trends_chart_path, perf_vs_products_chart_path, perf_vs_tags_chart_path, params_vs_loss_chart_path, unconstrained_log_chart_path, output_dir, perf_vs_products_stats, perf_vs_tags_stats, params_vs_loss_stats, unconstrained_log_stats, products_x_data, products_y_data, products_dates, products_x_values, tags_x_data, tags_y_data, tags_dates, tags_x_values, products_trajectory_path, tags_trajectory_path)}
+  {_build_trends_section(trends_chart_path, perf_vs_products_chart_path, perf_vs_tags_chart_path, params_vs_loss_chart_path, unconstrained_log_chart_path, output_dir, perf_vs_products_stats, perf_vs_tags_stats, params_vs_loss_stats, unconstrained_log_stats, products_x_data, products_y_data, products_dates, products_x_values, tags_x_data, tags_y_data, tags_dates, tags_x_values)}
 
   <footer>
     <p>Source available on <a href="https://github.com/IFost-Sydney-Uni/padjective">GitHub</a></p>
@@ -7624,77 +7600,6 @@ def _generate_performance_vs_tags_chart(conn, output_path: Path, schema: str = "
     return output_path, regression_stats, x_data_dict, y_data_dict, dates, num_tags
 
 
-def _generate_trajectory_chart(
-    x_data_dict: Dict[str, list],
-    y_data_dict: Dict[str, list],
-    output_path: Path,
-    x_label: str,
-) -> Optional[Path]:
-    """Generate a trajectory chart showing the progression of each model over time.
-
-    Shows arrows from oldest/smallest data point to newest for each model.
-    """
-    model_config = {
-        'umllr': ('Importance-Optimised p-adic LR', '#0b6ce3', 'o'),
-        'lr': ('PCLR', '#10b981', 's'),
-        'nn': ('PCNN', '#f59e0b', '^'),
-        'ulr': ('ULR', '#8b5cf6', 'D'),
-        'unn': ('UNN', '#ec4899', 'p'),
-        'dt': ('Decision Tree', '#14b8a6', 'h'),
-        'zubarev_umllr': ('Zubarev (UMLLR)', '#f97316', 'v'),
-        'zubarev_zeros': ('Zubarev (zeros)', '#f59e0b', '<'),
-        'zubarev_umllr_m1': ('Zubarev (M1)', '#ea580c', '>'),
-        'zubarev_umllr_m2': ('Zubarev (M2)', '#c2410c', '+'),
-    }
-
-    fig, ax = plt.subplots(figsize=(10, 6))
-
-    for model_key, (name, color, marker) in model_config.items():
-        if model_key not in x_data_dict or model_key not in y_data_dict:
-            continue
-
-        x_data = x_data_dict[model_key]
-        y_data = y_data_dict[model_key]
-
-        # Filter out None values
-        valid_pairs = [(x, y) for x, y in zip(x_data, y_data) if y is not None and x is not None]
-        if len(valid_pairs) < 2:
-            continue
-
-        x_valid, y_valid = zip(*valid_pairs)
-
-        # Plot all points
-        ax.scatter(x_valid, y_valid, label=name, color=color, s=60, alpha=0.6, marker=marker)
-
-        # Draw arrow from first to last point
-        ax.annotate(
-            '',
-            xy=(x_valid[-1], y_valid[-1]),  # End point (newest)
-            xytext=(x_valid[0], y_valid[0]),  # Start point (oldest)
-            arrowprops=dict(
-                arrowstyle='->',
-                color=color,
-                lw=2,
-                alpha=0.7,
-                connectionstyle='arc3,rad=0.1'
-            )
-        )
-
-    ax.set_xlabel(f'{x_label.title()}s', fontsize=12, fontweight='bold')
-    ax.set_ylabel('P-adic Loss (lower is better)', fontsize=12, fontweight='bold')
-    ax.set_title(f'Model Performance Trajectory\n(Arrows show progression from oldest → newest data)',
-                 fontsize=14, fontweight='bold', pad=15)
-    ax.legend(loc='best', frameon=True, shadow=True, fontsize=9)
-    ax.grid(True, alpha=0.3, linestyle='--')
-    ax.set_ylim(bottom=0)
-
-    plt.tight_layout()
-    plt.savefig(output_path, dpi=150, bbox_inches='tight')
-    plt.close()
-
-    return output_path
-
-
 def _generate_params_vs_loss_chart(
     conn,
     output_path: Path,
@@ -8423,25 +8328,6 @@ footer {text-align: center; padding: 2rem 1.5rem 3rem; color: #6b7280;}
         schema=battle_schema
     )
 
-    # Generate trajectory charts
-    products_trajectory_path = None
-    if products_x_data and products_y_data:
-        products_trajectory_path = _generate_trajectory_chart(
-            products_x_data,
-            products_y_data,
-            assets_dir / "trajectory_vs_products.png",
-            "product"
-        )
-
-    tags_trajectory_path = None
-    if tags_x_data and tags_y_data:
-        tags_trajectory_path = _generate_trajectory_chart(
-            tags_x_data,
-            tags_y_data,
-            assets_dir / "trajectory_vs_tags.png",
-            "tag"
-        )
-
     params_vs_loss_chart_path, params_vs_loss_stats = _generate_params_vs_loss_chart(
         precomputed_database,
         assets_dir / "params_vs_loss.png",
@@ -8514,8 +8400,6 @@ footer {text-align: center; padding: 2rem 1.5rem 3rem; color: #6b7280;}
         tags_y_data,
         tags_dates,
         tags_x_values,
-        products_trajectory_path,
-        tags_trajectory_path,
     )
 
     metadata = {
