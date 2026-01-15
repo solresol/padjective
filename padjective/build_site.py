@@ -7632,7 +7632,7 @@ def _generate_model_trajectory_chart(
         return None
 
     with conn.cursor() as cur:
-        # Get historical data with params and loss for UMLLR, ULR, UNN, DT
+        # Get historical data with params and loss for UMLLR, ULR, UNN, DT, Dummy
         cur.execute(
             sql.SQL(
                 """
@@ -7640,12 +7640,14 @@ def _generate_model_trajectory_chart(
                        ulr_mean_nonzero_params, ulr_mean_padic_loss,
                        unn_mean_nonzero_params, unn_mean_padic_loss,
                        dt_mean_effective_params, dt_mean_padic_loss,
-                       umllr_mean_nonzero_params, umllr_mean_padic_loss
+                       umllr_mean_nonzero_params, umllr_mean_padic_loss,
+                       dummy_mean_padic_loss
                 FROM {schema}.model_performance_history
                 WHERE ulr_mean_nonzero_params IS NOT NULL
                    OR unn_mean_nonzero_params IS NOT NULL
                    OR dt_mean_effective_params IS NOT NULL
                    OR umllr_mean_nonzero_params IS NOT NULL
+                   OR dummy_mean_padic_loss IS NOT NULL
                 ORDER BY snapshot_date
                 """
             ).format(schema=sql.Identifier(schema))
@@ -7661,10 +7663,11 @@ def _generate_model_trajectory_chart(
         'ulr': {'params': [], 'loss': [], 'dates': [], 'label': 'Unconstrained Logistic Regression', 'color': '#8b5cf6', 'marker': 'D'},
         'unn': {'params': [], 'loss': [], 'dates': [], 'label': 'Unconstrained Neural Network', 'color': '#ec4899', 'marker': 'p'},
         'dt': {'params': [], 'loss': [], 'dates': [], 'label': 'Decision Tree', 'color': '#14b8a6', 'marker': 'h'},
+        'dummy': {'params': [], 'loss': [], 'dates': [], 'label': 'Dummy (most common)', 'color': '#94a3b8', 'marker': 'X'},
     }
 
     for row in rows:
-        snapshot_date, num_taxonomies, ulr_params, ulr_loss, unn_params, unn_loss, dt_effective_params, dt_loss, umllr_params, umllr_loss = row
+        snapshot_date, num_taxonomies, ulr_params, ulr_loss, unn_params, unn_loss, dt_effective_params, dt_loss, umllr_params, umllr_loss, dummy_loss = row
 
         if umllr_params is not None and umllr_loss is not None:
             model_data['umllr']['params'].append(umllr_params)
@@ -7685,6 +7688,12 @@ def _generate_model_trajectory_chart(
             model_data['dt']['params'].append(dt_effective_params)
             model_data['dt']['loss'].append(dt_loss)
             model_data['dt']['dates'].append(snapshot_date)
+
+        if dummy_loss is not None:
+            # Dummy model always has 1 parameter (predicts most common taxonomy)
+            model_data['dummy']['params'].append(1)
+            model_data['dummy']['loss'].append(dummy_loss)
+            model_data['dummy']['dates'].append(snapshot_date)
 
     # Check if we have enough data for at least one model
     has_data = any(len(m['params']) >= 2 for m in model_data.values())
