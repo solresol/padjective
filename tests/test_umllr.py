@@ -19,7 +19,10 @@ def test_select_coefficient_prefers_smallest_candidate() -> None:
     values = [0, 5]
     base = 5
     # Candidates 0 and 5 produce the same loss; the smaller is chosen.
-    assert _select_coefficient(values, base) == 0
+    coefficient, candidates = _select_coefficient(values, base)
+    assert coefficient == 0
+    assert [candidate.candidate_value for candidate in candidates] == [0, 5]
+    assert [candidate.was_selected for candidate in candidates] == [True, False]
 
 
 def test_select_default_prediction_minimizes_padic_loss() -> None:
