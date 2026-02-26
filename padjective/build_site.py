@@ -25,6 +25,10 @@ from scipy import stats
 
 from . import data_access, db, display, ranking, tagbattle
 
+PARSIMONY_BASELINE_SLOPE = -2.0
+PARSIMONY_BASELINE_INTERCEPT = -0.1
+PARSIMONY_LOSS_EPSILON = 1e-12
+
 
 def _format_padic_expansion(value: int, base: int) -> tuple[str, str]:
     """Return both taxonomy_path and base-expansion for ``value``.
@@ -3335,6 +3339,7 @@ def _build_trends_section(
     perf_vs_products_stats: Optional[Dict[str, Dict[str, float]]] = None,
     perf_vs_tags_stats: Optional[Dict[str, Dict[str, float]]] = None,
     params_vs_loss_stats: Optional[Dict[str, Dict[str, float]]] = None,
+    params_vs_loss_parsimony_rows: Optional[list[Dict[str, Any]]] = None,
     unconstrained_log_stats: Optional[Dict[str, Any]] = None,
     products_x_data: Optional[Dict[str, list]] = None,
     products_y_data: Optional[Dict[str, list]] = None,
@@ -3449,6 +3454,53 @@ def _build_trends_section(
       </table>
     </div>"""
 
+        params_parsimony_html = ""
+        if params_vs_loss_parsimony_rows:
+            parsimony_rows = []
+            for row in sorted(
+                params_vs_loss_parsimony_rows,
+                key=lambda entry: entry["parsimony_score"],
+                reverse=True,
+            ):
+                parsimony_score = float(row["parsimony_score"])
+                score_color = "#16a34a" if parsimony_score > 0 else "#dc2626"
+                better_text = "Yes" if parsimony_score > 0 else "No"
+                parsimony_rows.append(
+                    f"<tr><td style=\"text-align: left;\">{html.escape(str(row['model']))}</td>"
+                    f"<td style=\"text-align: right;\">{float(row['params']):,.0f}</td>"
+                    f"<td style=\"text-align: right;\">{float(row['loss']):.4f}</td>"
+                    f"<td style=\"text-align: right;\">{float(row['log10_params']):.4f}</td>"
+                    f"<td style=\"text-align: right;\">{float(row['log10_loss']):.4f}</td>"
+                    f"<td style=\"text-align: right;\">{float(row['baseline_log10_loss']):.4f}</td>"
+                    f"<td style=\"text-align: right; color: {score_color}; font-weight: 600;\">{parsimony_score:+.4f}</td>"
+                    f"<td style=\"text-align: center;\">{better_text}</td></tr>"
+                )
+
+            params_parsimony_html = f"""
+    <div style="margin-top: 1rem; overflow-x: auto;">
+      <p style="font-size: 0.9rem; color: #64748b; margin-bottom: 0.5rem;">
+        <strong>Parsimoniousness baseline: log₁₀(loss) = {PARSIMONY_BASELINE_SLOPE:g} × log₁₀(params) {PARSIMONY_BASELINE_INTERCEPT:+.1f}</strong><br />
+        <span style="font-size: 0.8rem;">Parsimony score = baseline log₁₀(loss) − observed log₁₀(loss). Positive means better than baseline.</span>
+      </p>
+      <table style="font-size: 0.85rem; border-collapse: collapse; width: 100%;">
+        <thead>
+          <tr style="background: #f1f5f9;">
+            <th style="padding: 0.5rem; text-align: left; border-bottom: 2px solid #e2e8f0;">Model</th>
+            <th style="padding: 0.5rem; text-align: right; border-bottom: 2px solid #e2e8f0;">Params</th>
+            <th style="padding: 0.5rem; text-align: right; border-bottom: 2px solid #e2e8f0;">Loss</th>
+            <th style="padding: 0.5rem; text-align: right; border-bottom: 2px solid #e2e8f0;">log₁₀(params)</th>
+            <th style="padding: 0.5rem; text-align: right; border-bottom: 2px solid #e2e8f0;">log₁₀(loss)</th>
+            <th style="padding: 0.5rem; text-align: right; border-bottom: 2px solid #e2e8f0;">Baseline log₁₀(loss)</th>
+            <th style="padding: 0.5rem; text-align: right; border-bottom: 2px solid #e2e8f0;">Parsimony score</th>
+            <th style="padding: 0.5rem; text-align: center; border-bottom: 2px solid #e2e8f0;">Better?</th>
+          </tr>
+        </thead>
+        <tbody>
+          {"".join(parsimony_rows)}
+        </tbody>
+      </table>
+    </div>"""
+
         params_vs_loss_html = f"""
     <figure class="chart" style="margin-top: 2rem;">
       <img src="{params_chart_rel}" alt="Model complexity vs performance (parameter count vs p-adic loss)" />
@@ -3456,7 +3508,8 @@ def _build_trends_section(
         Parameter count (log scale) vs p-adic loss. Sparse models use fewer non-zero parameters.
       </figcaption>
     </figure>
-    {params_stats_html}"""
+    {params_stats_html}
+    {params_parsimony_html}"""
 
     unconstrained_log_html = ""
     if unconstrained_log_chart_path:
@@ -3806,6 +3859,7 @@ def _build_index_html(
     perf_vs_products_stats: Optional[Dict[str, Dict[str, float]]] = None,
     perf_vs_tags_stats: Optional[Dict[str, Dict[str, float]]] = None,
     params_vs_loss_stats: Optional[Dict[str, Dict[str, float]]] = None,
+    params_vs_loss_parsimony_rows: Optional[list[Dict[str, Any]]] = None,
     unconstrained_log_stats: Optional[Dict[str, Any]] = None,
     products_x_data: Optional[Dict[str, list]] = None,
     products_y_data: Optional[Dict[str, list]] = None,
@@ -4357,7 +4411,7 @@ def _build_index_html(
 
   {taxonomy_overview_html}
 
-  {_build_trends_section(trends_chart_path, perf_vs_products_chart_path, perf_vs_tags_chart_path, params_vs_loss_chart_path, unconstrained_log_chart_path, trajectory_chart_path, output_dir, perf_vs_products_stats, perf_vs_tags_stats, params_vs_loss_stats, unconstrained_log_stats, products_x_data, products_y_data, products_dates, products_x_values, tags_x_data, tags_y_data, tags_dates, tags_x_values)}
+  {_build_trends_section(trends_chart_path, perf_vs_products_chart_path, perf_vs_tags_chart_path, params_vs_loss_chart_path, unconstrained_log_chart_path, trajectory_chart_path, output_dir, perf_vs_products_stats, perf_vs_tags_stats, params_vs_loss_stats, params_vs_loss_parsimony_rows, unconstrained_log_stats, products_x_data, products_y_data, products_dates, products_x_values, tags_x_data, tags_y_data, tags_dates, tags_x_values)}
 
   <footer>
     <p>Source available on <a href="https://github.com/IFost-Sydney-Uni/padjective">GitHub</a></p>
@@ -7766,15 +7820,15 @@ def _generate_params_vs_loss_chart(
     zubarev_zeros_fold_results: Optional[list[Dict[str, Any]]] = None,
     zubarev_umllr_m1_fold_results: Optional[list[Dict[str, Any]]] = None,
     zubarev_umllr_m2_fold_results: Optional[list[Dict[str, Any]]] = None,
-) -> tuple[Optional[Path], Dict[str, Dict[str, float]]]:
+) -> tuple[Optional[Path], Dict[str, Dict[str, float]], list[Dict[str, Any]]]:
     """Generate a scatter plot showing parameter count vs p-adic loss for all models.
 
     This chart helps visualize the tradeoff between model complexity (parameters)
     and prediction quality (p-adic loss).
 
     Returns:
-        Tuple of (path to generated chart, regression statistics dict)
-        Returns (None, {}) if insufficient data
+        Tuple of (path to generated chart, regression statistics dict, parsimony rows)
+        Returns (None, {}, rows) if insufficient data
     """
     # Collect data points: (params, loss, label, color, marker)
     data_points = []
@@ -7884,8 +7938,29 @@ def _generate_params_vs_loss_chart(
             if row and row[0] is not None:
                 data_points.append((1, float(row[0]), "Dummy", "#94a3b8", "X"))
 
+    parsimony_rows: list[Dict[str, Any]] = []
+    for params, loss, label, _, _ in data_points:
+        safe_params = max(float(params), 1.0)
+        safe_loss = max(float(loss), PARSIMONY_LOSS_EPSILON)
+        log10_params = float(np.log10(safe_params))
+        log10_loss = float(np.log10(safe_loss))
+        baseline_log10_loss = (
+            PARSIMONY_BASELINE_SLOPE * log10_params + PARSIMONY_BASELINE_INTERCEPT
+        )
+        parsimony_rows.append(
+            {
+                "model": label,
+                "params": float(params),
+                "loss": float(loss),
+                "log10_params": log10_params,
+                "log10_loss": log10_loss,
+                "baseline_log10_loss": baseline_log10_loss,
+                "parsimony_score": baseline_log10_loss - log10_loss,
+            }
+        )
+
     if len(data_points) < 2:
-        return None, {}
+        return None, {}, parsimony_rows
 
     fig, ax = plt.subplots(figsize=(10, 6))
 
@@ -7975,7 +8050,7 @@ def _generate_params_vs_loss_chart(
     plt.savefig(output_path, dpi=150, bbox_inches='tight')
     plt.close()
 
-    return output_path, regression_stats
+    return output_path, regression_stats, parsimony_rows
 
 
 def _generate_unconstrained_log_chart(
@@ -8481,7 +8556,11 @@ footer {text-align: center; padding: 2rem 1.5rem 3rem; color: #6b7280;}
         schema=battle_schema
     )
 
-    params_vs_loss_chart_path, params_vs_loss_stats = _generate_params_vs_loss_chart(
+    (
+        params_vs_loss_chart_path,
+        params_vs_loss_stats,
+        params_vs_loss_parsimony_rows,
+    ) = _generate_params_vs_loss_chart(
         precomputed_database,
         assets_dir / "params_vs_loss.png",
         schema=battle_schema,
@@ -8551,6 +8630,7 @@ footer {text-align: center; padding: 2rem 1.5rem 3rem; color: #6b7280;}
         perf_vs_products_stats,
         perf_vs_tags_stats,
         params_vs_loss_stats,
+        params_vs_loss_parsimony_rows,
         unconstrained_log_stats,
         products_x_data,
         products_y_data,

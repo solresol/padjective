@@ -91,7 +91,11 @@ def test_ensure_table_creates_when_table_is_missing() -> None:
 
     assert conn.fetchone_calls == 1
     assert conn.commits == 1
-    assert len(conn.statements) == 2
-    create_statement, create_params = conn.statements[1]
+    assert len(conn.statements) == 3
+    set_statement, set_params = conn.statements[1]
+    assert isinstance(set_statement, str)
+    assert "set_config('default_tablespace'" in set_statement
+    assert set_params == ("pg_default",)
+    create_statement, create_params = conn.statements[2]
     assert isinstance(create_statement, sql.Composed)
     assert create_params is None

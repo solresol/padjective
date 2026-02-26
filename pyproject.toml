@@ -21,9 +21,12 @@ display = "padjective.display:main"
 product_synsets = "padjective.product_synsets:main"
 taxonomy-classifier = "padjective.taxonomy_classifier:main"
 taxonomy-classifier-schema = "padjective.taxonomy_classifier_schema:main"
+product-taxonomy-bench = "padjective.product_taxonomy_bench:main"
+product-taxonomy-bench-export = "padjective.product_taxonomy_bench_export:main"
+product-taxonomy-bench-publish = "padjective.product_taxonomy_bench_publish:main"
+product-taxonomy-bench-hf-sync = "padjective.hf_sync:main"
 
 [tool.pytest.ini_options]
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
 ]
-

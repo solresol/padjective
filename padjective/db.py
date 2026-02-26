@@ -96,8 +96,7 @@ def ensure_table(
             "index_tablespace must be pg_default to comply with deployment requirements"
         )
 
-    # Don't specify tablespace to avoid permission issues - let PostgreSQL use defaults
-    effective_index_tablespace = None
+    effective_index_tablespace = index_tablespace or DEFAULT_TABLESPACE
 
     with conn.cursor() as cur:
         cur.execute(
@@ -111,17 +110,24 @@ def ensure_table(
         table_exists = cur.fetchone() is not None
 
         if not table_exists:
+            # Ensure implicit indexes created by PRIMARY KEY/UNIQUE constraints
+            # also land on pg_default.
+            cur.execute(
+                "SELECT set_config('default_tablespace', %s, true)",
+                (table_tablespace,),
+            )
             cur.execute(
                 sql.SQL(
                     """
                     CREATE TABLE IF NOT EXISTS {schema}.{table} (
                         {columns}
-                    )
+                    ) TABLESPACE {tablespace}
                     """
                 ).format(
                     schema=sql.Identifier(schema),
                     table=sql.Identifier(table),
                     columns=sql.SQL(column_block),
+                    tablespace=sql.Identifier(table_tablespace),
                 )
             )
         if indexes_sql:
