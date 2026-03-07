@@ -3798,8 +3798,8 @@ def _build_trends_section(
       <p style="margin: 0.6rem 0 0 0;">
         <strong>Where this baseline came from.</strong>
         The original score came from a log-log regression on model size versus loss, rounded to
-        <code>-0.1 × log₁₀(params) - 0.2</code>. Looking across historical snapshots, those scores drifted as the dataset covered more taxonomies, so the current baseline drops the constant offset and adds
-        <code>+ 0.3 × log₁₀(taxonomies / 1,000)</code> to keep parsimoniousness more stable and mostly positive as the benchmark grows.
+        <code>-0.1 × log₁₀(params) - 0.2</code>. Looking across historical snapshots, those scores drifted as the dataset covered more taxonomies, so the current baseline adds
+        <code>+ 0.3 × log₁₀(taxonomies / 1,000)</code> to keep comparisons stable as the benchmark grows. For readability, we also re-centre the displayed score by dropping the old constant offset; that keeps the current tables mostly positive without changing the relative comparisons.
       </p>
     </div>"""
 
