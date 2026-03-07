@@ -28,6 +28,8 @@ from . import data_access, db, display, ranking, tagbattle
 PARSIMONY_LOSS_EPSILON = 1e-12
 PARSIMONY_BASELINE_SLOPE = -0.1
 PARSIMONY_BASELINE_INTERCEPT = -0.2
+PARSIMONY_BASELINE_TAXONOMY_COEFFICIENT = 0.3
+PARSIMONY_BASELINE_TAXONOMY_REFERENCE = 1000.0
 HISTORICAL_PARSIMONY_MODEL_SPECS: tuple[dict[str, Any], ...] = (
     {
         "key": "dt",
@@ -105,19 +107,49 @@ HISTORICAL_PARSIMONY_MODEL_SPECS: tuple[dict[str, Any], ...] = (
 )
 
 
-def _compute_parsimony_metrics(params: float, loss: float) -> Dict[str, float]:
+def _format_parsimony_baseline_formula() -> str:
+    return (
+        f"log₁₀(loss) = {PARSIMONY_BASELINE_SLOPE:.1f} × log₁₀(params) "
+        f"{PARSIMONY_BASELINE_INTERCEPT:+.1f} + "
+        f"{PARSIMONY_BASELINE_TAXONOMY_COEFFICIENT:.1f} × "
+        f"log₁₀(taxonomies / {PARSIMONY_BASELINE_TAXONOMY_REFERENCE:,.0f})"
+    )
+
+
+def _parsimony_baseline_log10_loss(
+    log10_params: float | np.ndarray,
+    num_taxonomies: float,
+) -> float | np.ndarray:
+    safe_taxonomies = max(float(num_taxonomies), 1.0)
+    taxonomy_adjustment = (
+        PARSIMONY_BASELINE_TAXONOMY_COEFFICIENT
+        * float(np.log10(safe_taxonomies / PARSIMONY_BASELINE_TAXONOMY_REFERENCE))
+    )
+    return (
+        PARSIMONY_BASELINE_SLOPE * log10_params
+        + PARSIMONY_BASELINE_INTERCEPT
+        + taxonomy_adjustment
+    )
+
+
+def _compute_parsimony_metrics(
+    params: float,
+    loss: float,
+    num_taxonomies: float,
+) -> Dict[str, float]:
     """Return parsimony metrics for a model point."""
     safe_params = max(float(params), 1.0)
     safe_loss = max(float(loss), PARSIMONY_LOSS_EPSILON)
     log10_params = float(np.log10(safe_params))
     log10_loss = float(np.log10(safe_loss))
-    baseline_log10_loss = (
-        PARSIMONY_BASELINE_SLOPE * log10_params + PARSIMONY_BASELINE_INTERCEPT
+    baseline_log10_loss = float(
+        _parsimony_baseline_log10_loss(log10_params, num_taxonomies)
     )
     parsimony_score = baseline_log10_loss - log10_loss
     return {
         "params": float(params),
         "loss": float(loss),
+        "num_taxonomies": float(num_taxonomies),
         "log10_params": log10_params,
         "log10_loss": log10_loss,
         "baseline_log10_loss": baseline_log10_loss,
@@ -3472,7 +3504,11 @@ def _load_historical_parsimony_rows(
             if params is None or loss is None:
                 continue
 
-            metrics = _compute_parsimony_metrics(float(params), float(loss))
+            metrics = _compute_parsimony_metrics(
+                float(params),
+                float(loss),
+                float(snapshot["num_taxonomies"] or 0),
+            )
             parsimony_rows.append(
                 {
                     "model_key": spec["key"],
@@ -3821,7 +3857,8 @@ def _build_trends_section(
             params_parsimony_html = f"""
     <div style="margin-top: 1rem; overflow-x: auto;">
       <p style="font-size: 0.9rem; color: #64748b; margin-bottom: 0.5rem;">
-        <strong>Parsimoniousness baseline: log₁₀(loss) = {PARSIMONY_BASELINE_SLOPE:.1f} × log₁₀(params) {PARSIMONY_BASELINE_INTERCEPT:+.1f}</strong><br />
+        <strong>Parsimoniousness baseline: {_format_parsimony_baseline_formula()}</strong><br />
+        <span style="font-size: 0.8rem;">Current snapshot taxonomies: {int(params_vs_loss_parsimony_rows[0]['num_taxonomies']):,}</span><br />
         <span style="font-size: 0.8rem;">Parsimony score = baseline log₁₀(loss) − observed log₁₀(loss). Positive means better than baseline.</span>
       </p>
       <table style="font-size: 0.85rem; border-collapse: collapse; width: 100%;">
@@ -3899,7 +3936,7 @@ def _build_trends_section(
     <figure class="chart" style="margin-top: 2rem;">
       <img src="{parsimony_history_rel}" alt="Historical parsimony score stability" />
       <figcaption style="text-align: center; color: #64748b; font-size: 0.9rem; margin-top: 0.5rem;">
-        Left: parsimony score versus dataset size. Right: score distribution across historical snapshots. Positive means better than the fixed baseline.
+        Left: parsimony score versus dataset size. Right: score distribution across historical snapshots. Positive means better than the taxonomy-adjusted baseline.
       </figcaption>
     </figure>
     {parsimony_history_stats_html}"""
@@ -8207,6 +8244,7 @@ def _generate_params_vs_loss_chart(
     conn,
     output_path: Path,
     schema: str = "padjective",
+    num_taxonomies: int = 1,
     taxonomy_pclr_fold_results: Optional[list[Dict[str, Any]]] = None,
     taxonomy_pcnn_fold_results: Optional[list[Dict[str, Any]]] = None,
     taxonomy_ulr_fold_results: Optional[list[Dict[str, Any]]] = None,
@@ -8331,7 +8369,11 @@ def _generate_params_vs_loss_chart(
         parsimony_rows.append(
             {
                 "model": label,
-                **_compute_parsimony_metrics(float(params), float(loss)),
+                **_compute_parsimony_metrics(
+                    float(params),
+                    float(loss),
+                    float(num_taxonomies),
+                ),
             }
         )
 
@@ -8355,7 +8397,7 @@ def _generate_params_vs_loss_chart(
     regression_stats: Dict[str, Dict[str, float]] = {}
     log_params = np.array([float(np.log10(max(params, 1.0))) for params, *_ in data_points], dtype=float)
     x_range = np.linspace(np.min(log_params) - 0.3, np.max(log_params) + 0.3, 200)
-    baseline_log10_loss = PARSIMONY_BASELINE_SLOPE * x_range + PARSIMONY_BASELINE_INTERCEPT
+    baseline_log10_loss = _parsimony_baseline_log10_loss(x_range, float(num_taxonomies))
     ax.plot(
         10 ** x_range,
         10 ** baseline_log10_loss,
@@ -8364,8 +8406,7 @@ def _generate_params_vs_loss_chart(
         linewidth=2.2,
         alpha=0.8,
         label=(
-            "Baseline: "
-            f"log10(loss) = {PARSIMONY_BASELINE_SLOPE:+.1f}·log10(params) {PARSIMONY_BASELINE_INTERCEPT:+.1f}"
+            f"Baseline at {num_taxonomies:,} taxonomies"
         ),
     )
 
@@ -8896,6 +8937,7 @@ footer {text-align: center; padding: 2rem 1.5rem 3rem; color: #6b7280;}
         precomputed_database,
         assets_dir / "params_vs_loss.png",
         schema=battle_schema,
+        num_taxonomies=dataset_stats["taxonomies"],
         taxonomy_pclr_fold_results=taxonomy_pclr_fold_results,
         taxonomy_pcnn_fold_results=taxonomy_pcnn_fold_results,
         taxonomy_ulr_fold_results=taxonomy_ulr_fold_results,
