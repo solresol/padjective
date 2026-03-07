@@ -3788,6 +3788,19 @@ def _build_trends_section(
     params_vs_loss_html = ""
     if params_vs_loss_chart_path:
         params_chart_rel = params_vs_loss_chart_path.relative_to(output_dir).as_posix()
+        parsimony_explainer_html = """
+    <div style="margin-top: 1rem; color: #475569; font-size: 0.95rem; line-height: 1.65;">
+      <p style="margin: 0;">
+        <strong>Why parsimony matters.</strong>
+        The question here is not just which model has the lowest loss, but which model gets good p-adic loss with the fewest effective parameters. That is exactly where the smaller p-adic models are interesting.
+      </p>
+      <p style="margin: 0.6rem 0 0 0;">
+        <strong>Where this baseline came from.</strong>
+        The original score came from a log-log regression on model size versus loss, rounded to
+        <code>-0.1 × log₁₀(params) - 0.2</code>. Looking across historical snapshots, those scores drifted as the dataset covered more taxonomies, so the current baseline adds
+        <code>+ 0.3 × log₁₀(taxonomies / 1,000)</code> to keep parsimoniousness more stable as the benchmark grows.
+      </p>
+    </div>"""
 
         # Build regression stats table
         params_stats_html = ""
@@ -3887,6 +3900,7 @@ def _build_trends_section(
         Both axes use log scale. The red line is the fixed parsimoniousness baseline rather than a fitted regression.
       </figcaption>
     </figure>
+    {parsimony_explainer_html}
     {params_stats_html}
     {params_parsimony_html}"""
 
