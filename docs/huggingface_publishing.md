@@ -57,10 +57,10 @@ uv run -m padjective.hf_sync \
   --out-root /data/hf/product-taxonomy-bench
 ```
 
-## Cron example (daily at 03:00)
+## Cron example (monthly on the 1st at 03:00)
 
 Add something like this on the publishing box (edit paths/env as needed):
 
 ```cron
-0 3 * * * cd /path/to/padjective && SHOPIFY_DB_DSN='postgresql://…' HF_TOKEN='hf_…' uv run -m padjective.product_taxonomy_bench_publish --paper-as-of "2026-02-11 19:15 UTC" --out-root /data/hf/product-taxonomy-bench --hf-repo-id yourname/product-taxonomy-bench
+0 3 1 * * cd /path/to/padjective && SHOPIFY_DB_DSN='postgresql://…' HF_TOKEN='hf_…' uv run -m padjective.product_taxonomy_bench_publish --paper-as-of "2026-02-11 19:15 UTC" --out-root /data/hf/product-taxonomy-bench --hf-repo-id yourname/product-taxonomy-bench
 ```
