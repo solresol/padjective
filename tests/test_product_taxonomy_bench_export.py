@@ -45,3 +45,5 @@ def test_render_hf_dataset_card_includes_snapshots() -> None:
     assert "latest-2026-02-24" in card
     assert "product-taxonomy-bench" in card
     assert "Product Taxonomy Bench (Anonymized)" in card
+    assert "notebooks/product_taxonomy_bench.ipynb" in card
+    assert "Open in Colab" in card

@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import gzip
 import json
+import shutil
 import uuid
 from dataclasses import dataclass
 from datetime import datetime
@@ -39,6 +40,10 @@ except Exception:  # pragma: no cover - optional
 
 
 DEFAULT_SCHEMA = "padjective"
+DEFAULT_HF_NOTEBOOK_SOURCE = (
+    Path(__file__).resolve().parent.parent / "docs" / "product_taxonomy_bench.ipynb"
+)
+DEFAULT_HF_NOTEBOOK_DEST = Path("notebooks/product_taxonomy_bench.ipynb")
 
 
 @dataclass(frozen=True)
@@ -547,6 +552,12 @@ def render_hf_dataset_card(
             "",
             "This dataset does **not** include raw product titles, raw tags, or product URLs. Tags are anonymised as `tagNNNNNN`.",
             "",
+            "# Start Here",
+            "",
+            "- Read this dataset card for the snapshot layout and field definitions.",
+            "- Open the benchmark notebook at [`notebooks/product_taxonomy_bench.ipynb`](./notebooks/product_taxonomy_bench.ipynb). On the notebook page, use the Hub's **Open in Colab** button to run it interactively.",
+            "- Use the three snapshot folders according to your goal: `first1000/` for a tiny sanity-check slice, `paper/` for the point-in-time paper snapshot, and `latest/` for the rolling benchmark.",
+            "",
             *config_lines,
             "# Data Fields",
             "",
@@ -580,6 +591,23 @@ def render_hf_dataset_card(
     )
 
     return front_matter + "\n\n" + body + "\n"
+
+
+def stage_hf_notebook(
+    out_root: Path,
+    *,
+    notebook_source: Path = DEFAULT_HF_NOTEBOOK_SOURCE,
+    notebook_dest: Path = DEFAULT_HF_NOTEBOOK_DEST,
+) -> Path:
+    """Copy the benchmark notebook into the export root for Hub publication."""
+
+    if not notebook_source.is_file():
+        raise FileNotFoundError(str(notebook_source))
+
+    destination = out_root / notebook_dest
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(notebook_source, destination)
+    return destination
 
 
 def export_snapshot(
@@ -745,6 +773,7 @@ def main() -> None:
             )
             args.out_root.mkdir(parents=True, exist_ok=True)
             (args.out_root / "README.md").write_text(readme, encoding="utf-8")
+            stage_hf_notebook(args.out_root)
     finally:
         conn.close()
 

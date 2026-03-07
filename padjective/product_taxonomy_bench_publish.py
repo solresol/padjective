@@ -27,6 +27,7 @@ from .product_taxonomy_bench_export import (
     SnapshotMetadata,
     export_snapshot,
     render_hf_dataset_card,
+    stage_hf_notebook,
 )
 
 
@@ -230,6 +231,7 @@ def publish(
     )
     out_root.mkdir(parents=True, exist_ok=True)
     (out_root / "README.md").write_text(readme, encoding="utf-8")
+    stage_hf_notebook(out_root)
 
     if hf_repo_id:
         upload_export_root(

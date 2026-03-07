@@ -8,6 +8,12 @@ This repo can generate two dataset exports:
 The exports are written to a local folder and can optionally be uploaded to a
 Hugging Face *dataset* repo.
 
+The publish/export step also stages the benchmark notebook to:
+
+- `notebooks/product_taxonomy_bench.ipynb`
+
+so the dataset card can link directly to a rendered notebook on the Hub.
+
 ## One-shot publish (export + upload)
 
 Prereqs on the machine doing the publish:

@@ -79,6 +79,7 @@ def upload_export_root(out_root: Path, options: UploadOptions) -> None:
       - README.md
       - paper/
       - latest/
+      - (optional) notebooks/
       - (optional) other snapshot folders (e.g. first1000/)
     """
 
