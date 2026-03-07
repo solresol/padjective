@@ -27,7 +27,7 @@ from . import data_access, db, display, ranking, tagbattle
 
 PARSIMONY_LOSS_EPSILON = 1e-12
 PARSIMONY_BASELINE_SLOPE = -0.1
-PARSIMONY_BASELINE_INTERCEPT = -0.2
+PARSIMONY_BASELINE_INTERCEPT = 0.0
 PARSIMONY_BASELINE_TAXONOMY_COEFFICIENT = 0.3
 PARSIMONY_BASELINE_TAXONOMY_REFERENCE = 1000.0
 HISTORICAL_PARSIMONY_MODEL_SPECS: tuple[dict[str, Any], ...] = (
@@ -108,12 +108,14 @@ HISTORICAL_PARSIMONY_MODEL_SPECS: tuple[dict[str, Any], ...] = (
 
 
 def _format_parsimony_baseline_formula() -> str:
-    return (
-        f"log₁₀(loss) = {PARSIMONY_BASELINE_SLOPE:.1f} × log₁₀(params) "
-        f"{PARSIMONY_BASELINE_INTERCEPT:+.1f} + "
-        f"{PARSIMONY_BASELINE_TAXONOMY_COEFFICIENT:.1f} × "
+    terms = [f"{PARSIMONY_BASELINE_SLOPE:.1f} × log₁₀(params)"]
+    if not math.isclose(PARSIMONY_BASELINE_INTERCEPT, 0.0):
+        terms.append(f"{PARSIMONY_BASELINE_INTERCEPT:+.1f}")
+    terms.append(
+        f"+ {PARSIMONY_BASELINE_TAXONOMY_COEFFICIENT:.1f} × "
         f"log₁₀(taxonomies / {PARSIMONY_BASELINE_TAXONOMY_REFERENCE:,.0f})"
     )
+    return f"log₁₀(loss) = {' '.join(terms)}"
 
 
 def _parsimony_baseline_log10_loss(
@@ -154,7 +156,6 @@ def _compute_parsimony_metrics(
         "log10_loss": log10_loss,
         "baseline_log10_loss": baseline_log10_loss,
         "parsimony_score": parsimony_score,
-        "better_than_baseline": parsimony_score > 0,
     }
 
 
@@ -3797,8 +3798,8 @@ def _build_trends_section(
       <p style="margin: 0.6rem 0 0 0;">
         <strong>Where this baseline came from.</strong>
         The original score came from a log-log regression on model size versus loss, rounded to
-        <code>-0.1 × log₁₀(params) - 0.2</code>. Looking across historical snapshots, those scores drifted as the dataset covered more taxonomies, so the current baseline adds
-        <code>+ 0.3 × log₁₀(taxonomies / 1,000)</code> to keep parsimoniousness more stable as the benchmark grows.
+        <code>-0.1 × log₁₀(params) - 0.2</code>. Looking across historical snapshots, those scores drifted as the dataset covered more taxonomies, so the current baseline drops the constant offset and adds
+        <code>+ 0.3 × log₁₀(taxonomies / 1,000)</code> to keep parsimoniousness more stable and mostly positive as the benchmark grows.
       </p>
     </div>"""
 
@@ -3855,7 +3856,6 @@ def _build_trends_section(
             ):
                 parsimony_score = float(row["parsimony_score"])
                 score_color = "#16a34a" if parsimony_score > 0 else "#dc2626"
-                better_text = "Yes" if parsimony_score > 0 else "No"
                 parsimony_rows.append(
                     f"<tr><td style=\"text-align: left;\">{html.escape(str(row['model']))}</td>"
                     f"<td style=\"text-align: right;\">{float(row['params']):,.0f}</td>"
@@ -3863,8 +3863,7 @@ def _build_trends_section(
                     f"<td style=\"text-align: right;\">{float(row['log10_params']):.4f}</td>"
                     f"<td style=\"text-align: right;\">{float(row['log10_loss']):.4f}</td>"
                     f"<td style=\"text-align: right;\">{float(row['baseline_log10_loss']):.4f}</td>"
-                    f"<td style=\"text-align: right; color: {score_color}; font-weight: 600;\">{parsimony_score:+.4f}</td>"
-                    f"<td style=\"text-align: center;\">{better_text}</td></tr>"
+                    f"<td style=\"text-align: right; color: {score_color}; font-weight: 600;\">{parsimony_score:+.4f}</td></tr>"
                 )
 
             params_parsimony_html = f"""
@@ -3884,7 +3883,6 @@ def _build_trends_section(
             <th style="padding: 0.5rem; text-align: right; border-bottom: 2px solid #e2e8f0;">log₁₀(loss)</th>
             <th style="padding: 0.5rem; text-align: right; border-bottom: 2px solid #e2e8f0;">Baseline log₁₀(loss)</th>
             <th style="padding: 0.5rem; text-align: right; border-bottom: 2px solid #e2e8f0;">Parsimony score</th>
-            <th style="padding: 0.5rem; text-align: center; border-bottom: 2px solid #e2e8f0;">Better?</th>
           </tr>
         </thead>
         <tbody>

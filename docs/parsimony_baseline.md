@@ -137,17 +137,24 @@ also close to the most stable region rather than being a brittle one-off optimum
 We therefore use:
 
 ```text
-score = -log10(loss) - 0.1*log10(params) - 0.2 + 0.3*log10(taxonomies / 1000)
+score = -log10(loss) - 0.1*log10(params) + 0.3*log10(taxonomies / 1000)
 ```
 
 Equivalently, the baseline line on the chart is:
 
 ```text
-log10(loss) = -0.1*log10(params) - 0.2 + 0.3*log10(taxonomies / 1000)
+log10(loss) = -0.1*log10(params) + 0.3*log10(taxonomies / 1000)
 ```
 
-This keeps the clean `0.1`, `0.2`, `0.3` coefficients, while making the score
-substantially more stable as the dataset grows.
+This keeps the clean `0.1` and `0.3` coefficients in the final score, while the
+old `0.2` term is now treated purely as a centering choice rather than part of
+the metric itself.
+
+After choosing the `0.3` taxonomy coefficient, we removed the old `-0.2`
+intercept from the final score. That intercept only re-centres the score: it
+does not change any historical standard deviations or model ordering within a
+snapshot. Dropping it simply shifts scores upward by `0.2`, which makes the
+current parsimony tables mostly positive and easier to read.
 
 ## Why `/1000`
 
@@ -166,8 +173,8 @@ the taxonomy adjustment is:
 - `0.3*log10(467 / 500) = -0.008896`
 - `0.3*log10(467 / 1000) = -0.099205`
 
-So `/1000` simply shifts today’s scores downward by about `0.09` relative to
-`/500`; it does not make them more or less stable.
+So `/1000` simply shifts the taxonomy adjustment by about `0.09` relative to
+`/500`; it does not make the score more or less stable.
 
 ## Stability at the chosen coefficient
 
