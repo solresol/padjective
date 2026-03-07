@@ -79,6 +79,7 @@ def upload_export_root(out_root: Path, options: UploadOptions) -> None:
       - README.md
       - paper/
       - latest/
+      - (optional) other snapshot folders (e.g. first1000/)
     """
 
     if not out_root.exists():
@@ -99,6 +100,15 @@ def upload_export_root(out_root: Path, options: UploadOptions) -> None:
         raise ValueError(
             f"Export root {out_root} is missing required paths: {', '.join(missing)}"
         )
+
+    snapshot_dirs = sorted(
+        [
+            path
+            for path in out_root.iterdir()
+            if path.is_dir() and not path.name.startswith(".")
+        ],
+        key=lambda path: path.name,
+    )
 
     HfApi = _require_huggingface_hub()
     api = HfApi()
@@ -131,22 +141,15 @@ def upload_export_root(out_root: Path, options: UploadOptions) -> None:
     )
 
     # Snapshot folders
-    api.upload_folder(
-        repo_id=options.repo_id,
-        repo_type=options.repo_type,
-        folder_path=str(paper_dir),
-        path_in_repo="paper",
-        token=options.token,
-        commit_message=options.commit_message,
-    )
-    api.upload_folder(
-        repo_id=options.repo_id,
-        repo_type=options.repo_type,
-        folder_path=str(latest_dir),
-        path_in_repo="latest",
-        token=options.token,
-        commit_message=options.commit_message,
-    )
+    for snapshot_dir in snapshot_dirs:
+        api.upload_folder(
+            repo_id=options.repo_id,
+            repo_type=options.repo_type,
+            folder_path=str(snapshot_dir),
+            path_in_repo=snapshot_dir.name,
+            token=options.token,
+            commit_message=options.commit_message,
+        )
 
 
 def main() -> None:

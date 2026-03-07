@@ -442,8 +442,10 @@ def _count_taxonomies(
     product_table: str,
     *,
     as_of: datetime | None,
+    max_products: int | None,
 ) -> Counter[str]:
     taxonomy_counts: Counter[str] = Counter()
+    product_count = 0
     for row in _stream_source_products(conn, product_table, as_of=as_of):
         tags = tagbattle.filter_nested_tags(data_access.parse_tags(row.raw_tags))
         if not tags:
@@ -451,6 +453,9 @@ def _count_taxonomies(
         if not data_access.is_valid_taxonomy_path(row.taxonomy_path):
             continue
         taxonomy_counts[row.taxonomy_id] += 1
+        product_count += 1
+        if max_products is not None and product_count >= max_products:
+            break
     return taxonomy_counts
 
 
@@ -460,8 +465,10 @@ def _count_tags(
     *,
     valid_taxonomies: set[str],
     as_of: datetime | None,
+    max_products: int | None,
 ) -> Counter[str]:
     tag_counts: Counter[str] = Counter()
+    product_count = 0
     for row in _stream_source_products(conn, product_table, as_of=as_of):
         if row.taxonomy_id not in valid_taxonomies:
             continue
@@ -471,6 +478,9 @@ def _count_tags(
         if not tags:
             continue
         tag_counts.update(tags)
+        product_count += 1
+        if max_products is not None and product_count >= max_products:
+            break
     return tag_counts
 
 
@@ -483,6 +493,7 @@ def create_snapshot(
     min_tag_count: int = 5,
     min_samples_per_taxonomy: int = 5,
     as_of: datetime | None = None,
+    max_products: int | None = None,
     alias: Optional[str] = None,
     note: Optional[str] = None,
     batch_size: int = 5000,
@@ -492,6 +503,9 @@ def create_snapshot(
     conn = db.get_connection(dsn)
     try:
         _ensure_storage(conn, schema)
+
+        if max_products is not None and max_products <= 0:
+            raise ValueError("max_products must be a positive integer when set")
 
         if _snapshot_name_exists(conn, schema, snapshot_name):
             raise ValueError(f"Snapshot name already exists: {snapshot_name!r}")
@@ -534,7 +548,9 @@ def create_snapshot(
 
         fold_assignments = calculate_cv_folds(conn, product_table)
 
-        taxonomy_counts = _count_taxonomies(conn, product_table, as_of=as_of)
+        taxonomy_counts = _count_taxonomies(
+            conn, product_table, as_of=as_of, max_products=max_products
+        )
         valid_taxonomies = {
             taxonomy_id
             for taxonomy_id, count in taxonomy_counts.items()
@@ -542,7 +558,11 @@ def create_snapshot(
         }
 
         tag_counts = _count_tags(
-            conn, product_table, valid_taxonomies=valid_taxonomies, as_of=as_of
+            conn,
+            product_table,
+            valid_taxonomies=valid_taxonomies,
+            as_of=as_of,
+            max_products=max_products,
         )
         valid_tags = {
             tag for tag, count in tag_counts.items() if count >= min_tag_count
@@ -713,6 +733,8 @@ def create_snapshot(
                 if product_count % batch_size == 0:
                     flush(cur)
                     conn.commit()
+                if max_products is not None and product_count >= max_products:
+                    break
 
             flush(cur)
         conn.commit()
@@ -811,6 +833,11 @@ def main() -> None:
         default=5000,
         help="Flush insert batches every N products",
     )
+    parser.add_argument(
+        "--max-products",
+        type=int,
+        help="Optional maximum number of products to include (after filtering).",
+    )
     args = parser.parse_args()
 
     as_of = parse_as_of(args.as_of) if args.as_of else None
@@ -823,6 +850,7 @@ def main() -> None:
         min_tag_count=args.min_tag_count,
         min_samples_per_taxonomy=args.min_samples_per_taxonomy,
         as_of=as_of,
+        max_products=args.max_products,
         alias=args.alias,
         note=args.note,
         batch_size=args.batch_size,

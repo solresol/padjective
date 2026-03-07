@@ -25,9 +25,105 @@ from scipy import stats
 
 from . import data_access, db, display, ranking, tagbattle
 
-PARSIMONY_BASELINE_SLOPE = -2.0
-PARSIMONY_BASELINE_INTERCEPT = -0.1
 PARSIMONY_LOSS_EPSILON = 1e-12
+PARSIMONY_BASELINE_SLOPE = -0.1
+PARSIMONY_BASELINE_INTERCEPT = -0.2
+HISTORICAL_PARSIMONY_MODEL_SPECS: tuple[dict[str, Any], ...] = (
+    {
+        "key": "dt",
+        "label": "Decision Tree",
+        "short_label": "DT",
+        "params_col": "dt_mean_effective_params",
+        "loss_col": "dt_mean_padic_loss",
+        "color": "#14b8a6",
+        "marker": "h",
+    },
+    {
+        "key": "ulr",
+        "label": "Unconstrained Logistic Regression with L1",
+        "short_label": "ULR",
+        "params_col": "ulr_mean_nonzero_params",
+        "loss_col": "ulr_mean_padic_loss",
+        "color": "#8b5cf6",
+        "marker": "D",
+    },
+    {
+        "key": "unn",
+        "label": "Unconstrained Neural Network with L1",
+        "short_label": "UNN",
+        "params_col": "unn_mean_nonzero_params",
+        "loss_col": "unn_mean_padic_loss",
+        "color": "#ec4899",
+        "marker": "p",
+    },
+    {
+        "key": "umllr",
+        "label": "Importance-Optimised $p$-adic Linear Regression",
+        "short_label": "Importance-Optimised",
+        "params_col": "umllr_mean_nonzero_params",
+        "loss_col": "umllr_mean_padic_loss",
+        "color": "#0b6ce3",
+        "marker": "o",
+    },
+    {
+        "key": "lr",
+        "label": "PCLR",
+        "short_label": "PCLR",
+        "params_col": "lr_mean_params",
+        "loss_col": "lr_mean_padic_loss",
+        "color": "#10b981",
+        "marker": "s",
+    },
+    {
+        "key": "nn",
+        "label": "PCNN",
+        "short_label": "PCNN",
+        "params_col": "nn_mean_input_weights",
+        "loss_col": "nn_mean_padic_loss",
+        "color": "#f59e0b",
+        "marker": "^",
+    },
+    {
+        "key": "zubarev_umllr",
+        "label": "Zubarev (UMLLR init)",
+        "short_label": "Zubarev",
+        "params_col": "zubarev_umllr_mean_nonzero_params",
+        "loss_col": "zubarev_umllr_mean_padic_loss",
+        "color": "#f97316",
+        "marker": "v",
+    },
+    {
+        "key": "dummy",
+        "label": "Dummy Baseline",
+        "short_label": "Dummy",
+        "params_col": None,
+        "loss_col": "dummy_mean_padic_loss",
+        "fixed_params": 1.0,
+        "color": "#94a3b8",
+        "marker": "X",
+    },
+)
+
+
+def _compute_parsimony_metrics(params: float, loss: float) -> Dict[str, float]:
+    """Return parsimony metrics for a model point."""
+    safe_params = max(float(params), 1.0)
+    safe_loss = max(float(loss), PARSIMONY_LOSS_EPSILON)
+    log10_params = float(np.log10(safe_params))
+    log10_loss = float(np.log10(safe_loss))
+    baseline_log10_loss = (
+        PARSIMONY_BASELINE_SLOPE * log10_params + PARSIMONY_BASELINE_INTERCEPT
+    )
+    parsimony_score = baseline_log10_loss - log10_loss
+    return {
+        "params": float(params),
+        "loss": float(loss),
+        "log10_params": log10_params,
+        "log10_loss": log10_loss,
+        "baseline_log10_loss": baseline_log10_loss,
+        "parsimony_score": parsimony_score,
+        "better_than_baseline": parsimony_score > 0,
+    }
 
 
 def _format_padic_expansion(value: int, base: int) -> tuple[str, str]:
@@ -3328,11 +3424,256 @@ def _format_regression_stats_html(stats: Optional[Dict[str, Dict[str, float]]], 
     </table>"""
 
 
+def _load_historical_parsimony_rows(
+    conn,
+    schema: str = "padjective",
+) -> list[Dict[str, Any]]:
+    """Load historical parsimony rows from snapshot history."""
+    if not _table_exists(conn, schema, "model_performance_history"):
+        return []
+
+    with conn.cursor(row_factory=dict_row) as cur:
+        cur.execute(
+            sql.SQL(
+                """
+                SELECT snapshot_date,
+                       num_products,
+                       num_tags,
+                       num_taxonomies,
+                       lr_mean_params,
+                       lr_mean_padic_loss,
+                       nn_mean_input_weights,
+                       nn_mean_padic_loss,
+                       ulr_mean_nonzero_params,
+                       ulr_mean_padic_loss,
+                       unn_mean_nonzero_params,
+                       unn_mean_padic_loss,
+                       dt_mean_effective_params,
+                       dt_mean_padic_loss,
+                       umllr_mean_nonzero_params,
+                       umllr_mean_padic_loss,
+                       zubarev_umllr_mean_nonzero_params,
+                       zubarev_umllr_mean_padic_loss,
+                       dummy_mean_padic_loss
+                FROM {schema}.model_performance_history
+                ORDER BY snapshot_date
+                """
+            ).format(schema=sql.Identifier(schema))
+        )
+        snapshots = cur.fetchall()
+
+    parsimony_rows: list[Dict[str, Any]] = []
+    for snapshot in snapshots:
+        for spec in HISTORICAL_PARSIMONY_MODEL_SPECS:
+            loss = snapshot.get(spec["loss_col"])
+            params = spec.get("fixed_params")
+            if params is None and spec.get("params_col"):
+                params = snapshot.get(spec["params_col"])
+            if params is None or loss is None:
+                continue
+
+            metrics = _compute_parsimony_metrics(float(params), float(loss))
+            parsimony_rows.append(
+                {
+                    "model_key": spec["key"],
+                    "model": spec["label"],
+                    "short_label": spec["short_label"],
+                    "color": spec["color"],
+                    "marker": spec["marker"],
+                    "snapshot_date": snapshot["snapshot_date"],
+                    "num_products": int(snapshot["num_products"] or 0),
+                    "num_tags": int(snapshot["num_tags"] or 0),
+                    "num_taxonomies": int(snapshot["num_taxonomies"] or 0),
+                    **metrics,
+                }
+            )
+
+    return parsimony_rows
+
+
+def _summarize_historical_parsimony(
+    parsimony_rows: Sequence[Dict[str, Any]],
+) -> list[Dict[str, Any]]:
+    """Summarize historical parsimony stability per model."""
+    grouped: dict[str, list[Dict[str, Any]]] = {}
+    for row in parsimony_rows:
+        grouped.setdefault(str(row["model_key"]), []).append(dict(row))
+
+    summaries: list[Dict[str, Any]] = []
+    for spec in HISTORICAL_PARSIMONY_MODEL_SPECS:
+        rows = grouped.get(spec["key"], [])
+        if not rows:
+            continue
+        rows.sort(key=lambda entry: (entry["snapshot_date"], entry["num_products"]))
+        scores = np.array([float(entry["parsimony_score"]) for entry in rows], dtype=float)
+        latest = rows[-1]
+        summaries.append(
+            {
+                "model_key": spec["key"],
+                "model": spec["label"],
+                "short_label": spec["short_label"],
+                "color": spec["color"],
+                "n_snapshots": len(rows),
+                "mean_score": float(np.mean(scores)),
+                "std_score": float(np.std(scores, ddof=1)) if len(scores) > 1 else 0.0,
+                "span_score": float(np.max(scores) - np.min(scores)) if len(scores) > 0 else 0.0,
+                "latest_score": float(latest["parsimony_score"]),
+                "latest_products": int(latest["num_products"]),
+            }
+        )
+
+    summaries.sort(key=lambda entry: (entry["latest_score"], entry["mean_score"]), reverse=True)
+    return summaries
+
+
+def _generate_historical_parsimony_chart(
+    conn,
+    output_path: Path,
+    schema: str = "padjective",
+) -> tuple[Optional[Path], list[Dict[str, Any]]]:
+    """Generate a chart showing how parsimony behaves as the dataset grows."""
+    parsimony_rows = _load_historical_parsimony_rows(conn, schema=schema)
+    if len(parsimony_rows) < 2:
+        return None, []
+
+    grouped: dict[str, list[Dict[str, Any]]] = {}
+    for row in parsimony_rows:
+        grouped.setdefault(str(row["model_key"]), []).append(row)
+
+    summary_rows = _summarize_historical_parsimony(parsimony_rows)
+    ordered_specs = [
+        next(spec for spec in HISTORICAL_PARSIMONY_MODEL_SPECS if spec["key"] == summary["model_key"])
+        for summary in summary_rows
+    ]
+
+    fig, (ax_scatter, ax_violin) = plt.subplots(
+        1,
+        2,
+        figsize=(14, 5.5),
+        gridspec_kw={"width_ratios": [1.8, 1.0]},
+    )
+    rng = np.random.default_rng(42)
+
+    for spec in ordered_specs:
+        model_rows = sorted(
+            grouped[spec["key"]],
+            key=lambda entry: (entry["num_products"], entry["snapshot_date"]),
+        )
+        x_values = np.array([float(entry["num_products"]) for entry in model_rows], dtype=float)
+        y_values = np.array([float(entry["parsimony_score"]) for entry in model_rows], dtype=float)
+
+        ax_scatter.plot(
+            x_values,
+            y_values,
+            color=spec["color"],
+            linewidth=1.8,
+            alpha=0.45,
+            label=f"{spec['short_label']} (n={len(model_rows)})",
+        )
+
+        scatter_kwargs = {
+            "color": spec["color"],
+            "s": 70,
+            "alpha": 0.65,
+            "marker": spec["marker"],
+        }
+        if spec["marker"] not in ["+", "x", ".", ","]:
+            scatter_kwargs["edgecolors"] = "white"
+            scatter_kwargs["linewidths"] = 1.4
+        ax_scatter.scatter(x_values, y_values, **scatter_kwargs)
+
+        latest = model_rows[-1]
+        latest_kwargs = {
+            "color": spec["color"],
+            "s": 170,
+            "alpha": 0.95,
+            "marker": spec["marker"],
+        }
+        if spec["marker"] not in ["+", "x", ".", ","]:
+            latest_kwargs["edgecolors"] = "#0f172a"
+            latest_kwargs["linewidths"] = 1.6
+        ax_scatter.scatter(
+            float(latest["num_products"]),
+            float(latest["parsimony_score"]),
+            **latest_kwargs,
+        )
+
+    ax_scatter.axhline(0, color="#334155", linewidth=1.2, alpha=0.9)
+    ax_scatter.set_xscale("log")
+    ax_scatter.set_xlabel("Products in dataset snapshot", fontsize=12, fontweight="bold")
+    ax_scatter.set_ylabel("Parsimony score", fontsize=12, fontweight="bold")
+    ax_scatter.set_title(
+        "Parsimoniousness vs dataset growth",
+        fontsize=14,
+        fontweight="bold",
+        pad=12,
+    )
+    ax_scatter.grid(True, alpha=0.25, linestyle="--")
+    ax_scatter.legend(loc="best", frameon=True, shadow=True, fontsize=9, ncol=2)
+
+    violin_positions = np.arange(1, len(ordered_specs) + 1)
+    for idx, spec in enumerate(ordered_specs, start=1):
+        model_rows = grouped[spec["key"]]
+        scores = np.array([float(entry["parsimony_score"]) for entry in model_rows], dtype=float)
+        if len(scores) >= 2 and float(np.ptp(scores)) > 0:
+            violin = ax_violin.violinplot(
+                [scores],
+                positions=[idx],
+                vert=False,
+                widths=0.72,
+                showmeans=False,
+                showmedians=True,
+                showextrema=False,
+            )
+            for body in violin["bodies"]:
+                body.set_facecolor(spec["color"])
+                body.set_edgecolor(spec["color"])
+                body.set_alpha(0.18)
+            if "cmedians" in violin:
+                violin["cmedians"].set_color(spec["color"])
+                violin["cmedians"].set_linewidth(2)
+
+        jitter = rng.uniform(-0.12, 0.12, size=len(scores))
+        ax_violin.scatter(
+            scores,
+            np.full(len(scores), idx, dtype=float) + jitter,
+            color=spec["color"],
+            marker=spec["marker"],
+            s=48,
+            alpha=0.75,
+        )
+
+    ax_violin.axvline(0, color="#334155", linewidth=1.2, alpha=0.9)
+    ax_violin.set_yticks(violin_positions)
+    ax_violin.set_yticklabels([spec["short_label"] for spec in ordered_specs])
+    ax_violin.set_xlabel("Parsimony score", fontsize=12, fontweight="bold")
+    ax_violin.set_title(
+        "Historical score distribution",
+        fontsize=14,
+        fontweight="bold",
+        pad=12,
+    )
+    ax_violin.grid(True, axis="x", alpha=0.25, linestyle="--")
+
+    fig.suptitle(
+        "Parsimony stability over time",
+        fontsize=16,
+        fontweight="bold",
+        y=1.02,
+    )
+    plt.tight_layout()
+    plt.savefig(output_path, dpi=150, bbox_inches="tight")
+    plt.close()
+
+    return output_path, summary_rows
+
+
 def _build_trends_section(
     trends_chart_path: Optional[Path],
     perf_vs_products_chart_path: Optional[Path],
     perf_vs_tags_chart_path: Optional[Path],
     params_vs_loss_chart_path: Optional[Path],
+    parsimony_history_chart_path: Optional[Path],
     unconstrained_log_chart_path: Optional[Path],
     trajectory_chart_path: Optional[Path],
     output_dir: Path,
@@ -3340,6 +3681,7 @@ def _build_trends_section(
     perf_vs_tags_stats: Optional[Dict[str, Dict[str, float]]] = None,
     params_vs_loss_stats: Optional[Dict[str, Dict[str, float]]] = None,
     params_vs_loss_parsimony_rows: Optional[list[Dict[str, Any]]] = None,
+    parsimony_history_summary_rows: Optional[list[Dict[str, Any]]] = None,
     unconstrained_log_stats: Optional[Dict[str, Any]] = None,
     products_x_data: Optional[Dict[str, list]] = None,
     products_y_data: Optional[Dict[str, list]] = None,
@@ -3479,7 +3821,7 @@ def _build_trends_section(
             params_parsimony_html = f"""
     <div style="margin-top: 1rem; overflow-x: auto;">
       <p style="font-size: 0.9rem; color: #64748b; margin-bottom: 0.5rem;">
-        <strong>Parsimoniousness baseline: log₁₀(loss) = {PARSIMONY_BASELINE_SLOPE:g} × log₁₀(params) {PARSIMONY_BASELINE_INTERCEPT:+.1f}</strong><br />
+        <strong>Parsimoniousness baseline: log₁₀(loss) = {PARSIMONY_BASELINE_SLOPE:.1f} × log₁₀(params) {PARSIMONY_BASELINE_INTERCEPT:+.1f}</strong><br />
         <span style="font-size: 0.8rem;">Parsimony score = baseline log₁₀(loss) − observed log₁₀(loss). Positive means better than baseline.</span>
       </p>
       <table style="font-size: 0.85rem; border-collapse: collapse; width: 100%;">
@@ -3505,11 +3847,62 @@ def _build_trends_section(
     <figure class="chart" style="margin-top: 2rem;">
       <img src="{params_chart_rel}" alt="Model complexity vs performance (parameter count vs p-adic loss)" />
       <figcaption style="text-align: center; color: #64748b; font-size: 0.9rem; margin-top: 0.5rem;">
-        Parameter count (log scale) vs p-adic loss. Sparse models use fewer non-zero parameters.
+        Both axes use log scale. The red line is the fixed parsimoniousness baseline rather than a fitted regression.
       </figcaption>
     </figure>
     {params_stats_html}
     {params_parsimony_html}"""
+
+    parsimony_history_html = ""
+    if parsimony_history_chart_path:
+        parsimony_history_rel = parsimony_history_chart_path.relative_to(output_dir).as_posix()
+        parsimony_history_stats_html = ""
+        if parsimony_history_summary_rows:
+            history_rows = []
+            for row in parsimony_history_summary_rows:
+                latest_score = float(row["latest_score"])
+                score_color = "#16a34a" if latest_score > 0 else "#dc2626"
+                history_rows.append(
+                    f"<tr><td style=\"text-align: left; color: {row['color']}; font-weight: 600;\">{html.escape(str(row['model']))}</td>"
+                    f"<td style=\"text-align: right;\">{int(row['n_snapshots'])}</td>"
+                    f"<td style=\"text-align: right;\">{float(row['mean_score']):+.4f}</td>"
+                    f"<td style=\"text-align: right;\">{float(row['std_score']):.4f}</td>"
+                    f"<td style=\"text-align: right;\">{float(row['span_score']):.4f}</td>"
+                    f"<td style=\"text-align: right; color: {score_color}; font-weight: 600;\">{latest_score:+.4f}</td>"
+                    f"<td style=\"text-align: right;\">{int(row['latest_products']):,}</td></tr>"
+                )
+
+            parsimony_history_stats_html = f"""
+    <div style="margin-top: 1rem; overflow-x: auto;">
+      <table style="font-size: 0.85rem; border-collapse: collapse; width: 100%;">
+        <thead>
+          <tr style="background: #f1f5f9;">
+            <th style="padding: 0.5rem; text-align: left; border-bottom: 2px solid #e2e8f0;">Model</th>
+            <th style="padding: 0.5rem; text-align: right; border-bottom: 2px solid #e2e8f0;">Snapshots</th>
+            <th style="padding: 0.5rem; text-align: right; border-bottom: 2px solid #e2e8f0;">Mean score</th>
+            <th style="padding: 0.5rem; text-align: right; border-bottom: 2px solid #e2e8f0;">Std dev</th>
+            <th style="padding: 0.5rem; text-align: right; border-bottom: 2px solid #e2e8f0;">Span</th>
+            <th style="padding: 0.5rem; text-align: right; border-bottom: 2px solid #e2e8f0;">Latest score</th>
+            <th style="padding: 0.5rem; text-align: right; border-bottom: 2px solid #e2e8f0;">Latest products</th>
+          </tr>
+        </thead>
+        <tbody>
+          {"".join(history_rows)}
+        </tbody>
+      </table>
+      <p style="font-size: 0.8rem; color: #64748b; margin-top: 0.5rem;">
+        Smaller standard deviation and span mean a model’s parsimoniousness is more stable as the dataset grows.
+      </p>
+    </div>"""
+
+        parsimony_history_html = f"""
+    <figure class="chart" style="margin-top: 2rem;">
+      <img src="{parsimony_history_rel}" alt="Historical parsimony score stability" />
+      <figcaption style="text-align: center; color: #64748b; font-size: 0.9rem; margin-top: 0.5rem;">
+        Left: parsimony score versus dataset size. Right: score distribution across historical snapshots. Positive means better than the fixed baseline.
+      </figcaption>
+    </figure>
+    {parsimony_history_stats_html}"""
 
     unconstrained_log_html = ""
     if unconstrained_log_chart_path:
@@ -3583,6 +3976,7 @@ def _build_trends_section(
     {perf_vs_products_html}
     {perf_vs_tags_html}
     {params_vs_loss_html}
+    {parsimony_history_html}
     {unconstrained_log_html}
     {trajectory_html}
   </section>"""
@@ -3854,12 +4248,14 @@ def _build_index_html(
     perf_vs_products_chart_path: Optional[Path] = None,
     perf_vs_tags_chart_path: Optional[Path] = None,
     params_vs_loss_chart_path: Optional[Path] = None,
+    parsimony_history_chart_path: Optional[Path] = None,
     unconstrained_log_chart_path: Optional[Path] = None,
     trajectory_chart_path: Optional[Path] = None,
     perf_vs_products_stats: Optional[Dict[str, Dict[str, float]]] = None,
     perf_vs_tags_stats: Optional[Dict[str, Dict[str, float]]] = None,
     params_vs_loss_stats: Optional[Dict[str, Dict[str, float]]] = None,
     params_vs_loss_parsimony_rows: Optional[list[Dict[str, Any]]] = None,
+    parsimony_history_summary_rows: Optional[list[Dict[str, Any]]] = None,
     unconstrained_log_stats: Optional[Dict[str, Any]] = None,
     products_x_data: Optional[Dict[str, list]] = None,
     products_y_data: Optional[Dict[str, list]] = None,
@@ -4411,7 +4807,7 @@ def _build_index_html(
 
   {taxonomy_overview_html}
 
-  {_build_trends_section(trends_chart_path, perf_vs_products_chart_path, perf_vs_tags_chart_path, params_vs_loss_chart_path, unconstrained_log_chart_path, trajectory_chart_path, output_dir, perf_vs_products_stats, perf_vs_tags_stats, params_vs_loss_stats, params_vs_loss_parsimony_rows, unconstrained_log_stats, products_x_data, products_y_data, products_dates, products_x_values, tags_x_data, tags_y_data, tags_dates, tags_x_values)}
+  {_build_trends_section(trends_chart_path, perf_vs_products_chart_path, perf_vs_tags_chart_path, params_vs_loss_chart_path, parsimony_history_chart_path, unconstrained_log_chart_path, trajectory_chart_path, output_dir, perf_vs_products_stats, perf_vs_tags_stats, params_vs_loss_stats, params_vs_loss_parsimony_rows, parsimony_history_summary_rows, unconstrained_log_stats, products_x_data, products_y_data, products_dates, products_x_values, tags_x_data, tags_y_data, tags_dates, tags_x_values)}
 
   <footer>
     <p>Source available on <a href="https://github.com/IFost-Sydney-Uni/padjective">GitHub</a></p>
@@ -7821,15 +8217,7 @@ def _generate_params_vs_loss_chart(
     zubarev_umllr_m1_fold_results: Optional[list[Dict[str, Any]]] = None,
     zubarev_umllr_m2_fold_results: Optional[list[Dict[str, Any]]] = None,
 ) -> tuple[Optional[Path], Dict[str, Dict[str, float]], list[Dict[str, Any]]]:
-    """Generate a scatter plot showing parameter count vs p-adic loss for all models.
-
-    This chart helps visualize the tradeoff between model complexity (parameters)
-    and prediction quality (p-adic loss).
-
-    Returns:
-        Tuple of (path to generated chart, regression statistics dict, parsimony rows)
-        Returns (None, {}, rows) if insufficient data
-    """
+    """Generate a log-log chart of model complexity vs loss with a fixed parsimony baseline."""
     # Collect data points: (params, loss, label, color, marker)
     data_points = []
 
@@ -7940,26 +8328,14 @@ def _generate_params_vs_loss_chart(
 
     parsimony_rows: list[Dict[str, Any]] = []
     for params, loss, label, _, _ in data_points:
-        safe_params = max(float(params), 1.0)
-        safe_loss = max(float(loss), PARSIMONY_LOSS_EPSILON)
-        log10_params = float(np.log10(safe_params))
-        log10_loss = float(np.log10(safe_loss))
-        baseline_log10_loss = (
-            PARSIMONY_BASELINE_SLOPE * log10_params + PARSIMONY_BASELINE_INTERCEPT
-        )
         parsimony_rows.append(
             {
                 "model": label,
-                "params": float(params),
-                "loss": float(loss),
-                "log10_params": log10_params,
-                "log10_loss": log10_loss,
-                "baseline_log10_loss": baseline_log10_loss,
-                "parsimony_score": baseline_log10_loss - log10_loss,
+                **_compute_parsimony_metrics(float(params), float(loss)),
             }
         )
 
-    if len(data_points) < 2:
+    if not data_points:
         return None, {}, parsimony_rows
 
     fig, ax = plt.subplots(figsize=(10, 6))
@@ -7976,74 +8352,30 @@ def _generate_params_vs_loss_chart(
         ax.annotate(label, (params, loss), textcoords="offset points", xytext=(10, 5),
                    fontsize=10, fontweight='bold', color=color)
 
-    # Compute lines of best fit using log(params) as x
-    # Separate points with and without dummy
-    all_points = [(params, loss, label) for params, loss, label, _, _ in data_points]
-    non_dummy_points = [(params, loss) for params, loss, label in all_points if label != "Dummy"]
-
     regression_stats: Dict[str, Dict[str, float]] = {}
-
-    # Line of best fit WITH dummy (all points)
-    if len(all_points) >= 2:
-        log_params_all = np.array([np.log10(p) for p, _, _ in all_points])
-        losses_all = np.array([l for _, l, _ in all_points])
-
-        from scipy import stats as scipy_stats
-        result_all = scipy_stats.linregress(log_params_all, losses_all)
-
-        regression_stats['with_dummy'] = {
-            'slope': result_all.slope,
-            'intercept': result_all.intercept,
-            'r_squared': result_all.rvalue ** 2,
-            'r_value': result_all.rvalue,
-            'p_value': result_all.pvalue,
-            'std_err': result_all.stderr,
-            'n_points': len(all_points),
-        }
-
-        # Generate line across the full x range
-        x_range = np.linspace(min(log_params_all) - 0.3, max(log_params_all) + 0.3, 100)
-        y_fit_all = result_all.slope * x_range + result_all.intercept
-
-        # Convert back from log scale for plotting
-        x_range_params = 10 ** x_range
-        ax.plot(x_range_params, y_fit_all, '--', color='#94a3b8', linewidth=2, alpha=0.7,
-                label=f'With Dummy (R²={result_all.rvalue**2:.3f})')
-
-    # Line of best fit WITHOUT dummy
-    if len(non_dummy_points) >= 2:
-        log_params_no_dummy = np.array([np.log10(p) for p, _ in non_dummy_points])
-        losses_no_dummy = np.array([l for _, l in non_dummy_points])
-
-        result_no_dummy = scipy_stats.linregress(log_params_no_dummy, losses_no_dummy)
-
-        regression_stats['without_dummy'] = {
-            'slope': result_no_dummy.slope,
-            'intercept': result_no_dummy.intercept,
-            'r_squared': result_no_dummy.rvalue ** 2,
-            'r_value': result_no_dummy.rvalue,
-            'p_value': result_no_dummy.pvalue,
-            'std_err': result_no_dummy.stderr,
-            'n_points': len(non_dummy_points),
-        }
-
-        # Generate line across the non-dummy x range
-        x_range_nd = np.linspace(min(log_params_no_dummy) - 0.3, max(log_params_no_dummy) + 0.3, 100)
-        y_fit_no_dummy = result_no_dummy.slope * x_range_nd + result_no_dummy.intercept
-
-        # Convert back from log scale for plotting
-        x_range_params_nd = 10 ** x_range_nd
-        ax.plot(x_range_params_nd, y_fit_no_dummy, '-', color='#ef4444', linewidth=2, alpha=0.7,
-                label=f'Without Dummy (R²={result_no_dummy.rvalue**2:.3f})')
+    log_params = np.array([float(np.log10(max(params, 1.0))) for params, *_ in data_points], dtype=float)
+    x_range = np.linspace(np.min(log_params) - 0.3, np.max(log_params) + 0.3, 200)
+    baseline_log10_loss = PARSIMONY_BASELINE_SLOPE * x_range + PARSIMONY_BASELINE_INTERCEPT
+    ax.plot(
+        10 ** x_range,
+        10 ** baseline_log10_loss,
+        '-',
+        color='#ef4444',
+        linewidth=2.2,
+        alpha=0.8,
+        label=(
+            "Baseline: "
+            f"log10(loss) = {PARSIMONY_BASELINE_SLOPE:+.1f}·log10(params) {PARSIMONY_BASELINE_INTERCEPT:+.1f}"
+        ),
+    )
 
     ax.set_xlabel('Number of Parameters (non-zero for sparse models)', fontsize=12, fontweight='bold')
     ax.set_ylabel('P-adic Loss (lower is better)', fontsize=12, fontweight='bold')
-    ax.set_title('Model Complexity vs Performance', fontsize=14, fontweight='bold', pad=15)
-    ax.set_xscale('log')  # Log scale for x-axis since params vary by orders of magnitude
+    ax.set_title('Model Complexity vs Performance (Parsimoniousness Baseline)', fontsize=14, fontweight='bold', pad=15)
+    ax.set_xscale('log')
+    ax.set_yscale('log')
     ax.grid(True, alpha=0.3, linestyle='--')
-    ax.set_ylim(bottom=0)
 
-    # Add legend for the regression lines
     ax.legend(loc='lower left', frameon=True, shadow=True, fontsize=9)
 
     plt.tight_layout()
@@ -8575,6 +8907,15 @@ footer {text-align: center; padding: 2rem 1.5rem 3rem; color: #6b7280;}
         zubarev_umllr_m2_fold_results=zubarev_umllr_m2_fold_results,
     )
 
+    (
+        parsimony_history_chart_path,
+        parsimony_history_summary_rows,
+    ) = _generate_historical_parsimony_chart(
+        precomputed_database,
+        assets_dir / "historical_parsimony.png",
+        schema=battle_schema,
+    )
+
     unconstrained_log_chart_path, unconstrained_log_stats = _generate_unconstrained_log_chart(
         precomputed_database,
         assets_dir / "unconstrained_log_chart.png",
@@ -8625,12 +8966,14 @@ footer {text-align: center; padding: 2rem 1.5rem 3rem; color: #6b7280;}
         perf_vs_products_chart_path,
         perf_vs_tags_chart_path,
         params_vs_loss_chart_path,
+        parsimony_history_chart_path,
         unconstrained_log_chart_path,
         trajectory_chart_path,
         perf_vs_products_stats,
         perf_vs_tags_stats,
         params_vs_loss_stats,
         params_vs_loss_parsimony_rows,
+        parsimony_history_summary_rows,
         unconstrained_log_stats,
         products_x_data,
         products_y_data,

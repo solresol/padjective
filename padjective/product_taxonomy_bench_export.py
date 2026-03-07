@@ -141,7 +141,7 @@ def load_snapshot_metadata(
                     snapshot_id,
                     snapshot_name,
                     created_at,
-                    {as_of_column}
+                    {as_of_column},
                     product_table,
                     min_tag_count,
                     min_samples_per_taxonomy,
@@ -487,6 +487,7 @@ def render_hf_dataset_card(
     pretty_name: str,
     paper: SnapshotMetadata,
     latest: SnapshotMetadata,
+    first1000: SnapshotMetadata | None = None,
 ) -> str:
     def _fmt(meta: SnapshotMetadata) -> str:
         as_of = f"; as_of `{meta.as_of.isoformat()}`" if meta.as_of else ""
@@ -517,6 +518,27 @@ def render_hf_dataset_card(
         ]
     )
 
+    config_lines = [
+        "## Configurations",
+        "",
+        "Two configurations are provided:" if first1000 is None else "Three configurations are provided:",
+        "",
+        "### Paper snapshot",
+        _fmt(paper),
+        "",
+        "### Latest snapshot",
+        _fmt(latest),
+        "",
+    ]
+    if first1000 is not None:
+        config_lines.extend(
+            [
+                "### First 1000 snapshot",
+                _fmt(first1000),
+                "",
+            ]
+        )
+
     body = "\n".join(
         [
             "# Dataset Summary",
@@ -525,16 +547,7 @@ def render_hf_dataset_card(
             "",
             "This dataset does **not** include raw product titles, raw tags, or product URLs. Tags are anonymised as `tagNNNNNN`.",
             "",
-            "## Configurations",
-            "",
-            "Two configurations are provided:",
-            "",
-            "### Paper snapshot",
-            _fmt(paper),
-            "",
-            "### Latest snapshot",
-            _fmt(latest),
-            "",
+            *config_lines,
             "# Data Fields",
             "",
             "Each record corresponds to one product:",

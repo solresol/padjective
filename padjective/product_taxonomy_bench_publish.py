@@ -110,6 +110,7 @@ def _upsert_alias(conn, schema: str, alias: str, snapshot_id: uuid.UUID) -> None
 class PublishResult:
     paper: SnapshotMetadata
     latest: SnapshotMetadata
+    first1000: SnapshotMetadata
 
 
 def publish(
@@ -128,11 +129,14 @@ def publish(
     pretty_name: str,
     hf_repo_id: str | None = None,
     hf_token: str | None = None,
-    hf_replace_folders: Sequence[str] = ("latest",),
+    hf_replace_folders: Sequence[str] = ("latest", "first1000"),
 ) -> PublishResult:
     paper_snapshot_name = snapshot_name_from_timestamp("paper", paper_as_of)
     latest_snapshot_name = snapshot_name_from_timestamp(
         "latest", datetime.now(timezone.utc)
+    )
+    first1000_snapshot_name = snapshot_name_from_timestamp(
+        "first1000", datetime.now(timezone.utc)
     )
 
     try:
@@ -169,6 +173,19 @@ def publish(
         note="Rolling latest snapshot",
     )
 
+    first1000_id = create_snapshot(
+        dsn=dsn,
+        schema=schema,
+        snapshot_name=first1000_snapshot_name,
+        product_table=product_table,
+        min_tag_count=1,
+        min_samples_per_taxonomy=1,
+        max_products=1000,
+        as_of=None,
+        alias="first1000",
+        note="First 1000 products (ordered by product id) with taxonomy labels",
+    )
+
     conn = db.get_connection(dsn)
     try:
         paper_meta = export_snapshot(
@@ -191,6 +208,16 @@ def publish(
             gzip_jsonl=gzip_jsonl,
             rows_per_shard=rows_per_shard,
         )
+        first1000_meta = export_snapshot(
+            conn,
+            schema=schema,
+            snapshot_ref="first1000",
+            snapshot_id=first1000_id,
+            out_dir=out_root / "first1000",
+            formats=formats,
+            gzip_jsonl=gzip_jsonl,
+            rows_per_shard=rows_per_shard,
+        )
     finally:
         conn.close()
 
@@ -199,6 +226,7 @@ def publish(
         pretty_name=pretty_name,
         paper=paper_meta,
         latest=latest_meta,
+        first1000=first1000_meta,
     )
     out_root.mkdir(parents=True, exist_ok=True)
     (out_root / "README.md").write_text(readme, encoding="utf-8")
@@ -214,7 +242,7 @@ def publish(
             ),
         )
 
-    return PublishResult(paper=paper_meta, latest=latest_meta)
+    return PublishResult(paper=paper_meta, latest=latest_meta, first1000=first1000_meta)
 
 
 def main() -> None:
