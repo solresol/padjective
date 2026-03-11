@@ -28,6 +28,15 @@ CREATE TABLE IF NOT EXISTS padjective.umllr_fold_metrics (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+ALTER TABLE padjective.umllr_fold_metrics
+    ADD COLUMN IF NOT EXISTS exact_accuracy DOUBLE PRECISION,
+    ADD COLUMN IF NOT EXISTS prefix1_accuracy DOUBLE PRECISION,
+    ADD COLUMN IF NOT EXISTS prefix2_accuracy DOUBLE PRECISION,
+    ADD COLUMN IF NOT EXISTS mean_shared_prefix_depth DOUBLE PRECISION,
+    ADD COLUMN IF NOT EXISTS mean_scoring_ops DOUBLE PRECISION,
+    ADD COLUMN IF NOT EXISTS tag_order_strategy TEXT DEFAULT 'battle_elo',
+    ADD COLUMN IF NOT EXISTS tag_order_seed INTEGER;
+
 -- Create umllr_predictions table
 CREATE TABLE IF NOT EXISTS padjective.umllr_predictions (
     cv_fold INTEGER NOT NULL,
@@ -110,6 +119,45 @@ CREATE TABLE IF NOT EXISTS padjective.umllr_tag_products (
 -- Create index for umllr_tag_products
 CREATE INDEX IF NOT EXISTS padjective_umllr_tag_products_fold_tag_idx
     ON padjective.umllr_tag_products (cv_fold, tag);
+
+-- Create umllr_order_ablation_fold_metrics table
+CREATE TABLE IF NOT EXISTS padjective.umllr_order_ablation_fold_metrics (
+    run_key TEXT NOT NULL,
+    tag_order_strategy TEXT NOT NULL,
+    tag_order_seed INTEGER,
+    cv_fold INTEGER NOT NULL,
+    loss DOUBLE PRECISION NOT NULL,
+    prime_base INTEGER NOT NULL,
+    max_digit INTEGER NOT NULL,
+    default_prediction NUMERIC,
+    exact_accuracy DOUBLE PRECISION,
+    prefix1_accuracy DOUBLE PRECISION,
+    prefix2_accuracy DOUBLE PRECISION,
+    mean_shared_prefix_depth DOUBLE PRECISION,
+    mean_scoring_ops DOUBLE PRECISION,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (run_key, cv_fold)
+) TABLESPACE pg_default;
+
+CREATE INDEX IF NOT EXISTS padjective_umllr_ablation_strategy_idx
+    ON padjective.umllr_order_ablation_fold_metrics (tag_order_strategy, tag_order_seed) TABLESPACE pg_default;
+
+-- Create umllr_order_ablation_predictions table
+CREATE TABLE IF NOT EXISTS padjective.umllr_order_ablation_predictions (
+    run_key TEXT NOT NULL,
+    tag_order_strategy TEXT NOT NULL,
+    tag_order_seed INTEGER,
+    cv_fold INTEGER NOT NULL,
+    product_id BIGINT NOT NULL,
+    true_value NUMERIC NOT NULL,
+    predicted_value NUMERIC NOT NULL,
+    loss DOUBLE PRECISION NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (run_key, cv_fold, product_id)
+) TABLESPACE pg_default;
+
+CREATE INDEX IF NOT EXISTS padjective_umllr_ablation_predictions_strategy_idx
+    ON padjective.umllr_order_ablation_predictions (tag_order_strategy, tag_order_seed, cv_fold) TABLESPACE pg_default;
 
 -- Grant all privileges on schema and tables to padjective user
 GRANT USAGE ON SCHEMA padjective TO padjective;

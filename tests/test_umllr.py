@@ -5,6 +5,7 @@ from padjective.umllr import (
     _run_fold,
     _select_coefficient,
     _select_default_prediction,
+    _tag_order,
 )
 
 
@@ -82,3 +83,57 @@ def test_run_fold_returns_coefficients_and_predictions() -> None:
     assert prediction.true_value == 4
     assert prediction.loss == 1.0
     assert fold_result.loss == 1.0
+
+
+def test_tag_order_battle_strategy_excludes_holdout_fold() -> None:
+    training = [
+        ProductRecord(product_id=1, title="ALPHA BETA", tags=["ALPHA", "BETA"], encoded_path=11, cv_fold=0, taxonomy_id="T1", taxonomy_depth=2),
+        ProductRecord(product_id=2, title="BETA GAMMA", tags=["BETA", "GAMMA"], encoded_path=12, cv_fold=0, taxonomy_id="T2", taxonomy_depth=2),
+    ]
+    battles = [
+        BattleRecord(winner_tag="BETA", loser_tag="ALPHA", cv_fold=0),
+        BattleRecord(winner_tag="ALPHA", loser_tag="GAMMA", cv_fold=1),
+    ]
+
+    order = _tag_order(training, battles, 1, strategy="battle_elo")
+
+    assert order[0] == "BETA"
+    assert order.index("GAMMA") < order.index("ALPHA")
+
+
+def test_tag_order_random_strategy_is_seeded() -> None:
+    training = [
+        ProductRecord(product_id=1, title="A B C", tags=["ALPHA", "BETA", "GAMMA"], encoded_path=11, cv_fold=0, taxonomy_id="T1", taxonomy_depth=3),
+    ]
+    battles: list[BattleRecord] = []
+
+    first = _tag_order(training, battles, 0, strategy="random", seed=7)
+    second = _tag_order(training, battles, 0, strategy="random", seed=7)
+    third = _tag_order(training, battles, 0, strategy="random", seed=13)
+
+    assert first == second
+    assert first != third
+
+
+def test_tag_order_mean_title_position_prefers_later_tags() -> None:
+    training = [
+        ProductRecord(product_id=1, title="ALPHA BETA", tags=["ALPHA", "BETA"], encoded_path=11, cv_fold=0, taxonomy_id="T1", taxonomy_depth=2),
+        ProductRecord(product_id=2, title="ALPHA GAMMA", tags=["ALPHA", "GAMMA"], encoded_path=12, cv_fold=0, taxonomy_id="T2", taxonomy_depth=2),
+    ]
+
+    order = _tag_order(training, [], 0, strategy="mean_title_position")
+
+    assert order[0] in {"BETA", "GAMMA"}
+    assert order[-1] == "ALPHA"
+
+
+def test_tag_order_taxonomy_association_prefers_more_peaked_tags() -> None:
+    training = [
+        ProductRecord(product_id=1, title="ALPHA", tags=["ALPHA", "BETA"], encoded_path=11, cv_fold=0, taxonomy_id="T1", taxonomy_depth=2),
+        ProductRecord(product_id=2, title="ALPHA", tags=["ALPHA"], encoded_path=12, cv_fold=0, taxonomy_id="T2", taxonomy_depth=2),
+        ProductRecord(product_id=3, title="BETA", tags=["BETA"], encoded_path=13, cv_fold=0, taxonomy_id="T1", taxonomy_depth=2),
+    ]
+
+    order = _tag_order(training, [], 0, strategy="taxonomy_association")
+
+    assert order[0] == "BETA"
