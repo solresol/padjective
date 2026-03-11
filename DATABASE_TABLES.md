@@ -23,9 +23,11 @@ All tables are created automatically by the Python programs when they run, using
 **Created by:** `padjective/umllr.py`
 
 - `umllr_tag_coefficients` - P-adic coefficients assigned to each tag per fold
-- `umllr_fold_metrics` - Loss, prime base, max digit per fold
+- `umllr_fold_metrics` - Per-fold loss plus exact/prefix accuracy, shared-prefix depth, scoring ops, and tag-order metadata
 - `umllr_predictions` - Individual product predictions with p-adic loss
 - `umllr_taxonomy_encodings` - P-adic encodings of taxonomy paths per fold
+- `umllr_order_ablation_fold_metrics` - Per-fold results for tag-order ablation runs
+- `umllr_order_ablation_predictions` - Product-level predictions for tag-order ablation runs
 
 ### 3. Parameter Constrained Logistic Regression Classifier Tables
 
@@ -56,7 +58,17 @@ All tables are created automatically by the Python programs when they run, using
 
 Unlike PCLR and PCNN, ULR uses ALL available tags with L1 regularization to achieve sparsity. The `num_nonzero_params` column tracks how many parameters remain non-zero after L1 shrinkage.
 
-### 6. Historical Performance Tracking Tables
+### 6. Level-wise Logistic Regression Tables
+
+**SQL Script:** `create_taxonomy_levelwise_fold_tables.sql`
+**Created by:** `padjective/taxonomy_levelwise_classifier.py`
+
+- `taxonomy_levelwise_fold_results` - Per-fold hierarchy-aware metrics, p-adic loss, non-zero parameter counts, and scoring ops
+- `taxonomy_levelwise_predictions` - Individual product predictions from the top-down level-wise baseline
+
+This baseline trains one logistic decision per internal taxonomy node and always emits a valid taxonomy path from the training-fold tree.
+
+### 7. Historical Performance Tracking Tables
 
 **SQL Script:** `create_model_performance_history_table.sql`
 **Created by:** `padjective/snapshot_metrics.py`
@@ -74,6 +86,7 @@ psql -f create_umllr_tables.sql
 psql -f create_taxonomy_pclr_fold_tables.sql
 psql -f create_taxonomy_pcnn_fold_tables.sql
 psql -f create_taxonomy_ulr_fold_tables.sql
+psql -f create_taxonomy_levelwise_fold_tables.sql
 psql -f create_model_performance_history_table.sql
 ```
 
@@ -85,6 +98,7 @@ The following tables are cleaned (old data deleted) before each cronscript run:
 - `taxonomy_pclr_fold_results` - Per-fold cleanup by `taxonomy_classifier.py`
 - `taxonomy_pcnn_fold_results` - Per-fold cleanup by `taxonomy_pcnn_classifier.py`
 - `taxonomy_ulr_fold_results` - Per-fold cleanup by `taxonomy_ulr_classifier.py`
+- `taxonomy_levelwise_*` tables - Per-fold cleanup by `taxonomy_levelwise_classifier.py`
 
 The following table accumulates data over time (no cleanup):
 

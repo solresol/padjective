@@ -61,6 +61,7 @@ class FoldResult:
     num_test_samples: int
     num_nodes: int
     num_classifiers: int
+    num_nonzero_params: int
     exact_accuracy: float
     prefix1_accuracy: float
     prefix2_accuracy: float
@@ -224,6 +225,7 @@ def _ensure_storage(conn, schema: str) -> None:
             "num_test_samples INTEGER NOT NULL",
             "num_nodes INTEGER NOT NULL",
             "num_classifiers INTEGER NOT NULL",
+            "num_nonzero_params INTEGER NOT NULL",
             "exact_accuracy DOUBLE PRECISION NOT NULL",
             "prefix1_accuracy DOUBLE PRECISION NOT NULL",
             "prefix2_accuracy DOUBLE PRECISION NOT NULL",
@@ -245,6 +247,14 @@ def _ensure_storage(conn, schema: str) -> None:
             "PRIMARY KEY (cv_fold, product_id)",
         ),
     )
+    with conn.cursor() as cur:
+        cur.execute(
+            sql.SQL(
+                "ALTER TABLE {schema}.taxonomy_levelwise_fold_results "
+                "ADD COLUMN IF NOT EXISTS num_nonzero_params INTEGER NOT NULL DEFAULT 0"
+            ).format(schema=sql.Identifier(schema))
+        )
+    conn.commit()
 
 
 def _load_training_data(
@@ -324,6 +334,14 @@ def _run_fold(
     ]
 
     num_classifiers = sum(1 for model in models.values() if model.classifier is not None)
+    num_nonzero_params = 0
+    for model in models.values():
+        if model.classifier is None:
+            continue
+        coef = model.classifier.coef_
+        intercept = model.classifier.intercept_
+        num_nonzero_params += int(np.count_nonzero(coef))
+        num_nonzero_params += int(np.count_nonzero(intercept))
 
     return FoldResult(
         cv_fold=fold,
@@ -337,6 +355,7 @@ def _run_fold(
         num_test_samples=int(X_test.shape[0]),
         num_nodes=len(models),
         num_classifiers=num_classifiers,
+        num_nonzero_params=num_nonzero_params,
         exact_accuracy=summary.exact_accuracy,
         prefix1_accuracy=summary.prefix1_accuracy,
         prefix2_accuracy=summary.prefix2_accuracy,
@@ -369,10 +388,10 @@ def _save_results(conn, schema: str, results: Sequence[FoldResult]) -> None:
                     INSERT INTO {schema}.taxonomy_levelwise_fold_results
                     (cv_fold, test_accuracy, test_f1, test_hierarchical_loss,
                      padic_loss_total, padic_loss_mean, prime_base,
-                     num_train_samples, num_test_samples, num_nodes, num_classifiers,
+                     num_train_samples, num_test_samples, num_nodes, num_classifiers, num_nonzero_params,
                      exact_accuracy, prefix1_accuracy, prefix2_accuracy,
                      mean_shared_prefix_depth, mean_scoring_ops)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     """
                 ).format(schema=sql.Identifier(schema)),
                 [
@@ -388,6 +407,7 @@ def _save_results(conn, schema: str, results: Sequence[FoldResult]) -> None:
                         result.num_test_samples,
                         result.num_nodes,
                         result.num_classifiers,
+                        result.num_nonzero_params,
                         result.exact_accuracy,
                         result.prefix1_accuracy,
                         result.prefix2_accuracy,

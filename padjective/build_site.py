@@ -24,6 +24,7 @@ from psycopg.rows import dict_row
 from scipy import stats
 
 from . import data_access, db, display, ranking, tagbattle
+from .metrics import parse_taxonomy_path, summarize_encoded_predictions
 
 PARSIMONY_LOSS_EPSILON = 1e-12
 PARSIMONY_BASELINE_SLOPE = -0.1
@@ -669,6 +670,22 @@ def _table_exists(conn, schema: str, table: str) -> bool:
         return False
 
 
+def _table_columns(conn, schema: str, table: str) -> set[str]:
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT column_name
+                FROM information_schema.columns
+                WHERE table_schema = %s AND table_name = %s
+                """,
+                (schema, table),
+            )
+            return {str(row[0]) for row in cur.fetchall()}
+    except Exception:
+        return set()
+
+
 def _weighted_f1_score(true_labels: Sequence[str], pred_labels: Sequence[str]) -> float | None:
     """Compute weighted F1 score for multiclass predictions."""
 
@@ -1108,15 +1125,36 @@ def _load_umllr_results(conn, schema: str) -> Optional[Dict[str, Any]]:
     if not all(_table_exists(conn, schema, table) for table in required_tables):
         return None
 
+    metric_columns = _table_columns(conn, schema, "umllr_fold_metrics")
+    optional_metric_columns = [
+        column
+        for column in (
+            "exact_accuracy",
+            "prefix1_accuracy",
+            "prefix2_accuracy",
+            "mean_shared_prefix_depth",
+            "mean_scoring_ops",
+            "tag_order_strategy",
+            "tag_order_seed",
+        )
+        if column in metric_columns
+    ]
+    metric_select = ", ".join(
+        ["cv_fold", "loss", "prime_base", "max_digit"] + optional_metric_columns
+    )
+
     with conn.cursor(row_factory=dict_row) as cur:
         cur.execute(
             sql.SQL(
                 """
-                SELECT cv_fold, loss, prime_base, max_digit
+                SELECT {metric_select}
                 FROM {schema}.umllr_fold_metrics
                 ORDER BY cv_fold
                 """
-            ).format(schema=sql.Identifier(schema))
+            ).format(
+                schema=sql.Identifier(schema),
+                metric_select=sql.SQL(metric_select),
+            )
         )
         metrics_rows = cur.fetchall()
 
@@ -1129,6 +1167,14 @@ def _load_umllr_results(conn, schema: str) -> Optional[Dict[str, Any]]:
             "loss": float(row["loss"]),
             "prime_base": int(row["prime_base"]),
             "max_digit": int(row["max_digit"]),
+            **{
+                column: (
+                    float(row[column])
+                    if row.get(column) is not None and column not in {"tag_order_strategy"}
+                    else row.get(column)
+                )
+                for column in optional_metric_columns
+            },
         }
         for row in metrics_rows
     ]
@@ -1181,7 +1227,7 @@ def _load_umllr_results(conn, schema: str) -> Optional[Dict[str, Any]]:
         cur.execute(
             sql.SQL(
                 """
-                SELECT cv_fold, taxonomy_id, encoded_value
+                SELECT cv_fold, taxonomy_id, taxonomy_path, encoded_value
                 FROM {schema}.umllr_taxonomy_encodings
                 ORDER BY cv_fold, taxonomy_id
                 """
@@ -1191,6 +1237,22 @@ def _load_umllr_results(conn, schema: str) -> Optional[Dict[str, Any]]:
             fold = int(row["cv_fold"])
             encoded_value = int(row["encoded_value"])
             taxonomy_lookup_by_fold.setdefault(fold, {})[encoded_value] = row["taxonomy_id"]
+    depth_lookup_by_fold: Dict[int, Dict[int, int]] = {}
+    with conn.cursor(row_factory=dict_row) as cur:
+        cur.execute(
+            sql.SQL(
+                """
+                SELECT cv_fold, taxonomy_path, encoded_value
+                FROM {schema}.umllr_taxonomy_encodings
+                ORDER BY cv_fold, taxonomy_id
+                """
+            ).format(schema=sql.Identifier(schema))
+        )
+        for row in cur:
+            fold = int(row["cv_fold"])
+            depth_lookup_by_fold.setdefault(fold, {})[int(row["encoded_value"])] = len(
+                parse_taxonomy_path(row["taxonomy_path"])
+            )
 
     # Calculate mean loss per fold from predictions and derive accuracy/F1 metrics
     for metric in metrics:
@@ -1217,11 +1279,32 @@ def _load_umllr_results(conn, schema: str) -> Optional[Dict[str, Any]]:
             metric["exact_matches"] = exact_matches
             metric["accuracy"] = exact_matches / total_predictions if total_predictions else None
             metric["loss_breakdown"] = _padic_breakdown_from_pairs(pair_values, metric["prime_base"])
+            if metric.get("exact_accuracy") is None:
+                depth_lookup = depth_lookup_by_fold.get(fold, {})
+                summary = summarize_encoded_predictions(
+                    [true_value for true_value, _ in pair_values],
+                    [predicted_value for _, predicted_value in pair_values],
+                    base=metric["prime_base"],
+                    true_depths=[
+                        depth_lookup.get(int(true_value), 0)
+                        for true_value, _ in pair_values
+                    ],
+                )
+                metric["exact_accuracy"] = summary.exact_accuracy
+                metric["prefix1_accuracy"] = summary.prefix1_accuracy
+                metric["prefix2_accuracy"] = summary.prefix2_accuracy
+                metric["mean_shared_prefix_depth"] = summary.mean_shared_prefix_depth
+                metric["mean_scoring_ops"] = summary.mean_scoring_ops
         else:
             metric["mean_loss"] = 0.0
             metric["exact_matches"] = 0
             metric["accuracy"] = None
             metric["loss_breakdown"] = []
+            metric.setdefault("exact_accuracy", 0.0)
+            metric.setdefault("prefix1_accuracy", 0.0)
+            metric.setdefault("prefix2_accuracy", 0.0)
+            metric.setdefault("mean_shared_prefix_depth", 0.0)
+            metric.setdefault("mean_scoring_ops", None)
 
         lookup = taxonomy_lookup_by_fold.get(fold, {})
         if pair_values and lookup:
@@ -1256,6 +1339,10 @@ def _load_umllr_results(conn, schema: str) -> Optional[Dict[str, Any]]:
 
     accuracies = [m["accuracy"] for m in metrics if m.get("accuracy") is not None]
     f1_scores = [m["f1"] for m in metrics if m.get("f1") is not None]
+    prefix1_scores = [m["prefix1_accuracy"] for m in metrics if m.get("prefix1_accuracy") is not None]
+    prefix2_scores = [m["prefix2_accuracy"] for m in metrics if m.get("prefix2_accuracy") is not None]
+    shared_depths = [m["mean_shared_prefix_depth"] for m in metrics if m.get("mean_shared_prefix_depth") is not None]
+    scoring_ops = [m["mean_scoring_ops"] for m in metrics if m.get("mean_scoring_ops") is not None]
 
     return {
         "metrics": metrics,
@@ -1264,6 +1351,10 @@ def _load_umllr_results(conn, schema: str) -> Optional[Dict[str, Any]]:
         "taxonomy_names": taxonomy_names,
         "average_accuracy": sum(accuracies) / len(accuracies) if accuracies else None,
         "average_f1": sum(f1_scores) / len(f1_scores) if f1_scores else None,
+        "average_prefix1_accuracy": sum(prefix1_scores) / len(prefix1_scores) if prefix1_scores else None,
+        "average_prefix2_accuracy": sum(prefix2_scores) / len(prefix2_scores) if prefix2_scores else None,
+        "average_shared_prefix_depth": sum(shared_depths) / len(shared_depths) if shared_depths else None,
+        "average_scoring_ops": sum(scoring_ops) / len(scoring_ops) if scoring_ops else None,
     }
 
 
@@ -1329,6 +1420,100 @@ def _load_dummy_results(conn, schema: str) -> Optional[Dict[str, Any]]:
         "predictions": predictions,
         "average_accuracy": sum(accuracies) / len(accuracies) if accuracies else None,
         "average_loss": sum(losses) / len(losses) if losses else None,
+    }
+
+
+def _load_umllr_order_ablation_results(conn, schema: str = "padjective") -> Optional[Dict[str, Any]]:
+    required_tables = (
+        "umllr_order_ablation_fold_metrics",
+        "umllr_order_ablation_predictions",
+    )
+    if not all(_table_exists(conn, schema, table) for table in required_tables):
+        return None
+
+    mean_loss_by_run_fold: Dict[tuple[str, int], float] = {}
+    with conn.cursor(row_factory=dict_row) as cur:
+        cur.execute(
+            sql.SQL(
+                """
+                SELECT run_key, cv_fold, AVG(loss) AS mean_loss
+                FROM {schema}.umllr_order_ablation_predictions
+                GROUP BY run_key, cv_fold
+                """
+            ).format(schema=sql.Identifier(schema))
+        )
+        for row in cur:
+            mean_loss_by_run_fold[(str(row["run_key"]), int(row["cv_fold"]))] = float(row["mean_loss"])
+
+    runs: Dict[str, Dict[str, Any]] = {}
+    with conn.cursor(row_factory=dict_row) as cur:
+        cur.execute(
+            sql.SQL(
+                """
+                SELECT run_key, tag_order_strategy, tag_order_seed, cv_fold,
+                       exact_accuracy, prefix1_accuracy, prefix2_accuracy,
+                       mean_shared_prefix_depth, mean_scoring_ops
+                FROM {schema}.umllr_order_ablation_fold_metrics
+                ORDER BY tag_order_strategy, tag_order_seed NULLS FIRST, cv_fold
+                """
+            ).format(schema=sql.Identifier(schema))
+        )
+        for row in cur:
+            run_key = str(row["run_key"])
+            run = runs.setdefault(
+                run_key,
+                {
+                    "run_key": run_key,
+                    "tag_order_strategy": str(row["tag_order_strategy"]),
+                    "tag_order_seed": int(row["tag_order_seed"]) if row["tag_order_seed"] is not None else None,
+                    "folds": [],
+                },
+            )
+            fold = int(row["cv_fold"])
+            run["folds"].append(
+                {
+                    "cv_fold": fold,
+                    "mean_loss": mean_loss_by_run_fold.get((run_key, fold)),
+                    "exact_accuracy": float(row["exact_accuracy"]) if row["exact_accuracy"] is not None else None,
+                    "prefix1_accuracy": float(row["prefix1_accuracy"]) if row["prefix1_accuracy"] is not None else None,
+                    "prefix2_accuracy": float(row["prefix2_accuracy"]) if row["prefix2_accuracy"] is not None else None,
+                    "mean_shared_prefix_depth": float(row["mean_shared_prefix_depth"]) if row["mean_shared_prefix_depth"] is not None else None,
+                    "mean_scoring_ops": float(row["mean_scoring_ops"]) if row["mean_scoring_ops"] is not None else None,
+                }
+            )
+
+    if not runs:
+        return None
+
+    run_rows: list[Dict[str, Any]] = []
+    for run in runs.values():
+        folds = run["folds"]
+        mean_losses = [fold["mean_loss"] for fold in folds if fold["mean_loss"] is not None]
+        prefix2 = [fold["prefix2_accuracy"] for fold in folds if fold["prefix2_accuracy"] is not None]
+        scoring_ops = [fold["mean_scoring_ops"] for fold in folds if fold["mean_scoring_ops"] is not None]
+        run_rows.append(
+            {
+                **run,
+                "mean_loss": sum(mean_losses) / len(mean_losses) if mean_losses else None,
+                "mean_loss_std": float(np.std(mean_losses, ddof=0)) if len(mean_losses) > 1 else 0.0,
+                "mean_prefix2_accuracy": sum(prefix2) / len(prefix2) if prefix2 else None,
+                "mean_scoring_ops": sum(scoring_ops) / len(scoring_ops) if scoring_ops else None,
+            }
+        )
+
+    random_runs = [row for row in run_rows if row["tag_order_strategy"] == "random"]
+    random_summary: Dict[str, float] | None = None
+    if random_runs:
+        random_losses = [row["mean_loss"] for row in random_runs if row["mean_loss"] is not None]
+        if random_losses:
+            random_summary = {
+                "mean_loss": sum(random_losses) / len(random_losses),
+                "loss_std": float(np.std(random_losses, ddof=0)) if len(random_losses) > 1 else 0.0,
+            }
+
+    return {
+        "runs": sorted(run_rows, key=lambda row: (row["tag_order_strategy"], row["tag_order_seed"] is not None, row["tag_order_seed"] or -1)),
+        "random_summary": random_summary,
     }
 
 
@@ -4041,6 +4226,7 @@ def _build_index_markdown(
     taxonomy_fold_results: Optional[list[Dict[str, Any]]],
     taxonomy_pcnn_fold_results: Optional[list[Dict[str, Any]]],
     taxonomy_ulr_fold_results: Optional[list[Dict[str, Any]]],
+    taxonomy_levelwise_fold_results: Optional[list[Dict[str, Any]]],
     taxonomy_unn_fold_results: Optional[list[Dict[str, Any]]],
     trends_chart_path: Optional[Path],
     output_dir: Path,
@@ -4139,6 +4325,23 @@ def _build_index_markdown(
             f"- **Avg p-adic loss:** {avg_loss:.4f}",
             f"- **Avg non-zero params:** {avg_nonzero:,.0f}",
             "- [View model](unconstrained_logistic_regression/index.html)",
+            "",
+        ])
+
+    # Level-wise Logistic Regression
+    if taxonomy_levelwise_fold_results:
+        avg_loss = sum(r["padic_loss_mean"] for r in taxonomy_levelwise_fold_results) / len(taxonomy_levelwise_fold_results)
+        avg_nonzero = sum(r["num_nonzero_params"] for r in taxonomy_levelwise_fold_results) / len(taxonomy_levelwise_fold_results)
+        avg_prefix2 = sum(r["prefix2_accuracy"] for r in taxonomy_levelwise_fold_results) / len(taxonomy_levelwise_fold_results)
+        lines.extend([
+            "### Level-wise Logistic Regression",
+            "",
+            "Hierarchy-aware top-down logistic classifier that always emits a valid taxonomy path",
+            "",
+            f"- **Avg p-adic loss:** {avg_loss:.4f}",
+            f"- **Avg Prefix-2 accuracy:** {avg_prefix2 * 100:.2f}%",
+            f"- **Avg non-zero params:** {avg_nonzero:,.0f}",
+            "- [View model](levelwise_logistic_regression/index.html)",
             "",
         ])
 
@@ -4275,6 +4478,7 @@ def _build_index_html(
     umllr_page: Optional[Path],
     taxonomy_pcnn_page: Optional[Path],
     taxonomy_ulr_page: Optional[Path] = None,
+    taxonomy_levelwise_page: Optional[Path] = None,
     taxonomy_unn_page: Optional[Path] = None,
     taxonomy_dt_page: Optional[Path] = None,
     zubarev_page: Optional[Path] = None,
@@ -4284,6 +4488,7 @@ def _build_index_html(
     taxonomy_fold_results: Optional[list[Dict[str, Any]]] = None,
     taxonomy_pcnn_fold_results: Optional[list[Dict[str, Any]]] = None,
     taxonomy_ulr_fold_results: Optional[list[Dict[str, Any]]] = None,
+    taxonomy_levelwise_fold_results: Optional[list[Dict[str, Any]]] = None,
     taxonomy_unn_fold_results: Optional[list[Dict[str, Any]]] = None,
     taxonomy_dt_fold_results: Optional[list[Dict[str, Any]]] = None,
     zubarev_fold_results: Optional[list[Dict[str, Any]]] = None,
@@ -4470,6 +4675,36 @@ def _build_index_html(
     {taxonomy_ulr_link or '<span class="card-link disabled">No report available</span>'}
   </div>"""
 
+    levelwise_card = ""
+    taxonomy_levelwise_link = ""
+    if taxonomy_levelwise_page:
+        taxonomy_levelwise_link = (
+            f'<a href="{taxonomy_levelwise_page.relative_to(output_dir).as_posix()}" class="card-link">View model →</a>'
+        )
+
+    if taxonomy_levelwise_fold_results:
+        avg_loss = sum(r["padic_loss_mean"] for r in taxonomy_levelwise_fold_results) / len(taxonomy_levelwise_fold_results)
+        avg_nonzero = sum(r["num_nonzero_params"] for r in taxonomy_levelwise_fold_results) / len(taxonomy_levelwise_fold_results)
+        avg_prefix2 = sum(r["prefix2_accuracy"] for r in taxonomy_levelwise_fold_results) / len(taxonomy_levelwise_fold_results)
+        levelwise_card = f"""
+  <div class="model-card">
+    <h3>Level-wise Logistic Regression</h3>
+    <p>Hierarchy-aware top-down classifier that always emits a valid taxonomy path</p>
+    <div class="card-metric">
+      <span class="value">{avg_loss:.4f}</span>
+      <span class="label">Avg p-adic loss</span>
+    </div>
+    <div class="card-metric" style="margin-top: 0.5rem;">
+      <span class="value">{avg_prefix2 * 100:.2f}%</span>
+      <span class="label">Prefix-2 accuracy</span>
+    </div>
+    <div class="card-metric" style="margin-top: 0.5rem;">
+      <span class="value">{avg_nonzero:,.0f}</span>
+      <span class="label">Non-zero params</span>
+    </div>
+    {taxonomy_levelwise_link or '<span class="card-link disabled">No report available</span>'}
+  </div>"""
+
     unn_card = ""
     taxonomy_unn_link = ""
     if taxonomy_unn_page:
@@ -4630,6 +4865,8 @@ def _build_index_html(
         all_cards.append(dummy_card)
     if umllr_card:
         all_cards.append(umllr_card)
+    if levelwise_card:
+        all_cards.append(levelwise_card)
     if zubarev_umllr_card:
         all_cards.append(zubarev_umllr_card)
     if zubarev_zeros_card:
@@ -4878,6 +5115,7 @@ def _build_index_html(
         taxonomy_fold_results=taxonomy_fold_results,
         taxonomy_pcnn_fold_results=taxonomy_pcnn_fold_results,
         taxonomy_ulr_fold_results=taxonomy_ulr_fold_results,
+        taxonomy_levelwise_fold_results=taxonomy_levelwise_fold_results,
         taxonomy_unn_fold_results=taxonomy_unn_fold_results,
         trends_chart_path=trends_chart_path,
         output_dir=output_dir,
@@ -5286,6 +5524,9 @@ def _write_umllr_overview_page(
     page_lookup = umllr_summary.get("pages", {})
     avg_accuracy_value = umllr_summary.get("average_accuracy")
     avg_f1_value = umllr_summary.get("average_f1")
+    avg_prefix2_value = umllr_summary.get("average_prefix2_accuracy")
+    avg_scoring_ops_value = umllr_summary.get("average_scoring_ops")
+    ablation_summary = umllr_summary.get("order_ablations")
 
     if metrics:
         # Use mean_loss (per-prediction average) not total loss
@@ -5299,6 +5540,8 @@ def _write_umllr_overview_page(
 
     avg_accuracy_text = f"{avg_accuracy_value * 100:.2f}%" if avg_accuracy_value is not None else "—"
     avg_f1_text = f"{avg_f1_value:.4f}" if avg_f1_value is not None else "—"
+    avg_prefix2_text = f"{avg_prefix2_value * 100:.2f}%" if avg_prefix2_value is not None else "—"
+    avg_scoring_ops_text = f"{avg_scoring_ops_value:.2f}" if avg_scoring_ops_value is not None else "—"
 
     fold_rows = []
     for metric in metrics:
@@ -5362,8 +5605,16 @@ def _write_umllr_overview_page(
         <span class="label">Mean F1</span>
       </div>
       <div class="metric">
+        <span class="value">{avg_prefix2_text}</span>
+        <span class="label">Mean Prefix-2 Accuracy</span>
+      </div>
+      <div class="metric">
         <span class="value">{prime_base}</span>
         <span class="label">Prime base</span>
+      </div>
+      <div class="metric">
+        <span class="value">{avg_scoring_ops_text}</span>
+        <span class="label">Mean scoring ops</span>
       </div>
     </div>
 
@@ -5376,6 +5627,40 @@ def _write_umllr_overview_page(
         {table_body}
       </tbody>
     </table>
+"""
+
+    if ablation_summary and ablation_summary.get("runs"):
+        ablation_rows = "\n".join(
+            f"<tr><td>{html.escape(run['tag_order_strategy'])}</td>"
+            f"<td>{'—' if run['tag_order_seed'] is None else run['tag_order_seed']}</td>"
+            f"<td>{run['mean_loss']:.8f}</td>"
+            f"<td>{(run['mean_prefix2_accuracy'] or 0.0) * 100:.2f}%</td>"
+            f"<td>{(run['mean_scoring_ops'] or 0.0):.2f}</td></tr>"
+            for run in ablation_summary["runs"]
+            if run.get("mean_loss") is not None
+        )
+        random_note = ""
+        if ablation_summary.get("random_summary"):
+            random_summary = ablation_summary["random_summary"]
+            random_note = (
+                f"<p>Random order baseline across five fixed seeds: "
+                f"{random_summary['mean_loss']:.8f} ± {random_summary['loss_std']:.8f} mean p-adic loss.</p>"
+            )
+        page_html += f"""
+    <h2>Tag-order ablations</h2>
+    <p>These runs keep the greedy p-adic regressor fixed and vary only the feature ordering heuristic.</p>
+    {random_note}
+    <table class="umllr-summary">
+      <thead>
+        <tr><th>Strategy</th><th>Seed</th><th>Mean p-adic loss</th><th>Mean Prefix-2 Accuracy</th><th>Mean scoring ops</th></tr>
+      </thead>
+      <tbody>
+        {ablation_rows}
+      </tbody>
+    </table>
+"""
+
+    page_html += """
   </section>
 
   <footer>
@@ -6006,6 +6291,93 @@ def _write_taxonomy_ulr_overview_page(
     return page_path
 
 
+def _write_taxonomy_levelwise_overview_page(
+    output_dir: Path,
+    fold_results: list[Dict[str, Any]],
+) -> Path:
+    """Write a main overview page for level-wise logistic regression results."""
+    levelwise_dir = output_dir / "levelwise_logistic_regression"
+    levelwise_dir.mkdir(parents=True, exist_ok=True)
+
+    if not fold_results:
+        raise ValueError("fold_results is required for level-wise classifier page")
+
+    num_folds = len(fold_results)
+    avg_accuracy = sum(row["test_accuracy"] for row in fold_results) / num_folds
+    avg_f1 = sum(row["test_f1"] for row in fold_results) / num_folds
+    avg_padic_loss = sum(row["padic_loss_mean"] for row in fold_results) / num_folds
+    avg_prefix2 = sum(row["prefix2_accuracy"] for row in fold_results) / num_folds
+    avg_scoring_ops = sum(row["mean_scoring_ops"] for row in fold_results) / num_folds
+    avg_nonzero_params = sum(row["num_nonzero_params"] for row in fold_results) / num_folds
+    total_train = sum(row["num_train_samples"] for row in fold_results)
+    total_test = sum(row["num_test_samples"] for row in fold_results)
+
+    fold_rows = "\n".join(
+        f"<tr><td>{row['cv_fold']}</td>"
+        f"<td>{row['test_accuracy'] * 100:.2f}%</td>"
+        f"<td>{row['test_f1']:.4f}</td>"
+        f"<td>{row['padic_loss_mean']:.8f}</td>"
+        f"<td>{row['prefix2_accuracy'] * 100:.2f}%</td>"
+        f"<td>{row['mean_scoring_ops']:.2f}</td></tr>"
+        for row in fold_results
+    )
+
+    page_html = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Level-wise Logistic Regression</title>
+  <link rel="stylesheet" href="../assets/styles.css" />
+</head>
+<body>
+  <header class="hero">
+    <h1>Level-wise Logistic Regression</h1>
+    <p class="tagline">Hierarchy-aware top-down classifier that always emits a valid taxonomy path</p>
+  </header>
+
+  <section>
+    <p><a href="../index.html">← Back to index</a></p>
+
+    <h2>Model overview</h2>
+    <p>This baseline trains one logistic decision at each internal taxonomy node and traverses the training-fold taxonomy tree top-down at inference time. It is hierarchy-aware by construction and always returns a valid taxonomy leaf from the training tree.</p>
+
+    <div class="metrics">
+      <div class="metric"><span class="value">{num_folds}</span><span class="label">CV folds</span></div>
+      <div class="metric"><span class="value">{avg_accuracy * 100:.2f}%</span><span class="label">Mean accuracy</span></div>
+      <div class="metric"><span class="value">{avg_f1:.4f}</span><span class="label">Mean F1</span></div>
+      <div class="metric"><span class="value">{avg_padic_loss:.8f}</span><span class="label">Mean p-adic loss</span></div>
+      <div class="metric"><span class="value">{avg_prefix2 * 100:.2f}%</span><span class="label">Prefix-2 accuracy</span></div>
+      <div class="metric"><span class="value">{avg_scoring_ops:.2f}</span><span class="label">Mean scoring ops</span></div>
+    </div>
+
+    <ul class="taxonomy-stats">
+      <li><strong>Total train samples:</strong> {total_train:,}</li>
+      <li><strong>Total test samples:</strong> {total_test:,}</li>
+      <li><strong>Avg non-zero params:</strong> {avg_nonzero_params:,.0f}</li>
+    </ul>
+
+    <h2>Cross-validation results</h2>
+    <table class="umllr-summary">
+      <thead>
+        <tr><th>Fold</th><th>Accuracy</th><th>F1</th><th>P-adic loss (mean)</th><th>Prefix-2 accuracy</th><th>Mean scoring ops</th></tr>
+      </thead>
+      <tbody>
+        {fold_rows}
+      </tbody>
+    </table>
+  </section>
+
+  <footer>
+    <p><a href="../index.html">← Back to index</a></p>
+  </footer>
+</body>
+</html>"""
+
+    page_path = levelwise_dir / "index.html"
+    page_path.write_text(page_html, encoding="utf-8")
+    return page_path
+
+
 def _write_taxonomy_unn_overview_page(
     output_dir: Path,
     fold_results: list[Dict[str, Any]],
@@ -6544,6 +6916,81 @@ def _load_taxonomy_ulr_fold_results(conn, schema: str = "padjective") -> Optiona
         entry["total_predictions"] = len(value_pairs)
 
     return results
+
+
+def _load_taxonomy_levelwise_fold_results(conn, schema: str = "padjective") -> Optional[list[Dict[str, Any]]]:
+    """Load hierarchy-aware level-wise logistic fold-based results."""
+    if not _table_exists(conn, schema, "taxonomy_levelwise_fold_results"):
+        return None
+
+    metric_columns = _table_columns(conn, schema, "taxonomy_levelwise_fold_results")
+    optional_metric_columns = [
+        column
+        for column in (
+            "num_nonzero_params",
+            "exact_accuracy",
+            "prefix1_accuracy",
+            "prefix2_accuracy",
+            "mean_shared_prefix_depth",
+            "mean_scoring_ops",
+        )
+        if column in metric_columns
+    ]
+    metric_select = ", ".join(
+        [
+            "cv_fold",
+            "test_accuracy",
+            "test_f1",
+            "test_hierarchical_loss",
+            "padic_loss_total",
+            "padic_loss_mean",
+            "prime_base",
+            "num_train_samples",
+            "num_test_samples",
+            "num_nodes",
+            "num_classifiers",
+        ]
+        + optional_metric_columns
+    )
+
+    with conn.cursor(row_factory=dict_row) as cur:
+        cur.execute(
+            sql.SQL(
+                """
+                SELECT {metric_select}
+                FROM {schema}.taxonomy_levelwise_fold_results
+                ORDER BY cv_fold
+                """
+            ).format(
+                schema=sql.Identifier(schema),
+                metric_select=sql.SQL(metric_select),
+            )
+        )
+        results = []
+        for row in cur:
+            results.append(
+                {
+                    "cv_fold": int(row["cv_fold"]),
+                    "test_accuracy": float(row["test_accuracy"]),
+                    "test_f1": float(row["test_f1"]),
+                    "test_hierarchical_loss": float(row["test_hierarchical_loss"]),
+                    "padic_loss_total": float(row["padic_loss_total"]),
+                    "padic_loss_mean": float(row["padic_loss_mean"]),
+                    "prime_base": int(row["prime_base"]),
+                    "num_train_samples": int(row["num_train_samples"]),
+                    "num_test_samples": int(row["num_test_samples"]),
+                    "num_nodes": int(row["num_nodes"]),
+                    "num_classifiers": int(row["num_classifiers"]),
+                    "num_nonzero_params": int(row["num_nonzero_params"]) if row.get("num_nonzero_params") is not None else 0,
+                    "exact_accuracy": float(row["exact_accuracy"]) if row.get("exact_accuracy") is not None else 0.0,
+                    "prefix1_accuracy": float(row["prefix1_accuracy"]) if row.get("prefix1_accuracy") is not None else 0.0,
+                    "prefix2_accuracy": float(row["prefix2_accuracy"]) if row.get("prefix2_accuracy") is not None else 0.0,
+                    "mean_shared_prefix_depth": float(row["mean_shared_prefix_depth"]) if row.get("mean_shared_prefix_depth") is not None else 0.0,
+                    "mean_scoring_ops": float(row["mean_scoring_ops"]) if row.get("mean_scoring_ops") is not None else 0.0,
+                }
+            )
+
+    return results or None
 
 
 def _load_taxonomy_unn_fold_results(conn, schema: str = "padjective") -> Optional[list[Dict[str, Any]]]:
@@ -8260,6 +8707,7 @@ def _generate_params_vs_loss_chart(
     taxonomy_pclr_fold_results: Optional[list[Dict[str, Any]]] = None,
     taxonomy_pcnn_fold_results: Optional[list[Dict[str, Any]]] = None,
     taxonomy_ulr_fold_results: Optional[list[Dict[str, Any]]] = None,
+    taxonomy_levelwise_fold_results: Optional[list[Dict[str, Any]]] = None,
     taxonomy_unn_fold_results: Optional[list[Dict[str, Any]]] = None,
     taxonomy_dt_fold_results: Optional[list[Dict[str, Any]]] = None,
     zubarev_fold_results: Optional[list[Dict[str, Any]]] = None,
@@ -8290,6 +8738,12 @@ def _generate_params_vs_loss_chart(
         avg_params = sum(r["num_nonzero_params"] for r in taxonomy_ulr_fold_results) / len(taxonomy_ulr_fold_results)
         avg_loss = sum(r["padic_loss_mean"] for r in taxonomy_ulr_fold_results) / len(taxonomy_ulr_fold_results)
         data_points.append((avg_params, avg_loss, "ULR", "#8b5cf6", "D"))
+
+    if taxonomy_levelwise_fold_results:
+        avg_params = sum(r["num_nonzero_params"] for r in taxonomy_levelwise_fold_results) / len(taxonomy_levelwise_fold_results)
+        avg_loss = sum(r["padic_loss_mean"] for r in taxonomy_levelwise_fold_results) / len(taxonomy_levelwise_fold_results)
+        if avg_params > 0:
+            data_points.append((avg_params, avg_loss, "Level-wise Logistic", "#ef4444", "*"))
 
     # UNN - get average non-zero params and loss
     if taxonomy_unn_fold_results:
@@ -8762,6 +9216,10 @@ footer {text-align: center; padding: 2rem 1.5rem 3rem; color: #6b7280;}
     umllr_page = None
     if umllr_summary:
         umllr_summary["tag_rankings"] = tag_rank_lookup
+        umllr_summary["order_ablations"] = _load_umllr_order_ablation_results(
+            precomputed_database,
+            battle_schema,
+        )
         fold_pages = _write_umllr_pages(output_dir, umllr_summary, conn=precomputed_database, schema=battle_schema)
         # Add pages to summary before creating overview page so links work
         umllr_summary["pages"] = {
@@ -8801,6 +9259,16 @@ footer {text-align: center; padding: 2rem 1.5rem 3rem; color: #6b7280;}
             taxonomy_ulr_fold_results,
         )
         taxonomy_ulr_page = _write_taxonomy_ulr_overview_page(output_dir, taxonomy_ulr_fold_results, taxonomy_ulr_fold_pages)
+
+    taxonomy_levelwise_fold_results = _load_taxonomy_levelwise_fold_results(
+        precomputed_database, schema=battle_schema
+    )
+    taxonomy_levelwise_page = None
+    if taxonomy_levelwise_fold_results:
+        taxonomy_levelwise_page = _write_taxonomy_levelwise_overview_page(
+            output_dir,
+            taxonomy_levelwise_fold_results,
+        )
 
     taxonomy_unn_fold_results = _load_taxonomy_unn_fold_results(
         precomputed_database, schema=battle_schema
@@ -8953,6 +9421,7 @@ footer {text-align: center; padding: 2rem 1.5rem 3rem; color: #6b7280;}
         taxonomy_pclr_fold_results=taxonomy_pclr_fold_results,
         taxonomy_pcnn_fold_results=taxonomy_pcnn_fold_results,
         taxonomy_ulr_fold_results=taxonomy_ulr_fold_results,
+        taxonomy_levelwise_fold_results=taxonomy_levelwise_fold_results,
         taxonomy_unn_fold_results=taxonomy_unn_fold_results,
         taxonomy_dt_fold_results=taxonomy_dt_fold_results,
         zubarev_fold_results=zubarev_fold_results,
@@ -8998,6 +9467,7 @@ footer {text-align: center; padding: 2rem 1.5rem 3rem; color: #6b7280;}
         umllr_page,
         taxonomy_pcnn_page,
         taxonomy_ulr_page,
+        taxonomy_levelwise_page,
         taxonomy_unn_page,
         taxonomy_dt_page,
         zubarev_page,
@@ -9007,6 +9477,7 @@ footer {text-align: center; padding: 2rem 1.5rem 3rem; color: #6b7280;}
         taxonomy_pclr_fold_results,
         taxonomy_pcnn_fold_results,
         taxonomy_ulr_fold_results,
+        taxonomy_levelwise_fold_results,
         taxonomy_unn_fold_results,
         taxonomy_dt_fold_results,
         zubarev_fold_results,
@@ -9049,6 +9520,14 @@ footer {text-align: center; padding: 2rem 1.5rem 3rem; color: #6b7280;}
         "artifacts": {label: str(path.relative_to(output_dir)) for label, path in artifact_links.items()},
         "taxonomy_classifier": taxonomy_summary,
         "umllr": umllr_summary,
+        "taxonomy_levelwise": {
+            "overview_page": (
+                taxonomy_levelwise_page.relative_to(output_dir).as_posix()
+                if taxonomy_levelwise_page is not None
+                else None
+            ),
+            "fold_results": taxonomy_levelwise_fold_results,
+        },
     }
     (output_dir / "metadata.json").write_text(
         json.dumps(metadata, indent=2) + "\n",

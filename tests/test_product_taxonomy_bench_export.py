@@ -47,3 +47,4 @@ def test_render_hf_dataset_card_includes_snapshots() -> None:
     assert "Product Taxonomy Bench (Anonymized)" in card
     assert "notebooks/product_taxonomy_bench.ipynb" in card
     assert "Open in Colab" in card
+    assert "defaults to the fixed `paper` snapshot" in card

@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS padjective.taxonomy_levelwise_fold_results (
     num_test_samples INTEGER NOT NULL,
     num_nodes INTEGER NOT NULL,
     num_classifiers INTEGER NOT NULL,
+    num_nonzero_params INTEGER NOT NULL,
     exact_accuracy DOUBLE PRECISION NOT NULL,
     prefix1_accuracy DOUBLE PRECISION NOT NULL,
     prefix2_accuracy DOUBLE PRECISION NOT NULL,
@@ -34,6 +35,9 @@ CREATE TABLE IF NOT EXISTS padjective.taxonomy_levelwise_predictions (
 
 CREATE INDEX IF NOT EXISTS taxonomy_levelwise_predictions_fold_idx
     ON padjective.taxonomy_levelwise_predictions(cv_fold) TABLESPACE pg_default;
+
+ALTER TABLE padjective.taxonomy_levelwise_fold_results
+    ADD COLUMN IF NOT EXISTS num_nonzero_params INTEGER NOT NULL DEFAULT 0;
 
 GRANT USAGE ON SCHEMA padjective TO padjective;
 GRANT ALL PRIVILEGES ON padjective.taxonomy_levelwise_fold_results TO padjective;
