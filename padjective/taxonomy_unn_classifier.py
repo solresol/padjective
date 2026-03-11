@@ -126,6 +126,8 @@ def load_training_data(
     product_table: str = "cantbuymelove.product",
     min_tag_count: int = 5,
     min_samples_per_taxonomy: int = 5,
+    snapshot_ref: str | None = None,
+    snapshot_schema: str = "padjective",
 ) -> tuple[sparse.csr_matrix, np.ndarray, list[str], pd.DataFrame, data_access.ProductDataset]:
     """Load product tags and taxonomy labels for training (ALL tags)."""
     dataset = data_access.build_feature_dataset(
@@ -134,6 +136,8 @@ def load_training_data(
         require_taxonomy=True,
         min_tag_count=min_tag_count,
         min_samples_per_taxonomy=min_samples_per_taxonomy,
+        snapshot_ref=snapshot_ref,
+        snapshot_schema=snapshot_schema,
     )
 
     metadata = dataset.metadata.copy()
@@ -396,6 +400,15 @@ def main() -> None:
         help="Qualified product table name",
     )
     parser.add_argument(
+        "--snapshot-ref",
+        help="Optional benchmark snapshot alias/name/UUID to use instead of the live catalog.",
+    )
+    parser.add_argument(
+        "--snapshot-schema",
+        default="padjective",
+        help="Schema containing product_taxonomy_bench snapshot tables.",
+    )
+    parser.add_argument(
         "--results-schema",
         default="padjective",
         help="Schema where classifier results are stored",
@@ -455,6 +468,8 @@ def main() -> None:
         product_table=args.product_table,
         min_tag_count=args.min_tag_count,
         min_samples_per_taxonomy=args.min_samples_per_taxonomy,
+        snapshot_ref=args.snapshot_ref,
+        snapshot_schema=args.snapshot_schema,
     )
     print(f"Loaded {len(labels)} products with {len(feature_names)} tags (using ALL tags)")
 
@@ -465,13 +480,11 @@ def main() -> None:
     taxonomy_paths = build_taxonomy_path_map(metadata)
     ensure_taxonomy_paths_cover_labels(labels, taxonomy_paths)
 
-    # Get fold assignments from umllr
-    with conn.cursor() as cur:
-        cur.execute("SELECT product_id, cv_fold FROM padjective.umllr_predictions")
-        fold_assignments = {row[0]: row[1] for row in cur.fetchall()}
+    if metadata["cv_fold"].isna().all():
+        raise ValueError("No cv_fold data found. Run umllr first to generate fold assignments.")
 
     # Split by fold
-    test_mask = metadata["product_id"].apply(lambda pid: fold_assignments.get(pid) == args.fold)
+    test_mask = metadata["cv_fold"] == args.fold
     train_mask = ~test_mask
 
     train_features = features[train_mask.values]

@@ -263,6 +263,8 @@ def _load_training_data(
     product_table: str,
     min_tag_count: int,
     min_samples_per_taxonomy: int,
+    snapshot_ref: str | None = None,
+    snapshot_schema: str = "padjective",
 ) -> tuple[sparse.csr_matrix, np.ndarray, pd.DataFrame]:
     dataset = data_access.build_feature_dataset(
         conn,
@@ -270,6 +272,8 @@ def _load_training_data(
         require_taxonomy=True,
         min_tag_count=min_tag_count,
         min_samples_per_taxonomy=min_samples_per_taxonomy,
+        snapshot_ref=snapshot_ref,
+        snapshot_schema=snapshot_schema,
     )
     metadata = dataset.metadata.copy()
     if metadata.empty:
@@ -443,6 +447,8 @@ def process_database(
     min_tag_count: int,
     min_samples_per_taxonomy: int,
     max_iter: int,
+    snapshot_ref: str | None = None,
+    snapshot_schema: str = "padjective",
 ) -> None:
     conn = db.get_connection(dsn)
     try:
@@ -452,11 +458,14 @@ def process_database(
             product_table=product_table,
             min_tag_count=min_tag_count,
             min_samples_per_taxonomy=min_samples_per_taxonomy,
+            snapshot_ref=snapshot_ref,
+            snapshot_schema=snapshot_schema,
         )
 
-        fold_assignments = calculate_cv_folds(conn, product_table, n_splits=cv_splits)
         metadata = metadata.copy()
-        metadata["cv_fold"] = metadata["product_id"].map(fold_assignments)
+        if snapshot_ref is None:
+            fold_assignments = calculate_cv_folds(conn, product_table, n_splits=cv_splits)
+            metadata["cv_fold"] = metadata["product_id"].map(fold_assignments)
         valid_mask = metadata["cv_fold"].notna().to_numpy()
         features = features[valid_mask]
         metadata = metadata[valid_mask].reset_index(drop=True)
@@ -499,6 +508,15 @@ def main() -> None:
         help="Minimum products per taxonomy",
     )
     parser.add_argument("--max-iter", type=int, default=1000, help="Maximum solver iterations")
+    parser.add_argument(
+        "--snapshot-ref",
+        help="Optional benchmark snapshot alias/name/UUID to use instead of the live catalog.",
+    )
+    parser.add_argument(
+        "--snapshot-schema",
+        default="padjective",
+        help="Schema containing product_taxonomy_bench snapshot tables.",
+    )
     args = parser.parse_args()
 
     process_database(
@@ -509,6 +527,8 @@ def main() -> None:
         min_tag_count=args.min_tag_count,
         min_samples_per_taxonomy=args.min_samples_per_taxonomy,
         max_iter=args.max_iter,
+        snapshot_ref=args.snapshot_ref,
+        snapshot_schema=args.snapshot_schema,
     )
 
 

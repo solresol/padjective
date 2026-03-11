@@ -9054,6 +9054,8 @@ def build_site(
     product_table: str = "cantbuymelove.product",
     min_tag_count: int = 2,
     min_samples_per_taxonomy: int = 5,
+    snapshot_ref: str | None = None,
+    snapshot_schema: str = "padjective",
 ) -> Dict[str, Any]:
     _ensure_clean_directory(output_dir)
 
@@ -9072,6 +9074,8 @@ def build_site(
         require_taxonomy=True,
         min_tag_count=min_tag_count,
         min_samples_per_taxonomy=min_samples_per_taxonomy,
+        snapshot_ref=snapshot_ref,
+        snapshot_schema=snapshot_schema,
     )
     dataset_stats = {
         "products": dataset.product_count,
@@ -9562,6 +9566,15 @@ def main() -> None:
         help="Qualified product table to read training data from.",
     )
     parser.add_argument(
+        "--snapshot-ref",
+        help="Optional benchmark snapshot alias/name/UUID to use instead of the live catalog.",
+    )
+    parser.add_argument(
+        "--snapshot-schema",
+        default="padjective",
+        help="Schema containing product_taxonomy_bench snapshot tables.",
+    )
+    parser.add_argument(
         "--min-tag-count",
         type=int,
         default=2,
@@ -9584,6 +9597,8 @@ def main() -> None:
             product_table=args.product_table,
             min_tag_count=args.min_tag_count,
             min_samples_per_taxonomy=args.min_samples_per_taxonomy,
+            snapshot_ref=args.snapshot_ref,
+            snapshot_schema=args.snapshot_schema,
         )
     finally:
         conn.close()

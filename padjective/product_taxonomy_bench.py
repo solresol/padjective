@@ -19,7 +19,6 @@ Dataset design (per user request):
 from __future__ import annotations
 
 import argparse
-import hashlib
 import re
 import subprocess
 import sys
@@ -28,7 +27,6 @@ from collections import Counter
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Dict, Iterable, Iterator, List, Mapping, Optional, Sequence, Tuple
-from urllib.parse import urlsplit, urlunsplit
 
 from psycopg import sql
 from psycopg.rows import dict_row
@@ -41,9 +39,11 @@ if __package__ in {None, ""}:
         sys.path.append(str(project_root))
     from padjective import data_access, db, tagbattle
     from padjective.cv import calculate_cv_folds
+    from padjective.product_hash import canonicalize_product_url, hash_product_url
 else:  # pragma: no cover - imported as a package
     from . import data_access, db, tagbattle
     from .cv import calculate_cv_folds
+    from .product_hash import canonicalize_product_url, hash_product_url
 
 
 DEFAULT_SCHEMA = "padjective"
@@ -82,48 +82,6 @@ def build_tag_id_map(
 
     ordered = sorted(set(tags))
     return {tag: f"{prefix}{idx + 1:0{width}d}" for idx, tag in enumerate(ordered)}
-
-
-def canonicalize_product_url(
-    product_url: Optional[str],
-    *,
-    myshopify_domain: Optional[str] = None,
-    product_handle: Optional[str] = None,
-) -> Optional[str]:
-    """Return a canonical URL suitable for stable hashing.
-
-    Prefers the stored ``product_url``; falls back to
-    ``https://{myshopify_domain}/products/{product_handle}`` when needed.
-
-    The canonicalisation normalises scheme/host casing and strips query strings,
-    fragments, and trailing slashes.
-    """
-
-    url = (product_url or "").strip()
-    if not url:
-        domain = (myshopify_domain or "").strip()
-        handle = (product_handle or "").strip().lstrip("/")
-        if not domain or not handle:
-            return None
-        url = f"https://{domain}/products/{handle}"
-
-    url = url.strip()
-    if "://" not in url:
-        url = "https://" + url.lstrip("/")
-
-    parts = urlsplit(url)
-    scheme = (parts.scheme or "https").lower()
-    netloc = parts.netloc.lower()
-    path = parts.path or "/"
-    if path != "/":
-        path = path.rstrip("/")
-    return urlunsplit((scheme, netloc, path, "", ""))
-
-
-def hash_product_url(url: str) -> str:
-    """Return a SHA-256 hex digest for ``url``."""
-
-    return hashlib.sha256(url.encode("utf-8")).hexdigest()
 
 
 def title_parts(title: str) -> List[str]:

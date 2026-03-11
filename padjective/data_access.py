@@ -13,6 +13,7 @@ from __future__ import annotations
 import re
 from collections import Counter
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Dict, Iterator, List, Optional, Tuple
 
 import pandas as pd
@@ -21,6 +22,7 @@ from psycopg.rows import dict_row
 from scipy import sparse
 
 from . import db
+from .product_hash import canonicalize_product_url, hash_product_url
 
 # Regex pattern to match taxonomy hierarchical separators
 _TAXONOMY_SEPARATOR_RE = re.compile(r"[>/|]")
@@ -58,6 +60,29 @@ class ProductRecord:
     taxonomy_path: Optional[str]
     taxonomy_name: Optional[str]
     cv_fold: Optional[int]
+
+
+@dataclass(frozen=True)
+class SnapshotProductMembership:
+    """Canonical benchmark-snapshot membership metadata."""
+
+    product_id_hash: str
+    taxonomy_id: str
+    taxonomy_path: str
+    taxonomy_name: str
+    cv_fold: Optional[int]
+
+
+@dataclass(frozen=True)
+class SourceSnapshotRow:
+    """Source row used to recover raw tags/titles for a benchmark snapshot."""
+
+    product_id: int
+    title: str
+    raw_tags: Optional[str]
+    product_url: Optional[str]
+    myshopify_domain: Optional[str]
+    product_handle: Optional[str]
 
 
 @dataclass(frozen=True)
@@ -112,12 +137,25 @@ def parse_tags(tag_string: Optional[str]) -> List[str]:
     return tags
 
 
-def stream_products(
+def _table_has_column(conn, *, schema: str, table: str, column: str) -> bool:
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT 1
+            FROM information_schema.columns
+            WHERE table_schema = %s AND table_name = %s AND column_name = %s
+            """,
+            (schema, table, column),
+        )
+        return cur.fetchone() is not None
+
+
+def _stream_live_products(
     conn,
     *,
-    product_table: str = "cantbuymelove.product",
+    product_table: str,
 ) -> Iterator[ProductRecord]:
-    """Yield normalised product rows from Postgres."""
+    """Yield product rows directly from the live Shopify catalog tables."""
 
     product_identifier = db.qualified_identifier(product_table)
 
@@ -179,6 +217,204 @@ def stream_products(
             )
 
 
+def _resolve_snapshot_id(conn, *, schema: str, snapshot_ref: str) -> Tuple[str, datetime | None]:
+    """Resolve a benchmark snapshot alias/name/UUID to ``(snapshot_id, as_of)``."""
+
+    snapshot_ref = snapshot_ref.strip()
+    if not snapshot_ref:
+        raise ValueError("snapshot_ref must not be empty")
+
+    with conn.cursor(row_factory=dict_row) as cur:
+        cur.execute(
+            sql.SQL(
+                """
+                SELECT s.snapshot_id::text AS snapshot_id, s.as_of
+                FROM {schema}.product_taxonomy_bench_snapshots s
+                LEFT JOIN {schema}.product_taxonomy_bench_snapshot_aliases a
+                    ON a.snapshot_id = s.snapshot_id
+                WHERE a.alias = %s OR s.snapshot_name = %s OR s.snapshot_id::text = %s
+                ORDER BY
+                    CASE
+                        WHEN a.alias = %s THEN 0
+                        WHEN s.snapshot_name = %s THEN 1
+                        ELSE 2
+                    END,
+                    s.created_at DESC
+                LIMIT 1
+                """
+            ).format(schema=sql.Identifier(schema)),
+            (snapshot_ref, snapshot_ref, snapshot_ref, snapshot_ref, snapshot_ref),
+        )
+        row = cur.fetchone()
+        if row is None:
+            raise ValueError(f"Unknown snapshot reference: {snapshot_ref!r}")
+        return str(row["snapshot_id"]), row["as_of"]
+
+
+def _load_snapshot_membership(
+    conn,
+    *,
+    schema: str,
+    snapshot_ref: str,
+) -> tuple[datetime | None, list[SnapshotProductMembership]]:
+    snapshot_id, as_of = _resolve_snapshot_id(conn, schema=schema, snapshot_ref=snapshot_ref)
+
+    with conn.cursor(row_factory=dict_row) as cur:
+        cur.execute(
+            sql.SQL(
+                """
+                SELECT product_id_hash, taxonomy_id, taxonomy_path, taxonomy_name, cv_fold
+                FROM {schema}.product_taxonomy_bench_products
+                WHERE snapshot_id = %s
+                ORDER BY product_id_hash
+                """
+            ).format(schema=sql.Identifier(schema)),
+            (snapshot_id,),
+        )
+        rows = [
+            SnapshotProductMembership(
+                product_id_hash=str(row["product_id_hash"]),
+                taxonomy_id=str(row["taxonomy_id"]),
+                taxonomy_path=str(row["taxonomy_path"]),
+                taxonomy_name=str(row["taxonomy_name"]),
+                cv_fold=int(row["cv_fold"]) if row["cv_fold"] is not None else None,
+            )
+            for row in cur.fetchall()
+        ]
+
+    return as_of, rows
+
+
+def _stream_snapshot_source_rows(
+    conn,
+    *,
+    product_table: str,
+    as_of: datetime | None,
+) -> Iterator[SourceSnapshotRow]:
+    product_identifier = db.qualified_identifier(product_table)
+    conditions: list[sql.SQL] = [sql.SQL("p.product_title IS NOT NULL")]
+    params: list[object] = []
+
+    if as_of is not None and _table_has_column(
+        conn, schema="public", table="product_details", column="when_fetched"
+    ):
+        conditions.append(sql.SQL("pd.when_fetched <= %s"))
+        # ``when_fetched`` is stored without time zone on raksasa.
+        params.append(as_of.replace(tzinfo=None))
+
+    query = sql.SQL(
+        """
+        SELECT
+            p.id,
+            p.product_title AS title,
+            pd.product_detail->'product'->>'tags' AS tags,
+            p.product_url,
+            p.myshopify_domain,
+            p.product_handle
+        FROM {products} AS p
+        JOIN public.product_details pd ON (
+            p.myshopify_domain = pd.myshopify_domain
+            AND p.run_name = pd.run_name
+            AND p.product_handle = pd.product_handle
+        )
+        WHERE {where_clause}
+        ORDER BY p.id
+        """
+    ).format(
+        products=product_identifier,
+        where_clause=sql.SQL(" AND ").join(conditions),
+    )
+
+    with conn.cursor(row_factory=dict_row) as cur:
+        cur.execute(query, params)
+        for row in cur:
+            product_id = row.get("id")
+            if product_id is None:
+                continue
+            yield SourceSnapshotRow(
+                product_id=int(product_id),
+                title=str(row.get("title") or ""),
+                raw_tags=row.get("tags"),
+                product_url=row.get("product_url"),
+                myshopify_domain=row.get("myshopify_domain"),
+                product_handle=row.get("product_handle"),
+            )
+
+
+def materialize_snapshot_products(
+    snapshot_rows: List[SnapshotProductMembership],
+    source_rows: Iterator[SourceSnapshotRow],
+) -> List[ProductRecord]:
+    """Recover raw-tag source rows for a benchmark snapshot deterministically."""
+
+    membership_by_hash = {row.product_id_hash: row for row in snapshot_rows}
+    matched_hashes: set[str] = set()
+    records: List[ProductRecord] = []
+
+    for row in source_rows:
+        canonical_url = canonicalize_product_url(
+            row.product_url,
+            myshopify_domain=row.myshopify_domain,
+            product_handle=row.product_handle,
+        )
+        if not canonical_url:
+            continue
+        product_hash = hash_product_url(canonical_url)
+        snapshot_row = membership_by_hash.get(product_hash)
+        if snapshot_row is None or product_hash in matched_hashes:
+            continue
+        matched_hashes.add(product_hash)
+        tags = tuple(parse_tags(row.raw_tags))
+        records.append(
+            ProductRecord(
+                product_id=row.product_id,
+                title=row.title,
+                tags=tags,
+                raw_tags=row.raw_tags,
+                taxonomy_id=snapshot_row.taxonomy_id,
+                taxonomy_path=snapshot_row.taxonomy_path,
+                taxonomy_name=snapshot_row.taxonomy_name,
+                cv_fold=snapshot_row.cv_fold,
+            )
+        )
+
+    missing_hashes = sorted(set(membership_by_hash) - matched_hashes)
+    if missing_hashes:
+        raise ValueError(
+            "Could not recover all benchmark snapshot products from source catalog rows. "
+            f"Missing {len(missing_hashes)} products."
+        )
+
+    return records
+
+
+def stream_products(
+    conn,
+    *,
+    product_table: str = "cantbuymelove.product",
+    snapshot_ref: str | None = None,
+    snapshot_schema: str = "padjective",
+) -> Iterator[ProductRecord]:
+    """Yield normalised product rows from Postgres."""
+
+    if snapshot_ref is None:
+        yield from _stream_live_products(conn, product_table=product_table)
+        return
+
+    as_of, snapshot_rows = _load_snapshot_membership(
+        conn,
+        schema=snapshot_schema,
+        snapshot_ref=snapshot_ref,
+    )
+    source_rows = _stream_snapshot_source_rows(
+        conn,
+        product_table=product_table,
+        as_of=as_of,
+    )
+    for record in materialize_snapshot_products(snapshot_rows, source_rows):
+        yield record
+
+
 def build_feature_dataset(
     conn,
     *,
@@ -186,10 +422,19 @@ def build_feature_dataset(
     require_taxonomy: bool = True,
     min_tag_count: int = 5,
     min_samples_per_taxonomy: Optional[int] = None,
+    snapshot_ref: str | None = None,
+    snapshot_schema: str = "padjective",
 ) -> ProductDataset:
     """Build a sparse tag matrix and accompanying metadata from Postgres."""
 
-    all_records = list(stream_products(conn, product_table=product_table))
+    all_records = list(
+        stream_products(
+            conn,
+            product_table=product_table,
+            snapshot_ref=snapshot_ref,
+            snapshot_schema=snapshot_schema,
+        )
+    )
 
     # Use all available products
     # Sort by product_id for consistency
@@ -283,4 +528,3 @@ def build_feature_dataset(
         metadata=metadata,
         tag_counts=dict(tag_counter),
     )
-

@@ -219,6 +219,8 @@ def load_training_data(
     product_table: str = "cantbuymelove.product",
     min_tag_count: int = 5,
     min_samples_per_taxonomy: int = 5,
+    snapshot_ref: str | None = None,
+    snapshot_schema: str = "padjective",
 ) -> tuple[
     sparse.csr_matrix,
     np.ndarray,
@@ -247,6 +249,8 @@ def load_training_data(
         require_taxonomy=True,
         min_tag_count=min_tag_count,
         min_samples_per_taxonomy=min_samples_per_taxonomy,
+        snapshot_ref=snapshot_ref,
+        snapshot_schema=snapshot_schema,
     )
 
     metadata = dataset.metadata.copy()
@@ -746,6 +750,15 @@ def main() -> None:
         help="Qualified product table name",
     )
     parser.add_argument(
+        "--snapshot-ref",
+        help="Optional benchmark snapshot alias/name/UUID to use instead of the live catalog.",
+    )
+    parser.add_argument(
+        "--snapshot-schema",
+        default="padjective",
+        help="Schema containing product_taxonomy_bench snapshot tables.",
+    )
+    parser.add_argument(
         "--model-database",
         type=Path,
         default=Path("data/taxonomy_pcnn_classifier.sqlite"),
@@ -823,6 +836,8 @@ def main() -> None:
         product_table=args.product_table,
         min_tag_count=args.min_tag_count,
         min_samples_per_taxonomy=args.min_samples_per_taxonomy,
+        snapshot_ref=args.snapshot_ref,
+        snapshot_schema=args.snapshot_schema,
     )
     conn.close()
 

@@ -222,10 +222,12 @@ def _load_battles(conn, schema: str) -> List[BattleRecord]:
 def _load_products(
     conn,
     product_table: str,
-    fold_assignments: Dict[int, int],
+    fold_assignments: Dict[int, int] | None,
     *,
     min_tag_count: int = 5,
     min_samples_per_taxonomy: int = 5,
+    snapshot_ref: str | None = None,
+    snapshot_schema: str = "padjective",
 ) -> tuple[List[ProductRecord], int, int, Dict[str, Tuple[str, int]], data_access.ProductDataset]:
     dataset = data_access.build_feature_dataset(
         conn,
@@ -233,6 +235,8 @@ def _load_products(
         require_taxonomy=True,
         min_tag_count=min_tag_count,
         min_samples_per_taxonomy=min_samples_per_taxonomy,
+        snapshot_ref=snapshot_ref,
+        snapshot_schema=snapshot_schema,
     )
 
     records: List[ProductRecord] = []
@@ -242,7 +246,7 @@ def _load_products(
     valid_tags = set(dataset.feature_names)
 
     for record in dataset.records:
-        cv_fold = fold_assignments.get(record.product_id)
+        cv_fold = record.cv_fold if fold_assignments is None else fold_assignments.get(record.product_id)
         if cv_fold is None:
             continue
         nested_filtered = filter_nested_tags(record.tags)
@@ -881,15 +885,21 @@ def process_database(
     max_iterations: int = 10000,
     seed: int = 42,
     initialization_method: str = 'umllr',
+    snapshot_ref: str | None = None,
+    snapshot_schema: str = "padjective",
 ) -> None:
     """Main entry point for Zubarev regression."""
     conn = db.get_connection(dsn)
     try:
         _ensure_storage(conn, schema)
 
-        fold_assignments = calculate_cv_folds(conn, product_table, n_splits=cv_splits)
-        if not fold_assignments:
-            return
+        fold_assignments: Dict[int, int] | None
+        if snapshot_ref is None:
+            fold_assignments = calculate_cv_folds(conn, product_table, n_splits=cv_splits)
+            if not fold_assignments:
+                return
+        else:
+            fold_assignments = None
 
         (
             records,
@@ -903,6 +913,8 @@ def process_database(
             fold_assignments,
             min_tag_count=min_tag_count,
             min_samples_per_taxonomy=min_samples_per_taxonomy,
+            snapshot_ref=snapshot_ref,
+            snapshot_schema=snapshot_schema,
         )
         if not records:
             return
@@ -960,6 +972,15 @@ def main() -> None:
         help="Qualified product table to read from.",
     )
     parser.add_argument(
+        "--snapshot-ref",
+        help="Optional benchmark snapshot alias/name/UUID to use instead of the live catalog.",
+    )
+    parser.add_argument(
+        "--snapshot-schema",
+        default="padjective",
+        help="Schema containing product_taxonomy_bench snapshot tables.",
+    )
+    parser.add_argument(
         "--cv-splits",
         type=int,
         default=5,
@@ -1014,6 +1035,8 @@ def main() -> None:
         max_iterations=args.max_iterations,
         seed=args.seed,
         initialization_method=args.initialization_method,
+        snapshot_ref=args.snapshot_ref,
+        snapshot_schema=args.snapshot_schema,
     )
 
 

@@ -15,10 +15,10 @@ if __package__ in {None, ""}:
     project_root = Path(__file__).resolve().parent.parent
     if str(project_root) not in sys.path:
         sys.path.append(str(project_root))
-    from padjective import db
+    from padjective import data_access, db
     from padjective.cv import calculate_cv_folds
 else:
-    from . import db
+    from . import data_access, db
     from .cv import calculate_cv_folds
 
 
@@ -30,6 +30,16 @@ class Battle:
     winner_tag: str
     loser_tag: str
     cv_fold: int | None = None
+
+
+@dataclass(frozen=True)
+class ProductRecordShim:
+    """Minimal row container shared by live and snapshot battle builders."""
+
+    product_id: int | None
+    title: str
+    raw_tags: str
+    cv_fold: int | None
 
 
 def filter_nested_tags(tags: Iterable[str]) -> List[str]:
@@ -202,6 +212,8 @@ def process_database(
     schema: str,
     product_table: str = "cantbuymelove.product",
     batch_size: int = 1000,
+    snapshot_ref: str | None = None,
+    snapshot_schema: str = "padjective",
 ) -> None:
     """Stream Shopify data and populate the battles table.
 
@@ -216,15 +228,39 @@ def process_database(
     ensure_storage(conn, schema)
     db.truncate_table(conn, schema, "battles")
 
-    # Calculate fold assignments once at the start
-    fold_assignments = calculate_cv_folds(conn, product_table)
-
     buffer: List[Battle] = []
-    for row in stream_products(conn, product_table):
-        title = row.get("title") or ""
-        tag_string = row.get("tags") or ""
-        product_id = row.get("id")
-        cv_fold = fold_assignments.get(product_id)
+    if snapshot_ref is None:
+        fold_assignments = calculate_cv_folds(conn, product_table)
+        source_rows = (
+            ProductRecordShim(
+                product_id=row.get("id"),
+                title=row.get("title") or "",
+                raw_tags=row.get("tags") or "",
+                cv_fold=fold_assignments.get(row.get("id")),
+            )
+            for row in stream_products(conn, product_table)
+        )
+    else:
+        source_rows = (
+            ProductRecordShim(
+                product_id=record.product_id,
+                title=record.title,
+                raw_tags=record.raw_tags or "",
+                cv_fold=record.cv_fold,
+            )
+            for record in data_access.stream_products(
+                conn,
+                product_table=product_table,
+                snapshot_ref=snapshot_ref,
+                snapshot_schema=snapshot_schema,
+            )
+        )
+
+    for row in source_rows:
+        title = row.title
+        tag_string = row.raw_tags
+        product_id = row.product_id
+        cv_fold = row.cv_fold
         for winner, loser in build_battles(title, tag_string):
             buffer.append(Battle(
                 product_id=product_id,
@@ -269,12 +305,23 @@ def main() -> None:
         default=2000,
         help="Number of comparisons to buffer before writing to Postgres.",
     )
+    parser.add_argument(
+        "--snapshot-ref",
+        help="Optional benchmark snapshot alias/name/UUID to use instead of the live catalog.",
+    )
+    parser.add_argument(
+        "--snapshot-schema",
+        default="padjective",
+        help="Schema containing product_taxonomy_bench snapshot tables.",
+    )
     args = parser.parse_args()
     process_database(
         dsn=args.dsn,
         schema=args.schema,
         product_table=args.product_table,
         batch_size=args.batch_size,
+        snapshot_ref=args.snapshot_ref,
+        snapshot_schema=args.snapshot_schema,
     )
 
 
