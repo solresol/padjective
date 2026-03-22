@@ -176,6 +176,33 @@ Any model that predicts `taxonomy_id` can calculate p-adic loss by:
 
 This enables comparing taxonomy classifiers (logistic regression, neural networks) using the same p-adic metric as umllr.
 
+### UMLLR Tag-Order Ablation
+
+The cleanest paper ablation in this repo is to hold the greedy UMLLR regressor,
+taxonomy encodings, and fold assignments fixed while changing only the tag
+ordering heuristic. The trainer already supports:
+
+- `battle_elo`
+- `frequency`
+- `mean_title_position`
+- `taxonomy_association`
+- `random`
+
+Run the ablation against a fixed benchmark snapshot when you want a stable
+paper table:
+
+```bash
+uv run -m padjective.umllr --snapshot-ref paper --tag-order-strategy all
+uv run -m padjective.umllr_ablation_report --format markdown
+```
+
+The first command persists all ablation runs into
+`padjective.umllr_order_ablation_fold_metrics` and
+`padjective.umllr_order_ablation_predictions`. The second command reads those
+Postgres tables and emits a paper-ready summary with fold means, fold standard
+deviations, and paired deltas versus the default `battle_elo` ordering. Pass
+`--format latex` if you want a LaTeX table instead of Markdown.
+
 ## Method & Implementation
 
 ### tagbattle.py
