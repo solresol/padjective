@@ -249,7 +249,7 @@ def test_build_site_surfaces_ablation_and_levelwise_results(tmp_path: Path, monk
     )
     monkeypatch.setattr(
         "padjective.build_site._load_umllr_order_ablation_results",
-        lambda _conn, _schema: {
+        lambda _conn, _schema, snapshot_ref=None: {
             "runs": [
                 {
                     "run_key": "battle_elo",
@@ -274,6 +274,7 @@ def test_build_site_surfaces_ablation_and_levelwise_results(tmp_path: Path, monk
                 "mean_loss": 0.255,
                 "loss_std": 0.01,
             },
+            "snapshot_ref": snapshot_ref,
         },
     )
     monkeypatch.setattr(
@@ -306,12 +307,14 @@ def test_build_site_surfaces_ablation_and_levelwise_results(tmp_path: Path, monk
         output_dir,
         precomputed_database=fake_conn,
         battle_schema="padjective",
+        ablation_snapshot_ref="paper",
     )
 
     umllr_html = (output_dir / "umllr" / "index.html").read_text(encoding="utf-8")
     assert "Tag-order ablations" in umllr_html
     assert "battle_elo" in umllr_html
     assert "random" in umllr_html
+    assert "fixed <code>paper</code> snapshot" in umllr_html
 
     index_html = (output_dir / "index.html").read_text(encoding="utf-8")
     assert "Level-wise Logistic Regression" in index_html

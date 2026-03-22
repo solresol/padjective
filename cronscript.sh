@@ -39,6 +39,15 @@ uv run -m padjective.umllr \
     --schema "$TAGBATTLE_SCHEMA" \
     --product-table "$TAGBATTLE_PRODUCT_TABLE"
 
+echo "Refreshing UMLLR tag-order ablations for the fixed paper snapshot..."
+uv run -m padjective.umllr \
+    "${TAGBATTLE_DSN_ARGS[@]}" \
+    --schema "$TAGBATTLE_SCHEMA" \
+    --product-table "$TAGBATTLE_PRODUCT_TABLE" \
+    --snapshot-ref paper \
+    --tag-order-strategy all \
+    --ablation-only
+
 # Ensure taxonomy classifier schema exists
 uv run -m padjective.taxonomy_classifier_schema \
     "${TAGBATTLE_DSN_ARGS[@]}" \
@@ -163,7 +172,11 @@ uv run -m padjective.snapshot_metrics \
     --product-table "$TAGBATTLE_PRODUCT_TABLE" \
     --schema "$TAGBATTLE_SCHEMA"
 
-uv run -m padjective.build_site --output "$OUTPUT_DIR" "${TAGBATTLE_DSN_ARGS[@]}" --schema "$TAGBATTLE_SCHEMA"
+uv run -m padjective.build_site \
+    --output "$OUTPUT_DIR" \
+    "${TAGBATTLE_DSN_ARGS[@]}" \
+    --schema "$TAGBATTLE_SCHEMA" \
+    --ablation-snapshot-ref paper
 
 REMOTE_SITE="padjective@merah.cassia.ifost.org.au:/var/www/vhosts/padjective.symmachus.org/htdocs/"
 rsync -az --delete "$OUTPUT_DIR/" "$REMOTE_SITE"

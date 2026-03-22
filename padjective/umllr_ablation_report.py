@@ -24,6 +24,7 @@ else:  # pragma: no cover - imported as a package
 
 DEFAULT_BASELINE_RUN_KEY = "battle_elo"
 DEFAULT_SCHEMA = "padjective"
+DEFAULT_SNAPSHOT_REF = "paper"
 RANDOM_AGGREGATE_RUN_KEY = "__random_aggregate__"
 STRATEGY_ORDER: tuple[str, ...] = (
     "battle_elo",
@@ -84,6 +85,19 @@ def _table_exists(conn, schema: str, table: str) -> bool:
         return cur.fetchone() is not None
 
 
+def _column_exists(conn, schema: str, table: str, column: str) -> bool:
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT 1
+            FROM information_schema.columns
+            WHERE table_schema = %s AND table_name = %s AND column_name = %s
+            """,
+            (schema, table, column),
+        )
+        return cur.fetchone() is not None
+
+
 def _safe_mean(values: Iterable[float | None]) -> float | None:
     cleaned = [value for value in values if value is not None]
     if not cleaned:
@@ -117,7 +131,12 @@ def _display_strategy(summary: AblationRunSummary) -> str:
     return summary.tag_order_strategy
 
 
-def load_ablation_fold_rows(conn, schema: str = DEFAULT_SCHEMA) -> list[AblationFoldRow]:
+def load_ablation_fold_rows(
+    conn,
+    schema: str = DEFAULT_SCHEMA,
+    *,
+    snapshot_ref: str = DEFAULT_SNAPSHOT_REF,
+) -> list[AblationFoldRow]:
     required_tables = (
         "umllr_order_ablation_fold_metrics",
         "umllr_order_ablation_predictions",
@@ -130,6 +149,27 @@ def load_ablation_fold_rows(conn, schema: str = DEFAULT_SCHEMA) -> list[Ablation
         raise RuntimeError(
             f"Missing UMLLR ablation tables: {joined}. "
             "Run `uv run -m padjective.umllr --tag-order-strategy all` first."
+        )
+
+    metrics_has_snapshot = _column_exists(
+        conn, schema, "umllr_order_ablation_fold_metrics", "snapshot_ref"
+    )
+    predictions_has_snapshot = _column_exists(
+        conn, schema, "umllr_order_ablation_predictions", "snapshot_ref"
+    )
+
+    query_params: list[object] = []
+    if metrics_has_snapshot and predictions_has_snapshot:
+        metrics_filter = sql.SQL("WHERE COALESCE(m.snapshot_ref, 'live') = %s")
+        predictions_filter = sql.SQL("WHERE COALESCE(snapshot_ref, 'live') = %s")
+        query_params.extend([snapshot_ref, snapshot_ref])
+    elif snapshot_ref == "live":
+        metrics_filter = sql.SQL("")
+        predictions_filter = sql.SQL("")
+    else:
+        raise RuntimeError(
+            "The ablation tables do not yet record snapshot_ref, so only live results can be reported. "
+            "Re-run the ablation after upgrading the schema."
         )
 
     query = sql.SQL(
@@ -150,17 +190,23 @@ def load_ablation_fold_rows(conn, schema: str = DEFAULT_SCHEMA) -> list[Ablation
         LEFT JOIN (
             SELECT run_key, cv_fold, AVG(loss) AS mean_loss, COUNT(*) AS prediction_count
             FROM {schema}.umllr_order_ablation_predictions
+            {predictions_filter}
             GROUP BY run_key, cv_fold
         ) AS p
             ON p.run_key = m.run_key
            AND p.cv_fold = m.cv_fold
+        {metrics_filter}
         ORDER BY m.tag_order_strategy, m.tag_order_seed NULLS FIRST, m.cv_fold
         """
-    ).format(schema=sql.Identifier(schema))
+    ).format(
+        schema=sql.Identifier(schema),
+        metrics_filter=metrics_filter,
+        predictions_filter=predictions_filter,
+    )
 
     rows: list[AblationFoldRow] = []
     with conn.cursor(row_factory=dict_row) as cur:
-        cur.execute(query)
+        cur.execute(query, query_params)
         for row in cur:
             rows.append(
                 AblationFoldRow(
@@ -510,11 +556,12 @@ def build_report(
     conn,
     *,
     schema: str = DEFAULT_SCHEMA,
+    snapshot_ref: str = DEFAULT_SNAPSHOT_REF,
     baseline_run_key: str = DEFAULT_BASELINE_RUN_KEY,
     output_format: str = "markdown",
     show_random_seeds: bool = True,
 ) -> str:
-    rows = load_ablation_fold_rows(conn, schema=schema)
+    rows = load_ablation_fold_rows(conn, schema=schema, snapshot_ref=snapshot_ref)
     summaries = summarize_ablation_rows(rows, baseline_run_key=baseline_run_key)
     if output_format == "markdown":
         return render_markdown_report(
@@ -548,6 +595,11 @@ def main() -> None:
         help="Schema containing UMLLR ablation tables.",
     )
     parser.add_argument(
+        "--snapshot-ref",
+        default=DEFAULT_SNAPSHOT_REF,
+        help="Snapshot label to report (default: paper; use live for the rolling catalog).",
+    )
+    parser.add_argument(
         "--baseline-run-key",
         default=DEFAULT_BASELINE_RUN_KEY,
         help="Run key to use as the paired baseline (default: battle_elo).",
@@ -575,6 +627,7 @@ def main() -> None:
         report = build_report(
             conn,
             schema=args.schema,
+            snapshot_ref=args.snapshot_ref,
             baseline_run_key=args.baseline_run_key,
             output_format=args.format,
             show_random_seeds=not args.hide_random_seeds,

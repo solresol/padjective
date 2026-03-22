@@ -1423,13 +1423,39 @@ def _load_dummy_results(conn, schema: str) -> Optional[Dict[str, Any]]:
     }
 
 
-def _load_umllr_order_ablation_results(conn, schema: str = "padjective") -> Optional[Dict[str, Any]]:
+def _load_umllr_order_ablation_results(
+    conn,
+    schema: str = "padjective",
+    snapshot_ref: str | None = None,
+) -> Optional[Dict[str, Any]]:
     required_tables = (
         "umllr_order_ablation_fold_metrics",
         "umllr_order_ablation_predictions",
     )
     if not all(_table_exists(conn, schema, table) for table in required_tables):
         return None
+
+    metrics_columns = _table_columns(conn, schema, "umllr_order_ablation_fold_metrics")
+    prediction_columns = _table_columns(conn, schema, "umllr_order_ablation_predictions")
+    metrics_has_snapshot = "snapshot_ref" in metrics_columns
+    predictions_has_snapshot = "snapshot_ref" in prediction_columns
+
+    mean_loss_params: list[object] = []
+    metrics_params: list[object] = []
+    if snapshot_ref is not None:
+        if metrics_has_snapshot and predictions_has_snapshot:
+            prediction_where = sql.SQL("WHERE COALESCE(snapshot_ref, 'live') = %s")
+            metrics_where = sql.SQL("WHERE COALESCE(snapshot_ref, 'live') = %s")
+            mean_loss_params.append(snapshot_ref)
+            metrics_params.append(snapshot_ref)
+        elif snapshot_ref == "live":
+            prediction_where = sql.SQL("")
+            metrics_where = sql.SQL("")
+        else:
+            return None
+    else:
+        prediction_where = sql.SQL("")
+        metrics_where = sql.SQL("")
 
     mean_loss_by_run_fold: Dict[tuple[str, int], float] = {}
     with conn.cursor(row_factory=dict_row) as cur:
@@ -1438,9 +1464,14 @@ def _load_umllr_order_ablation_results(conn, schema: str = "padjective") -> Opti
                 """
                 SELECT run_key, cv_fold, AVG(loss) AS mean_loss
                 FROM {schema}.umllr_order_ablation_predictions
+                {prediction_where}
                 GROUP BY run_key, cv_fold
                 """
-            ).format(schema=sql.Identifier(schema))
+            ).format(
+                schema=sql.Identifier(schema),
+                prediction_where=prediction_where,
+            ),
+            mean_loss_params,
         )
         for row in cur:
             mean_loss_by_run_fold[(str(row["run_key"]), int(row["cv_fold"]))] = float(row["mean_loss"])
@@ -1454,9 +1485,14 @@ def _load_umllr_order_ablation_results(conn, schema: str = "padjective") -> Opti
                        exact_accuracy, prefix1_accuracy, prefix2_accuracy,
                        mean_shared_prefix_depth, mean_scoring_ops
                 FROM {schema}.umllr_order_ablation_fold_metrics
+                {metrics_where}
                 ORDER BY tag_order_strategy, tag_order_seed NULLS FIRST, cv_fold
                 """
-            ).format(schema=sql.Identifier(schema))
+            ).format(
+                schema=sql.Identifier(schema),
+                metrics_where=metrics_where,
+            ),
+            metrics_params,
         )
         for row in cur:
             run_key = str(row["run_key"])
@@ -1514,6 +1550,7 @@ def _load_umllr_order_ablation_results(conn, schema: str = "padjective") -> Opti
     return {
         "runs": sorted(run_rows, key=lambda row: (row["tag_order_strategy"], row["tag_order_seed"] is not None, row["tag_order_seed"] or -1)),
         "random_summary": random_summary,
+        "snapshot_ref": snapshot_ref,
     }
 
 
@@ -5646,9 +5683,17 @@ def _write_umllr_overview_page(
                 f"<p>Random order baseline across five fixed seeds: "
                 f"{random_summary['mean_loss']:.8f} ± {random_summary['loss_std']:.8f} mean p-adic loss.</p>"
             )
+        snapshot_note = ""
+        if ablation_summary.get("snapshot_ref"):
+            snapshot_label = html.escape(str(ablation_summary["snapshot_ref"]))
+            snapshot_note = (
+                f"<p>These ablations are loaded from the fixed <code>{snapshot_label}</code> snapshot so the "
+                f"comparison stays stable even as the live catalog changes.</p>"
+            )
         page_html += f"""
     <h2>Tag-order ablations</h2>
     <p>These runs keep the greedy p-adic regressor fixed and vary only the feature ordering heuristic.</p>
+    {snapshot_note}
     {random_note}
     <table class="umllr-summary">
       <thead>
@@ -9055,6 +9100,7 @@ def build_site(
     min_tag_count: int = 2,
     min_samples_per_taxonomy: int = 5,
     snapshot_ref: str | None = None,
+    ablation_snapshot_ref: str | None = None,
     snapshot_schema: str = "padjective",
 ) -> Dict[str, Any]:
     _ensure_clean_directory(output_dir)
@@ -9223,6 +9269,7 @@ footer {text-align: center; padding: 2rem 1.5rem 3rem; color: #6b7280;}
         umllr_summary["order_ablations"] = _load_umllr_order_ablation_results(
             precomputed_database,
             battle_schema,
+            snapshot_ref=ablation_snapshot_ref,
         )
         fold_pages = _write_umllr_pages(output_dir, umllr_summary, conn=precomputed_database, schema=battle_schema)
         # Add pages to summary before creating overview page so links work
@@ -9570,6 +9617,10 @@ def main() -> None:
         help="Optional benchmark snapshot alias/name/UUID to use instead of the live catalog.",
     )
     parser.add_argument(
+        "--ablation-snapshot-ref",
+        help="Optional snapshot alias/name/UUID to use when loading UMLLR ablation runs for the website.",
+    )
+    parser.add_argument(
         "--snapshot-schema",
         default="padjective",
         help="Schema containing product_taxonomy_bench snapshot tables.",
@@ -9598,6 +9649,7 @@ def main() -> None:
             min_tag_count=args.min_tag_count,
             min_samples_per_taxonomy=args.min_samples_per_taxonomy,
             snapshot_ref=args.snapshot_ref,
+            ablation_snapshot_ref=args.ablation_snapshot_ref,
             snapshot_schema=args.snapshot_schema,
         )
     finally:

@@ -26,8 +26,8 @@ All tables are created automatically by the Python programs when they run, using
 - `umllr_fold_metrics` - Per-fold loss plus exact/prefix accuracy, shared-prefix depth, scoring ops, and tag-order metadata
 - `umllr_predictions` - Individual product predictions with p-adic loss
 - `umllr_taxonomy_encodings` - P-adic encodings of taxonomy paths per fold
-- `umllr_order_ablation_fold_metrics` - Per-fold results for tag-order ablation runs
-- `umllr_order_ablation_predictions` - Product-level predictions for tag-order ablation runs
+- `umllr_order_ablation_fold_metrics` - Per-fold results for tag-order ablation runs, tagged by snapshot (`live`, `paper`, etc.)
+- `umllr_order_ablation_predictions` - Product-level predictions for tag-order ablation runs, tagged by snapshot (`live`, `paper`, etc.)
 
 ### 3. Parameter Constrained Logistic Regression Classifier Tables
 

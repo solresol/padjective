@@ -192,16 +192,17 @@ Run the ablation against a fixed benchmark snapshot when you want a stable
 paper table:
 
 ```bash
-uv run -m padjective.umllr --snapshot-ref paper --tag-order-strategy all
-uv run -m padjective.umllr_ablation_report --format markdown
+uv run -m padjective.umllr --snapshot-ref paper --tag-order-strategy all --ablation-only
+uv run -m padjective.umllr_ablation_report --snapshot-ref paper --format markdown
 ```
 
 The first command persists all ablation runs into
 `padjective.umllr_order_ablation_fold_metrics` and
-`padjective.umllr_order_ablation_predictions`. The second command reads those
-Postgres tables and emits a paper-ready summary with fold means, fold standard
-deviations, and paired deltas versus the default `battle_elo` ordering. Pass
-`--format latex` if you want a LaTeX table instead of Markdown.
+`padjective.umllr_order_ablation_predictions` without overwriting the live
+`umllr_*` tables used by the rolling website. The second command reads the
+snapshot-tagged Postgres rows and emits a paper-ready summary with fold means,
+fold standard deviations, and paired deltas versus the default `battle_elo`
+ordering. Pass `--format latex` if you want a LaTeX table instead of Markdown.
 
 ## Method & Implementation
 
