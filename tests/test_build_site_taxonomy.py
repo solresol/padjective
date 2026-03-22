@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 from typing import Any
 
@@ -29,6 +30,102 @@ class _FakeConnection:
 
     def cursor(self, **_kwargs: Any) -> _FakeCursor:
         return _FakeCursor(self._rows)
+
+
+def _write_benchmark_bundle_fixture(root: Path, *, view: str) -> None:
+    view_dir = root / view
+    view_dir.mkdir(parents=True, exist_ok=True)
+    mean_loss = 0.2946 if view == "paper" else 0.3012
+    bundle = {
+        "bundle_version": 1,
+        "snapshot": {
+            "label": view,
+            "snapshot_name": f"{view}-2026-02-11T1915Z",
+            "as_of": "2026-02-11T19:15:00+00:00" if view == "paper" else None,
+            "product_count_filtered": 6527,
+            "tag_count_filtered": 2971,
+            "taxonomy_count_filtered": 308,
+            "prime_base": 71,
+        },
+        "models": {
+            "rows": [
+                {
+                    "model_key": "dummy",
+                    "model_label": "Dummy Baseline",
+                    "short_label": "Dummy",
+                    "color": "#94a3b8",
+                    "marker": "X",
+                    "params": 1.0,
+                    "mean_padic_loss": 0.5515,
+                    "mean_exact_accuracy": 0.10,
+                    "mean_prefix2_accuracy": 0.25,
+                    "mean_scoring_ops": 1.0,
+                    "log10_params": 0.0,
+                    "parsimony_score": -0.15,
+                },
+                {
+                    "model_key": "umllr",
+                    "model_label": "Importance-Optimised p-adic Linear Regression",
+                    "short_label": "Importance-Optimised",
+                    "color": "#0b6ce3",
+                    "marker": "o",
+                    "params": 852.0,
+                    "mean_padic_loss": mean_loss,
+                    "mean_exact_accuracy": 0.44,
+                    "mean_prefix2_accuracy": 0.61,
+                    "mean_scoring_ops": 1.42,
+                    "log10_params": 2.9304395947667004,
+                    "parsimony_score": 0.12,
+                },
+            ]
+        },
+        "ablation": {
+            "baseline_mean_padic_loss": mean_loss,
+            "random_summary": {"mean_loss": mean_loss + 0.01},
+            "runs": [
+                {
+                    "tag_order_strategy": "battle_elo",
+                    "tag_order_seed": None,
+                    "run_key": "battle_elo",
+                },
+                {
+                    "tag_order_strategy": "taxonomy_association",
+                    "tag_order_seed": None,
+                    "run_key": "taxonomy_association",
+                },
+            ],
+            "strategy_rows": [
+                {
+                    "tag_order_strategy": "taxonomy_association",
+                    "run_key": "taxonomy_association",
+                    "mean_padic_loss": mean_loss - 0.02,
+                    "loss_delta_vs_baseline": -0.02,
+                    "wins_vs_baseline": 5,
+                    "comparisons_vs_baseline": 5,
+                    "mean_exact_accuracy": 0.52,
+                    "mean_prefix2_accuracy": 0.67,
+                    "mean_scoring_ops": 1.35,
+                },
+                {
+                    "tag_order_strategy": "battle_elo",
+                    "run_key": "battle_elo",
+                    "mean_padic_loss": mean_loss,
+                    "loss_delta_vs_baseline": 0.0,
+                    "wins_vs_baseline": 0,
+                    "comparisons_vs_baseline": 5,
+                    "mean_exact_accuracy": 0.44,
+                    "mean_prefix2_accuracy": 0.61,
+                    "mean_scoring_ops": 1.42,
+                },
+            ],
+        },
+        "narrative": {
+            "best_ablation_strategy": "taxonomy_association",
+            "best_ablation_mean_padic_loss": mean_loss - 0.02,
+            "best_ablation_delta_vs_baseline": -0.02,
+        },
+    }
+    (view_dir / "benchmark.json").write_text(json.dumps(bundle) + "\n", encoding="utf-8")
 
 
 def test_build_site_includes_taxonomy_summary(tmp_path: Path, monkeypatch) -> None:
@@ -321,3 +418,142 @@ def test_build_site_surfaces_ablation_and_levelwise_results(tmp_path: Path, monk
     assert "href=\"levelwise_logistic_regression/index.html\"" in index_html
 
     assert metadata["taxonomy_levelwise"]["overview_page"] == "levelwise_logistic_regression/index.html"
+
+
+def test_build_site_renders_benchmark_pages(tmp_path: Path, monkeypatch) -> None:
+    fake_conn = _FakeConnection([])
+    benchmark_root = tmp_path / "reports"
+    _write_benchmark_bundle_fixture(benchmark_root, view="latest")
+    _write_benchmark_bundle_fixture(benchmark_root, view="paper")
+
+    class _FakeDataset:
+        def __init__(self) -> None:
+            self.product_count = 2
+            self.feature_names = ["ALPHA", "BETA"]
+            self.taxonomy_count = 2
+            self.metadata = pd.DataFrame(
+                [
+                    {
+                        "product_id": 1,
+                        "title": "Sample",
+                        "taxonomy_name": "Example",
+                        "taxonomy_id": "123",
+                        "taxonomy_path": "1.1",
+                        "tags": "ALPHA, BETA",
+                        "tag_count": 2,
+                        "valid_tag_count": 2,
+                        "cv_fold": 0,
+                    }
+                ]
+            )
+            self.discarded_products = []
+            self.discarded_tags = []
+
+    def _fake_generate_outputs(_leaderboard, rankings_html: Path, chart_path: Path, rows: int = 20) -> None:
+        rankings_html.write_text("<table></table>", encoding="utf-8")
+        chart_path.write_bytes(b"fake")
+
+    monkeypatch.setattr(
+        "padjective.build_site.data_access.build_feature_dataset",
+        lambda *_, **__: _FakeDataset(),
+    )
+    monkeypatch.setattr(
+        "padjective.build_site.ranking.load_pairs",
+        lambda *_args, **_kwargs: [],
+    )
+    monkeypatch.setattr(
+        "padjective.build_site.ranking.compute_rankings",
+        lambda _pairs: pd.DataFrame(columns=["tag", "score", "component"]),
+    )
+    monkeypatch.setattr(
+        "padjective.build_site.display.generate_outputs",
+        _fake_generate_outputs,
+    )
+    monkeypatch.setattr(
+        "padjective.build_site._create_comprehensive_dumps",
+        lambda *_args, **_kwargs: None,
+    )
+    monkeypatch.setattr(
+        "padjective.build_site._collect_database_stats",
+        lambda _conn, _schema: {"products": 2, "unique_tags": 2},
+    )
+    monkeypatch.setattr(
+        "padjective.build_site._collect_taxonomy_classifier_summary",
+        lambda _conn, schema="padjective": None,
+    )
+    monkeypatch.setattr(
+        "padjective.build_site._load_umllr_results",
+        lambda _conn, _schema: {
+            "metrics": [
+                {
+                    "cv_fold": 1,
+                    "loss": 0.2,
+                    "mean_loss": 0.2,
+                    "prime_base": 71,
+                    "max_digit": 10,
+                    "accuracy": 0.4,
+                    "f1": 0.35,
+                    "prefix2_accuracy": 0.7,
+                    "mean_scoring_ops": 5.0,
+                    "num_nonzero_coefficients": 42,
+                }
+            ],
+            "coefficients": {1: []},
+            "predictions": {1: []},
+        },
+    )
+
+    output_dir = tmp_path / "site"
+    metadata = build_site(
+        output_dir,
+        precomputed_database=fake_conn,
+        battle_schema="padjective",
+        benchmark_report_root=benchmark_root,
+        benchmark_views=("latest", "paper"),
+    )
+
+    assert (output_dir / "benchmark" / "index.html").is_file()
+    assert (output_dir / "benchmark" / "latest" / "index.html").is_file()
+    assert (output_dir / "benchmark" / "latest" / "ablation.html").is_file()
+    assert (output_dir / "benchmark" / "paper" / "index.html").is_file()
+    assert (output_dir / "benchmark" / "paper" / "ablation.html").is_file()
+
+    index_html = (output_dir / "index.html").read_text(encoding="utf-8")
+    assert "Open benchmark pages" in index_html
+    assert "href=\"benchmark/index.html\"" in index_html
+
+    umllr_html = (output_dir / "umllr" / "index.html").read_text(encoding="utf-8")
+    assert "paper comparison page" in umllr_html
+    assert "../benchmark/paper/ablation.html" in umllr_html
+
+    paper_html = (output_dir / "benchmark" / "paper" / "ablation.html").read_text(encoding="utf-8")
+    assert "Fixed benchmark snapshot shared by the Hugging Face notebook" in paper_html
+    assert "taxonomy_association" in paper_html
+
+    assert metadata["benchmark"]["views"]["paper"]["ablation_page"] == "benchmark/paper/ablation.html"
+
+
+def test_build_site_benchmark_only_renders_paper_view(tmp_path: Path) -> None:
+    benchmark_root = tmp_path / "reports"
+    _write_benchmark_bundle_fixture(benchmark_root, view="paper")
+
+    output_dir = tmp_path / "paper-site"
+    metadata = build_site(
+        output_dir,
+        benchmark_report_root=benchmark_root,
+        benchmark_views=("paper",),
+        benchmark_only=True,
+    )
+
+    assert (output_dir / "index.html").is_file()
+    assert (output_dir / "benchmark" / "paper" / "index.html").is_file()
+    assert (output_dir / "benchmark" / "paper" / "ablation.html").is_file()
+
+    paper_index = (output_dir / "benchmark" / "paper" / "index.html").read_text(encoding="utf-8")
+    assert "Shared benchmark bundle for the site, notebook, and paper." in paper_index
+    assert "Scatter chart generated from the same bundle fields used by the autonomous notebook." in paper_index
+
+    paper_ablation = (output_dir / "benchmark" / "paper" / "ablation.html").read_text(encoding="utf-8")
+    assert "taxonomy_association" in paper_ablation
+    assert "Bar chart generated from the same bundle rows consumed by the notebook." in paper_ablation
+    assert metadata["benchmark"]["views"]["paper"]["summary_page"] == "benchmark/paper/index.html"

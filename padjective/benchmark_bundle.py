@@ -6,6 +6,7 @@ import argparse
 import csv
 import html
 import json
+import math
 from pathlib import Path
 from typing import Any
 
@@ -70,6 +71,15 @@ def _format_float(value: float | None, digits: int = 6) -> str:
     if value is None:
         return "—"
     return f"{value:.{digits}f}"
+
+
+def _format_intish(value: float | None) -> str:
+    if value is None:
+        return "—"
+    numeric = float(value)
+    if abs(numeric - round(numeric)) < 1e-9:
+        return f"{int(round(numeric)):,}"
+    return f"{numeric:.1f}"
 
 
 def render_model_comparison_html(bundle: dict[str, Any]) -> str:
@@ -148,7 +158,7 @@ def render_benchmark_numbers_tex(bundle: dict[str, Any]) -> str:
         "\\providecommand{\\PadBenchBestAblationDeltaVsBattle}{" + _format_float(narrative.get("best_ablation_delta_vs_baseline"), 6) + "}",
         "\\providecommand{\\PadBenchBattleMeanLoss}{" + _format_float(narrative.get("battle_elo_mean_padic_loss"), 6) + "}",
         "\\providecommand{\\PadBenchUMLLRMeanLoss}{" + _format_float(narrative.get("umllr_mean_padic_loss"), 6) + "}",
-        "\\providecommand{\\PadBenchUMLLRParams}{" + _format_float(narrative.get("umllr_mean_params"), 1) + "}",
+        "\\providecommand{\\PadBenchUMLLRParams}{" + _format_intish(narrative.get("umllr_mean_params")) + "}",
         "\\providecommand{\\PadBenchUMLLRScoringOps}{" + _format_float(narrative.get("umllr_mean_scoring_ops"), 2) + "}",
         "\\providecommand{\\PadBenchLevelwiseScoringOps}{" + _format_float(narrative.get("levelwise_mean_scoring_ops"), 2) + "}",
     ]
@@ -304,6 +314,32 @@ def _std(values: list[float | None]) -> float | None:
     return float(series.std(ddof=0))
 
 
+def _add_parsimony_columns(
+    model_rows: list[dict[str, Any]],
+    *,
+    num_taxonomies: int,
+) -> list[dict[str, Any]]:
+    slope = -0.1
+    intercept = 0.0
+    taxonomy_coefficient = 0.3
+    taxonomy_reference = 1000.0
+    safe_taxonomies = max(float(num_taxonomies), 1.0)
+    taxonomy_adjustment = taxonomy_coefficient * math.log10(
+        safe_taxonomies / taxonomy_reference
+    )
+    for row in model_rows:
+        params = max(float(row.get("params") or 0.0), 1.0)
+        loss = max(float(row.get("mean_padic_loss") or 0.0), 1e-12)
+        log10_params = math.log10(params)
+        log10_loss = math.log10(loss)
+        baseline_log10_loss = slope * log10_params + intercept + taxonomy_adjustment
+        row["log10_params"] = log10_params
+        row["log10_loss"] = log10_loss
+        row["baseline_log10_loss"] = baseline_log10_loss
+        row["parsimony_score"] = baseline_log10_loss - log10_loss
+    return model_rows
+
+
 def build_live_benchmark_bundle(
     *,
     dsn: str | None,
@@ -430,17 +466,46 @@ def build_live_benchmark_bundle(
             fold_results=zubarev,
         ),
     ]
+    model_rows = _add_parsimony_columns(
+        model_rows,
+        num_taxonomies=int(dataset.taxonomy_count),
+    )
 
     strategy_rows = []
     baseline_mean = None
+    baseline_folds: dict[int, float] = {}
     for run_row in ablation.get("runs", []):
         if run_row["tag_order_strategy"] == "battle_elo" and run_row.get("tag_order_seed") is None:
             baseline_mean = float(run_row["mean_loss"])
+            baseline_folds = {
+                int(fold["cv_fold"]): float(fold["mean_loss"])
+                for fold in run_row.get("folds", [])
+                if fold.get("mean_loss") is not None
+            }
             break
     grouped: dict[str, list[dict[str, Any]]] = {}
     for run_row in ablation.get("runs", []):
         grouped.setdefault(str(run_row["tag_order_strategy"]), []).append(run_row)
     for strategy, rows in grouped.items():
+        comparable_losses: list[tuple[float, float]] = []
+        exact_accuracies: list[float] = []
+        prefix2_accuracies: list[float] = []
+        scoring_ops_values: list[float] = []
+        for run_row in rows:
+            for fold in run_row.get("folds", []):
+                fold_index = int(fold["cv_fold"])
+                fold_loss = fold.get("mean_loss")
+                baseline_loss = baseline_folds.get(fold_index)
+                if fold_loss is not None and baseline_loss is not None:
+                    comparable_losses.append((float(fold_loss), float(baseline_loss)))
+                if fold.get("exact_accuracy") is not None:
+                    exact_accuracies.append(float(fold["exact_accuracy"]))
+                if fold.get("prefix2_accuracy") is not None:
+                    prefix2_accuracies.append(float(fold["prefix2_accuracy"]))
+                if fold.get("mean_scoring_ops") is not None:
+                    scoring_ops_values.append(float(fold["mean_scoring_ops"]))
+        wins_vs_baseline = sum(1 for fold_loss, baseline_loss in comparable_losses if fold_loss < baseline_loss)
+        comparisons_vs_baseline = len(comparable_losses)
         if strategy == "random":
             mean_loss = ablation.get("random_summary", {}).get("mean_loss")
             strategy_rows.append(
@@ -449,11 +514,11 @@ def build_live_benchmark_bundle(
                     "run_key": "random",
                     "mean_padic_loss": mean_loss,
                     "loss_delta_vs_baseline": (mean_loss - baseline_mean) if mean_loss is not None and baseline_mean is not None else None,
-                    "mean_exact_accuracy": _mean([row.get("mean_exact_accuracy") or row.get("mean_accuracy") for row in rows]),
-                    "mean_prefix2_accuracy": _mean([row.get("mean_prefix2_accuracy") for row in rows]),
-                    "mean_scoring_ops": _mean([row.get("mean_scoring_ops") for row in rows]),
-                    "wins_vs_baseline": None,
-                    "comparisons_vs_baseline": None,
+                    "mean_exact_accuracy": _mean(exact_accuracies),
+                    "mean_prefix2_accuracy": _mean(prefix2_accuracies),
+                    "mean_scoring_ops": _mean(scoring_ops_values),
+                    "wins_vs_baseline": wins_vs_baseline,
+                    "comparisons_vs_baseline": comparisons_vs_baseline,
                     "folds": [],
                 }
             )
@@ -465,11 +530,11 @@ def build_live_benchmark_bundle(
                     "run_key": row["run_key"],
                     "mean_padic_loss": row.get("mean_loss"),
                     "loss_delta_vs_baseline": (row.get("mean_loss") - baseline_mean) if row.get("mean_loss") is not None and baseline_mean is not None else None,
-                    "mean_exact_accuracy": row.get("mean_accuracy"),
-                    "mean_prefix2_accuracy": row.get("mean_prefix2_accuracy"),
-                    "mean_scoring_ops": row.get("mean_scoring_ops"),
-                    "wins_vs_baseline": None,
-                    "comparisons_vs_baseline": None,
+                    "mean_exact_accuracy": _mean(exact_accuracies),
+                    "mean_prefix2_accuracy": _mean(prefix2_accuracies),
+                    "mean_scoring_ops": _mean(scoring_ops_values),
+                    "wins_vs_baseline": wins_vs_baseline,
+                    "comparisons_vs_baseline": comparisons_vs_baseline,
                     "folds": row.get("folds", []),
                 }
             )

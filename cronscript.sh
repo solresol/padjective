@@ -7,6 +7,9 @@ cd "$(dirname "$0")"
 git pull -q
 
 OUTPUT_DIR=${PADJECTIVE_SITE_DIR:-build/site}
+BENCHMARK_EXPORT_ROOT=${PADJECTIVE_BENCHMARK_EXPORT_ROOT:-build/product_taxonomy_bench}
+BENCHMARK_REPORT_ROOT=${PADJECTIVE_BENCHMARK_REPORT_ROOT:-build/benchmark_reports}
+PAPER_GENERATED_DIR=${PADJECTIVE_PAPER_GENERATED_DIR:-../papers/padjective/sigir-ecom/generated}
 TAXONOMY_CLASSIFIER_REPORT_DIR=${PADJECTIVE_TAXONOMY_CLASSIFIER_REPORT_DIR:-build/taxonomy_classifier}
 TAXONOMY_PCNN_CLASSIFIER_DB=${PADJECTIVE_TAXONOMY_PCNN_CLASSIFIER_DB:-data/taxonomy_pcnn_classifier.sqlite}
 TAXONOMY_PCNN_CLASSIFIER_REPORT_DIR=${PADJECTIVE_TAXONOMY_PCNN_CLASSIFIER_REPORT_DIR:-build/taxonomy_pcnn_classifier}
@@ -21,6 +24,9 @@ mkdir -p "$TAXONOMY_CLASSIFIER_REPORT_DIR"
 mkdir -p "$(dirname "$TAXONOMY_PCNN_CLASSIFIER_DB")"
 mkdir -p "$TAXONOMY_PCNN_CLASSIFIER_REPORT_DIR"
 mkdir -p "$TAXONOMY_ULR_CLASSIFIER_REPORT_DIR"
+mkdir -p "$BENCHMARK_EXPORT_ROOT"
+mkdir -p "$BENCHMARK_REPORT_ROOT"
+mkdir -p "$PAPER_GENERATED_DIR"
 
 if [[ -n "$SHOPIFY_DSN" ]]; then
     TAGBATTLE_DSN_ARGS=(--dsn "$SHOPIFY_DSN")
@@ -38,6 +44,14 @@ uv run -m padjective.umllr \
     "${TAGBATTLE_DSN_ARGS[@]}" \
     --schema "$TAGBATTLE_SCHEMA" \
     --product-table "$TAGBATTLE_PRODUCT_TABLE"
+
+echo "Refreshing UMLLR tag-order ablations for the live nightly benchmark..."
+uv run -m padjective.umllr \
+    "${TAGBATTLE_DSN_ARGS[@]}" \
+    --schema "$TAGBATTLE_SCHEMA" \
+    --product-table "$TAGBATTLE_PRODUCT_TABLE" \
+    --tag-order-strategy all \
+    --ablation-only
 
 echo "Refreshing UMLLR tag-order ablations for the fixed paper snapshot..."
 uv run -m padjective.umllr \
@@ -172,11 +186,36 @@ uv run -m padjective.snapshot_metrics \
     --product-table "$TAGBATTLE_PRODUCT_TABLE" \
     --schema "$TAGBATTLE_SCHEMA"
 
+echo "Exporting the fixed paper benchmark snapshot used by the notebook and paper..."
+uv run -m padjective.product_taxonomy_bench_export \
+    "${TAGBATTLE_DSN_ARGS[@]}" \
+    --schema "$TAGBATTLE_SCHEMA" \
+    --snapshot paper \
+    --out-root "$BENCHMARK_EXPORT_ROOT" \
+    --formats jsonl \
+    --no-gzip
+
+echo "Building live benchmark bundle for the nightly site..."
+uv run -m padjective.benchmark_bundle \
+    "${TAGBATTLE_DSN_ARGS[@]}" \
+    --schema "$TAGBATTLE_SCHEMA" \
+    --product-table "$TAGBATTLE_PRODUCT_TABLE" \
+    --out-dir "$BENCHMARK_REPORT_ROOT/latest" \
+    --ablation-snapshot-ref live
+
+echo "Building fixed paper benchmark bundle for the site and manuscript..."
+uv run -m padjective.benchmark_bundle \
+    --snapshot-dir "$BENCHMARK_EXPORT_ROOT/paper" \
+    --out-dir "$BENCHMARK_REPORT_ROOT/paper" \
+    --paper-tex-dir "$PAPER_GENERATED_DIR"
+
 uv run -m padjective.build_site \
     --output "$OUTPUT_DIR" \
     "${TAGBATTLE_DSN_ARGS[@]}" \
     --schema "$TAGBATTLE_SCHEMA" \
-    --ablation-snapshot-ref paper
+    --ablation-snapshot-ref paper \
+    --benchmark-report-root "$BENCHMARK_REPORT_ROOT" \
+    --benchmark-views latest,paper
 
 REMOTE_SITE="padjective@merah.cassia.ifost.org.au:/var/www/vhosts/padjective.symmachus.org/htdocs/"
 rsync -az --delete "$OUTPUT_DIR/" "$REMOTE_SITE"

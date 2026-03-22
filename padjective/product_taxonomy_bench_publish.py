@@ -283,7 +283,7 @@ def main() -> None:
     parser.add_argument(
         "--paper-tex",
         type=Path,
-        default=Path("../papers/padjective/padjective.tex"),
+        default=Path("../papers/padjective/sigir-ecom/padjective-ecom.tex"),
         help="Path to the paper TeX used to infer the paper cutoff timestamp.",
     )
     parser.add_argument(

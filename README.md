@@ -204,6 +204,38 @@ snapshot-tagged Postgres rows and emits a paper-ready summary with fold means,
 fold standard deviations, and paired deltas versus the default `battle_elo`
 ordering. Pass `--format latex` if you want a LaTeX table instead of Markdown.
 
+### Shared Benchmark Bundles
+
+The benchmark notebook, dedicated benchmark HTML pages, and generated TeX
+includes are all driven by the same `benchmark.json` bundle schema.
+
+Build the rolling live bundle from Postgres:
+
+```bash
+uv run -m padjective.benchmark_bundle --out-dir build/benchmark_reports/latest
+```
+
+Build the fixed paper bundle from an exported snapshot:
+
+```bash
+uv run -m padjective.product_taxonomy_bench_export --snapshot paper --out-root build/product_taxonomy_bench --formats jsonl --no-gzip
+uv run -m padjective.benchmark_bundle \
+  --snapshot-dir build/product_taxonomy_bench/paper \
+  --out-dir build/benchmark_reports/paper \
+  --paper-tex-dir ../papers/padjective/sigir-ecom/generated
+```
+
+Render only the paper benchmark pages, using the same bundle the notebook and
+paper consume:
+
+```bash
+uv run -m padjective.build_site \
+  --output build/paper-benchmark-site \
+  --benchmark-report-root build/benchmark_reports \
+  --benchmark-views paper \
+  --benchmark-only
+```
+
 ## Method & Implementation
 
 ### tagbattle.py

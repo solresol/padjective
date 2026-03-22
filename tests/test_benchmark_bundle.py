@@ -11,6 +11,7 @@ from padjective.benchmark_bundle import (
     write_bundle_outputs,
     write_paper_tex_outputs,
 )
+from padjective.build_site import build_site
 from padjective.benchmark_runtime import (
     build_snapshot_benchmark_bundle,
     load_snapshot_tables,
@@ -170,3 +171,47 @@ def test_snapshot_bundle_writes_json_csv_html_and_tex(tmp_path: Path) -> None:
     assert (tex_dir / "model_comparison_table.tex").is_file()
     assert (tex_dir / "umllr_ablation_table.tex").is_file()
 
+
+def test_paper_bundle_html_and_tex_stay_in_parity(tmp_path: Path) -> None:
+    snapshot_dir = tmp_path / "paper"
+    _write_snapshot_fixture(snapshot_dir)
+
+    bundle = build_snapshot_benchmark_bundle(
+        load_snapshot_tables(snapshot_dir, snapshot_label="paper")
+    )
+    reports_root = tmp_path / "reports"
+    write_bundle_outputs(bundle, reports_root / "paper")
+    tex_dir = tmp_path / "generated"
+    write_paper_tex_outputs(bundle, tex_dir)
+
+    site_dir = tmp_path / "site"
+    build_site(
+        site_dir,
+        benchmark_report_root=reports_root,
+        benchmark_views=("paper",),
+        benchmark_only=True,
+    )
+
+    benchmark_json = load_bundle(reports_root / "paper" / "benchmark.json")
+    html_text = (site_dir / "benchmark" / "paper" / "index.html").read_text(encoding="utf-8")
+    ablation_html_text = (site_dir / "benchmark" / "paper" / "ablation.html").read_text(encoding="utf-8")
+    tex_text = (tex_dir / "benchmark_numbers.tex").read_text(encoding="utf-8")
+    model_table_tex = (tex_dir / "model_comparison_table.tex").read_text(encoding="utf-8")
+    ablation_table_tex = (tex_dir / "umllr_ablation_table.tex").read_text(encoding="utf-8")
+
+    filtered_products = benchmark_json["snapshot"]["product_count_filtered"]
+    best_strategy = benchmark_json["narrative"]["best_ablation_strategy"]
+    umllr_row = next(
+        row for row in benchmark_json["models"]["rows"] if row["model_key"] == "umllr"
+    )
+    best_ablation = benchmark_json["ablation"]["strategy_rows"][0]
+
+    assert f"{filtered_products:,}" in html_text
+    assert f"{umllr_row['mean_padic_loss']:.6f}" in html_text
+    assert best_strategy in ablation_html_text
+    assert f"{best_ablation['mean_padic_loss']:.6f}" in ablation_html_text
+
+    assert f"\\providecommand{{\\PadBenchFilteredProducts}}{{{filtered_products:,}}}" in tex_text
+    assert f"{umllr_row['mean_padic_loss']:.6f}" in model_table_tex
+    assert best_strategy.replace("_", "\\_") in ablation_table_tex
+    assert f"{best_ablation['mean_padic_loss']:.6f}" in ablation_table_tex
