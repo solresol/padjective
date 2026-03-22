@@ -1,7 +1,12 @@
 from datetime import datetime, timezone
 import uuid
 
-from padjective.product_taxonomy_bench_export import SnapshotMetadata, render_hf_dataset_card
+from padjective.product_taxonomy_bench_export import (
+    SnapshotMetadata,
+    render_hf_dataset_card,
+    stage_hf_notebook,
+)
+from padjective.product_taxonomy_bench_notebook import render_notebook
 
 
 def test_render_hf_dataset_card_includes_snapshots() -> None:
@@ -48,3 +53,22 @@ def test_render_hf_dataset_card_includes_snapshots() -> None:
     assert "notebooks/product_taxonomy_bench.ipynb" in card
     assert "Open in Colab" in card
     assert "defaults to the fixed `paper` snapshot" in card
+
+
+def test_stage_hf_notebook_generates_ablation_notebook(tmp_path) -> None:
+    notebook_path = stage_hf_notebook(tmp_path)
+    notebook_text = notebook_path.read_text(encoding="utf-8")
+    assert "UMLLR tag-order ablation" in notebook_text
+    assert "mean_prefix2_accuracy" in notebook_text
+    assert notebook_path.name == "product_taxonomy_bench.ipynb"
+
+
+def test_render_notebook_includes_embedded_runtime_and_tables() -> None:
+    notebook = render_notebook()
+    combined = "\n".join(
+        "".join(cell.get("source", []))
+        for cell in notebook["cells"]
+    )
+    assert "build_snapshot_benchmark_bundle" in combined
+    assert "load_snapshot_tables_from_hf" in combined
+    assert "ablation_table" in combined

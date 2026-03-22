@@ -10,7 +10,6 @@ from __future__ import annotations
 import argparse
 import gzip
 import json
-import shutil
 import uuid
 from dataclasses import dataclass
 from datetime import datetime
@@ -28,8 +27,10 @@ if __package__ in {None, ""}:
     if str(project_root) not in sys.path:
         sys.path.append(str(project_root))
     from padjective import db
+    from padjective.product_taxonomy_bench_notebook import write_notebook
 else:  # pragma: no cover
     from . import db
+    from .product_taxonomy_bench_notebook import write_notebook
 
 try:  # Optional dependency; used only for Parquet exports.
     import pyarrow as pa  # type: ignore[import-not-found]
@@ -595,19 +596,12 @@ def render_hf_dataset_card(
 
 def stage_hf_notebook(
     out_root: Path,
-    *,
-    notebook_source: Path = DEFAULT_HF_NOTEBOOK_SOURCE,
     notebook_dest: Path = DEFAULT_HF_NOTEBOOK_DEST,
 ) -> Path:
-    """Copy the benchmark notebook into the export root for Hub publication."""
-
-    if not notebook_source.is_file():
-        raise FileNotFoundError(str(notebook_source))
+    """Generate the benchmark notebook into the export root for Hub publication."""
 
     destination = out_root / notebook_dest
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(notebook_source, destination)
-    return destination
+    return write_notebook(destination)
 
 
 def export_snapshot(
