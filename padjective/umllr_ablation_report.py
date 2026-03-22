@@ -254,14 +254,22 @@ def summarize_ablation_rows(
     for row in rows:
         grouped[row.run_key].append(row)
 
-    if baseline_run_key not in grouped:
+    effective_baseline_run_key = baseline_run_key
+    if effective_baseline_run_key not in grouped:
+        suffixed_matches = [
+            run_key for run_key in grouped if run_key.endswith(f"::{baseline_run_key}")
+        ]
+        if len(suffixed_matches) == 1:
+            effective_baseline_run_key = suffixed_matches[0]
+
+    if effective_baseline_run_key not in grouped:
         available = ", ".join(sorted(grouped))
         raise ValueError(
             f"Baseline run {baseline_run_key!r} is unavailable. Available runs: {available}"
         )
 
     baseline_by_fold = {
-        row.cv_fold: row for row in grouped[baseline_run_key]
+        row.cv_fold: row for row in grouped[effective_baseline_run_key]
     }
 
     summaries: list[AblationRunSummary] = []

@@ -163,3 +163,40 @@ def test_render_reports_include_main_and_random_sections() -> None:
     assert r"% UMLLR tag-order ablation (battle_elo baseline)" in latex
     assert r"battle\_elo" in latex
     assert r"random (2 seeds avg.)" in latex
+
+
+def test_summarize_ablation_rows_accepts_snapshot_prefixed_baseline() -> None:
+    rows = [
+        AblationFoldRow(
+            run_key="paper::battle_elo",
+            tag_order_strategy="battle_elo",
+            tag_order_seed=None,
+            cv_fold=0,
+            mean_loss=0.2,
+            exact_accuracy=0.4,
+            prefix1_accuracy=0.6,
+            prefix2_accuracy=0.7,
+            mean_shared_prefix_depth=2.0,
+            mean_scoring_ops=3.0,
+            prediction_count=100,
+        ),
+        AblationFoldRow(
+            run_key="paper::frequency",
+            tag_order_strategy="frequency",
+            tag_order_seed=None,
+            cv_fold=0,
+            mean_loss=0.3,
+            exact_accuracy=0.35,
+            prefix1_accuracy=0.55,
+            prefix2_accuracy=0.6,
+            mean_shared_prefix_depth=1.8,
+            mean_scoring_ops=2.8,
+            prediction_count=100,
+        ),
+    ]
+
+    summaries = summarize_ablation_rows(rows, baseline_run_key="battle_elo")
+    lookup = {summary.run_key: summary for summary in summaries}
+
+    assert lookup["paper::battle_elo"].mean_loss_delta_vs_baseline == pytest.approx(0.0)
+    assert lookup["paper::frequency"].mean_loss_delta_vs_baseline == pytest.approx(0.1)
