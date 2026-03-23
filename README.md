@@ -176,6 +176,66 @@ Any model that predicts `taxonomy_id` can calculate p-adic loss by:
 
 This enables comparing taxonomy classifiers (logistic regression, neural networks) using the same p-adic metric as umllr.
 
+### UMLLR Tag-Order Ablation
+
+The cleanest paper ablation in this repo is to hold the greedy UMLLR regressor,
+taxonomy encodings, and fold assignments fixed while changing only the tag
+ordering heuristic. The trainer already supports:
+
+- `battle_elo`
+- `frequency`
+- `mean_title_position`
+- `taxonomy_association`
+- `random`
+
+Run the ablation against a fixed benchmark snapshot when you want a stable
+paper table:
+
+```bash
+uv run -m padjective.umllr --snapshot-ref paper --tag-order-strategy all --ablation-only
+uv run -m padjective.umllr_ablation_report --snapshot-ref paper --format markdown
+```
+
+The first command persists all ablation runs into
+`padjective.umllr_order_ablation_fold_metrics` and
+`padjective.umllr_order_ablation_predictions` without overwriting the live
+`umllr_*` tables used by the rolling website. The second command reads the
+snapshot-tagged Postgres rows and emits a paper-ready summary with fold means,
+fold standard deviations, and paired deltas versus the default `battle_elo`
+ordering. Pass `--format latex` if you want a LaTeX table instead of Markdown.
+
+### Shared Benchmark Bundles
+
+The benchmark notebook, dedicated benchmark HTML pages, and generated TeX
+includes are all driven by the same `benchmark.json` bundle schema.
+
+Build the rolling live bundle from Postgres:
+
+```bash
+uv run -m padjective.benchmark_bundle --out-dir build/benchmark_reports/latest
+```
+
+Build the fixed paper bundle from an exported snapshot:
+
+```bash
+uv run -m padjective.product_taxonomy_bench_export --snapshot paper --out-root build/product_taxonomy_bench --formats jsonl --no-gzip
+uv run -m padjective.benchmark_bundle \
+  --snapshot-dir build/product_taxonomy_bench/paper \
+  --out-dir build/benchmark_reports/paper \
+  --paper-tex-dir ../papers/padjective/sigir-ecom/generated
+```
+
+Render only the paper benchmark pages, using the same bundle the notebook and
+paper consume:
+
+```bash
+uv run -m padjective.build_site \
+  --output build/paper-benchmark-site \
+  --benchmark-report-root build/benchmark_reports \
+  --benchmark-views paper \
+  --benchmark-only
+```
+
 ## Method & Implementation
 
 ### tagbattle.py

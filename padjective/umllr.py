@@ -7,10 +7,11 @@ import math
 import random
 import re
 import sys
+import warnings
 from collections import Counter, defaultdict
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Iterable, List, Sequence, Tuple
+from typing import Callable, Dict, Iterable, List, Sequence, Tuple, TypeVar
 
 from psycopg import sql
 from psycopg.rows import dict_row
@@ -22,12 +23,12 @@ if __package__ in {None, ""}:
     from padjective import data_access, db
     from padjective.cv import calculate_cv_folds
     from padjective.metrics import parse_taxonomy_path, summarize_encoded_predictions
-    from padjective.tagbattle import filter_nested_tags, split_title, tag_positions
+    from padjective.tagbattle import build_battles, filter_nested_tags, split_title, tag_positions
 else:  # pragma: no cover - imported as a package
     from . import data_access, db
     from .cv import calculate_cv_folds
     from .metrics import parse_taxonomy_path, summarize_encoded_predictions
-    from .tagbattle import filter_nested_tags, split_title, tag_positions
+    from .tagbattle import build_battles, filter_nested_tags, split_title, tag_positions
 
 
 DEFAULT_TAG_ORDER_STRATEGY = "battle_elo"
@@ -39,6 +40,8 @@ TAG_ORDER_STRATEGIES: tuple[str, ...] = (
     "random",
 )
 RANDOM_ABLATION_SEEDS: tuple[int, ...] = (7, 13, 23, 37, 101)
+LIVE_SNAPSHOT_LABEL = "live"
+_RowT = TypeVar("_RowT")
 
 
 @dataclass(frozen=True)
@@ -154,6 +157,7 @@ def _ensure_ablation_storage(conn, schema: str) -> None:
         "umllr_order_ablation_fold_metrics",
         columns_sql=(
             "run_key TEXT NOT NULL",
+            "snapshot_ref TEXT NOT NULL DEFAULT 'live'",
             "tag_order_strategy TEXT NOT NULL",
             "tag_order_seed INTEGER",
             "cv_fold INTEGER NOT NULL",
@@ -176,6 +180,7 @@ def _ensure_ablation_storage(conn, schema: str) -> None:
         "umllr_order_ablation_predictions",
         columns_sql=(
             "run_key TEXT NOT NULL",
+            "snapshot_ref TEXT NOT NULL DEFAULT 'live'",
             "tag_order_strategy TEXT NOT NULL",
             "tag_order_seed INTEGER",
             "cv_fold INTEGER NOT NULL",
@@ -186,14 +191,72 @@ def _ensure_ablation_storage(conn, schema: str) -> None:
             "PRIMARY KEY (run_key, cv_fold, product_id)",
         ),
     )
+    with conn.cursor() as cur:
+        cur.execute(
+            sql.SQL(
+                "ALTER TABLE {schema}.umllr_order_ablation_fold_metrics "
+                "ADD COLUMN IF NOT EXISTS snapshot_ref TEXT NOT NULL DEFAULT 'live'"
+            ).format(schema=sql.Identifier(schema))
+        )
+        cur.execute(
+            sql.SQL(
+                "ALTER TABLE {schema}.umllr_order_ablation_predictions "
+                "ADD COLUMN IF NOT EXISTS snapshot_ref TEXT NOT NULL DEFAULT 'live'"
+            ).format(schema=sql.Identifier(schema))
+        )
+        cur.execute(
+            sql.SQL(
+                "UPDATE {schema}.umllr_order_ablation_fold_metrics "
+                "SET snapshot_ref = 'live' WHERE snapshot_ref IS NULL"
+            ).format(schema=sql.Identifier(schema))
+        )
+        cur.execute(
+            sql.SQL(
+                "UPDATE {schema}.umllr_order_ablation_predictions "
+                "SET snapshot_ref = 'live' WHERE snapshot_ref IS NULL"
+            ).format(schema=sql.Identifier(schema))
+        )
+        cur.execute(
+            sql.SQL(
+                "CREATE INDEX IF NOT EXISTS {index} "
+                "ON {schema}.umllr_order_ablation_fold_metrics (snapshot_ref, tag_order_strategy, tag_order_seed) "
+                "TABLESPACE pg_default"
+            ).format(
+                index=sql.Identifier(f"{schema}_umllr_ablation_snapshot_strategy_idx"),
+                schema=sql.Identifier(schema),
+            )
+        )
+        cur.execute(
+            sql.SQL(
+                "CREATE INDEX IF NOT EXISTS {index} "
+                "ON {schema}.umllr_order_ablation_predictions (snapshot_ref, tag_order_strategy, tag_order_seed, cv_fold) "
+                "TABLESPACE pg_default"
+            ).format(
+                index=sql.Identifier(f"{schema}_umllr_ablation_predictions_snapshot_idx"),
+                schema=sql.Identifier(schema),
+            )
+        )
+    conn.commit()
 
 
-def tag_order_run_key(strategy: str, seed: int | None = None) -> str:
+def snapshot_label(snapshot_ref: str | None) -> str:
+    cleaned = (snapshot_ref or "").strip()
+    return cleaned or LIVE_SNAPSHOT_LABEL
+
+
+def tag_order_run_key(
+    strategy: str,
+    seed: int | None = None,
+    *,
+    snapshot_ref: str | None = None,
+) -> str:
     if strategy == "random":
         if seed is None:
             raise ValueError("random tag ordering requires a seed")
-        return f"{strategy}_seed_{seed}"
-    return strategy
+        base_key = f"{strategy}_seed_{seed}"
+    else:
+        base_key = strategy
+    return f"{snapshot_label(snapshot_ref)}::{base_key}"
 
 
 def _truncate_outputs(conn, schema: str) -> None:
@@ -203,6 +266,34 @@ def _truncate_outputs(conn, schema: str) -> None:
     db.truncate_table(conn, schema, "umllr_taxonomy_encodings")
     db.truncate_table(conn, schema, "umllr_coefficient_candidates")
     db.truncate_table(conn, schema, "umllr_tag_products")
+
+
+def _dedupe_rows_by_key(
+    rows: Sequence[_RowT],
+    *,
+    key_fn: Callable[[_RowT], object],
+    description: str,
+) -> list[_RowT]:
+    deduped: list[_RowT] = []
+    seen: set[object] = set()
+    duplicate_count = 0
+
+    for row in rows:
+        key = key_fn(row)
+        if key in seen:
+            duplicate_count += 1
+            continue
+        seen.add(key)
+        deduped.append(row)
+
+    if duplicate_count:
+        warnings.warn(
+            f"Dropped {duplicate_count} duplicate {description} row(s) before insert.",
+            RuntimeWarning,
+            stacklevel=2,
+        )
+
+    return deduped
 
 
 def _parse_tags(tag_string: str | None) -> List[str]:
@@ -334,6 +425,22 @@ def _load_battles(conn, schema: str) -> List[BattleRecord]:
                 )
             )
     return records
+
+
+def _derive_battles_from_records(records: Sequence[ProductRecord]) -> List[BattleRecord]:
+    derived: List[BattleRecord] = []
+    for record in records:
+        if not record.title or len(record.tags) < 2:
+            continue
+        for winner_tag, loser_tag in build_battles(record.title, ",".join(record.tags)):
+            derived.append(
+                BattleRecord(
+                    winner_tag=winner_tag,
+                    loser_tag=loser_tag,
+                    cv_fold=record.cv_fold,
+                )
+            )
+    return derived
 
 
 def _load_products(
@@ -750,6 +857,37 @@ def _save_results(
         for taxonomy_id, (taxonomy_path, encoded_value) in taxonomy_encodings.items():
             encoding_rows.append((fold, taxonomy_id, taxonomy_path, encoded_value))
 
+    coeff_rows = _dedupe_rows_by_key(
+        coeff_rows,
+        key_fn=lambda row: (row[0], row[1]),
+        description="UMLLR coefficient",
+    )
+    prediction_rows = _dedupe_rows_by_key(
+        prediction_rows,
+        key_fn=lambda row: (row[0], row[1]),
+        description="UMLLR prediction",
+    )
+    metrics_rows = _dedupe_rows_by_key(
+        metrics_rows,
+        key_fn=lambda row: row[0],
+        description="UMLLR fold metric",
+    )
+    encoding_rows = _dedupe_rows_by_key(
+        encoding_rows,
+        key_fn=lambda row: (row[0], row[1]),
+        description="UMLLR taxonomy encoding",
+    )
+    candidate_rows = _dedupe_rows_by_key(
+        candidate_rows,
+        key_fn=lambda row: (row[0], row[1], row[2]),
+        description="UMLLR coefficient candidate",
+    )
+    tag_product_rows = _dedupe_rows_by_key(
+        tag_product_rows,
+        key_fn=lambda row: (row[0], row[1], row[2]),
+        description="UMLLR tag-product",
+    )
+
     with conn.cursor() as cur:
         # Clean up old data before inserting new results
         # This ensures cronscript can be re-run without conflicts
@@ -893,6 +1031,7 @@ def _save_ablation_results(
     results: Sequence[FoldResult],
     *,
     run_key: str,
+    snapshot_ref: str,
     tag_order_strategy: str,
     tag_order_seed: int | None,
     prime_base: int,
@@ -903,6 +1042,7 @@ def _save_ablation_results(
     metric_rows = [
         (
             run_key,
+            snapshot_ref,
             tag_order_strategy,
             tag_order_seed,
             result.cv_fold,
@@ -921,6 +1061,7 @@ def _save_ablation_results(
     prediction_rows = [
         (
             run_key,
+            snapshot_ref,
             tag_order_strategy,
             tag_order_seed,
             result.cv_fold,
@@ -950,10 +1091,10 @@ def _save_ablation_results(
             cur.executemany(
                 sql.SQL(
                     "INSERT INTO {schema}.umllr_order_ablation_fold_metrics "
-                    "(run_key, tag_order_strategy, tag_order_seed, cv_fold, loss, prime_base, max_digit, "
+                    "(run_key, snapshot_ref, tag_order_strategy, tag_order_seed, cv_fold, loss, prime_base, max_digit, "
                     "default_prediction, exact_accuracy, prefix1_accuracy, prefix2_accuracy, "
                     "mean_shared_prefix_depth, mean_scoring_ops) "
-                    "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"
+                    "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"
                 ).format(schema=sql.Identifier(schema)),
                 metric_rows,
             )
@@ -961,8 +1102,8 @@ def _save_ablation_results(
             cur.executemany(
                 sql.SQL(
                     "INSERT INTO {schema}.umllr_order_ablation_predictions "
-                    "(run_key, tag_order_strategy, tag_order_seed, cv_fold, product_id, true_value, predicted_value, loss) "
-                    "VALUES (%s, %s, %s, %s, %s, %s, %s, %s)"
+                    "(run_key, snapshot_ref, tag_order_strategy, tag_order_seed, cv_fold, product_id, true_value, predicted_value, loss) "
+                    "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)"
                 ).format(schema=sql.Identifier(schema)),
                 prediction_rows,
             )
@@ -1130,6 +1271,7 @@ def process_database(
     min_samples_per_taxonomy: int = 5,
     tag_order_strategy: str = DEFAULT_TAG_ORDER_STRATEGY,
     tag_order_seed: int | None = None,
+    ablation_only: bool = False,
     snapshot_ref: str | None = None,
     snapshot_schema: str = "padjective",
 ) -> None:
@@ -1163,7 +1305,11 @@ def process_database(
         if not records:
             return
 
-        battles = _load_battles(conn, schema)
+        if snapshot_ref is None:
+            battles = _load_battles(conn, schema)
+        else:
+            battles = _derive_battles_from_records(records)
+        current_snapshot_label = snapshot_label(snapshot_ref)
         run_specs: list[tuple[str, int | None]] = []
         if tag_order_strategy == "all":
             run_specs.extend((strategy, None) for strategy in TAG_ORDER_STRATEGIES if strategy != "random")
@@ -1189,12 +1335,13 @@ def process_database(
                 )
                 for fold in range(cv_splits)
             ]
-            run_key = tag_order_run_key(strategy, seed)
+            run_key = tag_order_run_key(strategy, seed, snapshot_ref=snapshot_ref)
             _save_ablation_results(
                 conn,
                 schema,
                 results,
                 run_key=run_key,
+                snapshot_ref=current_snapshot_label,
                 tag_order_strategy=strategy,
                 tag_order_seed=seed,
                 prime_base=prime_base,
@@ -1203,6 +1350,9 @@ def process_database(
 
             if strategy == DEFAULT_TAG_ORDER_STRATEGY and seed is None:
                 default_results = results
+
+        if ablation_only:
+            return
 
         if default_results is None:
             default_results = [
@@ -1292,6 +1442,11 @@ def main() -> None:
         help="Random seed used when --tag-order-strategy=random.",
     )
     parser.add_argument(
+        "--ablation-only",
+        action="store_true",
+        help="Persist only tag-order ablation tables and leave the primary UMLLR outputs untouched.",
+    )
+    parser.add_argument(
         "--snapshot-ref",
         help="Optional benchmark snapshot alias/name/UUID to use instead of the live catalog.",
     )
@@ -1311,6 +1466,7 @@ def main() -> None:
         min_samples_per_taxonomy=args.min_samples_per_taxonomy,
         tag_order_strategy=args.tag_order_strategy,
         tag_order_seed=args.tag_order_seed,
+        ablation_only=args.ablation_only,
         snapshot_ref=args.snapshot_ref,
         snapshot_schema=args.snapshot_schema,
     )

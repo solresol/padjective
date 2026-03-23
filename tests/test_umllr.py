@@ -1,11 +1,17 @@
+import pytest
+
 from padjective.umllr import (
     BattleRecord,
     ProductRecord,
+    _dedupe_rows_by_key,
+    _derive_battles_from_records,
     _p_adic_distance,
     _run_fold,
     _select_coefficient,
     _select_default_prediction,
     _tag_order,
+    snapshot_label,
+    tag_order_run_key,
 )
 
 
@@ -137,3 +143,59 @@ def test_tag_order_taxonomy_association_prefers_more_peaked_tags() -> None:
     order = _tag_order(training, [], 0, strategy="taxonomy_association")
 
     assert order[0] == "BETA"
+
+
+def test_tag_order_run_key_includes_snapshot_namespace() -> None:
+    assert snapshot_label(None) == "live"
+    assert snapshot_label("paper") == "paper"
+    assert tag_order_run_key("battle_elo") == "live::battle_elo"
+    assert tag_order_run_key("random", 7, snapshot_ref="paper") == "paper::random_seed_7"
+
+
+def test_dedupe_rows_by_key_warns_and_preserves_first_row() -> None:
+    rows = [
+        (0, "LEAD", 11, 0),
+        (0, "LEAD", 17, 1),
+        (1, "LEAD", 19, 0),
+    ]
+
+    with pytest.warns(RuntimeWarning, match="duplicate UMLLR coefficient"):
+        deduped = _dedupe_rows_by_key(
+            rows,
+            key_fn=lambda row: (row[0], row[1]),
+            description="UMLLR coefficient",
+        )
+
+    assert deduped == [
+        (0, "LEAD", 11, 0),
+        (1, "LEAD", 19, 0),
+    ]
+
+
+def test_derive_battles_from_records_uses_record_folds() -> None:
+    records = [
+        ProductRecord(
+            product_id=1,
+            title="ALPHA BETA",
+            tags=["ALPHA", "BETA"],
+            encoded_path=11,
+            cv_fold=3,
+            taxonomy_id="T1",
+            taxonomy_depth=2,
+        ),
+        ProductRecord(
+            product_id=2,
+            title="GAMMA",
+            tags=["GAMMA"],
+            encoded_path=12,
+            cv_fold=4,
+            taxonomy_id="T2",
+            taxonomy_depth=1,
+        ),
+    ]
+
+    battles = _derive_battles_from_records(records)
+
+    assert battles == [
+        BattleRecord(winner_tag="BETA", loser_tag="ALPHA", cv_fold=3),
+    ]

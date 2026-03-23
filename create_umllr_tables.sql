@@ -123,6 +123,7 @@ CREATE INDEX IF NOT EXISTS padjective_umllr_tag_products_fold_tag_idx
 -- Create umllr_order_ablation_fold_metrics table
 CREATE TABLE IF NOT EXISTS padjective.umllr_order_ablation_fold_metrics (
     run_key TEXT NOT NULL,
+    snapshot_ref TEXT NOT NULL DEFAULT 'live',
     tag_order_strategy TEXT NOT NULL,
     tag_order_seed INTEGER,
     cv_fold INTEGER NOT NULL,
@@ -142,9 +143,13 @@ CREATE TABLE IF NOT EXISTS padjective.umllr_order_ablation_fold_metrics (
 CREATE INDEX IF NOT EXISTS padjective_umllr_ablation_strategy_idx
     ON padjective.umllr_order_ablation_fold_metrics (tag_order_strategy, tag_order_seed) TABLESPACE pg_default;
 
+CREATE INDEX IF NOT EXISTS padjective_umllr_ablation_snapshot_strategy_idx
+    ON padjective.umllr_order_ablation_fold_metrics (snapshot_ref, tag_order_strategy, tag_order_seed) TABLESPACE pg_default;
+
 -- Create umllr_order_ablation_predictions table
 CREATE TABLE IF NOT EXISTS padjective.umllr_order_ablation_predictions (
     run_key TEXT NOT NULL,
+    snapshot_ref TEXT NOT NULL DEFAULT 'live',
     tag_order_strategy TEXT NOT NULL,
     tag_order_seed INTEGER,
     cv_fold INTEGER NOT NULL,
@@ -158,6 +163,9 @@ CREATE TABLE IF NOT EXISTS padjective.umllr_order_ablation_predictions (
 
 CREATE INDEX IF NOT EXISTS padjective_umllr_ablation_predictions_strategy_idx
     ON padjective.umllr_order_ablation_predictions (tag_order_strategy, tag_order_seed, cv_fold) TABLESPACE pg_default;
+
+CREATE INDEX IF NOT EXISTS padjective_umllr_ablation_predictions_snapshot_idx
+    ON padjective.umllr_order_ablation_predictions (snapshot_ref, tag_order_strategy, tag_order_seed, cv_fold) TABLESPACE pg_default;
 
 -- Grant all privileges on schema and tables to padjective user
 GRANT USAGE ON SCHEMA padjective TO padjective;

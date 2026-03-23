@@ -23,6 +23,13 @@ from psycopg import sql
 from psycopg.rows import dict_row
 from scipy import stats
 
+from .benchmark_bundle import (
+    ablation_strategy_frame,
+    load_bundle,
+    model_rows_frame,
+    render_ablation_html,
+    render_model_comparison_html,
+)
 from . import data_access, db, display, ranking, tagbattle
 from .metrics import parse_taxonomy_path, summarize_encoded_predictions
 
@@ -634,6 +641,371 @@ def _collect_database_stats(conn, schema: str) -> Dict[str, int]:
 
 def _count_battles(pairs: Sequence[Tuple[str, str]]) -> int:
     return len(pairs)
+
+
+def _benchmark_stylesheet_extra() -> str:
+    return """
+.benchmark-page section {max-width: 78rem;}
+.benchmark-note {background: #eff6ff; border-left: 4px solid #0b6ce3; border-radius: 0.75rem; color: #1e3a8a; padding: 1rem 1.25rem; line-height: 1.6;}
+.benchmark-grid {display: grid; grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr)); gap: 1.25rem; margin-top: 1.5rem;}
+.benchmark-card {background: white; border-radius: 1rem; box-shadow: 0 12px 30px rgba(15, 23, 42, 0.12); padding: 1.5rem;}
+.benchmark-card h2, .benchmark-card h3 {margin-top: 0;}
+.benchmark-card p {color: #475569; line-height: 1.6;}
+.benchmark-actions {display: flex; flex-wrap: wrap; gap: 0.75rem; margin-top: 1rem;}
+.benchmark-actions a {display: inline-block; color: #0b6ce3; text-decoration: none; font-weight: 600; padding: 0.7rem 1rem; background: #eff6ff; border-radius: 0.5rem;}
+.benchmark-actions a:hover {text-decoration: underline;}
+.benchmark-hero-links {display: flex; flex-wrap: wrap; justify-content: center; gap: 0.75rem; margin-top: 1rem;}
+.benchmark-hero-links a {color: white; text-decoration: none; font-weight: 600; padding: 0.8rem 1.1rem; border: 1px solid rgba(255,255,255,0.45); border-radius: 999px; background: rgba(255,255,255,0.08);}
+.benchmark-hero-links a:hover {background: rgba(255,255,255,0.16);}
+.benchmark-table {width: 100%; border-collapse: collapse; background: white; margin-top: 1rem;}
+.benchmark-table th, .benchmark-table td {padding: 0.75rem 1rem; border-bottom: 1px solid #e5e7eb; text-align: left;}
+.benchmark-table thead {background: #0f172a; color: white;}
+.benchmark-table tbody tr:nth-child(even) {background: #f8fafc;}
+.benchmark-figure {background: white; border-radius: 1rem; box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08); padding: 1rem; margin: 1.5rem 0;}
+.benchmark-figure img {max-width: 100%; height: auto; display: block; margin: 0 auto;}
+.benchmark-figure figcaption {margin-top: 0.75rem; color: #475569; text-align: center;}
+.benchmark-meta {display: grid; grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr)); gap: 1rem; margin-top: 1.5rem;}
+.benchmark-meta .metric {text-align: left;}
+.benchmark-links {display: flex; flex-wrap: wrap; gap: 1rem; margin-top: 1rem;}
+.benchmark-links a {color: #0b6ce3; text-decoration: none; font-weight: 600;}
+.benchmark-links a:hover {text-decoration: underline;}
+"""
+
+
+def _write_benchmark_only_stylesheet(path: Path) -> None:
+    path.write_text(
+        """body {font-family: 'Inter', 'Helvetica Neue', Arial, sans-serif; margin: 0; color: #222; background: #f7f7fb;}
+header.hero {background: linear-gradient(135deg, #0b6ce3, #66c4ff); color: white; padding: 3rem 1.5rem; text-align: center;}
+header.hero h1 {margin-bottom: 0.5rem; font-size: 2.5rem;}
+header.hero .tagline {margin: 0 auto 1rem; max-width: 50rem; font-size: 1.1rem;}
+header.hero .timestamp {margin: 0; font-style: italic; opacity: 0.85;}
+section {padding: 2rem 1.5rem; max-width: 70rem; margin: 0 auto;}
+.metrics {display: flex; flex-wrap: wrap; gap: 1rem; justify-content: center;}
+.metric {background: white; border-radius: 0.75rem; padding: 1.5rem; flex: 1 1 12rem; text-align: center; box-shadow: 0 12px 30px rgba(11, 108, 227, 0.1);}
+.metric .value {display: block; font-size: 2rem; font-weight: 700; color: #0b6ce3;}
+.metric .label {font-size: 0.95rem; text-transform: uppercase; letter-spacing: 0.08em; color: #555;}
+footer {text-align: center; padding: 2rem 1.5rem 3rem; color: #6b7280;}
+"""
+        + _benchmark_stylesheet_extra()
+        + "\n",
+        encoding="utf-8",
+    )
+
+
+def _generate_benchmark_model_chart(bundle: Dict[str, Any], output_path: Path) -> Optional[Path]:
+    frame = model_rows_frame(bundle)
+    if frame.empty:
+        return None
+
+    fig, ax = plt.subplots(figsize=(10, 6), dpi=150)
+    for row in frame.itertuples(index=False):
+        params_value = max(float(row.params), 1.0)
+        loss_value = max(float(row.mean_padic_loss), 1e-12)
+        scatter_kwargs: Dict[str, Any] = {
+            "label": row.model_label,
+            "color": getattr(row, "color", "#0b6ce3"),
+            "s": 150,
+            "alpha": 0.8,
+            "marker": getattr(row, "marker", "o"),
+        }
+        if getattr(row, "marker", "o") not in {"+", "x", ".", ","}:
+            scatter_kwargs["edgecolors"] = "white"
+            scatter_kwargs["linewidths"] = 2
+        ax.scatter(params_value, loss_value, **scatter_kwargs)
+        ax.annotate(
+            str(getattr(row, "short_label", row.model_label)),
+            (params_value, loss_value),
+            textcoords="offset points",
+            xytext=(10, 5),
+            fontsize=9,
+            fontweight="bold",
+            color=getattr(row, "color", "#0b6ce3"),
+        )
+
+    log10_params = frame.get("log10_params")
+    if log10_params is not None and not log10_params.dropna().empty:
+        x_range = np.linspace(float(log10_params.min()) - 0.3, float(log10_params.max()) + 0.3, 200)
+        taxonomy_count = max(float(bundle.get("snapshot", {}).get("taxonomy_count_filtered") or 0.0), 1.0)
+        baseline_log10_loss = -0.1 * x_range + 0.3 * np.log10(taxonomy_count / 1000.0)
+        ax.plot(
+            10 ** x_range,
+            10 ** baseline_log10_loss,
+            "-",
+            color="#ef4444",
+            linewidth=2.2,
+            alpha=0.8,
+            label=f"Parsimoniousness baseline ({int(taxonomy_count):,} taxonomies)",
+        )
+
+    ax.set_xlabel("Number of Parameters (non-zero)", fontsize=12, fontweight="bold")
+    ax.set_ylabel("P-adic Loss (lower is better)", fontsize=12, fontweight="bold")
+    ax.set_title("Model Complexity vs Performance (Parsimoniousness Baseline)", fontsize=14, fontweight="bold", pad=15)
+    ax.set_xscale("log")
+    ax.set_yscale("log")
+    ax.grid(True, alpha=0.3, linestyle="--")
+    ax.legend(loc="lower left", frameon=True, shadow=True, fontsize=8)
+
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    fig.tight_layout()
+    fig.savefig(output_path, bbox_inches="tight")
+    plt.close(fig)
+    return output_path
+
+
+def _generate_benchmark_ablation_chart(bundle: Dict[str, Any], output_path: Path) -> Optional[Path]:
+    frame = ablation_strategy_frame(bundle)
+    if frame.empty:
+        return None
+
+    fig, ax = plt.subplots(figsize=(8, 4.8), dpi=150)
+    ax.bar(frame["tag_order_strategy"], frame["mean_padic_loss"], color="#0b6ce3")
+    baseline = bundle.get("ablation", {}).get("baseline_mean_padic_loss")
+    if baseline is not None:
+        ax.axhline(
+            float(baseline),
+            color="#ef4444",
+            linestyle="--",
+            linewidth=1.5,
+            label="battle_elo baseline",
+        )
+        ax.legend()
+    ax.set_ylabel("Mean p-adic loss")
+    ax.set_title("UMLLR Tag-order Ablation")
+    ax.tick_params(axis="x", rotation=20)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    fig.tight_layout()
+    fig.savefig(output_path, bbox_inches="tight")
+    plt.close(fig)
+    return output_path
+
+
+def _describe_benchmark_view(view: str) -> str:
+    if view == "paper":
+        return "Fixed benchmark snapshot shared by the Hugging Face notebook, benchmark-only HTML build, and generated TeX includes."
+    if view == "latest":
+        return "Rolling nightly benchmark compiled from the live operational runs."
+    return "Benchmark view rendered from the shared bundle schema."
+
+
+def _write_benchmark_pages(
+    output_dir: Path,
+    *,
+    benchmark_report_root: Path,
+    benchmark_views: Sequence[str],
+) -> Dict[str, Any]:
+    benchmark_root = output_dir / "benchmark"
+    benchmark_root.mkdir(parents=True, exist_ok=True)
+    assets_dir = output_dir / "assets"
+    generated = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+
+    views_meta: Dict[str, Any] = {}
+    view_cards: list[str] = []
+
+    for view in benchmark_views:
+        bundle_path = benchmark_report_root / view / "benchmark.json"
+        if not bundle_path.exists():
+            continue
+
+        bundle = load_bundle(bundle_path)
+        snapshot = bundle.get("snapshot", {})
+        narrative = bundle.get("narrative", {})
+        snapshot_label = html.escape(str(snapshot.get("snapshot_name") or snapshot.get("label") or view))
+        snapshot_as_of = snapshot.get("as_of")
+        view_dir = benchmark_root / view
+        view_dir.mkdir(parents=True, exist_ok=True)
+
+        model_chart_path = _generate_benchmark_model_chart(
+            bundle,
+            assets_dir / f"benchmark_{view}_model_comparison.png",
+        )
+        ablation_chart_path = _generate_benchmark_ablation_chart(
+            bundle,
+            assets_dir / f"benchmark_{view}_ablation.png",
+        )
+        model_chart_rel = (
+            f"../../assets/{model_chart_path.name}" if model_chart_path is not None else None
+        )
+        ablation_chart_rel = (
+            f"../../assets/{ablation_chart_path.name}" if ablation_chart_path is not None else None
+        )
+
+        note_parts = [
+            html.escape(_describe_benchmark_view(view)),
+            f"Snapshot label: <code>{snapshot_label}</code>.",
+        ]
+        if snapshot_as_of:
+            note_parts.append(f"Cutoff: <strong>{html.escape(str(snapshot_as_of))}</strong>.")
+        note_html = "<p class=\"benchmark-note\">" + " ".join(note_parts) + "</p>"
+
+        hero_links = ["<a href=\"../index.html\">Benchmark overview</a>"]
+        if view == "paper":
+            hero_links.append("<a href=\"ablation.html\">Paper UMLLR ablation</a>")
+        elif view == "latest":
+            hero_links.append("<a href=\"ablation.html\">Latest UMLLR ablation</a>")
+
+        model_chart_html = ""
+        if model_chart_rel is not None:
+            model_chart_html = (
+                "<figure class=\"benchmark-figure\">"
+                f"<img src=\"{html.escape(model_chart_rel)}\" alt=\"Model comparison chart for {html.escape(view)} benchmark view\" />"
+                "<figcaption>Scatter chart generated from the same bundle fields used by the autonomous notebook.</figcaption>"
+                "</figure>"
+            )
+
+        summary_html = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>{html.escape(view.title())} Benchmark</title>
+  <link rel="stylesheet" href="../../assets/styles.css" />
+</head>
+<body class="benchmark-page">
+  <header class="hero">
+    <h1>{html.escape(view.title())} Benchmark</h1>
+    <p class="tagline">Shared benchmark bundle for the site, notebook, and paper.</p>
+    <div class="benchmark-hero-links">{''.join(hero_links)}</div>
+    <p class="timestamp">Last rendered {generated}</p>
+  </header>
+
+  <section>
+    <p><a href="../index.html">← Back to benchmark overview</a></p>
+    {note_html}
+    <div class="metrics benchmark-meta">
+      <div class="metric"><span class="value">{int(snapshot.get('product_count_filtered', 0)):,}</span><span class="label">Filtered products</span></div>
+      <div class="metric"><span class="value">{int(snapshot.get('tag_count_filtered', 0)):,}</span><span class="label">Filtered tags</span></div>
+      <div class="metric"><span class="value">{int(snapshot.get('taxonomy_count_filtered', 0)):,}</span><span class="label">Filtered taxonomies</span></div>
+      <div class="metric"><span class="value">{int(snapshot.get('prime_base', 0)):,}</span><span class="label">Prime base</span></div>
+    </div>
+    <div class="benchmark-links">
+      <a href="ablation.html">View UMLLR tag-order ablation</a>
+      <a href="../../umllr/index.html">View operational UMLLR page</a>
+    </div>
+    {model_chart_html}
+    {render_model_comparison_html(bundle)}
+  </section>
+
+  <footer>
+    <p><a href="../index.html">← Back to benchmark overview</a></p>
+  </footer>
+</body>
+</html>
+"""
+        (view_dir / "index.html").write_text(summary_html, encoding="utf-8")
+
+        random_summary = bundle.get("ablation", {}).get("random_summary") or {}
+        ablation_note_bits = [html.escape(_describe_benchmark_view(view))]
+        best_strategy = narrative.get("best_ablation_strategy")
+        if best_strategy:
+            ablation_note_bits.append(
+                "Best strategy in this bundle: "
+                f"<strong>{html.escape(str(best_strategy))}</strong> "
+                f"({float(narrative.get('best_ablation_mean_padic_loss') or 0.0):.6f} mean p-adic loss)."
+            )
+        if random_summary.get("mean_loss") is not None:
+            ablation_note_bits.append(
+                "Random seeds average "
+                f"<strong>{float(random_summary['mean_loss']):.6f}</strong> mean p-adic loss."
+            )
+        ablation_note = "<p class=\"benchmark-note\">" + " ".join(ablation_note_bits) + "</p>"
+        ablation_chart_html = ""
+        if ablation_chart_rel is not None:
+            ablation_chart_html = (
+                "<figure class=\"benchmark-figure\">"
+                f"<img src=\"{html.escape(ablation_chart_rel)}\" alt=\"UMLLR tag-order ablation chart for {html.escape(view)} benchmark view\" />"
+                "<figcaption>Bar chart generated from the same bundle rows consumed by the notebook.</figcaption>"
+                "</figure>"
+            )
+
+        ablation_html = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>{html.escape(view.title())} UMLLR Ablation</title>
+  <link rel="stylesheet" href="../../assets/styles.css" />
+</head>
+<body class="benchmark-page">
+  <header class="hero">
+    <h1>{html.escape(view.title())} UMLLR Tag-order Ablation</h1>
+    <p class="tagline">One ordering change at a time, with the regressor held fixed.</p>
+    <div class="benchmark-hero-links"><a href="index.html">Model comparison</a><a href="../index.html">Benchmark overview</a></div>
+    <p class="timestamp">Last rendered {generated}</p>
+  </header>
+
+  <section>
+    <p><a href="index.html">← Back to {html.escape(view.title())} benchmark summary</a></p>
+    {ablation_note}
+    {ablation_chart_html}
+    {render_ablation_html(bundle)}
+  </section>
+
+  <footer>
+    <p><a href="index.html">← Back to {html.escape(view.title())} benchmark summary</a></p>
+  </footer>
+</body>
+</html>
+"""
+        (view_dir / "ablation.html").write_text(ablation_html, encoding="utf-8")
+
+        views_meta[view] = {
+            "bundle": bundle_path.relative_to(benchmark_report_root).as_posix(),
+            "snapshot_label": snapshot.get("label"),
+            "snapshot_name": snapshot.get("snapshot_name"),
+            "summary_page": (view_dir / "index.html").relative_to(output_dir).as_posix(),
+            "ablation_page": (view_dir / "ablation.html").relative_to(output_dir).as_posix(),
+        }
+        view_cards.append(
+            f"""
+      <article class="benchmark-card">
+        <h2>{html.escape(view.title())}</h2>
+        <p>{html.escape(_describe_benchmark_view(view))}</p>
+        <p><strong>Snapshot:</strong> <code>{snapshot_label}</code></p>
+        <div class="benchmark-actions">
+          <a href="{html.escape(view)}/index.html">Model comparison</a>
+          <a href="{html.escape(view)}/ablation.html">UMLLR ablation</a>
+        </div>
+      </article>
+"""
+        )
+
+    if not views_meta:
+        raise ValueError(
+            f"No benchmark bundles found under {benchmark_report_root} for views {', '.join(benchmark_views)}"
+        )
+
+    index_html = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Benchmark Comparisons</title>
+  <link rel="stylesheet" href="../assets/styles.css" />
+</head>
+<body class="benchmark-page">
+  <header class="hero">
+    <h1>Benchmark Comparisons</h1>
+    <p class="tagline">Dedicated benchmark pages for the rolling live site and the fixed paper snapshot.</p>
+    <div class="benchmark-hero-links">{''.join(f'<a href="{html.escape(view)}/index.html">{html.escape(view.title())}</a>' for view in views_meta)}</div>
+    <p class="timestamp">Last rendered {generated}</p>
+  </header>
+
+  <section>
+    <p class="benchmark-note">The <code>latest</code> view is compiled from the nightly live runs. The <code>paper</code> view is compiled from the fixed benchmark snapshot and is intended to match the Hugging Face notebook and generated TeX includes.</p>
+    <div class="benchmark-grid">
+      {''.join(view_cards)}
+    </div>
+  </section>
+
+  <footer>
+    <p><a href="../index.html">← Back to site index</a></p>
+  </footer>
+</body>
+</html>
+"""
+    (benchmark_root / "index.html").write_text(index_html, encoding="utf-8")
+
+    return {
+        "index_page": (benchmark_root / "index.html").relative_to(output_dir).as_posix(),
+        "views": views_meta,
+    }
 
 
 def _build_tag_rank_lookup(leaderboard: pd.DataFrame) -> Dict[str, int]:
@@ -1423,13 +1795,39 @@ def _load_dummy_results(conn, schema: str) -> Optional[Dict[str, Any]]:
     }
 
 
-def _load_umllr_order_ablation_results(conn, schema: str = "padjective") -> Optional[Dict[str, Any]]:
+def _load_umllr_order_ablation_results(
+    conn,
+    schema: str = "padjective",
+    snapshot_ref: str | None = None,
+) -> Optional[Dict[str, Any]]:
     required_tables = (
         "umllr_order_ablation_fold_metrics",
         "umllr_order_ablation_predictions",
     )
     if not all(_table_exists(conn, schema, table) for table in required_tables):
         return None
+
+    metrics_columns = _table_columns(conn, schema, "umllr_order_ablation_fold_metrics")
+    prediction_columns = _table_columns(conn, schema, "umllr_order_ablation_predictions")
+    metrics_has_snapshot = "snapshot_ref" in metrics_columns
+    predictions_has_snapshot = "snapshot_ref" in prediction_columns
+
+    mean_loss_params: list[object] = []
+    metrics_params: list[object] = []
+    if snapshot_ref is not None:
+        if metrics_has_snapshot and predictions_has_snapshot:
+            prediction_where = sql.SQL("WHERE COALESCE(snapshot_ref, 'live') = %s")
+            metrics_where = sql.SQL("WHERE COALESCE(snapshot_ref, 'live') = %s")
+            mean_loss_params.append(snapshot_ref)
+            metrics_params.append(snapshot_ref)
+        elif snapshot_ref == "live":
+            prediction_where = sql.SQL("")
+            metrics_where = sql.SQL("")
+        else:
+            return None
+    else:
+        prediction_where = sql.SQL("")
+        metrics_where = sql.SQL("")
 
     mean_loss_by_run_fold: Dict[tuple[str, int], float] = {}
     with conn.cursor(row_factory=dict_row) as cur:
@@ -1438,9 +1836,14 @@ def _load_umllr_order_ablation_results(conn, schema: str = "padjective") -> Opti
                 """
                 SELECT run_key, cv_fold, AVG(loss) AS mean_loss
                 FROM {schema}.umllr_order_ablation_predictions
+                {prediction_where}
                 GROUP BY run_key, cv_fold
                 """
-            ).format(schema=sql.Identifier(schema))
+            ).format(
+                schema=sql.Identifier(schema),
+                prediction_where=prediction_where,
+            ),
+            mean_loss_params,
         )
         for row in cur:
             mean_loss_by_run_fold[(str(row["run_key"]), int(row["cv_fold"]))] = float(row["mean_loss"])
@@ -1454,9 +1857,14 @@ def _load_umllr_order_ablation_results(conn, schema: str = "padjective") -> Opti
                        exact_accuracy, prefix1_accuracy, prefix2_accuracy,
                        mean_shared_prefix_depth, mean_scoring_ops
                 FROM {schema}.umllr_order_ablation_fold_metrics
+                {metrics_where}
                 ORDER BY tag_order_strategy, tag_order_seed NULLS FIRST, cv_fold
                 """
-            ).format(schema=sql.Identifier(schema))
+            ).format(
+                schema=sql.Identifier(schema),
+                metrics_where=metrics_where,
+            ),
+            metrics_params,
         )
         for row in cur:
             run_key = str(row["run_key"])
@@ -1514,6 +1922,7 @@ def _load_umllr_order_ablation_results(conn, schema: str = "padjective") -> Opti
     return {
         "runs": sorted(run_rows, key=lambda row: (row["tag_order_strategy"], row["tag_order_seed"] is not None, row["tag_order_seed"] or -1)),
         "random_summary": random_summary,
+        "snapshot_ref": snapshot_ref,
     }
 
 
@@ -4230,6 +4639,7 @@ def _build_index_markdown(
     taxonomy_unn_fold_results: Optional[list[Dict[str, Any]]],
     trends_chart_path: Optional[Path],
     output_dir: Path,
+    benchmark_page: Optional[Path] = None,
 ) -> str:
     """Generate markdown version of the index page."""
     lines = [
@@ -4272,6 +4682,13 @@ def _build_index_markdown(
         "- [Explore the full dataset](dataset.html)",
         "- [View defective taxonomy labels](defective_taxonomy.html)",
         "",
+    ])
+    if benchmark_page is not None:
+        lines.extend([
+            "- [Browse benchmark comparisons](benchmark/index.html)",
+            "",
+        ])
+    lines.extend([
         "## Models",
         "",
     ])
@@ -4519,6 +4936,7 @@ def _build_index_html(
     tags_y_data: Optional[Dict[str, list]] = None,
     tags_dates: Optional[Dict[str, list]] = None,
     tags_x_values: Optional[Dict[str, list]] = None,
+    benchmark_page: Optional[Path] = None,
 ) -> None:
     generated = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
 
@@ -4896,6 +5314,18 @@ def _build_index_html(
     <a href="{elo_page.relative_to(output_dir).as_posix()}" class="card-link">View rankings →</a>
   </div>"""
     all_cards.append(elo_card)
+    if benchmark_page is not None:
+        benchmark_card = f"""
+  <div class="model-card">
+    <h3>Benchmark Comparisons</h3>
+    <p>Dedicated `latest` and `paper` benchmark pages generated from the same bundle contract as the notebook and paper.</p>
+    <div class="card-metric">
+      <span class="value">2</span>
+      <span class="label">Benchmark views</span>
+    </div>
+    <a href="{benchmark_page.relative_to(output_dir).as_posix()}" class="card-link">Open benchmark pages →</a>
+  </div>"""
+        all_cards.append(benchmark_card)
     models_grid = "\n".join(all_cards)
 
     taxonomy_overview_html = ""
@@ -5119,6 +5549,7 @@ def _build_index_html(
         taxonomy_unn_fold_results=taxonomy_unn_fold_results,
         trends_chart_path=trends_chart_path,
         output_dir=output_dir,
+        benchmark_page=benchmark_page,
     )
     (output_dir / "index.md").write_text(markdown_document, encoding="utf-8")
 
@@ -5527,6 +5958,7 @@ def _write_umllr_overview_page(
     avg_prefix2_value = umllr_summary.get("average_prefix2_accuracy")
     avg_scoring_ops_value = umllr_summary.get("average_scoring_ops")
     ablation_summary = umllr_summary.get("order_ablations")
+    benchmark_pages = umllr_summary.get("benchmark_pages") or {}
 
     if metrics:
         # Use mean_loss (per-prediction average) not total loss
@@ -5542,6 +5974,28 @@ def _write_umllr_overview_page(
     avg_f1_text = f"{avg_f1_value:.4f}" if avg_f1_value is not None else "—"
     avg_prefix2_text = f"{avg_prefix2_value * 100:.2f}%" if avg_prefix2_value is not None else "—"
     avg_scoring_ops_text = f"{avg_scoring_ops_value:.2f}" if avg_scoring_ops_value is not None else "—"
+    benchmark_links_html = ""
+    if benchmark_pages:
+        link_bits = []
+        if benchmark_pages.get("index"):
+            link_bits.append(
+                f'<a href="../{html.escape(str(benchmark_pages["index"]))}">benchmark overview</a>'
+            )
+        if benchmark_pages.get("latest_ablation"):
+            link_bits.append(
+                f'<a href="../{html.escape(str(benchmark_pages["latest_ablation"]))}">latest comparison page</a>'
+            )
+        if benchmark_pages.get("paper_ablation"):
+            link_bits.append(
+                f'<a href="../{html.escape(str(benchmark_pages["paper_ablation"]))}">paper comparison page</a>'
+            )
+        if link_bits:
+            benchmark_links_html = (
+                "<p>The dedicated benchmark pages now live in the shared "
+                + ", ".join(link_bits[:-1])
+                + (" and " + link_bits[-1] if len(link_bits) > 1 else link_bits[0])
+                + ".</p>"
+            )
 
     fold_rows = []
     for metric in metrics:
@@ -5586,6 +6040,7 @@ def _write_umllr_overview_page(
 
     <h2>Overview</h2>
     <p>The umllr (Universal Machine Learning Linear Regression) model assigns p-adic integer coefficients to product tags and uses them to predict taxonomy encodings. Each taxonomy path is encoded as a p-adic integer (base {prime_base}), and tags are fitted to minimize p-adic distance on training data.</p>
+    {benchmark_links_html}
 
     <div class="metrics">
       <div class="metric">
@@ -5646,9 +6101,17 @@ def _write_umllr_overview_page(
                 f"<p>Random order baseline across five fixed seeds: "
                 f"{random_summary['mean_loss']:.8f} ± {random_summary['loss_std']:.8f} mean p-adic loss.</p>"
             )
+        snapshot_note = ""
+        if ablation_summary.get("snapshot_ref"):
+            snapshot_label = html.escape(str(ablation_summary["snapshot_ref"]))
+            snapshot_note = (
+                f"<p>These ablations are loaded from the fixed <code>{snapshot_label}</code> snapshot so the "
+                f"comparison stays stable even as the live catalog changes.</p>"
+            )
         page_html += f"""
     <h2>Tag-order ablations</h2>
     <p>These runs keep the greedy p-adic regressor fixed and vary only the feature ordering heuristic.</p>
+    {snapshot_note}
     {random_note}
     <table class="umllr-summary">
       <thead>
@@ -9055,14 +9518,63 @@ def build_site(
     min_tag_count: int = 2,
     min_samples_per_taxonomy: int = 5,
     snapshot_ref: str | None = None,
+    ablation_snapshot_ref: str | None = None,
     snapshot_schema: str = "padjective",
+    benchmark_report_root: Optional[Path] = None,
+    benchmark_views: Sequence[str] = ("latest", "paper"),
+    benchmark_only: bool = False,
 ) -> Dict[str, Any]:
     _ensure_clean_directory(output_dir)
 
     assets_dir = output_dir / "assets"
+    assets_dir.mkdir(parents=True, exist_ok=True)
+    stylesheet = assets_dir / "styles.css"
+
+    if benchmark_only:
+        if benchmark_report_root is None:
+            raise ValueError("--benchmark-only requires --benchmark-report-root")
+        _write_benchmark_only_stylesheet(stylesheet)
+        benchmark_metadata = _write_benchmark_pages(
+            output_dir,
+            benchmark_report_root=benchmark_report_root,
+            benchmark_views=benchmark_views,
+        )
+        root_index = output_dir / "index.html"
+        root_index.write_text(
+            """<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="refresh" content="0; url=benchmark/index.html" />
+  <title>Benchmark Site</title>
+  <link rel="stylesheet" href="assets/styles.css" />
+</head>
+<body class="benchmark-page">
+  <header class="hero">
+    <h1>Benchmark Site</h1>
+    <p class="tagline">Redirecting to the benchmark overview.</p>
+  </header>
+  <section>
+    <p><a href="benchmark/index.html">Open the benchmark overview</a></p>
+  </section>
+</body>
+</html>
+""",
+            encoding="utf-8",
+        )
+        metadata = {
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+            "benchmark": benchmark_metadata,
+        }
+        (output_dir / "metadata.json").write_text(
+            json.dumps(metadata, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        return metadata
+
     downloads_dir = output_dir / "downloads"
     datadumps_dir = output_dir / "datadumps"
-    for path in (assets_dir, downloads_dir, datadumps_dir):
+    for path in (downloads_dir, datadumps_dir):
         path.mkdir(parents=True, exist_ok=True)
 
     if precomputed_database is None:
@@ -9107,7 +9619,6 @@ def build_site(
     # Create comprehensive database dumps for website recreation
     _create_comprehensive_dumps(precomputed_database, datadumps_dir, battle_schema)
 
-    stylesheet = assets_dir / "styles.css"
     stylesheet.write_text(
 
         """body {font-family: 'Inter', 'Helvetica Neue', Arial, sans-serif; margin: 0; color: #222; background: #f7f7fb;}
@@ -9185,6 +9696,9 @@ footer {text-align: center; padding: 2rem 1.5rem 3rem; color: #6b7280;}
 @media (max-width: 900px) {.taxonomy-layout {flex-direction: column;}}
 """
     )
+    with stylesheet.open("a", encoding="utf-8") as handle:
+        handle.write(_benchmark_stylesheet_extra())
+        handle.write("\n")
 
     artifact_links: Dict[str, Path] = {
         "Tag rankings table (HTML)": rankings_html,
@@ -9223,7 +9737,14 @@ footer {text-align: center; padding: 2rem 1.5rem 3rem; color: #6b7280;}
         umllr_summary["order_ablations"] = _load_umllr_order_ablation_results(
             precomputed_database,
             battle_schema,
+            snapshot_ref=ablation_snapshot_ref,
         )
+        if benchmark_report_root is not None:
+            umllr_summary["benchmark_pages"] = {
+                "index": "benchmark/index.html",
+                "latest_ablation": "benchmark/latest/ablation.html" if "latest" in benchmark_views else None,
+                "paper_ablation": "benchmark/paper/ablation.html" if "paper" in benchmark_views else None,
+            }
         fold_pages = _write_umllr_pages(output_dir, umllr_summary, conn=precomputed_database, schema=battle_schema)
         # Add pages to summary before creating overview page so links work
         umllr_summary["pages"] = {
@@ -9512,7 +10033,16 @@ footer {text-align: center; padding: 2rem 1.5rem 3rem; color: #6b7280;}
         tags_y_data,
         tags_dates,
         tags_x_values,
+        output_dir / "benchmark" / "index.html" if benchmark_report_root is not None else None,
     )
+
+    benchmark_metadata = None
+    if benchmark_report_root is not None:
+        benchmark_metadata = _write_benchmark_pages(
+            output_dir,
+            benchmark_report_root=benchmark_report_root,
+            benchmark_views=benchmark_views,
+        )
 
     metadata = {
         "generated_at": datetime.now(timezone.utc).isoformat(),
@@ -9532,6 +10062,7 @@ footer {text-align: center; padding: 2rem 1.5rem 3rem; color: #6b7280;}
             ),
             "fold_results": taxonomy_levelwise_fold_results,
         },
+        "benchmark": benchmark_metadata,
     }
     (output_dir / "metadata.json").write_text(
         json.dumps(metadata, indent=2) + "\n",
@@ -9570,9 +10101,28 @@ def main() -> None:
         help="Optional benchmark snapshot alias/name/UUID to use instead of the live catalog.",
     )
     parser.add_argument(
+        "--ablation-snapshot-ref",
+        help="Optional snapshot alias/name/UUID to use when loading UMLLR ablation runs for the website.",
+    )
+    parser.add_argument(
         "--snapshot-schema",
         default="padjective",
         help="Schema containing product_taxonomy_bench snapshot tables.",
+    )
+    parser.add_argument(
+        "--benchmark-report-root",
+        type=Path,
+        help="Directory containing benchmark bundles, typically with latest/ and paper/ subdirectories.",
+    )
+    parser.add_argument(
+        "--benchmark-views",
+        default="latest,paper",
+        help="Comma-separated benchmark bundle views to render (default: latest,paper).",
+    )
+    parser.add_argument(
+        "--benchmark-only",
+        action="store_true",
+        help="Render only benchmark pages from benchmark bundles, without loading live Postgres site data.",
     )
     parser.add_argument(
         "--min-tag-count",
@@ -9588,6 +10138,26 @@ def main() -> None:
     )
     args = parser.parse_args()
 
+    benchmark_views = tuple(
+        part.strip() for part in args.benchmark_views.split(",") if part.strip()
+    ) or ("latest", "paper")
+
+    if args.benchmark_only:
+        build_site(
+            args.output,
+            battle_schema=args.schema,
+            product_table=args.product_table,
+            min_tag_count=args.min_tag_count,
+            min_samples_per_taxonomy=args.min_samples_per_taxonomy,
+            snapshot_ref=args.snapshot_ref,
+            ablation_snapshot_ref=args.ablation_snapshot_ref,
+            snapshot_schema=args.snapshot_schema,
+            benchmark_report_root=args.benchmark_report_root,
+            benchmark_views=benchmark_views,
+            benchmark_only=True,
+        )
+        return
+
     conn = db.get_connection(args.dsn)
     try:
         build_site(
@@ -9598,7 +10168,10 @@ def main() -> None:
             min_tag_count=args.min_tag_count,
             min_samples_per_taxonomy=args.min_samples_per_taxonomy,
             snapshot_ref=args.snapshot_ref,
+            ablation_snapshot_ref=args.ablation_snapshot_ref,
             snapshot_schema=args.snapshot_schema,
+            benchmark_report_root=args.benchmark_report_root,
+            benchmark_views=benchmark_views,
         )
     finally:
         conn.close()

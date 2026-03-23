@@ -12,7 +12,15 @@ The publish/export step also stages the benchmark notebook to:
 
 - `notebooks/product_taxonomy_bench.ipynb`
 
-so the dataset card can link directly to a rendered notebook on the Hub.
+and writes shared benchmark artifacts to:
+
+- `reports/paper/benchmark.json`
+- `reports/paper/model_comparison.csv`
+- `reports/paper/umllr_ablation.csv`
+- `reports/latest/...`
+
+It also refreshes the generated TeX includes used by the SIGIR eCom paper under
+`../papers/padjective/sigir-ecom/generated/`.
 
 ## One-shot publish (export + upload)
 
@@ -30,6 +38,7 @@ export HF_TOKEN='hf_…'
 
 uv run -m padjective.product_taxonomy_bench_publish \
   --out-root /data/hf/product-taxonomy-bench \
+  --paper-tex ../papers/padjective/sigir-ecom/padjective-ecom.tex \
   --hf-repo-id yourname/product-taxonomy-bench
 ```
 
@@ -46,7 +55,9 @@ Notes:
 Export:
 
 ```bash
-uv run -m padjective.product_taxonomy_bench_publish --out-root /data/hf/product-taxonomy-bench
+uv run -m padjective.product_taxonomy_bench_publish \
+  --out-root /data/hf/product-taxonomy-bench \
+  --paper-tex ../papers/padjective/sigir-ecom/padjective-ecom.tex
 ```
 
 Upload:
@@ -57,10 +68,22 @@ uv run -m padjective.hf_sync \
   --out-root /data/hf/product-taxonomy-bench
 ```
 
-## Cron example (monthly on the 1st at 03:00)
+## Weekly publish cadence
+
+The intended schedule is weekly, after the nightly site job:
+
+- Monday at 06:30 Australia/Sydney time
+
+The helper script `weekly_hf_publish.sh` wraps the default publish command:
+
+```bash
+SHOPIFY_DB_DSN='postgresql://…' HF_TOKEN='hf_…' ./weekly_hf_publish.sh
+```
+
+## Cron example (Monday 06:30 Australia/Sydney time)
 
 Add something like this on the publishing box (edit paths/env as needed):
 
 ```cron
-0 3 1 * * cd /path/to/padjective && SHOPIFY_DB_DSN='postgresql://…' HF_TOKEN='hf_…' uv run -m padjective.product_taxonomy_bench_publish --paper-as-of "2026-02-11 19:15 UTC" --out-root /data/hf/product-taxonomy-bench --hf-repo-id yourname/product-taxonomy-bench
+30 6 * * 1 cd /path/to/padjective && SHOPIFY_DB_DSN='postgresql://…' HF_TOKEN='hf_…' ./weekly_hf_publish.sh
 ```

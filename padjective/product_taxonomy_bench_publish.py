@@ -20,6 +20,8 @@ from typing import Optional, Sequence
 
 from psycopg import sql
 
+from .benchmark_bundle import write_bundle_outputs, write_paper_tex_outputs
+from .benchmark_runtime import build_snapshot_benchmark_bundle, load_snapshot_tables
 from . import db
 from .hf_sync import UploadOptions, upload_export_root
 from .product_taxonomy_bench import create_snapshot, parse_as_of
@@ -130,7 +132,8 @@ def publish(
     pretty_name: str,
     hf_repo_id: str | None = None,
     hf_token: str | None = None,
-    hf_replace_folders: Sequence[str] = ("latest", "first1000"),
+    hf_replace_folders: Sequence[str] = ("latest", "first1000", "notebooks", "reports"),
+    paper_generated_dir: Path | None = None,
 ) -> PublishResult:
     paper_snapshot_name = snapshot_name_from_timestamp("paper", paper_as_of)
     latest_snapshot_name = snapshot_name_from_timestamp(
@@ -233,6 +236,18 @@ def publish(
     (out_root / "README.md").write_text(readme, encoding="utf-8")
     stage_hf_notebook(out_root)
 
+    reports_root = out_root / "reports"
+    paper_bundle = build_snapshot_benchmark_bundle(
+        load_snapshot_tables(out_root / "paper", snapshot_label="paper")
+    )
+    latest_bundle = build_snapshot_benchmark_bundle(
+        load_snapshot_tables(out_root / "latest", snapshot_label="latest")
+    )
+    write_bundle_outputs(paper_bundle, reports_root / "paper")
+    write_bundle_outputs(latest_bundle, reports_root / "latest")
+    if paper_generated_dir is not None:
+        write_paper_tex_outputs(paper_bundle, paper_generated_dir)
+
     if hf_repo_id:
         upload_export_root(
             out_root,
@@ -268,7 +283,7 @@ def main() -> None:
     parser.add_argument(
         "--paper-tex",
         type=Path,
-        default=Path("../papers/padjective/padjective.tex"),
+        default=Path("../papers/padjective/sigir-ecom/padjective-ecom.tex"),
         help="Path to the paper TeX used to infer the paper cutoff timestamp.",
     )
     parser.add_argument(
@@ -329,8 +344,14 @@ def main() -> None:
     )
     parser.add_argument(
         "--hf-replace-folders",
-        default="latest",
-        help="Comma-separated list of folders to delete before upload (default: latest).",
+        default="latest,first1000,notebooks,reports",
+        help="Comma-separated list of folders to delete before upload.",
+    )
+    parser.add_argument(
+        "--paper-generated-dir",
+        type=Path,
+        default=Path("../papers/padjective/sigir-ecom/generated"),
+        help="Directory where generated TeX benchmark includes should be written.",
     )
     args = parser.parse_args()
 
@@ -367,6 +388,7 @@ def main() -> None:
         hf_repo_id=args.hf_repo_id,
         hf_token=args.hf_token,
         hf_replace_folders=replace_folders,
+        paper_generated_dir=args.paper_generated_dir,
     )
 
 
