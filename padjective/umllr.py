@@ -149,6 +149,49 @@ def _ensure_storage(conn, schema: str) -> None:
                 )
 
 
+def _table_owner(conn, schema: str, table: str) -> str | None:
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT tableowner
+            FROM pg_tables
+            WHERE schemaname = %s AND tablename = %s
+            """,
+            (schema, table),
+        )
+        row = cur.fetchone()
+    if row is None:
+        return None
+    return str(row[0])
+
+
+def _table_columns(conn, schema: str, table: str) -> set[str]:
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT column_name
+            FROM information_schema.columns
+            WHERE table_schema = %s AND table_name = %s
+            """,
+            (schema, table),
+        )
+        rows = cur.fetchall()
+    return {str(row[0]) for row in rows}
+
+
+def _index_exists(conn, schema: str, index_name: str) -> bool:
+    with conn.cursor() as cur:
+        cur.execute(
+            """
+            SELECT 1
+            FROM pg_indexes
+            WHERE schemaname = %s AND indexname = %s
+            """,
+            (schema, index_name),
+        )
+        return cur.fetchone() is not None
+
+
 def _ensure_ablation_storage(conn, schema: str) -> None:
     db.ensure_schema(conn, schema)
     db.ensure_table(
@@ -191,51 +234,102 @@ def _ensure_ablation_storage(conn, schema: str) -> None:
             "PRIMARY KEY (run_key, cv_fold, product_id)",
         ),
     )
+    metrics_table = "umllr_order_ablation_fold_metrics"
+    predictions_table = "umllr_order_ablation_predictions"
+    metrics_columns = _table_columns(conn, schema, metrics_table)
+    prediction_columns = _table_columns(conn, schema, predictions_table)
+    metrics_owner = _table_owner(conn, schema, metrics_table)
+    predictions_owner = _table_owner(conn, schema, predictions_table)
+    metrics_index_name = f"{schema}_umllr_ablation_snapshot_strategy_idx"
+    predictions_index_name = f"{schema}_umllr_ablation_predictions_snapshot_idx"
+
     with conn.cursor() as cur:
-        cur.execute(
-            sql.SQL(
-                "ALTER TABLE {schema}.umllr_order_ablation_fold_metrics "
-                "ADD COLUMN IF NOT EXISTS snapshot_ref TEXT NOT NULL DEFAULT 'live'"
-            ).format(schema=sql.Identifier(schema))
-        )
-        cur.execute(
-            sql.SQL(
-                "ALTER TABLE {schema}.umllr_order_ablation_predictions "
-                "ADD COLUMN IF NOT EXISTS snapshot_ref TEXT NOT NULL DEFAULT 'live'"
-            ).format(schema=sql.Identifier(schema))
-        )
-        cur.execute(
-            sql.SQL(
-                "UPDATE {schema}.umllr_order_ablation_fold_metrics "
-                "SET snapshot_ref = 'live' WHERE snapshot_ref IS NULL"
-            ).format(schema=sql.Identifier(schema))
-        )
-        cur.execute(
-            sql.SQL(
-                "UPDATE {schema}.umllr_order_ablation_predictions "
-                "SET snapshot_ref = 'live' WHERE snapshot_ref IS NULL"
-            ).format(schema=sql.Identifier(schema))
-        )
-        cur.execute(
-            sql.SQL(
-                "CREATE INDEX IF NOT EXISTS {index} "
-                "ON {schema}.umllr_order_ablation_fold_metrics (snapshot_ref, tag_order_strategy, tag_order_seed) "
-                "TABLESPACE pg_default"
-            ).format(
-                index=sql.Identifier(f"{schema}_umllr_ablation_snapshot_strategy_idx"),
-                schema=sql.Identifier(schema),
+        cur.execute("SELECT CURRENT_USER")
+        current_user = str(cur.fetchone()[0])
+
+        if "snapshot_ref" not in metrics_columns:
+            if metrics_owner != current_user:
+                raise RuntimeError(
+                    f"{schema}.{metrics_table} is missing snapshot_ref, "
+                    f"but the current database role {current_user!r} does not own the table "
+                    f"(owner: {metrics_owner!r}). Transfer ownership or run the migration "
+                    "as the owning role before retrying."
+                )
+            cur.execute(
+                sql.SQL(
+                    "ALTER TABLE {schema}.umllr_order_ablation_fold_metrics "
+                    "ADD COLUMN IF NOT EXISTS snapshot_ref TEXT NOT NULL DEFAULT 'live'"
+                ).format(schema=sql.Identifier(schema))
             )
-        )
-        cur.execute(
-            sql.SQL(
-                "CREATE INDEX IF NOT EXISTS {index} "
-                "ON {schema}.umllr_order_ablation_predictions (snapshot_ref, tag_order_strategy, tag_order_seed, cv_fold) "
-                "TABLESPACE pg_default"
-            ).format(
-                index=sql.Identifier(f"{schema}_umllr_ablation_predictions_snapshot_idx"),
-                schema=sql.Identifier(schema),
+            metrics_columns.add("snapshot_ref")
+
+        if "snapshot_ref" not in prediction_columns:
+            if predictions_owner != current_user:
+                raise RuntimeError(
+                    f"{schema}.{predictions_table} is missing snapshot_ref, "
+                    f"but the current database role {current_user!r} does not own the table "
+                    f"(owner: {predictions_owner!r}). Transfer ownership or run the migration "
+                    "as the owning role before retrying."
+                )
+            cur.execute(
+                sql.SQL(
+                    "ALTER TABLE {schema}.umllr_order_ablation_predictions "
+                    "ADD COLUMN IF NOT EXISTS snapshot_ref TEXT NOT NULL DEFAULT 'live'"
+                ).format(schema=sql.Identifier(schema))
             )
-        )
+            prediction_columns.add("snapshot_ref")
+
+        if "snapshot_ref" in metrics_columns:
+            cur.execute(
+                sql.SQL(
+                    "UPDATE {schema}.umllr_order_ablation_fold_metrics "
+                    "SET snapshot_ref = 'live' WHERE snapshot_ref IS NULL"
+                ).format(schema=sql.Identifier(schema))
+            )
+
+        if "snapshot_ref" in prediction_columns:
+            cur.execute(
+                sql.SQL(
+                    "UPDATE {schema}.umllr_order_ablation_predictions "
+                    "SET snapshot_ref = 'live' WHERE snapshot_ref IS NULL"
+                ).format(schema=sql.Identifier(schema))
+            )
+
+        if metrics_owner == current_user:
+            cur.execute(
+                sql.SQL(
+                    "CREATE INDEX IF NOT EXISTS {index} "
+                    "ON {schema}.umllr_order_ablation_fold_metrics (snapshot_ref, tag_order_strategy, tag_order_seed) "
+                    "TABLESPACE pg_default"
+                ).format(
+                    index=sql.Identifier(metrics_index_name),
+                    schema=sql.Identifier(schema),
+                )
+            )
+        elif not _index_exists(conn, schema, metrics_index_name):
+            warnings.warn(
+                f"Skipping creation of index {metrics_index_name!r}: "
+                f"{schema}.{metrics_table} is owned by {metrics_owner!r}, not {current_user!r}.",
+                RuntimeWarning,
+            )
+
+        if predictions_owner == current_user:
+            cur.execute(
+                sql.SQL(
+                    "CREATE INDEX IF NOT EXISTS {index} "
+                    "ON {schema}.umllr_order_ablation_predictions (snapshot_ref, tag_order_strategy, tag_order_seed, cv_fold) "
+                    "TABLESPACE pg_default"
+                ).format(
+                    index=sql.Identifier(predictions_index_name),
+                    schema=sql.Identifier(schema),
+                )
+            )
+        elif not _index_exists(conn, schema, predictions_index_name):
+            warnings.warn(
+                f"Skipping creation of index {predictions_index_name!r}: "
+                f"{schema}.{predictions_table} is owned by {predictions_owner!r}, not {current_user!r}.",
+                RuntimeWarning,
+            )
     conn.commit()
 
 
