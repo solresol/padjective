@@ -28,6 +28,7 @@ from .benchmark_bundle import (
     load_bundle,
     model_rows_frame,
     render_ablation_html,
+    render_ablation_strategy_guide_html,
     render_model_comparison_html,
 )
 from . import data_access, db, display, ranking, tagbattle
@@ -669,6 +670,13 @@ def _benchmark_stylesheet_extra() -> str:
 .benchmark-links {display: flex; flex-wrap: wrap; gap: 1rem; margin-top: 1rem;}
 .benchmark-links a {color: #0b6ce3; text-decoration: none; font-weight: 600;}
 .benchmark-links a:hover {text-decoration: underline;}
+.benchmark-methods {margin: 1.5rem 0;}
+.benchmark-methods h2 {margin-bottom: 0.5rem;}
+.benchmark-methods > p {color: #475569; line-height: 1.6;}
+.benchmark-strategy-grid {margin-top: 1rem;}
+.benchmark-strategy-card {border-top: 4px solid #0b6ce3;}
+.benchmark-strategy-card code {font-size: 1rem;}
+.benchmark-strategy-headline {font-weight: 700; color: #0f172a;}
 """
 
 
@@ -934,6 +942,7 @@ def _write_benchmark_pages(
   <section>
     <p><a href="index.html">← Back to {html.escape(view.title())} benchmark summary</a></p>
     {ablation_note}
+    {render_ablation_strategy_guide_html(bundle)}
     {ablation_chart_html}
     {render_ablation_html(bundle)}
   </section>

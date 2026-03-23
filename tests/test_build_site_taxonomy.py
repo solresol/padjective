@@ -529,6 +529,8 @@ def test_build_site_renders_benchmark_pages(tmp_path: Path, monkeypatch) -> None
     paper_html = (output_dir / "benchmark" / "paper" / "ablation.html").read_text(encoding="utf-8")
     assert "Fixed benchmark snapshot shared by the Hugging Face notebook" in paper_html
     assert "taxonomy_association" in paper_html
+    assert "Ordering methods" in paper_html
+    assert "single most common taxonomy" in paper_html
 
     assert metadata["benchmark"]["views"]["paper"]["ablation_page"] == "benchmark/paper/ablation.html"
 
@@ -555,5 +557,6 @@ def test_build_site_benchmark_only_renders_paper_view(tmp_path: Path) -> None:
 
     paper_ablation = (output_dir / "benchmark" / "paper" / "ablation.html").read_text(encoding="utf-8")
     assert "taxonomy_association" in paper_ablation
+    assert "Taxonomy-peaked tags first" in paper_ablation
     assert "Bar chart generated from the same bundle rows consumed by the notebook." in paper_ablation
     assert metadata["benchmark"]["views"]["paper"]["summary_page"] == "benchmark/paper/index.html"

@@ -6,6 +6,7 @@ import pandas as pd
 from padjective.benchmark_bundle import (
     load_bundle,
     render_ablation_html,
+    render_ablation_strategy_guide_html,
     render_benchmark_numbers_tex,
     render_model_comparison_html,
     write_bundle_outputs,
@@ -161,9 +162,12 @@ def test_snapshot_bundle_writes_json_csv_html_and_tex(tmp_path: Path) -> None:
 
     model_html = render_model_comparison_html(bundle)
     ablation_html = render_ablation_html(bundle)
+    strategy_guide_html = render_ablation_strategy_guide_html(bundle)
     assert "benchmark-table" in model_html
     assert "battle_elo" in ablation_html
     assert "taxonomy_association" in ablation_html
+    assert "Taxonomy-peaked tags first" in strategy_guide_html
+    assert "single most common taxonomy" in strategy_guide_html
 
     tex_numbers = render_benchmark_numbers_tex(bundle)
     assert "\\PadBenchBestAblationStrategy" in tex_numbers

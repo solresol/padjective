@@ -31,6 +31,42 @@ MODEL_ORDER = (
     "zubarev",
 )
 
+ABLATION_STRATEGY_METADATA: dict[str, dict[str, str]] = {
+    "battle_elo": {
+        "headline": "Pairwise battle ranking",
+        "description": (
+            "Ranks tags by fold-local Elo scores estimated from tag battles, while "
+            "excluding the holdout fold from the ranking fit."
+        ),
+    },
+    "frequency": {
+        "headline": "Most common tags first",
+        "description": "Ranks tags by how often they appear in the training products.",
+    },
+    "mean_title_position": {
+        "headline": "Average title position",
+        "description": (
+            "Ranks tags by their average recorded title position in the training "
+            "products."
+        ),
+    },
+    "taxonomy_association": {
+        "headline": "Taxonomy-peaked tags first",
+        "description": (
+            "For each tag, measure the share of its training occurrences that land "
+            "in its single most common taxonomy. Tags with the strongest one-taxonomy "
+            "association are scored first."
+        ),
+    },
+    "random": {
+        "headline": "Seeded random control",
+        "description": (
+            "Uses a seeded random shuffle of the training tag vocabulary as a control "
+            "condition."
+        ),
+    },
+}
+
 
 def _json_dump(value: Any) -> str:
     return json.dumps(value, indent=2, sort_keys=False) + "\n"
@@ -128,6 +164,39 @@ def render_ablation_html(bundle: dict[str, Any]) -> str:
         "</tr></thead><tbody>"
         + "".join(rows)
         + "</tbody></table>"
+    )
+
+
+def render_ablation_strategy_guide_html(bundle: dict[str, Any]) -> str:
+    frame = ablation_strategy_frame(bundle)
+    if frame.empty:
+        return ""
+
+    cards = []
+    for strategy in frame["tag_order_strategy"].tolist():
+        metadata = ABLATION_STRATEGY_METADATA.get(
+            str(strategy),
+            {
+                "headline": "Strategy",
+                "description": "Strategy metadata has not been documented yet.",
+            },
+        )
+        cards.append(
+            "<article class=\"benchmark-card benchmark-strategy-card\">"
+            f"<h2><code>{html.escape(str(strategy))}</code></h2>"
+            f"<p class=\"benchmark-strategy-headline\">{html.escape(metadata['headline'])}</p>"
+            f"<p>{html.escape(metadata['description'])}</p>"
+            "</article>"
+        )
+
+    return (
+        "<div class=\"benchmark-methods\">"
+        "<h2>Ordering methods</h2>"
+        "<p>The ablation keeps the greedy p-adic regressor fixed and changes only "
+        "the tag ordering heuristic used before coefficient fitting.</p>"
+        "<div class=\"benchmark-grid benchmark-strategy-grid\">"
+        + "".join(cards)
+        + "</div></div>"
     )
 
 

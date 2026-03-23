@@ -182,11 +182,11 @@ The cleanest paper ablation in this repo is to hold the greedy UMLLR regressor,
 taxonomy encodings, and fold assignments fixed while changing only the tag
 ordering heuristic. The trainer already supports:
 
-- `battle_elo`
-- `frequency`
-- `mean_title_position`
-- `taxonomy_association`
-- `random`
+- `battle_elo`: fold-local Elo ranking derived from the tag battles
+- `frequency`: most frequent training tags first
+- `mean_title_position`: average recorded title position in the training products
+- `taxonomy_association`: tags that are most concentrated in a single taxonomy first
+- `random`: seeded random control ordering
 
 Run the ablation against a fixed benchmark snapshot when you want a stable
 paper table:
