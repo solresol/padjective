@@ -37,6 +37,7 @@ DEFAULT_UNN_MAX_ITER = 80
 DEFAULT_ULR_MAX_ITER = 200
 DEFAULT_ZUBAREV_MAX_ITERATIONS = 2000
 DEFAULT_RANDOM_SEEDS: tuple[int, ...] = (7, 13, 23, 37, 101)
+DEFAULT_PRIMARY_UMLLR_STRATEGY = "taxonomy_association"
 DEFAULT_ABLATION_STRATEGIES: tuple[str, ...] = (
     "battle_elo",
     "frequency",
@@ -1595,7 +1596,7 @@ def _build_model_rows(
             scoring_ops=lambda _model, _sample: 1.0,
         ),
         _evaluate_umllr_strategy(
-            strategy="battle_elo",
+            strategy=DEFAULT_PRIMARY_UMLLR_STRATEGY,
             seed=None,
             folds=folds,
             records=records,

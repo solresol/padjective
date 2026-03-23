@@ -141,6 +141,14 @@ def test_snapshot_bundle_writes_json_csv_html_and_tex(tmp_path: Path) -> None:
     assert bundle["snapshot"]["label"] == "paper"
     assert bundle["snapshot"]["product_count_filtered"] == 6
     assert bundle["ablation"]["baseline_strategy"] == "battle_elo"
+    umllr_row = next(row for row in bundle["models"]["rows"] if row["model_key"] == "umllr")
+    taxonomy_association_row = next(
+        row
+        for row in bundle["ablation"]["strategy_rows"]
+        if row["tag_order_strategy"] == "taxonomy_association"
+    )
+    assert umllr_row["mean_padic_loss"] == taxonomy_association_row["mean_padic_loss"]
+    assert umllr_row["mean_scoring_ops"] == taxonomy_association_row["mean_scoring_ops"]
     model_keys = {row["model_key"] for row in bundle["models"]["rows"]}
     assert {"dummy", "umllr", "levelwise", "zubarev"} <= model_keys
 

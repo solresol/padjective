@@ -2,6 +2,7 @@ import pytest
 
 from padjective.umllr import (
     BattleRecord,
+    DEFAULT_TAG_ORDER_STRATEGY,
     ProductRecord,
     _dedupe_rows_by_key,
     _derive_battles_from_records,
@@ -14,6 +15,10 @@ from padjective.umllr import (
     snapshot_label,
     tag_order_run_key,
 )
+
+
+def test_default_tag_order_strategy_uses_taxonomy_association() -> None:
+    assert DEFAULT_TAG_ORDER_STRATEGY == "taxonomy_association"
 
 
 def test_p_adic_distance_basic_properties() -> None:
@@ -76,7 +81,7 @@ def test_run_fold_returns_coefficients_and_predictions() -> None:
     ]
     battles = [BattleRecord(winner_tag="ALPHA", loser_tag="BETA", cv_fold=0)]
 
-    fold_result = _run_fold(1, records, battles, base=5)
+    fold_result = _run_fold(1, records, battles, base=5, tag_order_strategy="battle_elo")
 
     assert fold_result.cv_fold == 1
     assert [coeff.tag for coeff in fold_result.coefficients] == ["ALPHA", "BETA"]

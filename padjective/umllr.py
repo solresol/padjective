@@ -31,7 +31,7 @@ else:  # pragma: no cover - imported as a package
     from .tagbattle import build_battles, filter_nested_tags, split_title, tag_positions
 
 
-DEFAULT_TAG_ORDER_STRATEGY = "battle_elo"
+DEFAULT_TAG_ORDER_STRATEGY = "taxonomy_association"
 TAG_ORDER_STRATEGIES: tuple[str, ...] = (
     "battle_elo",
     "frequency",

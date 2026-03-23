@@ -201,7 +201,7 @@ The first command persists all ablation runs into
 `padjective.umllr_order_ablation_predictions` without overwriting the live
 `umllr_*` tables used by the rolling website. The second command reads the
 snapshot-tagged Postgres rows and emits a paper-ready summary with fold means,
-fold standard deviations, and paired deltas versus the default `battle_elo`
+fold standard deviations, and paired deltas versus the `battle_elo`
 ordering. Pass `--format latex` if you want a LaTeX table instead of Markdown.
 
 ### Shared Benchmark Bundles
