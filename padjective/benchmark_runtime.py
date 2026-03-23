@@ -366,8 +366,8 @@ def _product_frames_from_raw(products_raw: pd.DataFrame) -> tuple[pd.DataFrame, 
             )
             if (
                 feature.get("in_title")
-                and feature.get("title_part") is not None
-                and feature.get("title_position") is not None
+                and pd.notna(feature.get("title_part"))
+                and pd.notna(feature.get("title_position"))
             ):
                 title_rows.append(
                     {
@@ -755,8 +755,8 @@ def _build_umllr_records(
                 (
                     (str(tag_row["tag_id"]), int(tag_row["title_part"]), int(tag_row["title_position"]))
                     for tag_row in tag_rows
-                    if tag_row.get("title_part") is not None
-                    and tag_row.get("title_position") is not None
+                    if pd.notna(tag_row.get("title_part"))
+                    and pd.notna(tag_row.get("title_position"))
                 ),
                 key=lambda item: (item[1], item[2], item[0]),
             )

@@ -215,3 +215,25 @@ def test_paper_bundle_html_and_tex_stay_in_parity(tmp_path: Path) -> None:
     assert f"{umllr_row['mean_padic_loss']:.6f}" in model_table_tex
     assert best_strategy.replace("_", "\\_") in ablation_table_tex
     assert f"{best_ablation['mean_padic_loss']:.6f}" in ablation_table_tex
+
+
+def test_snapshot_bundle_tolerates_missing_title_overlap_fields(tmp_path: Path) -> None:
+    snapshot_dir = tmp_path / "paper"
+    _write_snapshot_fixture(snapshot_dir)
+
+    products_path = snapshot_dir / "products-00000.jsonl"
+    rows = [json.loads(line) for line in products_path.read_text(encoding="utf-8").splitlines()]
+    rows[0]["tag_features"][1]["in_title"] = False
+    rows[0]["tag_features"][1]["title_part"] = None
+    rows[0]["tag_features"][1]["title_position"] = None
+    products_path.write_text(
+        "\n".join(json.dumps(row) for row in rows) + "\n",
+        encoding="utf-8",
+    )
+
+    bundle = build_snapshot_benchmark_bundle(
+        load_snapshot_tables(snapshot_dir, snapshot_label="paper")
+    )
+
+    assert bundle["snapshot"]["product_count_filtered"] == 6
+    assert bundle["ablation"]["baseline_strategy"] == "battle_elo"
