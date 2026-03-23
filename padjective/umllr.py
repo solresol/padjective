@@ -7,10 +7,11 @@ import math
 import random
 import re
 import sys
+import warnings
 from collections import Counter, defaultdict
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Iterable, List, Sequence, Tuple
+from typing import Callable, Dict, Iterable, List, Sequence, Tuple, TypeVar
 
 from psycopg import sql
 from psycopg.rows import dict_row
@@ -40,6 +41,7 @@ TAG_ORDER_STRATEGIES: tuple[str, ...] = (
 )
 RANDOM_ABLATION_SEEDS: tuple[int, ...] = (7, 13, 23, 37, 101)
 LIVE_SNAPSHOT_LABEL = "live"
+_RowT = TypeVar("_RowT")
 
 
 @dataclass(frozen=True)
@@ -264,6 +266,34 @@ def _truncate_outputs(conn, schema: str) -> None:
     db.truncate_table(conn, schema, "umllr_taxonomy_encodings")
     db.truncate_table(conn, schema, "umllr_coefficient_candidates")
     db.truncate_table(conn, schema, "umllr_tag_products")
+
+
+def _dedupe_rows_by_key(
+    rows: Sequence[_RowT],
+    *,
+    key_fn: Callable[[_RowT], object],
+    description: str,
+) -> list[_RowT]:
+    deduped: list[_RowT] = []
+    seen: set[object] = set()
+    duplicate_count = 0
+
+    for row in rows:
+        key = key_fn(row)
+        if key in seen:
+            duplicate_count += 1
+            continue
+        seen.add(key)
+        deduped.append(row)
+
+    if duplicate_count:
+        warnings.warn(
+            f"Dropped {duplicate_count} duplicate {description} row(s) before insert.",
+            RuntimeWarning,
+            stacklevel=2,
+        )
+
+    return deduped
 
 
 def _parse_tags(tag_string: str | None) -> List[str]:
@@ -826,6 +856,37 @@ def _save_results(
     for fold in range(cv_splits):
         for taxonomy_id, (taxonomy_path, encoded_value) in taxonomy_encodings.items():
             encoding_rows.append((fold, taxonomy_id, taxonomy_path, encoded_value))
+
+    coeff_rows = _dedupe_rows_by_key(
+        coeff_rows,
+        key_fn=lambda row: (row[0], row[1]),
+        description="UMLLR coefficient",
+    )
+    prediction_rows = _dedupe_rows_by_key(
+        prediction_rows,
+        key_fn=lambda row: (row[0], row[1]),
+        description="UMLLR prediction",
+    )
+    metrics_rows = _dedupe_rows_by_key(
+        metrics_rows,
+        key_fn=lambda row: row[0],
+        description="UMLLR fold metric",
+    )
+    encoding_rows = _dedupe_rows_by_key(
+        encoding_rows,
+        key_fn=lambda row: (row[0], row[1]),
+        description="UMLLR taxonomy encoding",
+    )
+    candidate_rows = _dedupe_rows_by_key(
+        candidate_rows,
+        key_fn=lambda row: (row[0], row[1], row[2]),
+        description="UMLLR coefficient candidate",
+    )
+    tag_product_rows = _dedupe_rows_by_key(
+        tag_product_rows,
+        key_fn=lambda row: (row[0], row[1], row[2]),
+        description="UMLLR tag-product",
+    )
 
     with conn.cursor() as cur:
         # Clean up old data before inserting new results

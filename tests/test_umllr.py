@@ -1,6 +1,9 @@
+import pytest
+
 from padjective.umllr import (
     BattleRecord,
     ProductRecord,
+    _dedupe_rows_by_key,
     _derive_battles_from_records,
     _p_adic_distance,
     _run_fold,
@@ -147,6 +150,26 @@ def test_tag_order_run_key_includes_snapshot_namespace() -> None:
     assert snapshot_label("paper") == "paper"
     assert tag_order_run_key("battle_elo") == "live::battle_elo"
     assert tag_order_run_key("random", 7, snapshot_ref="paper") == "paper::random_seed_7"
+
+
+def test_dedupe_rows_by_key_warns_and_preserves_first_row() -> None:
+    rows = [
+        (0, "LEAD", 11, 0),
+        (0, "LEAD", 17, 1),
+        (1, "LEAD", 19, 0),
+    ]
+
+    with pytest.warns(RuntimeWarning, match="duplicate UMLLR coefficient"):
+        deduped = _dedupe_rows_by_key(
+            rows,
+            key_fn=lambda row: (row[0], row[1]),
+            description="UMLLR coefficient",
+        )
+
+    assert deduped == [
+        (0, "LEAD", 11, 0),
+        (1, "LEAD", 19, 0),
+    ]
 
 
 def test_derive_battles_from_records_uses_record_folds() -> None:
