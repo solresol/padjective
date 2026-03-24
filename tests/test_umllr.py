@@ -4,14 +4,19 @@ from padjective.umllr import (
     BattleRecord,
     DEFAULT_TAG_ORDER_STRATEGY,
     ProductRecord,
+    FoldResult,
+    Prediction,
+    _acquire_session_lock,
     _dedupe_rows_by_key,
     _derive_battles_from_records,
     _ensure_ablation_storage,
     _p_adic_distance,
     _run_fold,
+    _save_ablation_results,
     _select_coefficient,
     _select_default_prediction,
     _tag_order,
+    process_database,
     snapshot_label,
     tag_order_run_key,
 )
@@ -231,17 +236,24 @@ class _AblationStorageCursor:
     def fetchone(self):
         return self._fetchone
 
+    def executemany(self, query, params_seq) -> None:
+        self._statements.append((str(query), list(params_seq)))
+
 
 class _AblationStorageConnection:
     def __init__(self) -> None:
         self.statements: list[tuple[str, object]] = []
         self.commit_count = 0
+        self.closed = False
 
     def cursor(self) -> _AblationStorageCursor:
         return _AblationStorageCursor(self.statements)
 
     def commit(self) -> None:
         self.commit_count += 1
+
+    def close(self) -> None:
+        self.closed = True
 
 
 def test_ensure_ablation_storage_skips_owner_only_ddl_when_tables_are_current(monkeypatch) -> None:
@@ -281,3 +293,83 @@ def test_ensure_ablation_storage_raises_when_non_owner_needs_schema_upgrade(monk
 
     with pytest.raises(RuntimeError, match="does not own the table"):
         _ensure_ablation_storage(conn, "padjective")
+
+
+def test_acquire_session_lock_uses_postgres_advisory_lock() -> None:
+    conn = _AblationStorageConnection()
+
+    _acquire_session_lock(conn, "padjective.process_database")
+
+    assert conn.statements == [
+        (
+            "SELECT pg_advisory_lock(hashtext(%s), hashtext(%s))",
+            ("padjective.umllr", "padjective.process_database"),
+        )
+    ]
+
+
+def test_save_ablation_results_uses_upserts(monkeypatch) -> None:
+    conn = _AblationStorageConnection()
+
+    monkeypatch.setattr("padjective.umllr._ensure_ablation_storage", lambda *_args, **_kwargs: None)
+
+    results = [
+        FoldResult(
+            cv_fold=0,
+            coefficients=[],
+            predictions=[
+                Prediction(product_id=101, true_value=11, predicted_value=13, loss=0.2),
+            ],
+            loss=0.2,
+            default_prediction=5,
+            tag_debug=[],
+            exact_accuracy=0.4,
+            prefix1_accuracy=0.6,
+            prefix2_accuracy=0.8,
+            mean_shared_prefix_depth=1.5,
+            mean_scoring_ops=3.0,
+        ),
+    ]
+
+    _save_ablation_results(
+        conn,
+        "padjective",
+        results,
+        run_key="live::taxonomy_association",
+        snapshot_ref="live",
+        tag_order_strategy="taxonomy_association",
+        tag_order_seed=None,
+        prime_base=5,
+        max_digit=3,
+    )
+
+    metrics_insert = next(
+        text
+        for text, _params in conn.statements
+        if "INSERT INTO" in text and "umllr_order_ablation_fold_metrics" in text
+    )
+    predictions_insert = next(
+        text
+        for text, _params in conn.statements
+        if "INSERT INTO" in text and "umllr_order_ablation_predictions" in text
+    )
+
+    assert "ON CONFLICT (run_key, cv_fold) DO UPDATE SET" in metrics_insert
+    assert "ON CONFLICT (run_key, cv_fold, product_id) DO UPDATE SET" in predictions_insert
+    assert conn.commit_count == 1
+
+
+def test_process_database_acquires_lock_before_work(monkeypatch) -> None:
+    conn = _AblationStorageConnection()
+
+    monkeypatch.setattr("padjective.umllr.db.get_connection", lambda _dsn: conn)
+    monkeypatch.setattr("padjective.umllr._ensure_storage", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr("padjective.umllr.calculate_cv_folds", lambda *_args, **_kwargs: {})
+
+    process_database(dsn=None, schema="padjective")
+
+    assert conn.statements[0] == (
+        "SELECT pg_advisory_lock(hashtext(%s), hashtext(%s))",
+        ("padjective.umllr", "padjective.process_database"),
+    )
+    assert conn.closed is True
