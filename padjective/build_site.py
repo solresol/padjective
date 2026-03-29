@@ -42,6 +42,7 @@ PARSIMONY_BASELINE_SLOPE = -0.1
 PARSIMONY_BASELINE_INTERCEPT = 0.0
 PARSIMONY_BASELINE_TAXONOMY_COEFFICIENT = 0.3
 PARSIMONY_BASELINE_TAXONOMY_REFERENCE = 1000.0
+ACTIVE_PARAMS_REGRESSION_EXCLUDED_KEYS = frozenset({"pclr", "pcnn"})
 HISTORICAL_PARSIMONY_MODEL_SPECS: tuple[dict[str, Any], ...] = (
     {
         "key": "dt",
@@ -765,25 +766,103 @@ def _generate_benchmark_model_chart(bundle: Dict[str, Any], output_path: Path) -
     return output_path
 
 
-def _generate_benchmark_active_params_chart(bundle: Dict[str, Any], output_path: Path) -> Optional[Path]:
+def _build_active_params_regression_frame(bundle: Dict[str, Any]) -> pd.DataFrame:
     frame = model_rows_frame(bundle)
     if frame.empty:
-        return None
+        return frame
 
     active_params = pd.to_numeric(frame.get("mean_scoring_ops"), errors="coerce")
     losses = pd.to_numeric(frame.get("mean_padic_loss"), errors="coerce")
-    valid_mask = active_params.notna() & losses.notna() & (active_params > 0) & (losses > 0)
+    model_keys = frame.get("model_key")
+    excluded_mask = (
+        model_keys.isin(ACTIVE_PARAMS_REGRESSION_EXCLUDED_KEYS)
+        if model_keys is not None
+        else pd.Series(False, index=frame.index)
+    )
+    valid_mask = (
+        active_params.notna()
+        & losses.notna()
+        & (active_params > 0)
+        & (losses > 0)
+        & ~excluded_mask
+    )
     if not valid_mask.any():
-        return None
+        return frame.iloc[0:0].copy()
 
     chart_frame = frame.loc[valid_mask].copy()
     chart_frame["mean_scoring_ops"] = active_params.loc[valid_mask].astype(float)
     chart_frame["mean_padic_loss"] = losses.loc[valid_mask].astype(float)
+    chart_frame["log10_mean_padic_loss"] = np.log10(chart_frame["mean_padic_loss"])
+    return chart_frame
+
+
+def _fit_active_params_regression(
+    chart_frame: pd.DataFrame,
+    *,
+    log_loss: bool,
+) -> Optional[Dict[str, float]]:
+    if len(chart_frame) < 2:
+        return None
+
+    x_values = np.log10(chart_frame["mean_scoring_ops"].to_numpy(dtype=float))
+    y_column = "log10_mean_padic_loss" if log_loss else "mean_padic_loss"
+    y_values = chart_frame[y_column].to_numpy(dtype=float)
+    regression = stats.linregress(x_values, y_values)
+    return {
+        "slope": float(regression.slope),
+        "intercept": float(regression.intercept),
+        "r_squared": float(regression.rvalue ** 2),
+        "p_value": float(regression.pvalue),
+        "x_min": float(x_values.min()),
+        "x_max": float(x_values.max()),
+    }
+
+
+def _format_regression_p_value(value: float) -> str:
+    if not math.isfinite(value):
+        return "nan"
+    if value < 0.001:
+        return f"{value:.2e}"
+    return f"{value:.3f}"
+
+
+def _describe_active_params_regression(
+    regression_stats: Optional[Dict[str, float]],
+    *,
+    log_loss: bool,
+) -> str:
+    target = "log10(mean p-adic loss)" if log_loss else "mean p-adic loss"
+    description = (
+        f"Scatter plot of avg active params versus {target}, excluding PCLR and PCNN."
+    )
+    if regression_stats is None:
+        return description + " Not enough comparable points for a regression fit."
+    return (
+        description
+        + " Regression fitted on log10(active params): "
+        + f"R²={regression_stats['r_squared']:.3f}, "
+        + f"p={_format_regression_p_value(regression_stats['p_value'])}."
+    )
+
+
+def _generate_benchmark_active_params_chart(
+    bundle: Dict[str, Any],
+    output_path: Path,
+    *,
+    log_loss: bool,
+) -> tuple[Optional[Path], Optional[Dict[str, float]]]:
+    chart_frame = _build_active_params_regression_frame(bundle)
+    if chart_frame.empty:
+        return None, None
+
+    regression_stats = _fit_active_params_regression(chart_frame, log_loss=log_loss)
 
     fig, ax = plt.subplots(figsize=(10, 6), dpi=150)
     for row in chart_frame.itertuples(index=False):
         active_value = float(row.mean_scoring_ops)
-        loss_value = float(row.mean_padic_loss)
+        loss_value = (
+            float(row.log10_mean_padic_loss) if log_loss else float(row.mean_padic_loss)
+        )
         scatter_kwargs: Dict[str, Any] = {
             "color": getattr(row, "color", "#0b6ce3"),
             "s": 150,
@@ -804,14 +883,13 @@ def _generate_benchmark_active_params_chart(bundle: Dict[str, Any], output_path:
             color=getattr(row, "color", "#0b6ce3"),
         )
 
-    regression_label = None
-    if len(chart_frame) >= 2:
-        log_active = np.log10(chart_frame["mean_scoring_ops"].to_numpy(dtype=float))
-        loss_values = chart_frame["mean_padic_loss"].to_numpy(dtype=float)
-        regression = stats.linregress(log_active, loss_values)
-        x_range = np.linspace(float(log_active.min()) - 0.1, float(log_active.max()) + 0.1, 200)
-        y_range = regression.intercept + regression.slope * x_range
-        regression_label = f"Regression on log10(active params), R²={regression.rvalue ** 2:.2f}"
+    if regression_stats is not None:
+        x_range = np.linspace(
+            regression_stats["x_min"] - 0.1,
+            regression_stats["x_max"] + 0.1,
+            200,
+        )
+        y_range = regression_stats["intercept"] + regression_stats["slope"] * x_range
         ax.plot(
             10 ** x_range,
             y_range,
@@ -819,22 +897,37 @@ def _generate_benchmark_active_params_chart(bundle: Dict[str, Any], output_path:
             linestyle="--",
             linewidth=2.2,
             alpha=0.75,
-            label=regression_label,
+            label=(
+                f"Regression on log10(active params): "
+                f"R²={regression_stats['r_squared']:.3f}, "
+                f"p={_format_regression_p_value(regression_stats['p_value'])}"
+            ),
         )
 
     ax.set_xlabel(f"{ACTIVE_PARAMS_LABEL} (log scale)", fontsize=12, fontweight="bold")
-    ax.set_ylabel("Mean p-adic loss (lower is better)", fontsize=12, fontweight="bold")
-    ax.set_title("Active Parameters vs Mean p-adic Loss", fontsize=14, fontweight="bold", pad=15)
+    ax.set_ylabel(
+        "log10(mean p-adic loss)" if log_loss else "Mean p-adic loss (lower is better)",
+        fontsize=12,
+        fontweight="bold",
+    )
+    ax.set_title(
+        "Active Parameters vs log10 Mean p-adic Loss"
+        if log_loss
+        else "Active Parameters vs Mean p-adic Loss",
+        fontsize=14,
+        fontweight="bold",
+        pad=15,
+    )
     ax.set_xscale("log")
     ax.grid(True, alpha=0.3, linestyle="--")
-    if regression_label is not None:
+    if regression_stats is not None:
         ax.legend(loc="upper right", frameon=True, shadow=True, fontsize=8)
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     fig.tight_layout()
     fig.savefig(output_path, bbox_inches="tight")
     plt.close(fig)
-    return output_path
+    return output_path, regression_stats
 
 
 def _generate_benchmark_model_dashboard_chart(bundle: Dict[str, Any], output_path: Path) -> Optional[Path]:
@@ -997,9 +1090,15 @@ def _write_benchmark_pages(
             bundle,
             assets_dir / f"benchmark_{view}_model_dashboard.png",
         )
-        active_params_chart_path = _generate_benchmark_active_params_chart(
+        active_params_chart_path, active_params_regression_stats = _generate_benchmark_active_params_chart(
             bundle,
             assets_dir / f"benchmark_{view}_active_params_vs_loss.png",
+            log_loss=False,
+        )
+        active_params_log_chart_path, active_params_log_regression_stats = _generate_benchmark_active_params_chart(
+            bundle,
+            assets_dir / f"benchmark_{view}_active_params_vs_log_loss.png",
+            log_loss=True,
         )
         ablation_chart_path = _generate_benchmark_ablation_chart(
             bundle,
@@ -1014,6 +1113,11 @@ def _write_benchmark_pages(
         active_params_chart_rel = (
             f"../../assets/{active_params_chart_path.name}"
             if active_params_chart_path is not None
+            else None
+        )
+        active_params_log_chart_rel = (
+            f"../../assets/{active_params_log_chart_path.name}"
+            if active_params_log_chart_path is not None
             else None
         )
         ablation_chart_rel = (
@@ -1059,7 +1163,14 @@ def _write_benchmark_pages(
             model_chart_parts.append(
                 "<figure class=\"benchmark-figure\">"
                 f"<img src=\"{html.escape(active_params_chart_rel)}\" alt=\"Active parameter comparison chart for {html.escape(view)} benchmark view\" />"
-                "<figcaption>Scatter plot of avg active params versus mean p-adic loss, with a regression fitted on log10(active params).</figcaption>"
+                f"<figcaption>{html.escape(_describe_active_params_regression(active_params_regression_stats, log_loss=False))}</figcaption>"
+                "</figure>"
+            )
+        if active_params_log_chart_rel is not None:
+            model_chart_parts.append(
+                "<figure class=\"benchmark-figure\">"
+                f"<img src=\"{html.escape(active_params_log_chart_rel)}\" alt=\"Active parameter versus log-loss chart for {html.escape(view)} benchmark view\" />"
+                f"<figcaption>{html.escape(_describe_active_params_regression(active_params_log_regression_stats, log_loss=True))}</figcaption>"
                 "</figure>"
             )
         model_chart_html = (
@@ -1188,6 +1299,26 @@ def _write_benchmark_pages(
             "umllr_mean_scoring_ops": (
                 float(umllr_row["mean_scoring_ops"])
                 if umllr_row is not None and umllr_row.get("mean_scoring_ops") is not None
+                else None
+            ),
+            "active_params_regression_r_squared": (
+                active_params_regression_stats["r_squared"]
+                if active_params_regression_stats is not None
+                else None
+            ),
+            "active_params_regression_p_value": (
+                active_params_regression_stats["p_value"]
+                if active_params_regression_stats is not None
+                else None
+            ),
+            "active_params_log_regression_r_squared": (
+                active_params_log_regression_stats["r_squared"]
+                if active_params_log_regression_stats is not None
+                else None
+            ),
+            "active_params_log_regression_p_value": (
+                active_params_log_regression_stats["p_value"]
+                if active_params_log_regression_stats is not None
                 else None
             ),
         }

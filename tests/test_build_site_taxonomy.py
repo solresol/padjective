@@ -4,7 +4,11 @@ from typing import Any
 
 import pandas as pd
 
-from padjective.build_site import build_site
+from padjective.build_site import (
+    _build_active_params_regression_frame,
+    _fit_active_params_regression,
+    build_site,
+)
 
 
 class _FakeCursor:
@@ -559,7 +563,10 @@ def test_build_site_benchmark_only_renders_paper_view(tmp_path: Path) -> None:
     assert "Shared benchmark bundle for the site, notebook, and paper." in paper_index
     assert "Small-multiples dashboard generated directly from the comparison table rows below." in paper_index
     assert "Log-log scatter of trained parameters versus mean p-adic loss" in paper_index
-    assert "Scatter plot of avg active params versus mean p-adic loss" in paper_index
+    assert "Scatter plot of avg active params versus mean p-adic loss, excluding PCLR and PCNN." in paper_index
+    assert "Scatter plot of avg active params versus log10(mean p-adic loss), excluding PCLR and PCNN." in paper_index
+    assert "Regression fitted on log10(active params): R²=" in paper_index
+    assert "p=" in paper_index
     assert "Trained params" in paper_index
     assert "Avg active params / classification" in paper_index
 
@@ -568,3 +575,59 @@ def test_build_site_benchmark_only_renders_paper_view(tmp_path: Path) -> None:
     assert "Taxonomy-peaked tags first" in paper_ablation
     assert "Bar chart generated from the same bundle rows consumed by the notebook." in paper_ablation
     assert metadata["benchmark"]["views"]["paper"]["summary_page"] == "benchmark/paper/index.html"
+
+
+def test_active_params_regression_excludes_parameter_constrained_models() -> None:
+    bundle = {
+        "models": {
+            "rows": [
+                {
+                    "model_key": "dummy",
+                    "model_label": "Dummy Baseline",
+                    "short_label": "Dummy",
+                    "mean_scoring_ops": 1.0,
+                    "mean_padic_loss": 0.60,
+                },
+                {
+                    "model_key": "umllr",
+                    "model_label": "Importance-Optimised p-adic Linear Regression",
+                    "short_label": "Importance-Optimised",
+                    "mean_scoring_ops": 1.2,
+                    "mean_padic_loss": 0.30,
+                },
+                {
+                    "model_key": "pclr",
+                    "model_label": "Parameter-constrained Logistic Regression",
+                    "short_label": "PCLR",
+                    "mean_scoring_ops": 600.0,
+                    "mean_padic_loss": 0.70,
+                },
+                {
+                    "model_key": "ulr",
+                    "model_label": "Unconstrained Logistic Regression with L1",
+                    "short_label": "ULR",
+                    "mean_scoring_ops": 300.0,
+                    "mean_padic_loss": 0.08,
+                },
+                {
+                    "model_key": "pcnn",
+                    "model_label": "Parameter-constrained Neural Network",
+                    "short_label": "PCNN",
+                    "mean_scoring_ops": 9000.0,
+                    "mean_padic_loss": 0.68,
+                },
+            ]
+        }
+    }
+
+    frame = _build_active_params_regression_frame(bundle)
+
+    assert set(frame["model_key"]) == {"dummy", "umllr", "ulr"}
+
+    raw_regression = _fit_active_params_regression(frame, log_loss=False)
+    log_regression = _fit_active_params_regression(frame, log_loss=True)
+
+    assert raw_regression is not None
+    assert log_regression is not None
+    assert 0.0 <= raw_regression["r_squared"] <= 1.0
+    assert 0.0 <= log_regression["r_squared"] <= 1.0
