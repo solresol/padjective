@@ -531,6 +531,7 @@ def test_build_site_renders_benchmark_pages(tmp_path: Path, monkeypatch) -> None
     assert "taxonomy_association" in paper_html
     assert "Ordering methods" in paper_html
     assert "single most common taxonomy" in paper_html
+    assert "Avg active params / classification" in paper_html
 
     assert metadata["benchmark"]["views"]["paper"]["ablation_page"] == "benchmark/paper/ablation.html"
 
@@ -554,6 +555,8 @@ def test_build_site_benchmark_only_renders_paper_view(tmp_path: Path) -> None:
     paper_index = (output_dir / "benchmark" / "paper" / "index.html").read_text(encoding="utf-8")
     assert "Shared benchmark bundle for the site, notebook, and paper." in paper_index
     assert "Scatter chart generated from the same bundle fields used by the autonomous notebook." in paper_index
+    assert "Trained params" in paper_index
+    assert "Avg active params / classification" in paper_index
 
     paper_ablation = (output_dir / "benchmark" / "paper" / "ablation.html").read_text(encoding="utf-8")
     assert "taxonomy_association" in paper_ablation

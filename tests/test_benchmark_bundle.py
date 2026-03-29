@@ -172,8 +172,11 @@ def test_snapshot_bundle_writes_json_csv_html_and_tex(tmp_path: Path) -> None:
     ablation_html = render_ablation_html(bundle)
     strategy_guide_html = render_ablation_strategy_guide_html(bundle)
     assert "benchmark-table" in model_html
+    assert "Trained params" in model_html
+    assert "Avg active params / classification" in model_html
     assert "battle_elo" in ablation_html
     assert "taxonomy_association" in ablation_html
+    assert "Avg active params / classification" in ablation_html
     assert "Taxonomy-peaked tags first" in strategy_guide_html
     assert "single most common taxonomy" in strategy_guide_html
 

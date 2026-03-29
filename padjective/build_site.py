@@ -24,6 +24,8 @@ from psycopg.rows import dict_row
 from scipy import stats
 
 from .benchmark_bundle import (
+    ACTIVE_PARAMS_LABEL,
+    TRAINED_PARAMS_LABEL,
     ablation_strategy_frame,
     load_bundle,
     model_rows_frame,
@@ -844,6 +846,12 @@ def _write_benchmark_pages(
         if snapshot_as_of:
             note_parts.append(f"Cutoff: <strong>{html.escape(str(snapshot_as_of))}</strong>.")
         note_html = "<p class=\"benchmark-note\">" + " ".join(note_parts) + "</p>"
+        metric_note_html = (
+            "<p class=\"benchmark-note\">"
+            f"<strong>{TRAINED_PARAMS_LABEL}</strong> is the average non-zero parameter count in the fitted model across folds. "
+            f"<strong>{ACTIVE_PARAMS_LABEL}</strong> is the mean number of active parameters or scoring decisions touched while classifying one product."
+            "</p>"
+        )
 
         hero_links = ["<a href=\"../index.html\">Benchmark overview</a>"]
         if view == "paper":
@@ -878,6 +886,7 @@ def _write_benchmark_pages(
   <section>
     <p><a href="../index.html">← Back to benchmark overview</a></p>
     {note_html}
+    {metric_note_html}
     <div class="metrics benchmark-meta">
       <div class="metric"><span class="value">{int(snapshot.get('product_count_filtered', 0)):,}</span><span class="label">Filtered products</span></div>
       <div class="metric"><span class="value">{int(snapshot.get('tag_count_filtered', 0)):,}</span><span class="label">Filtered tags</span></div>
@@ -915,6 +924,11 @@ def _write_benchmark_pages(
                 f"<strong>{float(random_summary['mean_loss']):.6f}</strong> mean p-adic loss."
             )
         ablation_note = "<p class=\"benchmark-note\">" + " ".join(ablation_note_bits) + "</p>"
+        ablation_metric_note = (
+            "<p class=\"benchmark-note\">"
+            f"For these UMLLR ablations, <strong>{ACTIVE_PARAMS_LABEL}</strong> is the mean number of active coefficients touched while classifying one product."
+            "</p>"
+        )
         ablation_chart_html = ""
         if ablation_chart_rel is not None:
             ablation_chart_html = (
@@ -942,6 +956,7 @@ def _write_benchmark_pages(
   <section>
     <p><a href="index.html">← Back to {html.escape(view.title())} benchmark summary</a></p>
     {ablation_note}
+    {ablation_metric_note}
     {render_ablation_strategy_guide_html(bundle)}
     {ablation_chart_html}
     {render_ablation_html(bundle)}

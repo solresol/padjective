@@ -31,6 +31,9 @@ MODEL_ORDER = (
     "zubarev",
 )
 
+TRAINED_PARAMS_LABEL = "Trained params"
+ACTIVE_PARAMS_LABEL = "Avg active params / classification"
+
 ABLATION_STRATEGY_METADATA: dict[str, dict[str, str]] = {
     "battle_elo": {
         "headline": "Pairwise battle ranking",
@@ -134,8 +137,11 @@ def render_model_comparison_html(bundle: dict[str, Any]) -> str:
     return (
         "<table class=\"benchmark-table\">"
         "<thead><tr>"
-        "<th>Model</th><th>Params</th><th>Mean p-adic loss</th>"
-        "<th>Exact acc.</th><th>Prefix-2 acc.</th><th>Mean scoring ops</th>"
+        "<th>Model</th>"
+        f"<th title=\"Average non-zero parameter count in the fitted model across folds.\">{TRAINED_PARAMS_LABEL}</th>"
+        "<th>Mean p-adic loss</th>"
+        "<th>Exact acc.</th><th>Prefix-2 acc.</th>"
+        f"<th title=\"Mean number of active parameters or scoring decisions touched while classifying one product.\">{ACTIVE_PARAMS_LABEL}</th>"
         "</tr></thead><tbody>"
         + "".join(rows)
         + "</tbody></table>"
@@ -160,7 +166,8 @@ def render_ablation_html(bundle: dict[str, Any]) -> str:
         "<table class=\"benchmark-table\">"
         "<thead><tr>"
         "<th>Strategy</th><th>Mean p-adic loss</th><th>Δ vs battle_elo</th>"
-        "<th>Fold wins</th><th>Exact acc.</th><th>Prefix-2 acc.</th><th>Mean scoring ops</th>"
+        "<th>Fold wins</th><th>Exact acc.</th><th>Prefix-2 acc.</th>"
+        f"<th title=\"Mean number of active coefficients touched while classifying one product.\">{ACTIVE_PARAMS_LABEL}</th>"
         "</tr></thead><tbody>"
         + "".join(rows)
         + "</tbody></table>"
