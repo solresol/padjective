@@ -826,6 +826,28 @@ def _format_regression_p_value(value: float) -> str:
     return f"{value:.3f}"
 
 
+def _format_signed_coefficient(value: float, digits: int = 4) -> str:
+    return f"{value:+.{digits}f}"
+
+
+def _format_equation_term(value: float, digits: int = 4) -> str:
+    sign = "+" if value >= 0 else "-"
+    return f"{sign} {abs(value):.{digits}f}"
+
+
+def _describe_active_params_formula(
+    regression_stats: Optional[Dict[str, float]],
+    *,
+    log_loss: bool,
+) -> str:
+    if regression_stats is None:
+        return "No fitted equation available."
+    target = "log10(mean p-adic loss)" if log_loss else "mean p-adic loss"
+    slope = _format_signed_coefficient(regression_stats["slope"])
+    intercept = _format_equation_term(regression_stats["intercept"])
+    return f"{target} = {slope} log10(active params) {intercept}"
+
+
 def _describe_active_params_regression(
     regression_stats: Optional[Dict[str, float]],
     *,
@@ -839,7 +861,9 @@ def _describe_active_params_regression(
         return description + " Not enough comparable points for a regression fit."
     return (
         description
-        + " Regression fitted on log10(active params): "
+        + " Fitted equation: "
+        + _describe_active_params_formula(regression_stats, log_loss=log_loss)
+        + ". Regression fitted on log10(active params): "
         + f"R²={regression_stats['r_squared']:.3f}, "
         + f"p={_format_regression_p_value(regression_stats['p_value'])}."
     )
@@ -898,7 +922,8 @@ def _generate_benchmark_active_params_chart(
             linewidth=2.2,
             alpha=0.75,
             label=(
-                f"Regression on log10(active params): "
+                f"y = {_format_signed_coefficient(regression_stats['slope'], digits=3)}x "
+                f"{_format_equation_term(regression_stats['intercept'], digits=3)}; "
                 f"R²={regression_stats['r_squared']:.3f}, "
                 f"p={_format_regression_p_value(regression_stats['p_value'])}"
             ),
@@ -1306,6 +1331,16 @@ def _write_benchmark_pages(
                 if active_params_regression_stats is not None
                 else None
             ),
+            "active_params_regression_slope": (
+                active_params_regression_stats["slope"]
+                if active_params_regression_stats is not None
+                else None
+            ),
+            "active_params_regression_intercept": (
+                active_params_regression_stats["intercept"]
+                if active_params_regression_stats is not None
+                else None
+            ),
             "active_params_regression_p_value": (
                 active_params_regression_stats["p_value"]
                 if active_params_regression_stats is not None
@@ -1313,6 +1348,16 @@ def _write_benchmark_pages(
             ),
             "active_params_log_regression_r_squared": (
                 active_params_log_regression_stats["r_squared"]
+                if active_params_log_regression_stats is not None
+                else None
+            ),
+            "active_params_log_regression_slope": (
+                active_params_log_regression_stats["slope"]
+                if active_params_log_regression_stats is not None
+                else None
+            ),
+            "active_params_log_regression_intercept": (
+                active_params_log_regression_stats["intercept"]
                 if active_params_log_regression_stats is not None
                 else None
             ),

@@ -565,6 +565,8 @@ def test_build_site_benchmark_only_renders_paper_view(tmp_path: Path) -> None:
     assert "Log-log scatter of trained parameters versus mean p-adic loss" in paper_index
     assert "Scatter plot of avg active params versus mean p-adic loss, excluding PCLR and PCNN." in paper_index
     assert "Scatter plot of avg active params versus log10(mean p-adic loss), excluding PCLR and PCNN." in paper_index
+    assert "Fitted equation: mean p-adic loss =" in paper_index
+    assert "Fitted equation: log10(mean p-adic loss) =" in paper_index
     assert "Regression fitted on log10(active params): R²=" in paper_index
     assert "p=" in paper_index
     assert "Trained params" in paper_index
