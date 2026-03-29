@@ -7,6 +7,7 @@ import html
 import json
 import math
 import shutil
+import textwrap
 import urllib.parse
 from collections import Counter
 from datetime import datetime, timezone
@@ -667,6 +668,8 @@ def _benchmark_stylesheet_extra() -> str:
 .benchmark-figure {background: white; border-radius: 1rem; box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08); padding: 1rem; margin: 1.5rem 0;}
 .benchmark-figure img {max-width: 100%; height: auto; display: block; margin: 0 auto;}
 .benchmark-figure figcaption {margin-top: 0.75rem; color: #475569; text-align: center;}
+.benchmark-chart-grid {display: grid; grid-template-columns: repeat(auto-fit, minmax(24rem, 1fr)); gap: 1.5rem; margin: 1.5rem 0;}
+.benchmark-chart-grid .benchmark-figure {margin: 0;}
 .benchmark-meta {display: grid; grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr)); gap: 1rem; margin-top: 1.5rem;}
 .benchmark-meta .metric {text-align: left;}
 .benchmark-links {display: flex; flex-wrap: wrap; gap: 1rem; margin-top: 1rem;}
@@ -762,6 +765,96 @@ def _generate_benchmark_model_chart(bundle: Dict[str, Any], output_path: Path) -
     return output_path
 
 
+def _generate_benchmark_model_dashboard_chart(bundle: Dict[str, Any], output_path: Path) -> Optional[Path]:
+    frame = model_rows_frame(bundle)
+    if frame.empty:
+        return None
+
+    labels = [
+        "\n".join(textwrap.wrap(str(label), width=24)) or str(label)
+        for label in frame["model_label"].tolist()
+    ]
+    y_positions = np.arange(len(frame))
+    colors = [str(color) if pd.notna(color) else "#0b6ce3" for color in frame["color"].tolist()]
+
+    loss_values = pd.to_numeric(frame["mean_padic_loss"], errors="coerce").to_numpy(dtype=float)
+    exact_values = pd.to_numeric(frame["mean_exact_accuracy"], errors="coerce").to_numpy(dtype=float) * 100.0
+    prefix2_values = pd.to_numeric(frame["mean_prefix2_accuracy"], errors="coerce").to_numpy(dtype=float) * 100.0
+    trained_params = np.maximum(
+        pd.to_numeric(frame["params"], errors="coerce").to_numpy(dtype=float),
+        1.0,
+    )
+    active_params = np.maximum(
+        pd.to_numeric(frame["mean_scoring_ops"], errors="coerce").to_numpy(dtype=float),
+        1e-3,
+    )
+
+    fig, axes = plt.subplots(
+        1,
+        4,
+        figsize=(20, max(6.5, len(frame) * 0.68)),
+        dpi=150,
+        sharey=True,
+        gridspec_kw={"width_ratios": [1.05, 1.2, 1.0, 1.0]},
+    )
+    ax_loss, ax_accuracy, ax_trained, ax_active = axes
+
+    ax_loss.barh(y_positions, loss_values, color=colors, alpha=0.9)
+    ax_loss.set_title("Mean p-adic loss", fontsize=11, fontweight="bold")
+    ax_loss.set_xlabel("Lower is better", fontsize=9)
+    ax_loss.set_yticks(y_positions, labels)
+    ax_loss.tick_params(axis="y", labelsize=9)
+    ax_loss.grid(True, axis="x", alpha=0.25, linestyle="--")
+    ax_loss.set_axisbelow(True)
+
+    bar_height = 0.36
+    ax_accuracy.barh(
+        y_positions - bar_height / 2,
+        exact_values,
+        height=bar_height,
+        color="#0b6ce3",
+        label="Exact",
+    )
+    ax_accuracy.barh(
+        y_positions + bar_height / 2,
+        prefix2_values,
+        height=bar_height,
+        color="#f97316",
+        label="Prefix-2",
+    )
+    ax_accuracy.set_title("Accuracy", fontsize=11, fontweight="bold")
+    ax_accuracy.set_xlabel("%", fontsize=9)
+    ax_accuracy.set_xlim(0, 100)
+    ax_accuracy.grid(True, axis="x", alpha=0.25, linestyle="--")
+    ax_accuracy.set_axisbelow(True)
+    ax_accuracy.legend(loc="lower right", fontsize=8, frameon=True)
+    ax_accuracy.tick_params(axis="y", left=False, labelleft=False)
+
+    ax_trained.barh(y_positions, trained_params, color=colors, alpha=0.9)
+    ax_trained.set_title(TRAINED_PARAMS_LABEL, fontsize=11, fontweight="bold")
+    ax_trained.set_xlabel("Log scale", fontsize=9)
+    ax_trained.set_xscale("log")
+    ax_trained.grid(True, axis="x", alpha=0.25, linestyle="--")
+    ax_trained.set_axisbelow(True)
+    ax_trained.tick_params(axis="y", left=False, labelleft=False)
+
+    ax_active.barh(y_positions, active_params, color=colors, alpha=0.9)
+    ax_active.set_title(ACTIVE_PARAMS_LABEL, fontsize=11, fontweight="bold")
+    ax_active.set_xlabel("Log scale", fontsize=9)
+    ax_active.set_xscale("log")
+    ax_active.grid(True, axis="x", alpha=0.25, linestyle="--")
+    ax_active.set_axisbelow(True)
+    ax_active.tick_params(axis="y", left=False, labelleft=False)
+
+    ax_loss.invert_yaxis()
+    fig.suptitle("Benchmark Model Dashboard", fontsize=14, fontweight="bold", y=0.995)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    fig.tight_layout(rect=(0, 0, 1, 0.98))
+    fig.savefig(output_path, bbox_inches="tight")
+    plt.close(fig)
+    return output_path
+
+
 def _generate_benchmark_ablation_chart(bundle: Dict[str, Any], output_path: Path) -> Optional[Path]:
     frame = ablation_strategy_frame(bundle)
     if frame.empty:
@@ -828,12 +921,19 @@ def _write_benchmark_pages(
             bundle,
             assets_dir / f"benchmark_{view}_model_comparison.png",
         )
+        model_dashboard_path = _generate_benchmark_model_dashboard_chart(
+            bundle,
+            assets_dir / f"benchmark_{view}_model_dashboard.png",
+        )
         ablation_chart_path = _generate_benchmark_ablation_chart(
             bundle,
             assets_dir / f"benchmark_{view}_ablation.png",
         )
         model_chart_rel = (
             f"../../assets/{model_chart_path.name}" if model_chart_path is not None else None
+        )
+        model_dashboard_rel = (
+            f"../../assets/{model_dashboard_path.name}" if model_dashboard_path is not None else None
         )
         ablation_chart_rel = (
             f"../../assets/{ablation_chart_path.name}" if ablation_chart_path is not None else None
@@ -859,14 +959,26 @@ def _write_benchmark_pages(
         elif view == "latest":
             hero_links.append("<a href=\"ablation.html\">Latest UMLLR ablation</a>")
 
-        model_chart_html = ""
-        if model_chart_rel is not None:
-            model_chart_html = (
+        model_chart_parts: list[str] = []
+        if model_dashboard_rel is not None:
+            model_chart_parts.append(
                 "<figure class=\"benchmark-figure\">"
-                f"<img src=\"{html.escape(model_chart_rel)}\" alt=\"Model comparison chart for {html.escape(view)} benchmark view\" />"
-                "<figcaption>Scatter chart generated from the same bundle fields used by the autonomous notebook.</figcaption>"
+                f"<img src=\"{html.escape(model_dashboard_rel)}\" alt=\"Benchmark dashboard chart for {html.escape(view)} benchmark view\" />"
+                "<figcaption>Small-multiples dashboard generated directly from the comparison table rows below.</figcaption>"
                 "</figure>"
             )
+        if model_chart_rel is not None:
+            model_chart_parts.append(
+                "<figure class=\"benchmark-figure\">"
+                f"<img src=\"{html.escape(model_chart_rel)}\" alt=\"Model comparison chart for {html.escape(view)} benchmark view\" />"
+                "<figcaption>Log-log scatter of trained parameters versus mean p-adic loss, overlaid with the current parsimoniousness baseline.</figcaption>"
+                "</figure>"
+            )
+        model_chart_html = (
+            "<div class=\"benchmark-chart-grid\">" + "".join(model_chart_parts) + "</div>"
+            if model_chart_parts
+            else ""
+        )
 
         summary_html = f"""<!DOCTYPE html>
 <html lang="en">

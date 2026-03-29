@@ -557,7 +557,8 @@ def test_build_site_benchmark_only_renders_paper_view(tmp_path: Path) -> None:
 
     paper_index = (output_dir / "benchmark" / "paper" / "index.html").read_text(encoding="utf-8")
     assert "Shared benchmark bundle for the site, notebook, and paper." in paper_index
-    assert "Scatter chart generated from the same bundle fields used by the autonomous notebook." in paper_index
+    assert "Small-multiples dashboard generated directly from the comparison table rows below." in paper_index
+    assert "Log-log scatter of trained parameters versus mean p-adic loss" in paper_index
     assert "Trained params" in paper_index
     assert "Avg active params / classification" in paper_index
 
