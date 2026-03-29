@@ -8,8 +8,9 @@ git pull -q
 
 OUTPUT_DIR=${PADJECTIVE_SITE_DIR:-build/site}
 BENCHMARK_EXPORT_ROOT=${PADJECTIVE_BENCHMARK_EXPORT_ROOT:-build/product_taxonomy_bench}
-BENCHMARK_REPORT_ROOT=${PADJECTIVE_BENCHMARK_REPORT_ROOT:-build/benchmark_reports}
+BENCHMARK_REPORT_ROOT=${PADJECTIVE_BENCHMARK_REPORT_ROOT:-$BENCHMARK_EXPORT_ROOT/reports}
 PAPER_GENERATED_DIR=${PADJECTIVE_PAPER_GENERATED_DIR:-../papers/padjective/sigir-ecom/generated}
+PAPER_AS_OF=${PADJECTIVE_PAPER_AS_OF:-2026-02-11 19:15 UTC}
 TAXONOMY_CLASSIFIER_REPORT_DIR=${PADJECTIVE_TAXONOMY_CLASSIFIER_REPORT_DIR:-build/taxonomy_classifier}
 TAXONOMY_PCNN_CLASSIFIER_DB=${PADJECTIVE_TAXONOMY_PCNN_CLASSIFIER_DB:-data/taxonomy_pcnn_classifier.sqlite}
 TAXONOMY_PCNN_CLASSIFIER_REPORT_DIR=${PADJECTIVE_TAXONOMY_PCNN_CLASSIFIER_REPORT_DIR:-build/taxonomy_pcnn_classifier}
@@ -186,28 +187,20 @@ uv run -m padjective.snapshot_metrics \
     --product-table "$TAGBATTLE_PRODUCT_TABLE" \
     --schema "$TAGBATTLE_SCHEMA"
 
-echo "Exporting the fixed paper benchmark snapshot used by the notebook and paper..."
-uv run -m padjective.product_taxonomy_bench_export \
-    "${TAGBATTLE_DSN_ARGS[@]}" \
-    --schema "$TAGBATTLE_SCHEMA" \
-    --snapshot paper \
-    --out-root "$BENCHMARK_EXPORT_ROOT" \
-    --formats jsonl \
-    --no-gzip
-
-echo "Building live benchmark bundle for the nightly site..."
-uv run -m padjective.benchmark_bundle \
+echo "Exporting paper/latest benchmark snapshots and building exact benchmark bundles..."
+uv run -m padjective.product_taxonomy_bench_publish \
     "${TAGBATTLE_DSN_ARGS[@]}" \
     --schema "$TAGBATTLE_SCHEMA" \
     --product-table "$TAGBATTLE_PRODUCT_TABLE" \
-    --out-dir "$BENCHMARK_REPORT_ROOT/latest" \
-    --ablation-snapshot-ref live
+    --paper-as-of "$PAPER_AS_OF" \
+    --out-root "$BENCHMARK_EXPORT_ROOT" \
+    --formats jsonl \
+    --paper-generated-dir "$PAPER_GENERATED_DIR"
 
-echo "Building fixed paper benchmark bundle for the site and manuscript..."
-uv run -m padjective.benchmark_bundle \
-    --snapshot-dir "$BENCHMARK_EXPORT_ROOT/paper" \
-    --out-dir "$BENCHMARK_REPORT_ROOT/paper" \
-    --paper-tex-dir "$PAPER_GENERATED_DIR"
+if [[ "$BENCHMARK_REPORT_ROOT" != "$BENCHMARK_EXPORT_ROOT/reports" ]]; then
+    mkdir -p "$BENCHMARK_REPORT_ROOT"
+    rsync -az --delete "$BENCHMARK_EXPORT_ROOT/reports/" "$BENCHMARK_REPORT_ROOT/"
+fi
 
 uv run -m padjective.build_site \
     --output "$OUTPUT_DIR" \

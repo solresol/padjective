@@ -970,12 +970,26 @@ def _write_benchmark_pages(
 """
         (view_dir / "ablation.html").write_text(ablation_html, encoding="utf-8")
 
+        umllr_row = next(
+            (
+                row
+                for row in bundle.get("models", {}).get("rows", [])
+                if row.get("model_key") == "umllr"
+            ),
+            None,
+        )
+
         views_meta[view] = {
             "bundle": bundle_path.relative_to(benchmark_report_root).as_posix(),
             "snapshot_label": snapshot.get("label"),
             "snapshot_name": snapshot.get("snapshot_name"),
             "summary_page": (view_dir / "index.html").relative_to(output_dir).as_posix(),
             "ablation_page": (view_dir / "ablation.html").relative_to(output_dir).as_posix(),
+            "umllr_mean_scoring_ops": (
+                float(umllr_row["mean_scoring_ops"])
+                if umllr_row is not None and umllr_row.get("mean_scoring_ops") is not None
+                else None
+            ),
         }
         view_cards.append(
             f"""
@@ -4961,6 +4975,7 @@ def _build_index_html(
     tags_dates: Optional[Dict[str, list]] = None,
     tags_x_values: Optional[Dict[str, list]] = None,
     benchmark_page: Optional[Path] = None,
+    benchmark_metadata: Optional[Dict[str, Any]] = None,
 ) -> None:
     generated = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
 
@@ -5339,14 +5354,33 @@ def _build_index_html(
   </div>"""
     all_cards.append(elo_card)
     if benchmark_page is not None:
-        benchmark_card = f"""
-  <div class="model-card">
-    <h3>Benchmark Comparisons</h3>
-    <p>Dedicated `latest` and `paper` benchmark pages generated from the same bundle contract as the notebook and paper.</p>
+        benchmark_views = (benchmark_metadata or {}).get("views", {})
+        latest_active = benchmark_views.get("latest", {}).get("umllr_mean_scoring_ops")
+        paper_active = benchmark_views.get("paper", {}).get("umllr_mean_scoring_ops")
+        benchmark_metrics = ""
+        if latest_active is not None:
+            benchmark_metrics += f"""
+    <div class="card-metric">
+      <span class="value">{float(latest_active):.2f}</span>
+      <span class="label">Latest active params / classification</span>
+    </div>"""
+        if paper_active is not None:
+            benchmark_metrics += f"""
+    <div class="card-metric" style="margin-top: 0.5rem;">
+      <span class="value">{float(paper_active):.2f}</span>
+      <span class="label">Paper active params / classification</span>
+    </div>"""
+        if not benchmark_metrics:
+            benchmark_metrics = """
     <div class="card-metric">
       <span class="value">2</span>
       <span class="label">Benchmark views</span>
-    </div>
+    </div>"""
+        benchmark_card = f"""
+  <div class="model-card">
+    <h3>Benchmark Comparisons</h3>
+    <p>Dedicated `latest` and `paper` benchmark pages, including the average active parameters touched per classification for the importance-optimised p-adic linear regressor.</p>
+    {benchmark_metrics}
     <a href="{benchmark_page.relative_to(output_dir).as_posix()}" class="card-link">Open benchmark pages →</a>
   </div>"""
         all_cards.append(benchmark_card)
@@ -10005,6 +10039,14 @@ footer {text-align: center; padding: 2rem 1.5rem 3rem; color: #6b7280;}
         schema=battle_schema,
     )
 
+    benchmark_metadata = None
+    if benchmark_report_root is not None:
+        benchmark_metadata = _write_benchmark_pages(
+            output_dir,
+            benchmark_report_root=benchmark_report_root,
+            benchmark_views=benchmark_views,
+        )
+
     _build_index_html(
         output_dir,
         stats,
@@ -10058,15 +10100,8 @@ footer {text-align: center; padding: 2rem 1.5rem 3rem; color: #6b7280;}
         tags_dates,
         tags_x_values,
         output_dir / "benchmark" / "index.html" if benchmark_report_root is not None else None,
+        benchmark_metadata,
     )
-
-    benchmark_metadata = None
-    if benchmark_report_root is not None:
-        benchmark_metadata = _write_benchmark_pages(
-            output_dir,
-            benchmark_report_root=benchmark_report_root,
-            benchmark_views=benchmark_views,
-        )
 
     metadata = {
         "generated_at": datetime.now(timezone.utc).isoformat(),

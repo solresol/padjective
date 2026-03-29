@@ -521,6 +521,8 @@ def test_build_site_renders_benchmark_pages(tmp_path: Path, monkeypatch) -> None
     index_html = (output_dir / "index.html").read_text(encoding="utf-8")
     assert "Open benchmark pages" in index_html
     assert "href=\"benchmark/index.html\"" in index_html
+    assert "Latest active params / classification" in index_html
+    assert "Paper active params / classification" in index_html
 
     umllr_html = (output_dir / "umllr" / "index.html").read_text(encoding="utf-8")
     assert "paper comparison page" in umllr_html
@@ -534,6 +536,7 @@ def test_build_site_renders_benchmark_pages(tmp_path: Path, monkeypatch) -> None
     assert "Avg active params / classification" in paper_html
 
     assert metadata["benchmark"]["views"]["paper"]["ablation_page"] == "benchmark/paper/ablation.html"
+    assert metadata["benchmark"]["views"]["paper"]["umllr_mean_scoring_ops"] == 1.42
 
 
 def test_build_site_benchmark_only_renders_paper_view(tmp_path: Path) -> None:
