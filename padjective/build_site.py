@@ -765,6 +765,78 @@ def _generate_benchmark_model_chart(bundle: Dict[str, Any], output_path: Path) -
     return output_path
 
 
+def _generate_benchmark_active_params_chart(bundle: Dict[str, Any], output_path: Path) -> Optional[Path]:
+    frame = model_rows_frame(bundle)
+    if frame.empty:
+        return None
+
+    active_params = pd.to_numeric(frame.get("mean_scoring_ops"), errors="coerce")
+    losses = pd.to_numeric(frame.get("mean_padic_loss"), errors="coerce")
+    valid_mask = active_params.notna() & losses.notna() & (active_params > 0) & (losses > 0)
+    if not valid_mask.any():
+        return None
+
+    chart_frame = frame.loc[valid_mask].copy()
+    chart_frame["mean_scoring_ops"] = active_params.loc[valid_mask].astype(float)
+    chart_frame["mean_padic_loss"] = losses.loc[valid_mask].astype(float)
+
+    fig, ax = plt.subplots(figsize=(10, 6), dpi=150)
+    for row in chart_frame.itertuples(index=False):
+        active_value = float(row.mean_scoring_ops)
+        loss_value = float(row.mean_padic_loss)
+        scatter_kwargs: Dict[str, Any] = {
+            "color": getattr(row, "color", "#0b6ce3"),
+            "s": 150,
+            "alpha": 0.85,
+            "marker": getattr(row, "marker", "o"),
+        }
+        if getattr(row, "marker", "o") not in {"+", "x", ".", ","}:
+            scatter_kwargs["edgecolors"] = "white"
+            scatter_kwargs["linewidths"] = 2
+        ax.scatter(active_value, loss_value, **scatter_kwargs)
+        ax.annotate(
+            str(getattr(row, "short_label", row.model_label)),
+            (active_value, loss_value),
+            textcoords="offset points",
+            xytext=(10, 5),
+            fontsize=9,
+            fontweight="bold",
+            color=getattr(row, "color", "#0b6ce3"),
+        )
+
+    regression_label = None
+    if len(chart_frame) >= 2:
+        log_active = np.log10(chart_frame["mean_scoring_ops"].to_numpy(dtype=float))
+        loss_values = chart_frame["mean_padic_loss"].to_numpy(dtype=float)
+        regression = stats.linregress(log_active, loss_values)
+        x_range = np.linspace(float(log_active.min()) - 0.1, float(log_active.max()) + 0.1, 200)
+        y_range = regression.intercept + regression.slope * x_range
+        regression_label = f"Regression on log10(active params), R²={regression.rvalue ** 2:.2f}"
+        ax.plot(
+            10 ** x_range,
+            y_range,
+            color="#111827",
+            linestyle="--",
+            linewidth=2.2,
+            alpha=0.75,
+            label=regression_label,
+        )
+
+    ax.set_xlabel(f"{ACTIVE_PARAMS_LABEL} (log scale)", fontsize=12, fontweight="bold")
+    ax.set_ylabel("Mean p-adic loss (lower is better)", fontsize=12, fontweight="bold")
+    ax.set_title("Active Parameters vs Mean p-adic Loss", fontsize=14, fontweight="bold", pad=15)
+    ax.set_xscale("log")
+    ax.grid(True, alpha=0.3, linestyle="--")
+    if regression_label is not None:
+        ax.legend(loc="upper right", frameon=True, shadow=True, fontsize=8)
+
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    fig.tight_layout()
+    fig.savefig(output_path, bbox_inches="tight")
+    plt.close(fig)
+    return output_path
+
+
 def _generate_benchmark_model_dashboard_chart(bundle: Dict[str, Any], output_path: Path) -> Optional[Path]:
     frame = model_rows_frame(bundle)
     if frame.empty:
@@ -925,6 +997,10 @@ def _write_benchmark_pages(
             bundle,
             assets_dir / f"benchmark_{view}_model_dashboard.png",
         )
+        active_params_chart_path = _generate_benchmark_active_params_chart(
+            bundle,
+            assets_dir / f"benchmark_{view}_active_params_vs_loss.png",
+        )
         ablation_chart_path = _generate_benchmark_ablation_chart(
             bundle,
             assets_dir / f"benchmark_{view}_ablation.png",
@@ -934,6 +1010,11 @@ def _write_benchmark_pages(
         )
         model_dashboard_rel = (
             f"../../assets/{model_dashboard_path.name}" if model_dashboard_path is not None else None
+        )
+        active_params_chart_rel = (
+            f"../../assets/{active_params_chart_path.name}"
+            if active_params_chart_path is not None
+            else None
         )
         ablation_chart_rel = (
             f"../../assets/{ablation_chart_path.name}" if ablation_chart_path is not None else None
@@ -972,6 +1053,13 @@ def _write_benchmark_pages(
                 "<figure class=\"benchmark-figure\">"
                 f"<img src=\"{html.escape(model_chart_rel)}\" alt=\"Model comparison chart for {html.escape(view)} benchmark view\" />"
                 "<figcaption>Log-log scatter of trained parameters versus mean p-adic loss, overlaid with the current parsimoniousness baseline.</figcaption>"
+                "</figure>"
+            )
+        if active_params_chart_rel is not None:
+            model_chart_parts.append(
+                "<figure class=\"benchmark-figure\">"
+                f"<img src=\"{html.escape(active_params_chart_rel)}\" alt=\"Active parameter comparison chart for {html.escape(view)} benchmark view\" />"
+                "<figcaption>Scatter plot of avg active params versus mean p-adic loss, with a regression fitted on log10(active params).</figcaption>"
                 "</figure>"
             )
         model_chart_html = (
