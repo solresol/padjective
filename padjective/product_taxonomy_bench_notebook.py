@@ -52,6 +52,7 @@ This notebook loads an anonymised snapshot directly from Hugging Face and reruns
 
 - Dummy baseline
 - Importance-optimised $p$-adic linear regression (UMLLR-style)
+- Non-zero-parameter and active-parameter trade-off charts
 - UMLLR tag-order ablations
 - Parameter-constrained logistic regression
 - Parameter-constrained neural network
@@ -160,6 +161,151 @@ ax.legend(loc="lower left", frameon=True, shadow=True, fontsize=8)
 
 plt.tight_layout()
 plt.show()
+            """
+        ),
+        _code_cell(
+            """
+# Active parameters vs p-adic loss
+
+from scipy import stats
+
+ACTIVE_PARAMS_EXCLUDED = {"pclr", "pcnn"}
+
+active_results = model_results[
+    ~model_results["model_key"].isin(ACTIVE_PARAMS_EXCLUDED)
+].copy()
+active_results["mean_scoring_ops"] = pd.to_numeric(
+    active_results["mean_scoring_ops"],
+    errors="coerce",
+)
+active_results["mean_padic_loss"] = pd.to_numeric(
+    active_results["mean_padic_loss"],
+    errors="coerce",
+)
+active_results = active_results[
+    active_results["mean_scoring_ops"].gt(0)
+    & active_results["mean_padic_loss"].gt(0)
+].copy()
+active_results["log10_mean_padic_loss"] = np.log10(active_results["mean_padic_loss"])
+
+log10_active = np.log10(active_results["mean_scoring_ops"].to_numpy(dtype=float))
+raw_regression = stats.linregress(
+    log10_active,
+    active_results["mean_padic_loss"].to_numpy(dtype=float),
+)
+log_regression = stats.linregress(
+    log10_active,
+    active_results["log10_mean_padic_loss"].to_numpy(dtype=float),
+)
+
+def regression_formula(regression, *, target_name):
+    intercept_sign = "+" if regression.intercept >= 0 else "-"
+    return (
+        f"{target_name} = {regression.slope:.4f} log10(active params) "
+        f"{intercept_sign} {abs(regression.intercept):.4f}"
+    )
+
+fig, axes = plt.subplots(1, 2, figsize=(16, 6), dpi=150, sharex=True)
+plot_specs = [
+    (
+        axes[0],
+        "mean_padic_loss",
+        "Mean p-adic loss (lower is better)",
+        "Active Parameters vs Mean p-adic Loss",
+        raw_regression,
+        "mean p-adic loss",
+    ),
+    (
+        axes[1],
+        "log10_mean_padic_loss",
+        "log10(mean p-adic loss)",
+        "Active Parameters vs log10 Mean p-adic Loss",
+        log_regression,
+        "log10(mean p-adic loss)",
+    ),
+]
+
+for ax, y_column, y_label, title, regression, target_name in plot_specs:
+    for row in active_results.itertuples(index=False):
+        scatter_kwargs = {
+            "color": row.color,
+            "s": 150,
+            "alpha": 0.85,
+            "marker": row.marker,
+        }
+        if row.marker not in ["+", "x", ".", ","]:
+            scatter_kwargs["edgecolors"] = "white"
+            scatter_kwargs["linewidths"] = 2
+        y_value = getattr(row, y_column)
+        ax.scatter(row.mean_scoring_ops, y_value, **scatter_kwargs)
+        ax.annotate(
+            row.short_label,
+            (row.mean_scoring_ops, y_value),
+            textcoords="offset points",
+            xytext=(10, 5),
+            fontsize=9,
+            fontweight="bold",
+            color=row.color,
+        )
+
+    x_range = np.linspace(log10_active.min() - 0.1, log10_active.max() + 0.1, 200)
+    y_range = regression.intercept + regression.slope * x_range
+    ax.plot(
+        10 ** x_range,
+        y_range,
+        color="#111827",
+        linestyle="--",
+        linewidth=2.2,
+        alpha=0.75,
+        label=(
+            f"y = {regression.slope:+.3f}x "
+            f"{'+' if regression.intercept >= 0 else '-'} {abs(regression.intercept):.3f}; "
+            f"R^2={regression.rvalue ** 2:.3f}, p={regression.pvalue:.3f}"
+        ),
+    )
+    ax.set_xscale("log")
+    ax.set_xlabel("Avg active params / classification (log scale)", fontsize=11, fontweight="bold")
+    ax.set_ylabel(y_label, fontsize=11, fontweight="bold")
+    ax.set_title(title, fontsize=13, fontweight="bold")
+    ax.grid(True, alpha=0.3, linestyle="--")
+    ax.legend(loc="upper right", frameon=True, shadow=True, fontsize=8)
+
+plt.tight_layout()
+plt.show()
+
+print("Excluded from active-parameter regressions:", ", ".join(sorted(ACTIVE_PARAMS_EXCLUDED)))
+print("Fitted equation:", regression_formula(raw_regression, target_name="mean p-adic loss"))
+print(
+    "Raw-loss regression stats:",
+    f"R^2={raw_regression.rvalue ** 2:.3f}",
+    f"p={raw_regression.pvalue:.3f}",
+)
+print(
+    "Fitted equation:",
+    regression_formula(log_regression, target_name="log10(mean p-adic loss)"),
+)
+print(
+    "Log-loss regression stats:",
+    f"R^2={log_regression.rvalue ** 2:.3f}",
+    f"p={log_regression.pvalue:.3f}",
+)
+
+pd.DataFrame(
+    [
+        {
+            "target": "mean p-adic loss",
+            "equation": regression_formula(raw_regression, target_name="mean p-adic loss"),
+            "r_squared": round(float(raw_regression.rvalue ** 2), 4),
+            "p_value": round(float(raw_regression.pvalue), 4),
+        },
+        {
+            "target": "log10(mean p-adic loss)",
+            "equation": regression_formula(log_regression, target_name="log10(mean p-adic loss)"),
+            "r_squared": round(float(log_regression.rvalue ** 2), 4),
+            "p_value": round(float(log_regression.pvalue), 4),
+        },
+    ]
+)
             """
         ),
         _code_cell(

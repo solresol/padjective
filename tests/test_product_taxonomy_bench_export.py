@@ -59,6 +59,8 @@ def test_stage_hf_notebook_generates_ablation_notebook(tmp_path) -> None:
     notebook_path = stage_hf_notebook(tmp_path)
     notebook_text = notebook_path.read_text(encoding="utf-8")
     assert "UMLLR tag-order ablation" in notebook_text
+    assert "Active parameters vs p-adic loss" in notebook_text
+    assert "Fitted equation:" in notebook_text
     assert "mean_prefix2_accuracy" in notebook_text
     assert notebook_path.name == "product_taxonomy_bench.ipynb"
 
@@ -72,3 +74,5 @@ def test_render_notebook_includes_embedded_runtime_and_tables() -> None:
     assert "build_snapshot_benchmark_bundle" in combined
     assert "load_snapshot_tables_from_hf" in combined
     assert "ablation_table" in combined
+    assert "ACTIVE_PARAMS_EXCLUDED = {\"pclr\", \"pcnn\"}" in combined
+    assert "log10(mean p-adic loss)" in combined
