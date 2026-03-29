@@ -230,6 +230,7 @@ def test_paper_bundle_html_and_tex_stay_in_parity(tmp_path: Path) -> None:
     assert f"{umllr_row['mean_padic_loss']:.6f}" in model_table_tex
     assert best_strategy.replace("_", "\\_") in ablation_table_tex
     assert f"{best_ablation['mean_padic_loss']:.6f}" in ablation_table_tex
+    assert "\\%" in ablation_table_tex
 
 
 def test_snapshot_bundle_tolerates_missing_title_overlap_fields(tmp_path: Path) -> None:

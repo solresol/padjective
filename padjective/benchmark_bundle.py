@@ -106,6 +106,12 @@ def _format_percent(value: float | None) -> str:
     return f"{value * 100:.2f}%"
 
 
+def _format_percent_tex(value: float | None) -> str:
+    if value is None:
+        return "—"
+    return f"{value * 100:.2f}\\%"
+
+
 def _format_float(value: float | None, digits: int = 6) -> str:
     if value is None:
         return "—"
@@ -273,8 +279,8 @@ def render_umllr_ablation_tex(bundle: dict[str, Any]) -> str:
             f"{_format_float(row.get('mean_padic_loss'), 6)} & "
             f"{_format_float(row.get('loss_delta_vs_baseline'), 6)} & "
             f"{int(row.get('wins_vs_baseline', 0))}/{int(row.get('comparisons_vs_baseline', 0))} & "
-            f"{_format_percent(row.get('mean_exact_accuracy'))} & "
-            f"{_format_percent(row.get('mean_prefix2_accuracy'))} \\\\"
+            f"{_format_percent_tex(row.get('mean_exact_accuracy'))} & "
+            f"{_format_percent_tex(row.get('mean_prefix2_accuracy'))} \\\\"
         )
     lines.extend(["\\bottomrule", "\\end{tabular}", ""])
     return "\n".join(lines)
