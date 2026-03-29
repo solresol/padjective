@@ -42,6 +42,7 @@ TAG_ORDER_STRATEGIES: tuple[str, ...] = (
 RANDOM_ABLATION_SEEDS: tuple[int, ...] = (7, 13, 23, 37, 101)
 LIVE_SNAPSHOT_LABEL = "live"
 _RowT = TypeVar("_RowT")
+_LOCK_FAMILY = "padjective.umllr"
 
 
 @dataclass(frozen=True)
@@ -351,6 +352,16 @@ def tag_order_run_key(
     else:
         base_key = strategy
     return f"{snapshot_label(snapshot_ref)}::{base_key}"
+
+
+def _acquire_session_lock(conn, lock_name: str) -> None:
+    """Serialize overlapping UMLLR runs that target the same outputs."""
+
+    with conn.cursor() as cur:
+        cur.execute(
+            "SELECT pg_advisory_lock(hashtext(%s), hashtext(%s))",
+            (_LOCK_FAMILY, lock_name),
+        )
 
 
 def _truncate_outputs(conn, schema: str) -> None:
@@ -1188,7 +1199,21 @@ def _save_ablation_results(
                     "(run_key, snapshot_ref, tag_order_strategy, tag_order_seed, cv_fold, loss, prime_base, max_digit, "
                     "default_prediction, exact_accuracy, prefix1_accuracy, prefix2_accuracy, "
                     "mean_shared_prefix_depth, mean_scoring_ops) "
-                    "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)"
+                    "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) "
+                    "ON CONFLICT (run_key, cv_fold) DO UPDATE SET "
+                    "snapshot_ref = EXCLUDED.snapshot_ref, "
+                    "tag_order_strategy = EXCLUDED.tag_order_strategy, "
+                    "tag_order_seed = EXCLUDED.tag_order_seed, "
+                    "loss = EXCLUDED.loss, "
+                    "prime_base = EXCLUDED.prime_base, "
+                    "max_digit = EXCLUDED.max_digit, "
+                    "default_prediction = EXCLUDED.default_prediction, "
+                    "exact_accuracy = EXCLUDED.exact_accuracy, "
+                    "prefix1_accuracy = EXCLUDED.prefix1_accuracy, "
+                    "prefix2_accuracy = EXCLUDED.prefix2_accuracy, "
+                    "mean_shared_prefix_depth = EXCLUDED.mean_shared_prefix_depth, "
+                    "mean_scoring_ops = EXCLUDED.mean_scoring_ops, "
+                    "updated_at = now()"
                 ).format(schema=sql.Identifier(schema)),
                 metric_rows,
             )
@@ -1197,7 +1222,15 @@ def _save_ablation_results(
                 sql.SQL(
                     "INSERT INTO {schema}.umllr_order_ablation_predictions "
                     "(run_key, snapshot_ref, tag_order_strategy, tag_order_seed, cv_fold, product_id, true_value, predicted_value, loss) "
-                    "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)"
+                    "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s) "
+                    "ON CONFLICT (run_key, cv_fold, product_id) DO UPDATE SET "
+                    "snapshot_ref = EXCLUDED.snapshot_ref, "
+                    "tag_order_strategy = EXCLUDED.tag_order_strategy, "
+                    "tag_order_seed = EXCLUDED.tag_order_seed, "
+                    "true_value = EXCLUDED.true_value, "
+                    "predicted_value = EXCLUDED.predicted_value, "
+                    "loss = EXCLUDED.loss, "
+                    "updated_at = now()"
                 ).format(schema=sql.Identifier(schema)),
                 prediction_rows,
             )
@@ -1371,6 +1404,9 @@ def process_database(
 ) -> None:
     conn = db.get_connection(dsn)
     try:
+        # Session advisory locks survive commits, which lets us serialize the
+        # delete/rewrite flow across the whole job while reusing one connection.
+        _acquire_session_lock(conn, f"{schema}.process_database")
         _ensure_storage(conn, schema)
 
         fold_assignments: Dict[int, int] | None
