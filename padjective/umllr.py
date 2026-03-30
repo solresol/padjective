@@ -232,6 +232,7 @@ def _ensure_ablation_storage(conn, schema: str) -> None:
             "true_value NUMERIC NOT NULL",
             "predicted_value NUMERIC NOT NULL",
             "loss DOUBLE PRECISION NOT NULL",
+            "updated_at TIMESTAMPTZ NOT NULL DEFAULT now()",
             "PRIMARY KEY (run_key, cv_fold, product_id)",
         ),
     )
@@ -264,6 +265,22 @@ def _ensure_ablation_storage(conn, schema: str) -> None:
             )
             metrics_columns.add("snapshot_ref")
 
+        if "updated_at" not in metrics_columns:
+            if metrics_owner != current_user:
+                raise RuntimeError(
+                    f"{schema}.{metrics_table} is missing updated_at, "
+                    f"but the current database role {current_user!r} does not own the table "
+                    f"(owner: {metrics_owner!r}). Transfer ownership or run the migration "
+                    "as the owning role before retrying."
+                )
+            cur.execute(
+                sql.SQL(
+                    "ALTER TABLE {schema}.umllr_order_ablation_fold_metrics "
+                    "ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT now()"
+                ).format(schema=sql.Identifier(schema))
+            )
+            metrics_columns.add("updated_at")
+
         if "snapshot_ref" not in prediction_columns:
             if predictions_owner != current_user:
                 raise RuntimeError(
@@ -279,6 +296,22 @@ def _ensure_ablation_storage(conn, schema: str) -> None:
                 ).format(schema=sql.Identifier(schema))
             )
             prediction_columns.add("snapshot_ref")
+
+        if "updated_at" not in prediction_columns:
+            if predictions_owner != current_user:
+                raise RuntimeError(
+                    f"{schema}.{predictions_table} is missing updated_at, "
+                    f"but the current database role {current_user!r} does not own the table "
+                    f"(owner: {predictions_owner!r}). Transfer ownership or run the migration "
+                    "as the owning role before retrying."
+                )
+            cur.execute(
+                sql.SQL(
+                    "ALTER TABLE {schema}.umllr_order_ablation_predictions "
+                    "ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT now()"
+                ).format(schema=sql.Identifier(schema))
+            )
+            prediction_columns.add("updated_at")
 
         if "snapshot_ref" in metrics_columns:
             cur.execute(

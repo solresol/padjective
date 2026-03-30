@@ -213,9 +213,10 @@ def test_derive_battles_from_records_uses_record_folds() -> None:
 
 
 class _AblationStorageCursor:
-    def __init__(self, statements: list[tuple[str, object]]) -> None:
+    def __init__(self, statements: list[tuple[str, object]], *, allow_owner_ddl: bool = False) -> None:
         self._statements = statements
         self._fetchone = None
+        self._allow_owner_ddl = allow_owner_ddl
 
     def __enter__(self) -> "_AblationStorageCursor":
         return self
@@ -228,7 +229,7 @@ class _AblationStorageCursor:
         self._statements.append((text, params))
         if text == "SELECT CURRENT_USER":
             self._fetchone = ("padjective",)
-        elif "ALTER TABLE" in text or "CREATE INDEX" in text:
+        elif ("ALTER TABLE" in text or "CREATE INDEX" in text) and not self._allow_owner_ddl:
             raise AssertionError(f"unexpected owner-only DDL: {text}")
         else:
             self._fetchone = None
@@ -241,13 +242,14 @@ class _AblationStorageCursor:
 
 
 class _AblationStorageConnection:
-    def __init__(self) -> None:
+    def __init__(self, *, allow_owner_ddl: bool = False) -> None:
         self.statements: list[tuple[str, object]] = []
         self.commit_count = 0
         self.closed = False
+        self.allow_owner_ddl = allow_owner_ddl
 
     def cursor(self) -> _AblationStorageCursor:
-        return _AblationStorageCursor(self.statements)
+        return _AblationStorageCursor(self.statements, allow_owner_ddl=self.allow_owner_ddl)
 
     def commit(self) -> None:
         self.commit_count += 1
@@ -263,7 +265,7 @@ def test_ensure_ablation_storage_skips_owner_only_ddl_when_tables_are_current(mo
     monkeypatch.setattr("padjective.umllr.db.ensure_table", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(
         "padjective.umllr._table_columns",
-        lambda _conn, _schema, _table: {"run_key", "snapshot_ref"},
+        lambda _conn, _schema, _table: {"run_key", "snapshot_ref", "updated_at"},
     )
     monkeypatch.setattr("padjective.umllr._table_owner", lambda *_args, **_kwargs: "gregb")
     monkeypatch.setattr("padjective.umllr._index_exists", lambda *_args, **_kwargs: True)
@@ -293,6 +295,28 @@ def test_ensure_ablation_storage_raises_when_non_owner_needs_schema_upgrade(monk
 
     with pytest.raises(RuntimeError, match="does not own the table"):
         _ensure_ablation_storage(conn, "padjective")
+
+
+def test_ensure_ablation_storage_adds_updated_at_when_owner_can_migrate(monkeypatch) -> None:
+    conn = _AblationStorageConnection(allow_owner_ddl=True)
+
+    monkeypatch.setattr("padjective.umllr.db.ensure_schema", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr("padjective.umllr.db.ensure_table", lambda *_args, **_kwargs: None)
+
+    def _fake_columns(_conn, _schema, table):
+        if table == "umllr_order_ablation_fold_metrics":
+            return {"run_key", "snapshot_ref", "updated_at"}
+        return {"run_key", "snapshot_ref"}
+
+    monkeypatch.setattr("padjective.umllr._table_columns", _fake_columns)
+    monkeypatch.setattr("padjective.umllr._table_owner", lambda *_args, **_kwargs: "padjective")
+    monkeypatch.setattr("padjective.umllr._index_exists", lambda *_args, **_kwargs: True)
+
+    _ensure_ablation_storage(conn, "padjective")
+
+    executed = "\n".join(text for text, _params in conn.statements)
+    assert "ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT now()" in executed
+    assert conn.commit_count == 1
 
 
 def test_acquire_session_lock_uses_postgres_advisory_lock() -> None:
