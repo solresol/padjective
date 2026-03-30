@@ -931,7 +931,9 @@ def _generate_benchmark_active_params_chart(
 
     ax.set_xlabel(f"{ACTIVE_PARAMS_LABEL} (log scale)", fontsize=12, fontweight="bold")
     ax.set_ylabel(
-        "log10(mean p-adic loss)" if log_loss else "Mean p-adic loss (lower is better)",
+        "log10(mean p-adic loss) (lower is better)"
+        if log_loss
+        else "Mean p-adic loss (lower is better)",
         fontsize=12,
         fontweight="bold",
     )
