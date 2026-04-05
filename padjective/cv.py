@@ -75,14 +75,18 @@ def calculate_cv_folds(
     product_table: str = "cantbuymelove.product",
     n_splits: int = 5,
     random_state: int = 42,
+    *,
+    warn_on_fallback: bool = False,
 ) -> Dict[int, int]:
     """Calculate cross-validation fold assignments for products.
 
     Uses :class:`~sklearn.model_selection.StratifiedKFold` to assign each
-    product to a fold, stratifying by taxonomy_path. Products without taxonomy
-    data are excluded from fold assignment. The same ``random_state`` ensures
-    consistency with taxonomy classifier training and other components that
-    rely on deterministic splits.
+    product to a fold, stratifying by taxonomy_path. When the smallest
+    taxonomy bucket cannot support stratification, the helper deterministically
+    falls back to :class:`~sklearn.model_selection.KFold`. Products without
+    taxonomy data are excluded from fold assignment. The same ``random_state``
+    ensures consistency with taxonomy classifier training and other
+    components that rely on deterministic splits.
     """
 
     product_identifier = db.qualified_identifier(product_table)
@@ -132,7 +136,7 @@ def calculate_cv_folds(
     product_ids_array = np.array(product_ids)
     taxonomy_paths_array = np.array(taxonomy_paths, dtype=object)
 
-    unique_labels, counts = np.unique(taxonomy_paths_array, return_counts=True)
+    _, counts = np.unique(taxonomy_paths_array, return_counts=True)
     min_class_size = counts.min() if counts.size else 0
     can_stratify = min_class_size >= n_splits
 
@@ -141,12 +145,13 @@ def calculate_cv_folds(
             n_splits=n_splits, shuffle=True, random_state=random_state
         )
     else:
-        warnings.warn(
-            "Taxonomy distribution too sparse for StratifiedKFold; falling back to "
-            "deterministic KFold splits.",
-            RuntimeWarning,
-            stacklevel=2,
-        )
+        if warn_on_fallback:
+            warnings.warn(
+                "Taxonomy distribution too sparse for StratifiedKFold; falling back to "
+                "deterministic KFold splits.",
+                RuntimeWarning,
+                stacklevel=2,
+            )
         cv = KFold(n_splits=n_splits, shuffle=True, random_state=random_state)
 
     fold_assignments: Dict[int, int] = {}

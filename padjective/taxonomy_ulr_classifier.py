@@ -12,6 +12,7 @@ from __future__ import annotations
 import argparse
 import html
 import sys
+import warnings
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -21,6 +22,7 @@ import numpy as np
 import pandas as pd
 from psycopg import sql
 from scipy import sparse
+from sklearn.exceptions import ConvergenceWarning
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import f1_score, make_scorer
 from sklearn.model_selection import StratifiedKFold, cross_validate
@@ -221,7 +223,9 @@ def train_l1_classifier(
         tol=1e-4,
     )
 
-    model.fit(features, labels)
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", category=ConvergenceWarning)
+        model.fit(features, labels)
     accuracy = float(model.score(features, labels))
 
     num_nonzero, num_total = count_nonzero_params(model)

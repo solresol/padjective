@@ -33,6 +33,7 @@ if __package__ in {None, ""}:
         ensure_taxonomy_paths_cover_labels,
         hierarchical_loss_score,
     )
+    from padjective.torch_runtime import select_torch_device
 else:
     from . import data_access, db
     from .metrics import (
@@ -40,6 +41,7 @@ else:
         ensure_taxonomy_paths_cover_labels,
         hierarchical_loss_score,
     )
+    from .torch_runtime import select_torch_device
 
 from sklearn.metrics import f1_score
 
@@ -208,7 +210,7 @@ def train_and_evaluate(
 ) -> ExperimentResult:
     """Train a model with given config and evaluate on test set."""
 
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = select_torch_device()
 
     # Convert to tensors
     X_train = torch.from_numpy(train_features.toarray().astype(np.float32))
@@ -536,7 +538,7 @@ def run_pruning_experiment():
     label_encoder = {l: i for i, l in enumerate(unique_labels)}
     label_decoder = {i: l for l, i in label_encoder.items()}
 
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = select_torch_device()
 
     # Train best model (256 hidden, L1=0.0001)
     print("\nTraining best model configuration: 256 hidden, L1=0.0001...")

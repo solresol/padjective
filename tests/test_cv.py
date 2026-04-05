@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import warnings
 from typing import Iterable, List
 
 import numpy as np
@@ -123,9 +124,35 @@ def test_calculate_cv_folds_degenerates_to_kfold_when_needed(monkeypatch):
 
     monkeypatch.setattr(cv, "StratifiedKFold", FailStratified)
 
-    folds = cv.calculate_cv_folds(fake_conn, n_splits=4, random_state=0)
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        folds = cv.calculate_cv_folds(fake_conn, n_splits=4, random_state=0)
 
     assert set(folds.keys()) == set(range(1, 9))
     counts = np.bincount(list(folds.values()))
     assert counts.shape[0] == 4
     assert np.all(counts == 2)
+    assert caught == []
+
+
+def test_calculate_cv_folds_can_warn_on_fallback(monkeypatch):
+    """Callers can opt into a warning when stratification is impossible."""
+
+    info_schema_rows = [("taxonomy_path",)]
+    product_rows = [
+        {"id": idx, "taxonomy_path": f"{idx}"} for idx in range(1, 9)
+    ]
+
+    fake_conn = FakeConnection(info_schema_rows, product_rows)
+
+    monkeypatch.setattr(cv, "dict_row", dict_identity)
+
+    with pytest.warns(RuntimeWarning, match="Taxonomy distribution too sparse"):
+        folds = cv.calculate_cv_folds(
+            fake_conn,
+            n_splits=4,
+            random_state=0,
+            warn_on_fallback=True,
+        )
+
+    assert set(folds.keys()) == set(range(1, 9))

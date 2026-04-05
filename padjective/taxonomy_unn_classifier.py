@@ -43,6 +43,7 @@ if __package__ in {None, ""}:
         ensure_taxonomy_paths_cover_labels,
         hierarchical_loss_score,
     )
+    from padjective.torch_runtime import select_torch_device
 else:
     from . import data_access, db
     from .metrics import (
@@ -50,6 +51,7 @@ else:
         ensure_taxonomy_paths_cover_labels,
         hierarchical_loss_score,
     )
+    from .torch_runtime import select_torch_device
 
 
 # Hyperparameters (determined through experimentation)
@@ -246,7 +248,7 @@ def train_unn_classifier(
     if len(unique_labels) < 2:
         raise ValueError("Need at least 2 taxonomies to train")
 
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = select_torch_device()
 
     # Convert to tensors
     X = torch.from_numpy(features.toarray().astype(np.float32))
@@ -510,7 +512,7 @@ def main() -> None:
     )
 
     # Evaluate on test set
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = select_torch_device()
     model.eval()
 
     X_test = torch.from_numpy(test_features.toarray().astype(np.float32)).to(device)

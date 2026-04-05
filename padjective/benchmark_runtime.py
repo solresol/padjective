@@ -18,11 +18,13 @@ import re
 from typing import Any, Dict, Iterable, List, Mapping, Sequence, Tuple
 import urllib.parse
 import urllib.request
+import warnings
 
 import numpy as np
 import pandas as pd
 from scipy import sparse
 from sklearn.dummy import DummyClassifier
+from sklearn.exceptions import ConvergenceWarning
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import f1_score
 from sklearn.neural_network import MLPClassifier
@@ -626,6 +628,13 @@ def _logistic_nonzero_params(model: LogisticRegression) -> float:
     return float(np.count_nonzero(model.coef_) + np.count_nonzero(model.intercept_))
 
 
+def _fit_estimator_quietly(model, features: sparse.csr_matrix, labels: np.ndarray):
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", category=ConvergenceWarning)
+        model.fit(features, labels)
+    return model
+
+
 def _evaluate_classifier_cv(
     *,
     model_key: str,
@@ -649,8 +658,11 @@ def _evaluate_classifier_cv(
     for fold in folds:
         train_mask = cv_fold_values != fold
         test_mask = cv_fold_values == fold
-        model = make_model()
-        model.fit(features[train_mask], labels[train_mask])
+        model = _fit_estimator_quietly(
+            make_model(),
+            features[train_mask],
+            labels[train_mask],
+        )
         y_true = labels[test_mask]
         y_pred = model.predict(features[test_mask])
         ops = [
@@ -1285,7 +1297,11 @@ def train_levelwise_models(
                 solver="lbfgs",
                 class_weight="balanced",
             )
-            classifier.fit(features[prefix_indices[prefix]], prefix_targets[prefix])
+            classifier = _fit_estimator_quietly(
+                classifier,
+                features[prefix_indices[prefix]],
+                np.asarray(prefix_targets[prefix], dtype=object),
+            )
         models[prefix] = NodeModel(
             prefix=prefix,
             classifier=classifier,
@@ -1643,7 +1659,6 @@ def _build_model_rows(
                 C=1.0,
                 max_iter=DEFAULT_ULR_MAX_ITER,
                 n_jobs=-1,
-                multi_class="multinomial",
                 random_state=42,
             ),
             param_counter=_l1_logistic_nonzero_params,
