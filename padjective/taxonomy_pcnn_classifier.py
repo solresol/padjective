@@ -35,6 +35,7 @@ if __package__ in {None, ""}:
         ensure_taxonomy_paths_cover_labels,
         hierarchical_loss_score,
     )
+    from padjective.torch_runtime import select_torch_device
 else:
     from . import data_access, db, tag_features
     from .metrics import (
@@ -42,6 +43,7 @@ else:
         ensure_taxonomy_paths_cover_labels,
         hierarchical_loss_score,
     )
+    from .torch_runtime import select_torch_device
 
 try:
     from psycopg2 import sql
@@ -348,7 +350,7 @@ def train_nn_classifier(
         train_dataset = dataset
         val_dataset = None
 
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = select_torch_device()
     model = _build_model(features.shape[1], hidden_layer_sizes, output_dim).to(device)
     optimizer = torch.optim.Adam(
         model.parameters(), lr=learning_rate, weight_decay=weight_decay
