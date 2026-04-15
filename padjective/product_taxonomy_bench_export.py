@@ -542,9 +542,19 @@ def render_hf_dataset_card(
             f"{meta.product_count:,} products, {meta.tag_count:,} tags, {meta.taxonomy_count:,} taxonomies{as_of})"
         )
 
+    def _product_data_file_patterns(snapshot_ref: str) -> list[str]:
+        return [
+            f"{snapshot_ref}/products-*.jsonl",
+            f"{snapshot_ref}/products-*.jsonl.gz",
+        ]
+
+    config_specs: list[tuple[str, bool]] = [("paper", True), ("latest", False)]
+    if first1000 is not None:
+        config_specs.append(("first1000", False))
+
     front_matter = "\n".join(
-        [
-            "---",
+        ["---"]
+        + [
             f"pretty_name: {pretty_name}",
             "language:",
             "- en",
@@ -560,8 +570,23 @@ def render_hf_dataset_card(
             "- p-adic",
             "- ultrametric",
             "license: other",
-            "---",
+            "configs:",
         ]
+        + [
+            line
+            for config_name, is_default in config_specs
+            for line in (
+                [f"- config_name: {config_name}"]
+                + (["  default: true"] if is_default else [])
+                + [
+                    "  data_files:",
+                    "  - split: train",
+                    "    path:",
+                ]
+                + [f'    - "{pattern}"' for pattern in _product_data_file_patterns(config_name)]
+            )
+        ]
+        + ["---"]
     )
 
     config_lines = [

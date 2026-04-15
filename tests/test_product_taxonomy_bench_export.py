@@ -58,6 +58,12 @@ def test_render_hf_dataset_card_includes_snapshots() -> None:
     assert "notebooks/product_taxonomy_bench.ipynb" in card
     assert "Open in Colab" in card
     assert "defaults to the fixed `paper` snapshot" in card
+    assert "configs:" in card
+    assert "- config_name: paper" in card
+    assert "default: true" in card
+    assert '"paper/products-*.jsonl.gz"' in card
+    assert "- config_name: latest" in card
+    assert '"latest/products-*.jsonl.gz"' in card
     assert DEFAULT_DATASET_CITATION_BIBTEX in card
     assert "TODO" not in card
 
