@@ -395,6 +395,20 @@ def _snapshot_name_exists(conn, schema: str, snapshot_name: str) -> bool:
         return cur.fetchone() is not None
 
 
+def _snapshot_product_count(conn, schema: str, snapshot_id: uuid.UUID) -> int:
+    """Return the number of distinct product rows persisted for a snapshot."""
+
+    with conn.cursor() as cur:
+        cur.execute(
+            sql.SQL(
+                "SELECT COUNT(*) FROM {schema}.product_taxonomy_bench_products WHERE snapshot_id = %s"
+            ).format(schema=sql.Identifier(schema)),
+            (snapshot_id,),
+        )
+        row = cur.fetchone()
+        return int(row[0]) if row else 0
+
+
 def _count_taxonomies(
     conn,
     product_table: str,
@@ -696,6 +710,8 @@ def create_snapshot(
 
             flush(cur)
         conn.commit()
+
+        product_count = _snapshot_product_count(conn, schema, snapshot_id)
 
         with conn.cursor() as cur:
             cur.execute(
