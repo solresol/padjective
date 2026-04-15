@@ -11,7 +11,7 @@ import argparse
 import gzip
 import json
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Iterator, Optional, Sequence
@@ -45,6 +45,13 @@ DEFAULT_HF_NOTEBOOK_SOURCE = (
     Path(__file__).resolve().parent.parent / "docs" / "product_taxonomy_bench.ipynb"
 )
 DEFAULT_HF_NOTEBOOK_DEST = Path("notebooks/product_taxonomy_bench.ipynb")
+DEFAULT_DATASET_CITATION_BIBTEX = """@misc{baker2026producttaxonomybench,
+  author={Gregory D. Baker},
+  title={product-taxonomy-bench: An anonymized benchmark for Shopify product taxonomy prediction from tags},
+  year={2026},
+  howpublished={\\url{https://huggingface.co/datasets/gregb/product-taxonomy-bench}},
+  note={Hugging Face dataset}
+}"""
 
 
 @dataclass(frozen=True)
@@ -196,6 +203,39 @@ def _table_has_column(conn: psycopg.Connection, *, schema: str, table: str, colu
             (schema, table, column),
         )
         return cur.fetchone() is not None
+
+
+def load_snapshot_actual_counts(
+    conn: psycopg.Connection, schema: str, snapshot_id: uuid.UUID
+) -> tuple[int, int, int]:
+    """Return counts derived from the persisted snapshot tables."""
+
+    with conn.cursor(row_factory=dict_row) as cur:
+        cur.execute(
+            sql.SQL(
+                """
+                SELECT
+                    (SELECT COUNT(*)
+                     FROM {schema}.product_taxonomy_bench_products
+                     WHERE snapshot_id = %s) AS product_count,
+                    (SELECT COUNT(*)
+                     FROM {schema}.product_taxonomy_bench_tags
+                     WHERE snapshot_id = %s) AS tag_count,
+                    (SELECT COUNT(DISTINCT taxonomy_id)
+                     FROM {schema}.product_taxonomy_bench_products
+                     WHERE snapshot_id = %s) AS taxonomy_count
+                """
+            ).format(schema=sql.Identifier(schema)),
+            (snapshot_id, snapshot_id, snapshot_id),
+        )
+        row = cur.fetchone()
+        if not row:
+            return 0, 0, 0
+        return (
+            int(row["product_count"] or 0),
+            int(row["tag_count"] or 0),
+            int(row["taxonomy_count"] or 0),
+        )
 
 
 def stream_products_for_export(
@@ -579,14 +619,10 @@ def render_hf_dataset_card(
             "",
             "# Citation",
             "",
-            "Add your paper citation here (BibTeX).",
+            "If you use this dataset, please cite the dataset release:",
             "",
             "```bibtex",
-            "@article{todo,",
-            "  title={TODO},",
-            "  author={TODO},",
-            "  year={2026}",
-            "}",
+            DEFAULT_DATASET_CITATION_BIBTEX,
             "```",
         ]
     )
@@ -616,6 +652,15 @@ def export_snapshot(
     rows_per_shard: int,
 ) -> SnapshotMetadata:
     metadata = load_snapshot_metadata(conn, schema, snapshot_id)
+    actual_product_count, actual_tag_count, actual_taxonomy_count = load_snapshot_actual_counts(
+        conn, schema, snapshot_id
+    )
+    metadata = replace(
+        metadata,
+        product_count=actual_product_count,
+        tag_count=actual_tag_count,
+        taxonomy_count=actual_taxonomy_count,
+    )
     out_dir.mkdir(parents=True, exist_ok=True)
 
     _clear_snapshot_output_dir(out_dir)

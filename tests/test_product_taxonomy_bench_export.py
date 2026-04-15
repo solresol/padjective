@@ -2,7 +2,9 @@ from datetime import datetime, timezone
 import uuid
 
 from padjective.product_taxonomy_bench_export import (
+    DEFAULT_DATASET_CITATION_BIBTEX,
     SnapshotMetadata,
+    load_snapshot_actual_counts,
     render_hf_dataset_card,
     stage_hf_notebook,
 )
@@ -53,6 +55,8 @@ def test_render_hf_dataset_card_includes_snapshots() -> None:
     assert "notebooks/product_taxonomy_bench.ipynb" in card
     assert "Open in Colab" in card
     assert "defaults to the fixed `paper` snapshot" in card
+    assert DEFAULT_DATASET_CITATION_BIBTEX in card
+    assert "TODO" not in card
 
 
 def test_stage_hf_notebook_generates_ablation_notebook(tmp_path) -> None:
@@ -76,3 +80,46 @@ def test_render_notebook_includes_embedded_runtime_and_tables() -> None:
     assert "ablation_table" in combined
     assert "ACTIVE_PARAMS_EXCLUDED = {\"pclr\", \"pcnn\"}" in combined
     assert "log10(mean p-adic loss)" in combined
+
+
+class _CountsCursor:
+    def __init__(self, row: dict[str, int]) -> None:
+        self._row = row
+
+    def __enter__(self) -> "_CountsCursor":
+        return self
+
+    def __exit__(self, exc_type, exc, tb) -> bool:
+        return False
+
+    def execute(self, _query, _params=None) -> None:
+        return None
+
+    def fetchone(self) -> dict[str, int]:
+        return self._row
+
+
+class _CountsConnection:
+    def __init__(self, row: dict[str, int]) -> None:
+        self._row = row
+
+    def cursor(self, *_, **__) -> _CountsCursor:
+        return _CountsCursor(self._row)
+
+
+def test_load_snapshot_actual_counts_reads_persisted_tables() -> None:
+    conn = _CountsConnection(
+        {
+            "product_count": 6693,
+            "tag_count": 2542,
+            "taxonomy_count": 363,
+        }
+    )
+
+    counts = load_snapshot_actual_counts(
+        conn,  # type: ignore[arg-type]
+        "padjective",
+        uuid.UUID("00000000-0000-0000-0000-000000000001"),
+    )
+
+    assert counts == (6693, 2542, 363)
