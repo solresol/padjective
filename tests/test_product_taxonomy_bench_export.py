@@ -1,9 +1,12 @@
+import json
 from datetime import datetime, timezone
 import uuid
 
+import padjective.product_taxonomy_bench_export as export_mod
 from padjective.product_taxonomy_bench_export import (
     DEFAULT_DATASET_CITATION_BIBTEX,
     SnapshotMetadata,
+    export_snapshot,
     load_snapshot_actual_counts,
     render_hf_dataset_card,
     stage_hf_notebook,
@@ -123,3 +126,58 @@ def test_load_snapshot_actual_counts_reads_persisted_tables() -> None:
     )
 
     assert counts == (6693, 2542, 363)
+
+
+def test_export_snapshot_writes_actual_counts_to_snapshot_json(
+    tmp_path, monkeypatch
+) -> None:
+    stale_meta = SnapshotMetadata(
+        snapshot_id=uuid.UUID("00000000-0000-0000-0000-000000000001"),
+        snapshot_name="paper-2026-02-11T1915Z",
+        created_at=datetime(2026, 2, 26, 6, 35, 34, tzinfo=timezone.utc),
+        as_of=datetime(2026, 2, 11, 19, 15, tzinfo=timezone.utc),
+        product_table="cantbuymelove.product",
+        min_tag_count=5,
+        min_samples_per_taxonomy=5,
+        product_count=6718,
+        tag_count=2542,
+        taxonomy_count=363,
+        note="Paper cutoff as_of=2026-02-11T19:15:00+00:00",
+        code_version="deadbeef",
+    )
+
+    monkeypatch.setattr(
+        export_mod, "load_snapshot_metadata", lambda *_args, **_kwargs: stale_meta
+    )
+    monkeypatch.setattr(
+        export_mod,
+        "load_snapshot_actual_counts",
+        lambda *_args, **_kwargs: (6693, 2542, 363),
+    )
+    monkeypatch.setattr(export_mod, "export_tags", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        export_mod, "export_products_jsonl", lambda *_args, **_kwargs: []
+    )
+    monkeypatch.setattr(
+        export_mod, "export_products_parquet", lambda *_args, **_kwargs: []
+    )
+
+    metadata = export_snapshot(
+        object(),  # type: ignore[arg-type]
+        schema="padjective",
+        snapshot_ref="paper",
+        snapshot_id=stale_meta.snapshot_id,
+        out_dir=tmp_path,
+        formats=("jsonl",),
+        gzip_jsonl=True,
+        rows_per_shard=1000,
+    )
+
+    snapshot_payload = json.loads((tmp_path / "snapshot.json").read_text(encoding="utf-8"))
+
+    assert metadata.product_count == 6693
+    assert metadata.tag_count == 2542
+    assert metadata.taxonomy_count == 363
+    assert snapshot_payload["product_count"] == 6693
+    assert snapshot_payload["tag_count"] == 2542
+    assert snapshot_payload["taxonomy_count"] == 363
