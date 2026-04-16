@@ -1622,7 +1622,7 @@ def _build_model_rows(
         _evaluate_classifier_cv(
             model_key="pclr",
             model_label="Parameter-constrained Logistic Regression",
-            short_label="PCLR",
+            short_label="Constr. Logit",
             color="#2563eb",
             marker="s",
             folds=folds,
@@ -1643,7 +1643,7 @@ def _build_model_rows(
         _evaluate_classifier_cv(
             model_key="ulr",
             model_label="Unconstrained Logistic Regression with L1",
-            short_label="ULR",
+            short_label="L1 Logit",
             color="#8b5cf6",
             marker="D",
             folds=folds,
@@ -1667,7 +1667,7 @@ def _build_model_rows(
         _evaluate_classifier_cv(
             model_key="pcnn",
             model_label="Parameter-constrained Neural Network",
-            short_label="PCNN",
+            short_label="Constr. NN",
             color="#16a34a",
             marker="P",
             folds=folds,
@@ -1717,7 +1717,7 @@ def _build_model_rows(
         _evaluate_classifier_cv(
             model_key="unn",
             model_label="Unconstrained Neural Network with L1",
-            short_label="UNN",
+            short_label="Unconstr. NN",
             color="#ec4899",
             marker="p",
             folds=folds,
@@ -1772,7 +1772,7 @@ def _build_model_rows(
     model_rows.append(
         _aggregate_model_rows(
             model_key="zubarev",
-            model_label="Zubarev (UMLLR)",
+            model_label="Zubarev (greedy init.)",
             short_label="Zubarev",
             color="#7c3aed",
             marker="v",
