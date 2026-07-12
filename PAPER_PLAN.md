@@ -16,35 +16,59 @@ strict-refinement effect (held-out loss **0.079 vs 0.840**, Mann-Whitney p = 4.5
 and the 1.11-active-params operating point no other model family occupies — are buried
 as "diagnostics". The rejection was predictable from the framing, not the substance.
 
-## Verified facts (2026-07-12, live tables, taxonomy_association, p = 71)
+## Verified facts (2026-07-12, live tables, taxonomy_association model)
+
+*Prime note:* the **live** model in the DB uses `prime_base = 79` (larger taxonomy →
+larger max fan-out); the **frozen paper snapshot** uses `p = 71`. The numbers below are
+from the live model (8,289 filtered products, 5 folds). An earlier version of this plan
+computed valuations with p = 71 by mistake; the corrected p = 79 numbers here are what
+stands, and they do not change any qualitative conclusion. A **100%-validated
+reconstruction** underpins them: summing each held-out product's nested-filtered tag
+coefficients reproduces all 8,289 stored `predicted_value`s exactly, so the
+active-coefficient sets these facts rest on are provably the same ones the fitter used.
+(Paper-specific reruns must of course use the frozen snapshot at p = 71.)
 
 1. **The README's "coefficients collapse onto pure powers of p" claim is false for the
    taxonomy model and must be retired.** Of 5,455 nonzero fitted coefficients across 5
-   folds, **exactly 0 (0.00%)** are pure powers of 71. The modal coefficient has 4
-   nonzero base-71 digits — coefficients are code-like corrections, not powers.
-   (The claim originated with the never-run adjective-ordering model in gptslop.tex;
-   the paper should state, in one honest paragraph, that it does not hold here. Note
-   that only 1.9% of coefficients are themselves current taxonomy codes and ~16% are
-   differences of two current codes — this does **not** contradict the contact theorem,
-   which predicts each coefficient equals a *residual at fit time*, a telescoped
-   quantity; verifying that exactly requires replaying the fit, which is worth doing.)
+   folds, **5 (0.09%)** are pure powers of 79. The modal coefficient has 4 nonzero
+   base-79 digits — coefficients are code-like corrections, not powers. (The claim
+   originated with the never-run adjective-ordering model in gptslop.tex; the paper
+   should state, in one honest paragraph, that it does not hold here. Whether each
+   coefficient equals a *residual at fit time* — the contact-theorem corollary that
+   underpins the "selection" pillar — is a *separate* claim the 100%-reconstruction
+   does **not** establish, because it only checks the final sum; verifying the
+   residual-at-fit-time structure requires replaying the greedy fit and logging
+   residuals, still a worthwhile week-1 task.)
 
 2. **The linguistics angle is dead as a headline.** The gating scatter both critics
-   demanded: Spearman correlation between a tag's coefficient valuation and its mean
-   relative title position is ρ ≈ −0.05 to −0.14 per fold, pooled ρ = −0.055,
-   permutation p = 0.33 (n = 321 tags). Valuation vs battle win-rate: ρ ≈ −0.10.
-   There is no signal. Combined with the existing ablation (battle_elo loses to
-   *random* ordering, 21/25; mean_title_position is dead last), the
-   adjective-ordering/"royal order" story should be reduced to one honest ablation
-   paragraph and never be the frame. Do not build the linguistics paper.
+   demanded: Spearman correlation between a tag's coefficient valuation (p = 79) and
+   its mean relative title position is pooled ρ = **−0.018**, permutation p = **0.75**
+   (n = 321 tags) — even weaker than the p = 71 estimate, i.e. robustly null.
+   Combined with the existing ablation (battle_elo loses to *random* ordering, 21/25;
+   mean_title_position is dead last), the adjective-ordering/"royal order" story
+   should be reduced to one honest ablation paragraph and never be the frame. Do not
+   build the linguistics paper.
 
-3. **The valuation histogram explains why strict refinement is rare and why the killer
-   experiment below has headroom.** 97.4% of nonzero coefficients have valuation 0
-   (5,315/5,455; 135 at v=1, 5 at v=2), and 73% of all coefficients are zero. The
-   fitted model is mostly a "first informative tag carries a full taxonomy code,
-   other tags abstain" lookup; genuine multi-tag composition at distinct depths — the
-   regime where the model is 10× better — happens for only ~8% of held-out products.
-   Nothing in the current fitter *asks* for valuation-disjointness.
+3. **The strict-refinement effect replicates on live data, but the intervention's
+   aggregate ceiling is low — so the *certificate*, not "closing the gap", is the
+   honest headline.** Measured on the live snapshot:
+   - 97.3% of nonzero coefficients have valuation 0 (5,310/5,455; the rest spread over
+     v = 1..4, only 145 coefficients total), and 73% of all coefficients are zero.
+   - Active-nonzero-coefficient counts per held-out product: **27.5% use 0, 60.5% use
+     1, only 11.9% (989) use ≥ 2.** The fitted model is largely a "one informative tag
+     carries a full taxonomy code, the rest abstain" lookup.
+   - Among the 989 multi-active products, **91.5% (905) are non-strict** (≥ 2 active
+     coefficients share a valuation) and only 8.5% (84) are strict. Strict mean loss
+     **0.120** vs non-strict **0.903** — the same ~7.5× gap the paper reports on the
+     frozen snapshot (0.079 vs 0.840), so the effect is real and snapshot-stable.
+   - **Ceiling:** even if a *perfect* intervention drove all 905 non-strict multi-active
+     products to the strict mean loss, overall mean loss moves only **0.381 → 0.296**.
+     It cannot approach the Euclidean band (~0.086) because strict refinement only even
+     *applies* to the 11.9% multi-active tail. So the plan's earlier hope that the
+     intervention "moves loss toward the 0.086–0.120 band" is structurally capped: the
+     defensible headline is the deterministic per-prediction **certificate**, with the
+     intervention measured on *coverage* (can we grow the strict share beyond 8.5%
+     without wrecking the 1-active majority?), not on closing the aggregate gap.
 
 4. **The window is real and open.** Martins, "Learning with the p-adics"
    (arXiv:2512.22692, Dec 2025) is self-described "exploratory theoretical work"
@@ -85,12 +109,19 @@ enforceable mechanism.*
 **The killer experiment (makes it a paper to be proud of):** valuation-disjoint greedy.
 Modify the greedy pass so a tag's candidate coefficients are restricted to (or
 penalised toward) valuations not already used by co-occurring accepted tags. Run on
-the frozen paper snapshot, 5-fold CV, alongside the existing 9 models. Measure:
-(a) does strict coverage rise materially from ~8%, and (b) does mean p-adic loss move
-from 0.263 toward the 0.086–0.120 Euclidean band? Include a matched-difficulty control
-(strict vs non-strict products at equal tag-count/frequency strata) to separate
-mechanism from selection. Fact 3 above says the headroom is enormous — the current
-fitter produces valuation collisions almost everywhere.
+the frozen paper snapshot, 5-fold CV, alongside the existing 9 models. The **primary**
+success metric is *coverage*: does the strict share rise materially above the current
+8.5% of multi-active products **without** raising loss on the 1-active majority
+(60.5% of products)? Overall-loss improvement is a *secondary* metric and is
+structurally bounded — Fact 3's ceiling shows even a perfect intervention only reaches
+~0.30 aggregate, so do **not** frame success as "closing the Euclidean gap." Include a
+matched-difficulty control (strict vs non-strict products at equal tag-count/frequency
+strata) to separate mechanism from selection. The target population is large (905 of
+989 multi-active products are currently non-strict), but achievability is genuinely
+uncertain: 97.3% of coefficients want valuation 0 (full codes that pin the leaf), so
+forcing distinct valuations pushes most tags onto coarse-only corrections and may cost
+loss where a single tag already sufficed. That real risk is exactly why the
+risk–coverage insurance policy below runs *alongside*, not after.
 
 **The insurance policy (run alongside, not instead):** the risk–coverage comparison.
 Strict-refinement certificate gating of the p-adic model vs softmax/margin-gated L1
