@@ -33,12 +33,16 @@ active-coefficient sets these facts rest on are provably the same ones the fitte
    folds, **5 (0.09%)** are pure powers of 79. The modal coefficient has 4 nonzero
    base-79 digits — coefficients are code-like corrections, not powers. (The claim
    originated with the never-run adjective-ordering model in gptslop.tex; the paper
-   should state, in one honest paragraph, that it does not hold here. Whether each
-   coefficient equals a *residual at fit time* — the contact-theorem corollary that
-   underpins the "selection" pillar — is a *separate* claim the 100%-reconstruction
-   does **not** establish, because it only checks the final sum; verifying the
-   residual-at-fit-time structure requires replaying the greedy fit and logging
-   residuals, still a worthwhile week-1 task.)
+   should state, in one honest paragraph, that it does not hold here. The
+   contact-theorem corollary that underpins the "selection" pillar — each coefficient
+   equals a *residual at fit time* — is in fact guaranteed **by construction**:
+   `umllr._select_coefficient` chooses the coefficient from `sorted(set(values))`
+   where `values` are the tag's current residuals, so the paper can cite the code, not
+   an experiment. What replaying the fit would additionally *illustrate* (not verify)
+   is the telescoping: a coefficient equals a single residual at its own step yet
+   decodes like a difference of taxonomy codes, because later residuals are the earlier
+   ones minus already-committed coefficients. That is a nice worked-example figure, not
+   a load-bearing check.)
 
 2. **The linguistics angle is dead as a headline.** The gating scatter both critics
    demanded: Spearman correlation between a tag's coefficient valuation (p = 79) and
