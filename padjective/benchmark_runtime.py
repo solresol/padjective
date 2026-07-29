@@ -1524,6 +1524,10 @@ def _build_ablation_summary(
                     "tag_order_seed": None,
                     "run_key": "random",
                     "mean_padic_loss": _safe_mean([row["mean_padic_loss"] for row in rows]) or 0.0,
+                    "loss_std": _safe_std(
+                        [fold_row["padic_loss_mean"] for fold_row in fold_rows]
+                    )
+                    or 0.0,
                     "loss_delta_vs_baseline": (_safe_mean([row["mean_padic_loss"] for row in rows]) or 0.0) - float(baseline["mean_padic_loss"]),
                     "mean_accuracy": _safe_mean([row["mean_accuracy"] for row in rows]) or 0.0,
                     "mean_exact_accuracy": _safe_mean([row["mean_exact_accuracy"] for row in rows]) or 0.0,
@@ -1550,6 +1554,10 @@ def _build_ablation_summary(
                     "tag_order_seed": None,
                     "run_key": row["run_key"],
                     "mean_padic_loss": float(row["mean_padic_loss"]),
+                    "loss_std": _safe_std(
+                        [fold_row["padic_loss_mean"] for fold_row in row["folds"]]
+                    )
+                    or 0.0,
                     "loss_delta_vs_baseline": float(row["mean_padic_loss"]) - float(baseline["mean_padic_loss"]),
                     "mean_accuracy": float(row["mean_accuracy"]),
                     "mean_exact_accuracy": float(row["mean_exact_accuracy"]),
@@ -1716,7 +1724,7 @@ def _build_model_rows(
         ),
         _evaluate_classifier_cv(
             model_key="unn",
-            model_label="Unconstrained Neural Network with L1",
+            model_label="Unconstrained Neural Network with L2",
             short_label="Unconstr. NN",
             color="#ec4899",
             marker="p",
