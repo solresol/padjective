@@ -157,7 +157,7 @@ def test_call_synset_model_handles_missing_synset_id() -> None:
     client = MockClient(response_payload)
     product = ProductRecord(product_id=1, title="Widget", tags="example")
 
-    result = call_synset_model(client, product, model="gpt-5-mini")
+    result = call_synset_model(client, product, model="gpt-5.6-luna")
 
     assert result.not_found is True
     assert result.synset_id is None
@@ -198,7 +198,7 @@ def test_process_products_stores_results(tmp_path: Path) -> None:
         csv_path=csv_path,
         database_path=db_path,
         batch_size=1,
-        model="gpt-5-mini",
+        model="gpt-5.6-luna",
         client=client,
     )
 
@@ -224,6 +224,6 @@ def test_process_products_validates_batch_size(tmp_path: Path, invalid_batch: in
             csv_path=csv_path,
             database_path=tmp_path / "db.sqlite",
             batch_size=invalid_batch,
-            model="gpt-5-mini",
+            model="gpt-5.6-luna",
             client=MockClient({"output": []}),
         )

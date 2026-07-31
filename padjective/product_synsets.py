@@ -709,7 +709,7 @@ def _parse_args(argv: Optional[Iterable[str]] = None) -> argparse.Namespace:
     parser.add_argument(
         "--model",
         type=str,
-        default="gpt-5-mini",
+        default="gpt-5.6-luna",
         help="OpenAI model to use for synset selection.",
     )
     return parser.parse_args(argv)
