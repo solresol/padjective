@@ -716,50 +716,59 @@ def load_umllr_baseline(
     *,
     schema: str,
     snapshot_ref: str | None,
-    fold_sizes: Mapping[int, int],
+    fold_product_ids: Mapping[int, Sequence[int]],
 ) -> dict[int, BaselineFold]:
-    """Load the matching default UMLLR fold metrics when they are available."""
-
-    with conn.cursor() as cur:
-        if snapshot_ref is None:
-            cur.execute(
-                sql.SQL(
-                    """
-                    SELECT cv_fold, loss, exact_accuracy, prefix2_accuracy
-                    FROM {schema}.umllr_fold_metrics
-                    ORDER BY cv_fold
-                    """
-                ).format(schema=sql.Identifier(schema))
-            )
-        else:
-            cur.execute(
-                sql.SQL(
-                    """
-                    SELECT cv_fold, loss, exact_accuracy, prefix2_accuracy
-                    FROM {schema}.umllr_order_ablation_fold_metrics
-                    WHERE snapshot_ref = %s
-                      AND tag_order_strategy = %s
-                      AND tag_order_seed IS NULL
-                    ORDER BY cv_fold
-                    """
-                ).format(schema=sql.Identifier(schema)),
-                (snapshot_label(snapshot_ref), DEFAULT_TAG_ORDER_STRATEGY),
-            )
-        rows = cur.fetchall()
+    """Load UMLLR losses on exactly the products scored by this experiment."""
 
     baseline: dict[int, BaselineFold] = {}
-    for row in rows:
-        fold = int(row[0])
-        test_samples = fold_sizes.get(fold, 0)
-        if not test_samples:
+    for fold, product_ids in fold_product_ids.items():
+        if not product_ids:
             continue
-        total_loss = float(row[1])
+        with conn.cursor() as cur:
+            if snapshot_ref is None:
+                cur.execute(
+                    sql.SQL(
+                        """
+                        SELECT true_value, predicted_value, loss
+                        FROM {schema}.umllr_predictions
+                        WHERE cv_fold = %s AND product_id = ANY(%s)
+                        """
+                    ).format(schema=sql.Identifier(schema)),
+                    (fold, list(product_ids)),
+                )
+            else:
+                cur.execute(
+                    sql.SQL(
+                        """
+                        SELECT true_value, predicted_value, loss
+                        FROM {schema}.umllr_order_ablation_predictions
+                        WHERE snapshot_ref = %s
+                          AND tag_order_strategy = %s
+                          AND tag_order_seed IS NULL
+                          AND cv_fold = %s
+                          AND product_id = ANY(%s)
+                        """
+                    ).format(schema=sql.Identifier(schema)),
+                    (
+                        snapshot_label(snapshot_ref),
+                        DEFAULT_TAG_ORDER_STRATEGY,
+                        fold,
+                        list(product_ids),
+                    ),
+                )
+            rows = cur.fetchall()
+        if len(rows) != len(product_ids):
+            raise ValueError(
+                f"UMLLR baseline fold {fold} matched {len(rows)}/{len(product_ids)} "
+                "Mihara test products"
+            )
+        total_loss = sum(float(row[2]) for row in rows)
         baseline[fold] = BaselineFold(
             cv_fold=fold,
             total_loss=total_loss,
-            mean_loss=total_loss / test_samples,
-            exact_accuracy=float(row[2]) if row[2] is not None else None,
-            prefix2_accuracy=float(row[3]) if row[3] is not None else None,
+            mean_loss=total_loss / len(rows),
+            exact_accuracy=sum(row[0] == row[1] for row in rows) / len(rows),
+            prefix2_accuracy=None,
         )
     return baseline
 
@@ -1049,13 +1058,18 @@ def process_database(
             )
             for fold in requested_folds
         ]
-        fold_sizes = {result.cv_fold: result.test_samples for result in results}
+        fold_product_ids = {
+            result.cv_fold: [
+                prediction.product_id for prediction in result.predictions
+            ]
+            for result in results
+        }
         try:
             baseline = load_umllr_baseline(
                 conn,
                 schema=schema,
                 snapshot_ref=snapshot_ref,
-                fold_sizes=fold_sizes,
+                fold_product_ids=fold_product_ids,
             )
         except Exception as exc:
             # The benchmark is still useful on a newly provisioned database
