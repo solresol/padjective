@@ -204,6 +204,38 @@ snapshot-tagged Postgres rows and emits a paper-ready summary with fold means,
 fold standard deviations, and paired deltas versus the `battle_elo`
 ordering. Pass `--format latex` if you want a LaTeX table instead of Markdown.
 
+### Mihara digitwise taxonomy comparison
+
+`padjective.taxonomy_mihara_comparison` applies the trailing-digit regression
+scheme from Tomoki Mihara,
+[*p-adic Linear Regression for Random Sampling with Digitwise Noise*](https://arxiv.org/abs/2604.13137),
+to binary product-tag features and p-adic taxonomy targets. Run the fixed paper
+snapshot comparison with:
+
+```bash
+uv run -m padjective.taxonomy_mihara_comparison --snapshot-ref paper
+```
+
+The default uses the 32 most frequent fold-local tags, matching the feature
+selection and input budget used by the parameter-constrained baselines. Use
+`--max-tags` or `--feature-selection taxonomy_association` for controlled
+alternatives. Frequency is also the safer default for Mihara's affine-rank
+assumption: the taxonomy-association ranking can select rare, mutually dependent
+tag columns. The full paper snapshot has thousands of tag dimensions, so a
+full-vocabulary random affine fit is not a practical default.
+
+The command reports held-out p-adic loss, exact accuracy, prefix accuracy, and a
+matched UMLLR delta. It also reports the more important model-check diagnostic:
+how many leading digit fits pass Mihara's greater-than-90-percent noise-free
+criterion before the first failure. The implementation bounds the random search
+and, after a failed criterion, continues with the best modulo-p consensus so it
+can be scored. Later passing digits do not extend the accepted prefix. Those
+bounded scores are evidence about a practical adaptation; they are not evidence
+that the published probabilistic algorithm succeeded. Results, coefficients,
+per-digit diagnostics, and held-out predictions are appended to
+`padjective.taxonomy_mihara_*` Postgres tables. Add `--no-persist` for an
+exploratory read-only run.
+
 ### Shared Benchmark Bundles
 
 The benchmark notebook, dedicated benchmark HTML pages, and generated TeX

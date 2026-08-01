@@ -68,7 +68,17 @@ Unlike PCLR and PCNN, ULR uses ALL available tags with L1 regularization to achi
 
 This baseline trains one logistic decision per internal taxonomy node and always emits a valid taxonomy path from the training-fold tree.
 
-### 7. Historical Performance Tracking Tables
+### 7. Mihara Digitwise Taxonomy Comparison Tables
+
+**SQL Script:** `create_taxonomy_mihara_tables.sql`
+**Created by:** `padjective/taxonomy_mihara_comparison.py`
+
+- `taxonomy_mihara_runs` - Append-only experiment configuration and corpus metadata
+- `taxonomy_mihara_fold_results` - Held-out metrics, matched UMLLR deltas, and per-digit acceptance diagnostics
+- `taxonomy_mihara_coefficients` - Fold-local tag coefficients and affine intercepts
+- `taxonomy_mihara_predictions` - Held-out raw p-adic predictions and losses
+
+### 8. Historical Performance Tracking Tables
 
 **SQL Script:** `create_model_performance_history_table.sql`
 **Created by:** `padjective/snapshot_metrics.py`
@@ -87,6 +97,7 @@ psql -f create_taxonomy_pclr_fold_tables.sql
 psql -f create_taxonomy_pcnn_fold_tables.sql
 psql -f create_taxonomy_ulr_fold_tables.sql
 psql -f create_taxonomy_levelwise_fold_tables.sql
+psql -f create_taxonomy_mihara_tables.sql
 psql -f create_model_performance_history_table.sql
 ```
 
@@ -100,9 +111,10 @@ The following tables are cleaned (old data deleted) before each cronscript run:
 - `taxonomy_ulr_fold_results` - Per-fold cleanup by `taxonomy_ulr_classifier.py`
 - `taxonomy_levelwise_*` tables - Per-fold cleanup by `taxonomy_levelwise_classifier.py`
 
-The following table accumulates data over time (no cleanup):
+The following tables accumulate data over time (no cleanup):
 
 - `model_performance_history` - Uses `ON CONFLICT DO UPDATE` to update existing dates
+- `taxonomy_mihara_*` - Append-only experimental runs keyed by `run_id`
 
 ## Verification
 
