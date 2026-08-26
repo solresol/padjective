@@ -581,7 +581,15 @@ def main() -> None:
     parser.add_argument("--schema", default="padjective")
     parser.add_argument("--snapshot-ref", default="paper")
     parser.add_argument("--hidden-sizes", default="4,8,12,24,48")
-    parser.add_argument("--neural-max-iterations", type=int, default=80)
+    parser.add_argument(
+        "--neural-max-iterations",
+        type=int,
+        default=10_000,
+        help=(
+            "Hard ceiling for the neural-network fit; the optimiser may stop "
+            "earlier when its convergence criterion is met (default: 10000)"
+        ),
+    )
     parser.add_argument("--zubarev-max-iterations", type=int, default=2000)
     parser.add_argument("--q-values", default="2,3,5,10,71")
     parser.add_argument("--seed", type=int, default=42)
