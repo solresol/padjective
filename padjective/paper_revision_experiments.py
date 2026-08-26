@@ -14,7 +14,7 @@ production model tables:
 from __future__ import annotations
 
 import argparse
-from collections import Counter, defaultdict
+from collections import defaultdict
 from dataclasses import dataclass
 import math
 import warnings
@@ -26,7 +26,7 @@ from scipy import sparse
 from sklearn.exceptions import ConvergenceWarning
 from sklearn.neural_network import MLPClassifier
 
-from . import benchmark_runtime, data_access, db
+from . import benchmark_runtime, data_access, db, umllr
 
 
 @dataclass(frozen=True)
@@ -482,68 +482,60 @@ def run_q_sensitivity_followup(
     schema: str,
     q_values: Iterable[float],
 ) -> None:
-    with conn.cursor() as cur:
-        cur.execute(
-            sql.SQL(
-                """
-                SELECT run_key, tag_order_strategy, tag_order_seed, cv_fold,
-                       product_id, true_value, predicted_value
-                FROM {schema}.umllr_order_ablation_predictions
-                WHERE snapshot_ref = %s
-                """
-            ).format(schema=sql.Identifier(schema)),
-            (snapshot_ref,),
-        )
-        prediction_rows = cur.fetchall()
-        cur.execute(
-            sql.SQL(
-                """
-                SELECT run_key, cv_fold, default_prediction
-                FROM {schema}.umllr_order_ablation_fold_metrics
-                WHERE snapshot_ref = %s
-                """
-            ).format(schema=sql.Identifier(schema)),
-            (snapshot_ref,),
-        )
-        default_rows = cur.fetchall()
-
-    predictions: dict[str, list[tuple[int, int, int]]] = defaultdict(list)
-    run_metadata: dict[str, tuple[str, int | None]] = {}
-    for run_key, strategy, order_seed, fold, _product_id, true_value, predicted_value in prediction_rows:
-        predictions[str(run_key)].append((int(fold), int(true_value), int(predicted_value)))
-        run_metadata[str(run_key)] = (str(strategy), int(order_seed) if order_seed is not None else None)
-    defaults = {(str(run_key), int(fold)): int(value) for run_key, fold, value in default_rows}
-
-    full_response_counts = Counter(
-        (record.cv_fold, record.encoded_path) for record in dataset.records
-    )
-
     insert_rows: list[tuple[object, ...]] = []
-    for run_key, stored_predictions in sorted(predictions.items()):
-        strategy, order_seed = run_metadata[run_key]
-        pairs = [(actual, estimate) for _fold, actual, estimate in stored_predictions]
-        stored_response_counts = Counter(
-            (fold, actual) for fold, actual, _estimate in stored_predictions
-        )
-        missing_response_counts = full_response_counts - stored_response_counts
-        for (fold, actual), count in missing_response_counts.items():
-            pairs.extend([(actual, defaults[(run_key, fold)])] * count)
-        if len(pairs) != len(dataset.records):
-            raise ValueError(
-                f"Expected {len(dataset.records)} responses for {run_key}, got {len(pairs)}"
+    battles = benchmark_runtime._derive_battles(dataset.records)
+    run_specs = [
+        ("battle_elo", None),
+        ("frequency", None),
+        ("mean_title_position", None),
+        ("taxonomy_association", None),
+        *(("random", seed) for seed in benchmark_runtime.DEFAULT_RANDOM_SEEDS),
+    ]
+    folds = sorted({record.cv_fold for record in dataset.records})
+    for strategy, order_seed in run_specs:
+        fold_pairs: dict[int, list[tuple[int, int]]] = {}
+        for fold in folds:
+            result = benchmark_runtime.umllr_run_fold(
+                fold,
+                dataset.records,
+                battles,
+                dataset.prime_base,
+                tag_order_strategy=strategy,
+                tag_order_seed=order_seed,
             )
-        exact_accuracy = float(np.mean([actual == estimate for actual, estimate in pairs]))
+            fold_pairs[fold] = [
+                (prediction.true_value, prediction.predicted_value)
+                for prediction in result.predictions
+            ]
+        run_key = umllr.tag_order_run_key(
+            strategy,
+            order_seed,
+            snapshot_ref=snapshot_ref,
+        )
+        exact_accuracy = float(
+            np.mean(
+                [
+                    np.mean([actual == estimate for actual, estimate in fold_pairs[fold]])
+                    for fold in folds
+                ]
+            )
+        )
         for q in q_values:
             mean_loss = float(
                 np.mean(
                     [
-                        q_weighted_distance(
-                            actual,
-                            estimate,
-                            prime_base=dataset.prime_base,
-                            q=float(q),
+                        np.mean(
+                            [
+                                q_weighted_distance(
+                                    actual,
+                                    estimate,
+                                    prime_base=dataset.prime_base,
+                                    q=float(q),
+                                )
+                                for actual, estimate in fold_pairs[fold]
+                            ]
                         )
-                        for actual, estimate in pairs
+                        for fold in folds
                     ]
                 )
             )
@@ -554,7 +546,7 @@ def run_q_sensitivity_followup(
                     strategy,
                     order_seed,
                     float(q),
-                    len(pairs),
+                    len(dataset.records),
                     mean_loss,
                     exact_accuracy,
                 )
