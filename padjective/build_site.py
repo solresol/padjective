@@ -807,6 +807,8 @@ def _fit_active_params_regression(
     x_values = np.log10(chart_frame["mean_scoring_ops"].to_numpy(dtype=float))
     y_column = "log10_mean_padic_loss" if log_loss else "mean_padic_loss"
     y_values = chart_frame[y_column].to_numpy(dtype=float)
+    if np.ptp(x_values) == 0:
+        return None
     regression = stats.linregress(x_values, y_values)
     return {
         "slope": float(regression.slope),

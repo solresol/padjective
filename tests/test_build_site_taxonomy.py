@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 from typing import Any
 
+import numpy as np
 import pandas as pd
 
 from padjective.build_site import (
@@ -633,3 +634,16 @@ def test_active_params_regression_excludes_parameter_constrained_models() -> Non
     assert log_regression is not None
     assert 0.0 <= raw_regression["r_squared"] <= 1.0
     assert 0.0 <= log_regression["r_squared"] <= 1.0
+
+
+def test_active_params_regression_requires_distinct_support_values() -> None:
+    frame = pd.DataFrame(
+        {
+            "mean_scoring_ops": [1.0, 1.0],
+            "mean_padic_loss": [0.6, 0.3],
+            "log10_mean_padic_loss": np.log10([0.6, 0.3]),
+        }
+    )
+
+    assert _fit_active_params_regression(frame, log_loss=False) is None
+    assert _fit_active_params_regression(frame, log_loss=True) is None
