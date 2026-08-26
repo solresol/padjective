@@ -66,32 +66,69 @@ def _load_paper_dataset(
     conn,
     *,
     snapshot_ref: str,
-    product_table: str,
     schema: str,
-    min_tag_count: int,
 ) -> PaperDataset:
-    source_records = list(
-        data_access.stream_products(
-            conn,
-            product_table=product_table,
-            snapshot_ref=snapshot_ref,
-            snapshot_schema=schema,
-        )
+    snapshot_id, _ = data_access._resolve_snapshot_id(
+        conn,
+        schema=schema,
+        snapshot_ref=snapshot_ref,
     )
-    source_records.sort(key=lambda record: record.product_id)
-    if not source_records:
-        raise ValueError(f"No products found for snapshot {snapshot_ref!r}")
+    with conn.cursor() as cur:
+        cur.execute(
+            sql.SQL(
+                """
+                SELECT product_id_hash, taxonomy_id, taxonomy_path, cv_fold
+                FROM {schema}.product_taxonomy_bench_products
+                WHERE snapshot_id = %s
+                ORDER BY product_id_hash
+                """
+            ).format(schema=sql.Identifier(schema)),
+            (snapshot_id,),
+        )
+        product_rows = cur.fetchall()
+        cur.execute(
+            sql.SQL(
+                """
+                SELECT tag_id
+                FROM {schema}.product_taxonomy_bench_tags
+                WHERE snapshot_id = %s
+                ORDER BY tag_rank
+                """
+            ).format(schema=sql.Identifier(schema)),
+            (snapshot_id,),
+        )
+        feature_names = [str(row[0]) for row in cur.fetchall()]
+        cur.execute(
+            sql.SQL(
+                """
+                SELECT product_id_hash, tag_id, title_part, title_position
+                FROM {schema}.product_taxonomy_bench_product_tags
+                WHERE snapshot_id = %s
+                ORDER BY product_id_hash, tag_id
+                """
+            ).format(schema=sql.Identifier(schema)),
+            (snapshot_id,),
+        )
+        product_tag_rows = cur.fetchall()
 
-    tag_counts: Counter[str] = Counter()
-    for record in source_records:
-        tag_counts.update(record.tags)
-    feature_names = sorted(tag for tag, count in tag_counts.items() if count >= min_tag_count)
+    if not product_rows:
+        raise ValueError(f"No products found for snapshot {snapshot_ref!r}")
     feature_index = {tag: index for index, tag in enumerate(feature_names)}
 
+    tags_by_product: dict[str, list[str]] = defaultdict(list)
+    title_positions_by_product: dict[str, list[tuple[str, int, int]]] = defaultdict(list)
+    for product_hash, tag_id, title_part, title_position in product_tag_rows:
+        product_hash = str(product_hash)
+        tag_id = str(tag_id)
+        tags_by_product[product_hash].append(tag_id)
+        if title_part is not None and title_position is not None:
+            title_positions_by_product[product_hash].append(
+                (tag_id, int(title_part), int(title_position))
+            )
+
     paths = {
-        str(record.taxonomy_id): benchmark_runtime.parse_taxonomy_digits(record.taxonomy_path)
-        for record in source_records
-        if record.taxonomy_id and record.taxonomy_path
+        str(taxonomy_id): benchmark_runtime.parse_taxonomy_digits(str(taxonomy_path))
+        for _product_hash, taxonomy_id, taxonomy_path, _cv_fold in product_rows
     }
     max_digit = max((max(path) for path in paths.values() if path), default=1)
     prime_base = _next_prime(max_digit)
@@ -104,25 +141,28 @@ def _load_paper_dataset(
     columns: list[int] = []
     runtime_records: list[benchmark_runtime.ProductRecord] = []
     labels: list[str] = []
-    for row_index, record in enumerate(source_records):
-        taxonomy_id = str(record.taxonomy_id)
-        if taxonomy_id not in encoded_by_taxonomy or record.cv_fold is None:
-            raise ValueError(f"Incomplete paper snapshot row for product {record.product_id}")
-        retained_tags = sorted({tag for tag in record.tags if tag in feature_index})
-        for tag in retained_tags:
+    for row_index, (product_hash, taxonomy_id, taxonomy_path, cv_fold) in enumerate(product_rows):
+        product_hash = str(product_hash)
+        taxonomy_id = str(taxonomy_id)
+        if taxonomy_id not in encoded_by_taxonomy or cv_fold is None:
+            raise ValueError(f"Incomplete paper snapshot row for product {product_hash}")
+        product_tags = sorted(set(tags_by_product.get(product_hash, [])))
+        for tag in product_tags:
             rows.append(row_index)
             columns.append(feature_index[tag])
         labels.append(taxonomy_id)
         runtime_records.append(
             benchmark_runtime.ProductRecord(
-                product_id=int(record.product_id),
-                product_key=str(record.product_id),
-                tags=retained_tags,
+                product_id=row_index,
+                product_key=product_hash,
+                tags=product_tags,
                 encoded_path=int(encoded_by_taxonomy[taxonomy_id]),
-                cv_fold=int(record.cv_fold),
+                cv_fold=int(cv_fold),
                 taxonomy_id=taxonomy_id,
-                taxonomy_depth=len(paths[taxonomy_id]),
-                title_tag_positions=(),
+                taxonomy_depth=len(benchmark_runtime.parse_taxonomy_digits(str(taxonomy_path))),
+                title_tag_positions=tuple(
+                    sorted(title_positions_by_product.get(product_hash, []), key=lambda item: (item[1], item[2], item[0]))
+                ),
             )
         )
 
@@ -467,27 +507,31 @@ def run_q_sensitivity_followup(
         )
         default_rows = cur.fetchall()
 
-    predictions: dict[str, dict[int, tuple[int, int]]] = defaultdict(dict)
+    predictions: dict[str, list[tuple[int, int, int]]] = defaultdict(list)
     run_metadata: dict[str, tuple[str, int | None]] = {}
-    for run_key, strategy, order_seed, _fold, product_id, true_value, predicted_value in prediction_rows:
-        predictions[str(run_key)][int(product_id)] = (int(true_value), int(predicted_value))
+    for run_key, strategy, order_seed, fold, _product_id, true_value, predicted_value in prediction_rows:
+        predictions[str(run_key)].append((int(fold), int(true_value), int(predicted_value)))
         run_metadata[str(run_key)] = (str(strategy), int(order_seed) if order_seed is not None else None)
     defaults = {(str(run_key), int(fold)): int(value) for run_key, fold, value in default_rows}
 
+    full_response_counts = Counter(
+        (record.cv_fold, record.encoded_path) for record in dataset.records
+    )
+
     insert_rows: list[tuple[object, ...]] = []
-    for run_key, by_product in sorted(predictions.items()):
+    for run_key, stored_predictions in sorted(predictions.items()):
         strategy, order_seed = run_metadata[run_key]
-        pairs: list[tuple[int, int]] = []
-        for record in dataset.records:
-            stored = by_product.get(record.product_id)
-            if stored is None:
-                estimate = defaults[(run_key, record.cv_fold)]
-                pairs.append((record.encoded_path, estimate))
-            else:
-                actual, estimate = stored
-                if actual != record.encoded_path:
-                    raise ValueError(f"Stored response mismatch for product {record.product_id}")
-                pairs.append((actual, estimate))
+        pairs = [(actual, estimate) for _fold, actual, estimate in stored_predictions]
+        stored_response_counts = Counter(
+            (fold, actual) for fold, actual, _estimate in stored_predictions
+        )
+        missing_response_counts = full_response_counts - stored_response_counts
+        for (fold, actual), count in missing_response_counts.items():
+            pairs.extend([(actual, defaults[(run_key, fold)])] * count)
+        if len(pairs) != len(dataset.records):
+            raise ValueError(
+                f"Expected {len(dataset.records)} responses for {run_key}, got {len(pairs)}"
+            )
         exact_accuracy = float(np.mean([actual == estimate for actual, estimate in pairs]))
         for q in q_values:
             mean_loss = float(
@@ -543,9 +587,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Run targeted experiments for the paper revision.")
     parser.add_argument("--dsn")
     parser.add_argument("--schema", default="padjective")
-    parser.add_argument("--product-table", default="cantbuymelove.product")
     parser.add_argument("--snapshot-ref", default="paper")
-    parser.add_argument("--min-tag-count", type=int, default=5)
     parser.add_argument("--hidden-sizes", default="4,8,12,24,48")
     parser.add_argument("--neural-max-iterations", type=int, default=80)
     parser.add_argument("--zubarev-max-iterations", type=int, default=2000)
@@ -561,9 +603,7 @@ def main() -> None:
         dataset = _load_paper_dataset(
             conn,
             snapshot_ref=args.snapshot_ref,
-            product_table=args.product_table,
             schema=args.schema,
-            min_tag_count=args.min_tag_count,
         )
         print(
             f"Loaded {len(dataset.records)} products, {dataset.features.shape[1]} tags, "
