@@ -443,6 +443,22 @@ def select_fold_top_tags(
     return np.sort(ranked)
 
 
+def select_snapshot_top_tags(
+    features: sparse.csr_matrix,
+    max_tags: int,
+) -> np.ndarray:
+    """Return the historical snapshot-wide frequency-ranked columns."""
+
+    if max_tags <= 0:
+        raise ValueError("max_tags must be positive")
+    tag_count = features.shape[1]
+    if max_tags >= tag_count:
+        return np.arange(tag_count, dtype=int)
+    counts = np.asarray(features.sum(axis=0)).ravel()
+    ranked = np.argsort(counts)[::-1][:max_tags]
+    return np.sort(ranked)
+
+
 def run_constrained_neural_followup(
     conn,
     dataset: PaperDataset,
@@ -453,16 +469,27 @@ def run_constrained_neural_followup(
     hidden_units: int,
     max_iterations: int,
     seed: int,
+    feature_selection: str,
 ) -> None:
-    """Run the appendix neural model with fold-local feature selection."""
+    """Run the appendix neural model with an explicit feature-selection scope."""
 
     folds = np.asarray([record.cv_fold for record in dataset.records], dtype=int)
     insert_rows: list[tuple[object, ...]] = []
-    feature_selection = "fold_training_frequency"
+    if feature_selection not in {"fold_training_frequency", "snapshot_frequency"}:
+        raise ValueError(f"Unknown constrained neural feature selection: {feature_selection}")
+    snapshot_selected = (
+        select_snapshot_top_tags(dataset.features, max_tags)
+        if feature_selection == "snapshot_frequency"
+        else None
+    )
     for fold in sorted(set(folds.tolist())):
         train_mask = folds != fold
         test_mask = folds == fold
-        selected = select_fold_top_tags(dataset.features, train_mask, max_tags)
+        selected = (
+            snapshot_selected
+            if snapshot_selected is not None
+            else select_fold_top_tags(dataset.features, train_mask, max_tags)
+        )
         fold_features = dataset.features[:, selected]
         model = MLPClassifier(
             hidden_layer_sizes=(hidden_units,),
@@ -763,6 +790,11 @@ def main() -> None:
     parser.add_argument("--constrained-neural-max-tags", type=int, default=32)
     parser.add_argument("--constrained-neural-hidden-units", type=int, default=27)
     parser.add_argument(
+        "--constrained-neural-feature-selection",
+        choices=("fold_training_frequency", "snapshot_frequency"),
+        default="fold_training_frequency",
+    )
+    parser.add_argument(
         "--constrained-neural-max-iterations",
         type=int,
         default=benchmark_runtime.DEFAULT_PCNN_MAX_ITER,
@@ -794,6 +826,7 @@ def main() -> None:
                 hidden_units=args.constrained_neural_hidden_units,
                 max_iterations=args.constrained_neural_max_iterations,
                 seed=args.seed,
+                feature_selection=args.constrained_neural_feature_selection,
             )
         if not args.skip_q:
             run_q_sensitivity_followup(

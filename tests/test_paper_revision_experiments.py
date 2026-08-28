@@ -4,7 +4,11 @@ import numpy as np
 import pytest
 from scipy import sparse
 
-from padjective.paper_revision_experiments import q_weighted_distance, select_fold_top_tags
+from padjective.paper_revision_experiments import (
+    q_weighted_distance,
+    select_fold_top_tags,
+    select_snapshot_top_tags,
+)
 
 
 def test_q_weighted_distance_uses_base_valuation_and_q_weight() -> None:
@@ -40,3 +44,17 @@ def test_select_fold_top_tags_rejects_nonpositive_budget() -> None:
     features = sparse.csr_matrix(np.ones((2, 2), dtype=np.float32))
     with pytest.raises(ValueError, match="positive"):
         select_fold_top_tags(features, np.asarray([True, False]), max_tags=0)
+
+
+def test_select_snapshot_top_tags_includes_evaluation_frequency() -> None:
+    features = sparse.csr_matrix(
+        [
+            [1, 0, 0],
+            [1, 1, 0],
+            [0, 1, 0],
+            [0, 0, 100],
+        ],
+        dtype=np.float32,
+    )
+    selected = select_snapshot_top_tags(features, max_tags=2)
+    assert selected.tolist() == [1, 2]
