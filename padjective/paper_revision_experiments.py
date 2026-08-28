@@ -793,6 +793,25 @@ def run_constrained_neural_followup(
     conn.commit()
 
 
+def select_neural_folds(
+    fold_values: Iterable[int],
+    requested_folds: Iterable[int] | None = None,
+) -> list[int]:
+    """Return validated, deterministic folds for a neural-width run."""
+
+    available = sorted({int(fold) for fold in fold_values})
+    if requested_folds is None:
+        return available
+    requested = sorted({int(fold) for fold in requested_folds})
+    if not requested:
+        raise ValueError("At least one neural fold must be requested")
+    unknown = sorted(set(requested) - set(available))
+    if unknown:
+        values = ", ".join(str(fold) for fold in unknown)
+        raise ValueError(f"Unknown neural folds: {values}")
+    return requested
+
+
 def run_neural_size_followup(
     conn,
     dataset: PaperDataset,
@@ -802,11 +821,13 @@ def run_neural_size_followup(
     hidden_sizes: Iterable[int],
     max_iterations: int,
     seed: int,
+    requested_folds: Iterable[int] | None = None,
 ) -> None:
     folds = np.asarray([record.cv_fold for record in dataset.records], dtype=int)
+    selected_folds = select_neural_folds(folds.tolist(), requested_folds)
     insert_rows: list[tuple[object, ...]] = []
     for hidden_units in hidden_sizes:
-        for fold in sorted(set(folds.tolist())):
+        for fold in selected_folds:
             train_mask = folds != fold
             test_mask = folds == fold
             model = MLPClassifier(
@@ -852,7 +873,8 @@ def run_neural_size_followup(
             )
             print(
                 f"Neural {hidden_units:>2} fold {fold}: loss={np.mean(losses):.6f}, "
-                f"accuracy={np.mean(predictions == true_labels):.4f}"
+                f"accuracy={np.mean(predictions == true_labels):.4f}, "
+                f"iterations={model.n_iter_}, converged={converged}"
             )
 
     with conn.cursor() as cur:
@@ -989,6 +1011,10 @@ def main() -> None:
     parser.add_argument("--snapshot-ref", default="paper")
     parser.add_argument("--hidden-sizes", default="4,8,12,24,48")
     parser.add_argument(
+        "--neural-folds",
+        help="Optional comma-separated folds for restart-safe parallel runs",
+    )
+    parser.add_argument(
         "--neural-max-iterations",
         type=int,
         default=10_000,
@@ -1102,6 +1128,11 @@ def main() -> None:
                 hidden_sizes=[int(value) for value in args.hidden_sizes.split(",")],
                 max_iterations=args.neural_max_iterations,
                 seed=args.seed,
+                requested_folds=(
+                    [int(value) for value in args.neural_folds.split(",")]
+                    if args.neural_folds
+                    else None
+                ),
             )
         if not args.skip_zubarev:
             run_zubarev_followup(
