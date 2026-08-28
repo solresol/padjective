@@ -548,7 +548,7 @@ def render_figure_one_with_neural_widths(
     )
     ax.grid(True, which="major", color="#d1d5db", linestyle="--")
     ax.grid(True, which="minor", color="#eef0f3", linestyle=":")
-    ax.legend(loc="upper right", frameon=True, fontsize=8)
+    ax.legend(loc="upper right", frameon=False, fontsize=8)
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     fig.tight_layout()
