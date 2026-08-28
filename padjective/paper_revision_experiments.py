@@ -184,8 +184,8 @@ def _load_paper_dataset(
 
 
 def _ensure_storage(conn, schema: str) -> None:
+    db.ensure_schema(conn, schema)
     with conn.cursor() as cur:
-        cur.execute(sql.SQL("CREATE SCHEMA IF NOT EXISTS {schema}").format(schema=sql.Identifier(schema)))
         cur.execute(
             sql.SQL(
                 """
