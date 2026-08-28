@@ -31,9 +31,10 @@ from sklearn.neural_network import MLPClassifier
 from sklearn.tree import DecisionTreeClassifier
 
 
-DEFAULT_PCLR_MAX_TAGS = 32
-DEFAULT_PCNN_MAX_TAGS = 32
-DEFAULT_PCNN_HIDDEN = 27
+DEFAULT_PCLR_MAX_TAGS = 6
+DEFAULT_PCLR_MAX_ITER = 10_000
+DEFAULT_PCNN_MAX_TAGS = 74
+DEFAULT_PCNN_HIDDEN = 5
 DEFAULT_PCNN_MAX_ITER = 10_000
 DEFAULT_UNN_HIDDEN = 12
 DEFAULT_UNN_MAX_ITER = 10_000
@@ -621,6 +622,10 @@ def _dense_model_params(model: MLPClassifier) -> float:
     return float(sum(arr.size for arr in model.coefs_) + sum(arr.size for arr in model.intercepts_))
 
 
+def _logistic_model_params(model: LogisticRegression) -> float:
+    return float(model.coef_.size + model.intercept_.size)
+
+
 def _l1_logistic_nonzero_params(model: LogisticRegression) -> float:
     return float(np.count_nonzero(model.coef_) + np.count_nonzero(model.intercept_))
 
@@ -653,22 +658,28 @@ def _evaluate_classifier_cv(
     make_model,
     param_counter,
     scoring_ops,
+    max_tags: int | None = None,
 ) -> dict[str, Any]:
     fold_rows: list[dict[str, Any]] = []
 
     for fold in folds:
         train_mask = cv_fold_values != fold
         test_mask = cv_fold_values == fold
+        fold_features = features
+        if max_tags is not None:
+            selected = select_top_tag_indices(features[train_mask], max_tags)
+            fold_features = features[:, selected]
         model = _fit_estimator_quietly(
             make_model(),
-            features[train_mask],
+            fold_features[train_mask],
             labels[train_mask],
         )
         y_true = labels[test_mask]
-        y_pred = model.predict(features[test_mask])
+        test_features = fold_features[test_mask]
+        y_pred = model.predict(test_features)
         ops = [
-            float(scoring_ops(model, features[test_mask][row_idx]))
-            for row_idx in range(features[test_mask].shape[0])
+            float(scoring_ops(model, test_features[row_idx]))
+            for row_idx in range(test_features.shape[0])
         ]
         summary = summarize_taxonomy_predictions(
             y_true,
@@ -735,16 +746,29 @@ def _aggregate_model_rows(
     }
 
 
+def select_top_tag_indices(
+    features: sparse.csr_matrix,
+    max_tags: int,
+) -> np.ndarray:
+    """Select frequent columns deterministically from the supplied rows."""
+
+    if max_tags <= 0:
+        raise ValueError("max_tags must be positive")
+    tag_count = features.shape[1]
+    if max_tags >= tag_count:
+        return np.arange(tag_count, dtype=int)
+    tag_counts = np.asarray(features.sum(axis=0)).ravel()
+    feature_order = np.arange(tag_count, dtype=int)
+    ranked = np.lexsort((feature_order, -tag_counts))[:max_tags]
+    return np.sort(ranked)
+
+
 def select_top_tags(
     features: sparse.csr_matrix,
     feature_names: Sequence[str],
     max_tags: int,
 ) -> tuple[sparse.csr_matrix, list[str]]:
-    if max_tags >= len(feature_names):
-        return features, list(feature_names)
-    tag_counts = np.array(features.sum(axis=0)).flatten()
-    top_indices = np.argsort(tag_counts)[::-1][:max_tags]
-    top_indices = np.sort(top_indices)
+    top_indices = select_top_tag_indices(features, max_tags)
     return features[:, top_indices], [feature_names[idx] for idx in top_indices]
 
 
@@ -1600,8 +1624,6 @@ def _build_model_rows(
     battles: Sequence[BattleRecord],
 ) -> list[dict[str, Any]]:
     cv_fold_values = tables.products["cv_fold"].to_numpy(dtype=int)
-    feature_names = tables.tags["tag_id"].tolist()
-
     model_rows = [
         _evaluate_classifier_cv(
             model_key="dummy",
@@ -1635,19 +1657,20 @@ def _build_model_rows(
             color="#2563eb",
             marker="s",
             folds=folds,
-            features=select_top_tags(features, feature_names, DEFAULT_PCLR_MAX_TAGS)[0],
+            features=features,
             labels=labels,
             cv_fold_values=cv_fold_values,
             taxonomy_paths=taxonomy_paths,
             taxonomy_encoded=taxonomy_encoded,
             base=base,
             make_model=lambda: LogisticRegression(
-                max_iter=1000,
+                max_iter=DEFAULT_PCLR_MAX_ITER,
                 solver="lbfgs",
                 class_weight="balanced",
             ),
-            param_counter=_logistic_nonzero_params,
+            param_counter=_logistic_model_params,
             scoring_ops=_nonzero_linear_scoring_ops,
+            max_tags=DEFAULT_PCLR_MAX_TAGS,
         ),
         _evaluate_classifier_cv(
             model_key="ulr",
@@ -1680,7 +1703,7 @@ def _build_model_rows(
             color="#16a34a",
             marker="P",
             folds=folds,
-            features=select_top_tags(features, feature_names, DEFAULT_PCNN_MAX_TAGS)[0],
+            features=features,
             labels=labels,
             cv_fold_values=cv_fold_values,
             taxonomy_paths=taxonomy_paths,
@@ -1696,6 +1719,7 @@ def _build_model_rows(
             ),
             param_counter=_dense_model_params,
             scoring_ops=_dense_model_scoring_ops,
+            max_tags=DEFAULT_PCNN_MAX_TAGS,
         ),
         _evaluate_levelwise_cv(
             folds=folds,

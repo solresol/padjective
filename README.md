@@ -216,13 +216,13 @@ snapshot comparison with:
 uv run -m padjective.taxonomy_mihara_comparison --snapshot-ref paper
 ```
 
-The default uses the 32 most frequent fold-local tags, matching the feature
-selection and input budget used by the parameter-constrained baselines. Use
-`--max-tags` or `--feature-selection taxonomy_association` for controlled
-alternatives. Frequency is also the safer default for Mihara's affine-rank
-assumption: the taxonomy-association ranking can select rare, mutually dependent
-tag columns. The full paper snapshot has thousands of tag dimensions, so a
-full-vocabulary random affine fit is not a practical default.
+The default uses the 32 most frequent fold-local tags as a bounded diagnostic;
+this is independent of the paper's parameter-budget-matched classical
+baselines. Use `--max-tags` or `--feature-selection taxonomy_association` for
+controlled alternatives. Frequency is also the safer default for Mihara's
+affine-rank assumption: the taxonomy-association ranking can select rare,
+mutually dependent tag columns. The full paper snapshot has thousands of tag
+dimensions, so a full-vocabulary random affine fit is not a practical default.
 
 For tag-budget scaling experiments, use
 `--feature-selection frequency_independent`. This fold-local strategy preserves
@@ -242,6 +242,21 @@ that the published probabilistic algorithm succeeded. Results, coefficients,
 per-digit diagnostics, and held-out predictions are appended to
 `padjective.taxonomy_mihara_*` Postgres tables. Add `--no-persist` for an
 exploratory read-only run.
+
+### Paper parameter-budget comparison
+
+The paper's classical comparison selects features separately within each
+training fold. On the 2,542-tag paper snapshot it uses six inputs for
+multinomial logistic regression and 74 inputs with five hidden units for the
+neural model, producing 2,527 and 2,541 trainable parameters respectively. Run
+and persist the five-fold comparison in Postgres with:
+
+```bash
+uv run -m padjective.paper_revision_experiments \
+  --snapshot-ref paper \
+  --run-matched-budget-classical \
+  --skip-zubarev --skip-neural --skip-q
+```
 
 ### Shared Benchmark Bundles
 
