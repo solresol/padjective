@@ -414,7 +414,6 @@ def render_figure_one_with_neural_widths(
         scatter_kwargs: dict[str, Any] = {
             "color": getattr(row, "color", "#0b6ce3"),
             "s": 150,
-            "alpha": 0.9,
             "marker": marker,
             "zorder": 3,
         }
@@ -444,7 +443,6 @@ def render_figure_one_with_neural_widths(
         color="#111827",
         linestyle="--",
         linewidth=2.2,
-        alpha=0.8,
         label=(
             f"Cross-model fit: slope {cross_model_fit['slope']:.3f}; "
             f"$R^2$={cross_model_fit['r_squared']:.3f}, "
@@ -548,8 +546,8 @@ def render_figure_one_with_neural_widths(
         fontsize=9,
         color="#4b5563",
     )
-    ax.grid(True, which="major", color="#d1d5db", alpha=0.9, linestyle="--")
-    ax.grid(True, which="minor", color="#e5e7eb", alpha=0.65, linestyle=":")
+    ax.grid(True, which="major", color="#d1d5db", linestyle="--")
+    ax.grid(True, which="minor", color="#eef0f3", linestyle=":")
     ax.legend(loc="upper right", frameon=True, fontsize=8)
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
