@@ -224,6 +224,13 @@ assumption: the taxonomy-association ranking can select rare, mutually dependent
 tag columns. The full paper snapshot has thousands of tag dimensions, so a
 full-vocabulary random affine fit is not a practical default.
 
+For tag-budget scaling experiments, use
+`--feature-selection frequency_independent`. This fold-local strategy preserves
+frequency priority but skips any tag whose column does not increase the exact
+rank of the affine design modulo `p`. It avoids letting one dependent tag make
+every larger top-frequency prefix singular; later digit steps can still stop
+when the surviving observations no longer support full affine rank.
+
 The command reports held-out p-adic loss, exact accuracy, prefix accuracy, and a
 matched UMLLR delta. It also reports the more important model-check diagnostic:
 how many leading digit fits pass Mihara's greater-than-90-percent noise-free

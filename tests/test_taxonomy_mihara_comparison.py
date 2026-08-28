@@ -119,6 +119,28 @@ def test_tag_selection_is_fold_local_and_deterministic() -> None:
     )
 
 
+def test_rank_aware_tag_selection_skips_affine_dependent_columns() -> None:
+    training = [
+        ProductRecord(1, ["A", "C"], 1, 1, taxonomy_id="T1"),
+        ProductRecord(2, ["A"], 2, 1, taxonomy_id="T2"),
+        ProductRecord(3, ["B"], 3, 1, taxonomy_id="T3"),
+        ProductRecord(4, ["B"], 4, 1, taxonomy_id="T4"),
+    ]
+
+    # A and B partition the observations, so B = 1 - A and the raw
+    # frequency prefix (A, B) is singular once the intercept is included.
+    assert select_fold_tags(training, max_tags=2, strategy="frequency") == (
+        "A",
+        "B",
+    )
+    assert select_fold_tags(
+        training,
+        max_tags=2,
+        strategy="frequency_independent",
+        p=5,
+    ) == ("A", "C")
+
+
 def test_run_fold_scores_held_out_raw_padic_predictions() -> None:
     records = [
         ProductRecord(1, ["A"], 3, 1, taxonomy_id="T3", taxonomy_depth=2),

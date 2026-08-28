@@ -32,6 +32,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
+import numpy as np
 from psycopg import sql
 
 if __package__ in {None, ""}:
@@ -61,7 +62,11 @@ else:
     )
 
 
-FEATURE_SELECTION_STRATEGIES = ("taxonomy_association", "frequency")
+FEATURE_SELECTION_STRATEGIES = (
+    "taxonomy_association",
+    "frequency",
+    "frequency_independent",
+)
 DEFAULT_FEATURE_SELECTION = "frequency"
 DEFAULT_MAX_TAGS = 32
 DEFAULT_TRIALS = 96
@@ -473,6 +478,7 @@ def select_fold_tags(
     *,
     max_tags: int,
     strategy: str,
+    p: int | None = None,
 ) -> tuple[str, ...]:
     """Select a fold-local feature subset without holdout leakage."""
 
@@ -490,7 +496,7 @@ def select_fold_tags(
             counts[tag] += 1
             taxonomy_counts[tag][record.taxonomy_id] += 1
 
-    if strategy == "frequency":
+    if strategy in {"frequency", "frequency_independent"}:
         ordered = sorted(counts, key=lambda tag: (-counts[tag], tag))
     else:
         ordered = sorted(
@@ -501,6 +507,51 @@ def select_fold_tags(
                 tag,
             ),
         )
+    if strategy == "frequency_independent":
+        if p is None:
+            raise ValueError("p is required for frequency_independent selection")
+        _validate_prime(p)
+        if max_tags == 0 or not training:
+            return ()
+
+        # Maintain an exact column-echelon basis over F_p. The intercept is
+        # always present, so a tag is retained only when it increases the rank
+        # of [X | 1]. This preserves frequency priority while skipping the
+        # dependent columns that make a raw top-n prefix unusable by Mihara's
+        # full-rank affine-system step.
+        tag_rows: dict[str, list[int]] = defaultdict(list)
+        for row_index, record in enumerate(training):
+            for tag in set(record.tags):
+                tag_rows[tag].append(row_index)
+
+        row_count = len(training)
+        basis_vectors = [np.ones(row_count, dtype=np.int64)]
+        pivot_rows = [0]
+        selected: list[str] = []
+
+        for tag in ordered:
+            residual = np.zeros(row_count, dtype=np.int64)
+            residual[tag_rows[tag]] = 1
+            for pivot_row, basis_vector in zip(
+                pivot_rows, basis_vectors, strict=True
+            ):
+                factor = int(residual[pivot_row])
+                if factor:
+                    residual -= factor * basis_vector
+                    np.remainder(residual, p, out=residual)
+
+            nonzero_rows = np.flatnonzero(residual)
+            if not nonzero_rows.size:
+                continue
+            pivot_row = int(nonzero_rows[0])
+            residual *= pow(int(residual[pivot_row]), -1, p)
+            np.remainder(residual, p, out=residual)
+            pivot_rows.append(pivot_row)
+            basis_vectors.append(residual)
+            selected.append(tag)
+            if len(selected) == max_tags:
+                break
+        return tuple(selected)
     return tuple(ordered[:max_tags])
 
 
@@ -537,6 +588,7 @@ def run_fold(
         training,
         max_tags=max_tags,
         strategy=feature_selection,
+        p=p,
     )
     training_features = _feature_rows(training, selected_tags)
     fit = fit_mihara_digitwise(
