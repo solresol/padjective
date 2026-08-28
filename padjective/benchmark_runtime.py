@@ -34,6 +34,7 @@ from sklearn.tree import DecisionTreeClassifier
 DEFAULT_PCLR_MAX_TAGS = 32
 DEFAULT_PCNN_MAX_TAGS = 32
 DEFAULT_PCNN_HIDDEN = 27
+DEFAULT_PCNN_MAX_ITER = 10_000
 DEFAULT_UNN_HIDDEN = 12
 DEFAULT_UNN_MAX_ITER = 10_000
 DEFAULT_ULR_MAX_ITER = 200
@@ -1690,7 +1691,7 @@ def _build_model_rows(
                 activation="relu",
                 alpha=1e-4,
                 batch_size=256,
-                max_iter=120,
+                max_iter=DEFAULT_PCNN_MAX_ITER,
                 random_state=42,
             ),
             param_counter=_dense_model_params,
