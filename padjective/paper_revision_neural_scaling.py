@@ -650,11 +650,12 @@ def render_figure_one_with_neural_widths(
             f"fit predicted {check.predicted_neural_loss:.3f}",
             (check.summary.mean_active_support, (observed_log_loss + predicted_log_loss) / 2),
             textcoords="offset points",
-            xytext=(-104, -4),
+            xytext=(-104, 18),
             fontsize=8,
             color="#9d174d",
             ha="right",
             va="center",
+            bbox={"facecolor": "white", "edgecolor": "none", "pad": 1.5},
         )
 
     ax.set_xscale("log")
