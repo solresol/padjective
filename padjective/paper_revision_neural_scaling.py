@@ -66,6 +66,16 @@ class ScalingFit:
     x_transform: str
 
 
+@dataclass(frozen=True)
+class ExtrapolationCheck:
+    """Observed and predicted loss for a held-out neural-width check."""
+
+    summary: NeuralWidthSummary
+    predicted_neural_loss: float
+    predicted_cross_model_loss: float
+    observed_to_neural_ratio: float
+
+
 def load_neural_width_summaries(
     conn,
     *,
@@ -242,6 +252,50 @@ def fit_neural_active_support_scaling(
     )
 
 
+def split_neural_fit_summaries(
+    summaries: Sequence[NeuralWidthSummary],
+    *,
+    fit_max_hidden_units: int | None,
+) -> tuple[list[NeuralWidthSummary], list[NeuralWidthSummary]]:
+    """Separate the fitted widths from later extrapolation checks."""
+
+    validate_neural_width_summaries(summaries)
+    if fit_max_hidden_units is None:
+        return list(summaries), []
+    fitted = [row for row in summaries if row.hidden_units <= fit_max_hidden_units]
+    held_out = [row for row in summaries if row.hidden_units > fit_max_hidden_units]
+    validate_neural_width_summaries(fitted)
+    if not held_out:
+        raise ValueError(
+            "Neural fit maximum does not leave an extrapolation-check width"
+        )
+    return fitted, held_out
+
+
+def build_extrapolation_check(
+    summary: NeuralWidthSummary,
+    *,
+    neural_fit: ScalingFit,
+    cross_model_fit: dict[str, float],
+) -> ExtrapolationCheck:
+    """Evaluate one held-out width against the two Figure 1 regressions."""
+
+    log_active_support = math.log10(summary.mean_active_support)
+    predicted_neural_loss = 10 ** (
+        neural_fit.intercept + neural_fit.slope * log_active_support
+    )
+    predicted_cross_model_loss = 10 ** (
+        cross_model_fit["intercept"]
+        + cross_model_fit["slope"] * log_active_support
+    )
+    return ExtrapolationCheck(
+        summary=summary,
+        predicted_neural_loss=predicted_neural_loss,
+        predicted_cross_model_loss=predicted_cross_model_loss,
+        observed_to_neural_ratio=summary.mean_loss / predicted_neural_loss,
+    )
+
+
 def _format_p_value(value: float) -> str:
     if value < 0.001:
         return f"{value:.2e}"
@@ -323,8 +377,16 @@ def render_neural_scaling_figure(
 
     ax.set_xscale("log")
     ax.set_yscale("log")
-    ax.set_xlabel("Total trained parameters (log scale)", fontsize=10.5, fontweight="bold")
-    ax.set_ylabel("Mean p-adic loss (log scale; lower is better)", fontsize=10.5, fontweight="bold")
+    ax.set_xlabel(
+        "Total trained parameters (log scale)",
+        fontsize=10.5,
+        fontweight="bold",
+    )
+    ax.set_ylabel(
+        "Mean p-adic loss (log scale; lower is better)",
+        fontsize=10.5,
+        fontweight="bold",
+    )
     ax.set_title(
         "Neural-network width, parameters and mean p-adic loss",
         fontsize=12.5,
@@ -334,7 +396,7 @@ def render_neural_scaling_figure(
     ax.text(
         0.5,
         1.015,
-        "Fixed paper snapshot; five widths x five cross-validation folds",
+        f"Fixed paper snapshot; {len(summaries)} widths x five cross-validation folds",
         transform=ax.transAxes,
         ha="center",
         va="bottom",
@@ -394,15 +456,32 @@ def render_figure_one_with_neural_widths(
     bundle: dict[str, Any],
     summaries: Sequence[NeuralWidthSummary],
     output_path: Path,
-) -> tuple[dict[str, float], ScalingFit]:
+    *,
+    fit_max_hidden_units: int | None = None,
+) -> tuple[dict[str, float], ScalingFit, ScalingFit, ExtrapolationCheck | None]:
     """Render Figure 1 with the neural-width sweep on its active-support axes."""
 
-    validate_neural_width_summaries(summaries)
+    fitted_summaries, held_out_summaries = split_neural_fit_summaries(
+        summaries,
+        fit_max_hidden_units=fit_max_hidden_units,
+    )
+    if len(held_out_summaries) > 1:
+        raise ValueError("Figure 1 supports one held-out neural-width check")
     chart_frame = _build_figure_one_cross_model_frame(bundle, summaries)
     cross_model_fit = _fit_active_params_regression(chart_frame, log_loss=True)
     if cross_model_fit is None:
         raise ValueError("Not enough distinct cross-model points for Figure 1")
-    neural_fit = fit_neural_active_support_scaling(summaries)
+    neural_fit = fit_neural_active_support_scaling(fitted_summaries)
+    all_neural_fit = fit_neural_active_support_scaling(summaries)
+    extrapolation_check = (
+        build_extrapolation_check(
+            held_out_summaries[0],
+            neural_fit=neural_fit,
+            cross_model_fit=cross_model_fit,
+        )
+        if held_out_summaries
+        else None
+    )
 
     fig, ax = plt.subplots(figsize=(10, 6), dpi=150)
     for row in chart_frame.itertuples(index=False):
@@ -431,9 +510,12 @@ def render_figure_one_with_neural_widths(
             color=getattr(row, "color", "#0b6ce3"),
         )
 
+    max_neural_log_support = max(
+        math.log10(row.mean_active_support) for row in summaries
+    )
     cross_x = np.linspace(
         cross_model_fit["x_min"] - 0.1,
-        cross_model_fit["x_max"] + 0.1,
+        max(cross_model_fit["x_max"] + 0.1, max_neural_log_support + 0.04),
         200,
     )
     cross_y = cross_model_fit["intercept"] + cross_model_fit["slope"] * cross_x
@@ -444,47 +526,74 @@ def render_figure_one_with_neural_widths(
         linestyle="--",
         linewidth=2.2,
         label=(
-            f"Cross-model fit: slope {cross_model_fit['slope']:.3f}; "
+            f"Cross-model fit (extrapolated): slope {cross_model_fit['slope']:.3f}; "
             f"$R^2$={cross_model_fit['r_squared']:.3f}, "
             f"p={_format_p_value(cross_model_fit['p_value'])}"
         ),
         zorder=1,
     )
 
-    active_support = np.asarray(
+    def plot_neural_points(
+        rows: Sequence[NeuralWidthSummary],
+        *,
+        marker: str,
+        markersize: float,
+        markerfacecolor: str,
+    ) -> None:
+        if not rows:
+            return
+        active_support = np.asarray(
+            [row.mean_active_support for row in rows],
+            dtype=float,
+        )
+        losses = np.asarray([row.mean_loss for row in rows], dtype=float)
+        loss_sd = np.asarray([row.loss_sd for row in rows], dtype=float)
+        log_losses = np.log10(losses)
+        lower_loss = np.maximum(losses - loss_sd, np.finfo(float).tiny)
+        log_error = np.vstack(
+            [
+                log_losses - np.log10(lower_loss),
+                np.log10(losses + loss_sd) - log_losses,
+            ]
+        )
+        ax.errorbar(
+            active_support,
+            log_losses,
+            yerr=log_error,
+            fmt=marker,
+            linestyle="none",
+            color="#db2777",
+            ecolor="#f09ac3",
+            elinewidth=1.4,
+            capsize=3,
+            markersize=markersize,
+            markerfacecolor=markerfacecolor,
+            markeredgecolor="#db2777",
+            markeredgewidth=2,
+            zorder=4,
+        )
+
+    plot_neural_points(
+        fitted_summaries,
+        marker="o",
+        markersize=8,
+        markerfacecolor="white",
+    )
+    plot_neural_points(
+        held_out_summaries,
+        marker="D",
+        markersize=9,
+        markerfacecolor="#fce7f3",
+    )
+
+    all_active_support = np.asarray(
         [row.mean_active_support for row in summaries],
         dtype=float,
     )
-    losses = np.asarray([row.mean_loss for row in summaries], dtype=float)
-    loss_sd = np.asarray([row.loss_sd for row in summaries], dtype=float)
-    log_losses = np.log10(losses)
-    lower_loss = np.maximum(losses - loss_sd, np.finfo(float).tiny)
-    log_error = np.vstack(
-        [
-            log_losses - np.log10(lower_loss),
-            np.log10(losses + loss_sd) - log_losses,
-        ]
-    )
-    ax.errorbar(
-        active_support,
-        log_losses,
-        yerr=log_error,
-        fmt="o",
-        linestyle="none",
-        color="#db2777",
-        ecolor="#f09ac3",
-        elinewidth=1.4,
-        capsize=3,
-        markersize=8,
-        markerfacecolor="white",
-        markeredgecolor="#db2777",
-        markeredgewidth=2,
-        zorder=4,
-    )
 
     neural_x = np.linspace(
-        float(np.log10(active_support).min()) - 0.04,
-        float(np.log10(active_support).max()) + 0.04,
+        float(np.log10(all_active_support).min()) - 0.04,
+        float(np.log10(all_active_support).max()) + 0.04,
         200,
     )
     neural_y = neural_fit.intercept + neural_fit.slope * neural_x
@@ -494,7 +603,8 @@ def render_figure_one_with_neural_widths(
         color="#db2777",
         linewidth=2.2,
         label=(
-            f"Neural-width fit: slope {neural_fit.slope:.3f}; "
+            f"Neural fit (widths 4-{fit_max_hidden_units or 'all'}; extrapolated): "
+            f"slope {neural_fit.slope:.3f}; "
             f"$R^2$={neural_fit.r_squared:.3f}, "
             f"p={_format_p_value(neural_fit.p_value)}"
         ),
@@ -507,6 +617,7 @@ def render_figure_one_with_neural_widths(
         12: (8, -14),
         24: (-16, -15),
         48: (8, 6),
+        2000: (-78, 8),
     }
     for row in summaries:
         ax.annotate(
@@ -517,6 +628,33 @@ def render_figure_one_with_neural_widths(
             fontsize=8.5,
             fontweight="bold",
             color="#db2777",
+        )
+
+    if extrapolation_check is not None:
+        check = extrapolation_check
+        predicted_log_loss = math.log10(check.predicted_neural_loss)
+        observed_log_loss = math.log10(check.summary.mean_loss)
+        ax.annotate(
+            "",
+            xy=(check.summary.mean_active_support, observed_log_loss - 0.025),
+            xytext=(check.summary.mean_active_support, predicted_log_loss + 0.025),
+            arrowprops={
+                "arrowstyle": "<->",
+                "color": "#9d174d",
+                "linewidth": 1.4,
+            },
+            zorder=3,
+        )
+        ax.annotate(
+            f"observed {check.summary.mean_loss:.3f}\n"
+            f"fit predicted {check.predicted_neural_loss:.3f}",
+            (check.summary.mean_active_support, (observed_log_loss + predicted_log_loss) / 2),
+            textcoords="offset points",
+            xytext=(-104, -4),
+            fontsize=8,
+            color="#9d174d",
+            ha="right",
+            va="center",
         )
 
     ax.set_xscale("log")
@@ -539,14 +677,19 @@ def render_figure_one_with_neural_widths(
     ax.text(
         0.5,
         1.015,
-        "Six cross-model configurations; neural widths are five-fold means with fold SD",
+        (
+            "Six cross-model configurations; widths 4-48 fitted, "
+            "width 2000 held out for extrapolation check"
+            if extrapolation_check is not None
+            else "Six cross-model configurations; neural widths are five-fold means with fold SD"
+        ),
         transform=ax.transAxes,
         ha="center",
         va="bottom",
         fontsize=9,
         color="#4b5563",
     )
-    ax.grid(True, which="major", color="#d1d5db", linestyle="--")
+    ax.grid(True, which="major", color="#e5e7eb", linewidth=0.7, linestyle=":")
     ax.grid(False, which="minor")
     ax.legend(loc="upper right", frameon=False, fontsize=8)
 
@@ -554,7 +697,7 @@ def render_figure_one_with_neural_widths(
     fig.tight_layout()
     fig.savefig(output_path, bbox_inches="tight")
     plt.close(fig)
-    return cross_model_fit, neural_fit
+    return cross_model_fit, neural_fit, all_neural_fit, extrapolation_check
 
 
 def write_neural_scaling_tex(
@@ -563,6 +706,8 @@ def write_neural_scaling_tex(
     log_log_fit: ScalingFit,
     semi_log_fit: ScalingFit,
     active_support_fit: ScalingFit,
+    all_active_support_fit: ScalingFit | None = None,
+    extrapolation_check: ExtrapolationCheck | None = None,
 ) -> None:
     """Write stable LaTeX macros for the manuscript's reported statistics."""
 
@@ -583,6 +728,37 @@ def write_neural_scaling_tex(
         f"\\newcommand{{\\PadNeuralActiveSlopeCILow}}{{{active_support_fit.slope_ci_low:.4f}}}",
         f"\\newcommand{{\\PadNeuralActiveSlopeCIHigh}}{{{active_support_fit.slope_ci_high:.4f}}}",
     ]
+    if all_active_support_fit is not None:
+        lines.extend(
+            [
+                f"\\newcommand{{\\PadNeuralAllActiveSlope}}{{{all_active_support_fit.slope:.4f}}}",
+                f"\\newcommand{{\\PadNeuralAllActiveIntercept}}{{{all_active_support_fit.intercept:.4f}}}",
+                f"\\newcommand{{\\PadNeuralAllActiveRSquared}}{{{all_active_support_fit.r_squared:.3f}}}",
+                f"\\newcommand{{\\PadNeuralAllActivePValue}}{{{_format_p_value(all_active_support_fit.p_value)}}}",
+                f"\\newcommand{{\\PadNeuralAllActiveSlopeCILow}}{{{all_active_support_fit.slope_ci_low:.4f}}}",
+                f"\\newcommand{{\\PadNeuralAllActiveSlopeCIHigh}}{{{all_active_support_fit.slope_ci_high:.4f}}}",
+            ]
+        )
+    if extrapolation_check is not None:
+        check = extrapolation_check
+        summary = check.summary
+        tex_params = f"{int(round(summary.mean_params)):,}".replace(",", "{,}")
+        tex_active = f"{summary.mean_active_support:,.2f}".replace(",", "{,}")
+        lines.extend(
+            [
+                f"\\newcommand{{\\PadNeuralCheckWidth}}{{{summary.hidden_units}}}",
+                f"\\newcommand{{\\PadNeuralCheckParams}}{{{tex_params}}}",
+                f"\\newcommand{{\\PadNeuralCheckActiveSupport}}{{{tex_active}}}",
+                f"\\newcommand{{\\PadNeuralCheckLoss}}{{{summary.mean_loss:.6f}}}",
+                f"\\newcommand{{\\PadNeuralCheckLossSD}}{{{summary.loss_sd:.6f}}}",
+                f"\\newcommand{{\\PadNeuralCheckIterations}}{{{summary.mean_iterations:.1f}}}",
+                f"\\newcommand{{\\PadNeuralCheckIterationLow}}{{{summary.min_iterations}}}",
+                f"\\newcommand{{\\PadNeuralCheckIterationHigh}}{{{summary.max_iterations}}}",
+                f"\\newcommand{{\\PadNeuralCheckPredictedLoss}}{{{check.predicted_neural_loss:.6f}}}",
+                f"\\newcommand{{\\PadCrossModelCheckPredictedLoss}}{{{check.predicted_cross_model_loss:.6f}}}",
+                f"\\newcommand{{\\PadNeuralCheckPredictionRatio}}{{{check.observed_to_neural_ratio:.2f}}}",
+            ]
+        )
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
@@ -596,6 +772,11 @@ def main() -> None:
     parser.add_argument("--snapshot-ref", default="paper")
     parser.add_argument("--max-iterations", type=int, default=10_000)
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument(
+        "--neural-fit-max-width",
+        type=int,
+        help="Fit only widths at or below this value and treat one larger width as held out",
+    )
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--tex-output", type=Path)
     parser.add_argument(
@@ -623,27 +804,45 @@ def main() -> None:
         conn.close()
 
     if args.figure_one_bundle is not None:
-        cross_model_fit, active_support_fit = render_figure_one_with_neural_widths(
+        (
+            cross_model_fit,
+            active_support_fit,
+            all_active_support_fit,
+            extrapolation_check,
+        ) = render_figure_one_with_neural_widths(
             load_bundle(args.figure_one_bundle),
             summaries,
             args.output,
+            fit_max_hidden_units=args.neural_fit_max_width,
         )
     else:
         cross_model_fit = None
-        active_support_fit = fit_neural_active_support_scaling(summaries)
+        fitted_summaries, held_out_summaries = split_neural_fit_summaries(
+            summaries,
+            fit_max_hidden_units=args.neural_fit_max_width,
+        )
+        active_support_fit = fit_neural_active_support_scaling(fitted_summaries)
+        all_active_support_fit = fit_neural_active_support_scaling(summaries)
+        extrapolation_check = None
         render_neural_scaling_figure(
             summaries,
             args.output,
             reference_slope=args.figure_one_slope,
         )
-    log_log_fit = fit_neural_scaling(summaries, log_parameters=True)
-    semi_log_fit = fit_neural_scaling(summaries, log_parameters=False)
+    fitted_summaries, _ = split_neural_fit_summaries(
+        summaries,
+        fit_max_hidden_units=args.neural_fit_max_width,
+    )
+    log_log_fit = fit_neural_scaling(fitted_summaries, log_parameters=True)
+    semi_log_fit = fit_neural_scaling(fitted_summaries, log_parameters=False)
     if args.tex_output is not None:
         write_neural_scaling_tex(
             args.tex_output,
             log_log_fit=log_log_fit,
             semi_log_fit=semi_log_fit,
             active_support_fit=active_support_fit,
+            all_active_support_fit=all_active_support_fit,
+            extrapolation_check=extrapolation_check,
         )
 
     print(
@@ -673,6 +872,23 @@ def main() -> None:
         f"[{active_support_fit.slope_ci_low:.6f}, "
         f"{active_support_fit.slope_ci_high:.6f}]"
     )
+    if extrapolation_check is not None:
+        print(
+            f"Held-out width {extrapolation_check.summary.hidden_units}: "
+            f"observed loss={extrapolation_check.summary.mean_loss:.6f}; "
+            f"neural-fit prediction={extrapolation_check.predicted_neural_loss:.6f}; "
+            f"cross-model prediction={extrapolation_check.predicted_cross_model_loss:.6f}; "
+            f"observed/predicted={extrapolation_check.observed_to_neural_ratio:.3f}"
+        )
+        print(
+            "All-width neural active-support refit: log10(mean loss) = "
+            f"{all_active_support_fit.slope:.6f} log10(active support) "
+            f"{all_active_support_fit.intercept:+.6f}; "
+            f"R^2={all_active_support_fit.r_squared:.6f}; "
+            f"p={all_active_support_fit.p_value:.6f}; 95% slope CI "
+            f"[{all_active_support_fit.slope_ci_low:.6f}, "
+            f"{all_active_support_fit.slope_ci_high:.6f}]"
+        )
     if cross_model_fit is not None:
         print(
             "Figure 1 cross-model fit: log10(mean loss) = "
