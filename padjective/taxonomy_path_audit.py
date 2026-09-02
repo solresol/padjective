@@ -56,7 +56,8 @@ class EligibilityAudit:
     raw_numeric_path_products: int
     reconciled_display_path_products: int
     unresolved_taxonomy_path_products: int
-    eligible_taxonomies: int
+    taxonomies_meeting_minimum: int
+    benchmark_taxonomies_after_filters: int
     eligible_tags: int
 
     def as_dict(self) -> dict[str, int]:
@@ -115,7 +116,8 @@ def calculate_eligibility_audit(
         if any(tag in valid_tags for tag in tags_by_product[row.product_id])
     ]
 
-    canonical_urls: list[str] = []
+    canonical_products: dict[str, AuditProductRow] = {}
+    canonical_url_count = 0
     for row in tag_eligible:
         canonical_url = canonicalize_product_url(
             row.product_url,
@@ -123,7 +125,8 @@ def calculate_eligibility_audit(
             product_handle=row.product_handle,
         )
         if canonical_url:
-            canonical_urls.append(canonical_url)
+            canonical_url_count += 1
+            canonical_products.setdefault(hash_product_url(canonical_url), row)
 
     raw_numeric = sum(
         taxonomy_paths.is_numeric_taxonomy_path(row.observed_taxonomy_path)
@@ -144,14 +147,19 @@ def calculate_eligibility_audit(
         products_with_nonempty_tags=len(tagged),
         products_in_taxonomies_meeting_minimum=len(taxonomy_eligible),
         products_with_frequent_tags=len(tag_eligible),
-        products_with_canonical_url=len(canonical_urls),
-        benchmark_products_after_url_deduplication=len(
-            {hash_product_url(url) for url in canonical_urls}
-        ),
+        products_with_canonical_url=canonical_url_count,
+        benchmark_products_after_url_deduplication=len(canonical_products),
         raw_numeric_path_products=int(raw_numeric),
         reconciled_display_path_products=int(reconciled_display),
         unresolved_taxonomy_path_products=len(with_taxonomy) - len(resolved),
-        eligible_taxonomies=len(valid_taxonomies),
+        taxonomies_meeting_minimum=len(valid_taxonomies),
+        benchmark_taxonomies_after_filters=len(
+            {
+                row.taxonomy_id
+                for row in canonical_products.values()
+                if row.taxonomy_id is not None
+            }
+        ),
         eligible_tags=len(valid_tags),
     )
 
