@@ -57,7 +57,8 @@ def test_audit_matches_benchmark_thresholds_and_url_deduplication() -> None:
     assert audit.raw_numeric_path_products == 1
     assert audit.reconciled_display_path_products == 3
     assert audit.unresolved_taxonomy_path_products == 0
-    assert audit.eligible_taxonomies == 1
+    assert audit.taxonomies_meeting_minimum == 1
+    assert audit.benchmark_taxonomies_after_filters == 1
     assert audit.eligible_tags == 2
 
 
