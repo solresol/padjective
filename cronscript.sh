@@ -35,6 +35,12 @@ else
     TAGBATTLE_DSN_ARGS=()
 fi
 
+echo "Reconciling numeric taxonomy paths and recording the benchmark funnel..."
+uv run -m padjective.taxonomy_path_audit \
+    "${TAGBATTLE_DSN_ARGS[@]}" \
+    --schema "$TAGBATTLE_SCHEMA" \
+    --product-table "$TAGBATTLE_PRODUCT_TABLE"
+
 uv run padjective/tagbattle.py \
     "${TAGBATTLE_DSN_ARGS[@]}" \
     --schema "$TAGBATTLE_SCHEMA" \
