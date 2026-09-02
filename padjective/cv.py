@@ -17,9 +17,9 @@ if __package__ in {None, ""}:
     project_root = Path(__file__).resolve().parent.parent
     if str(project_root) not in sys.path:
         sys.path.append(str(project_root))
-    from padjective import db
+    from padjective import db, taxonomy_paths
 else:  # pragma: no cover - imported as a module
-    from . import db
+    from . import db, taxonomy_paths
 
 
 
@@ -89,15 +89,15 @@ def calculate_cv_folds(
     components that rely on deterministic splits.
     """
 
-    product_identifier = db.qualified_identifier(product_table)
-
     available_columns = _gather_taxonomy_columns(conn)
     if "taxonomy_path" not in available_columns:
         raise RuntimeError(
             "cantbuymelove.taxonomy.taxonomy_path must be present for CV folds"
         )
 
-    taxonomy_column_sql = sql.SQL("t.") + sql.Identifier("taxonomy_path")
+    taxonomy_paths.reconcile_taxonomy_paths(conn)
+    product_identifier = db.qualified_identifier(product_table)
+    taxonomy_column_sql = taxonomy_paths.taxonomy_path_sql()
 
     query = sql.SQL(
         """
@@ -107,14 +107,19 @@ def calculate_cv_folds(
         FROM {products} AS p
         JOIN cantbuymelove.product_taxonomy pt ON pt.product_id = p.id
         JOIN cantbuymelove.taxonomy t ON t.taxonomy_id = pt.taxonomy_id
+        {taxonomy_path_join}
         WHERE p.product_title IS NOT NULL
           AND pt.taxonomy_id IS NOT NULL
         ORDER BY p.id
         """
-    ).format(products=product_identifier, taxonomy_column=taxonomy_column_sql)
+    ).format(
+        products=product_identifier,
+        taxonomy_column=taxonomy_column_sql,
+        taxonomy_path_join=taxonomy_paths.reconciliation_join_sql(),
+    )
 
     product_ids = []
-    taxonomy_paths = []
+    taxonomy_path_values = []
 
     with conn.cursor(row_factory=dict_row) as cur:
         cur.execute(query)
@@ -128,13 +133,13 @@ def calculate_cv_folds(
                 continue
 
             product_ids.append(int(product_id))
-            taxonomy_paths.append(str(taxonomy_value))
+            taxonomy_path_values.append(str(taxonomy_value))
 
     if not product_ids:
         return {}
 
     product_ids_array = np.array(product_ids)
-    taxonomy_paths_array = np.array(taxonomy_paths, dtype=object)
+    taxonomy_paths_array = np.array(taxonomy_path_values, dtype=object)
 
     _, counts = np.unique(taxonomy_paths_array, return_counts=True)
     min_class_size = counts.min() if counts.size else 0

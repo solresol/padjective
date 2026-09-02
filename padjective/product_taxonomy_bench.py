@@ -37,11 +37,11 @@ if __package__ in {None, ""}:
     project_root = Path(__file__).resolve().parent.parent
     if str(project_root) not in sys.path:
         sys.path.append(str(project_root))
-    from padjective import data_access, db, tagbattle
+    from padjective import data_access, db, tagbattle, taxonomy_paths
     from padjective.cv import calculate_cv_folds
     from padjective.product_hash import canonicalize_product_url, hash_product_url
 else:  # pragma: no cover - imported as a package
-    from . import data_access, db, tagbattle
+    from . import data_access, db, tagbattle, taxonomy_paths
     from .cv import calculate_cv_folds
     from .product_hash import canonicalize_product_url, hash_product_url
 
@@ -193,7 +193,7 @@ def _stream_source_products(
             p.product_handle,
             pd.product_detail->'product'->>'tags' AS tags,
             pt.taxonomy_id,
-            t.taxonomy_path,
+            {taxonomy_path} AS taxonomy_path,
             t.taxonomy_name
         FROM {products} AS p
         JOIN public.product_details pd ON (
@@ -203,10 +203,16 @@ def _stream_source_products(
         )
         JOIN cantbuymelove.product_taxonomy pt ON pt.product_id = p.id
         JOIN cantbuymelove.taxonomy t ON t.taxonomy_id = pt.taxonomy_id
+        {taxonomy_path_join}
         WHERE {where_clause}
         ORDER BY p.id
         """
-    ).format(products=product_identifier, where_clause=where_clause)
+    ).format(
+        products=product_identifier,
+        taxonomy_path=taxonomy_paths.taxonomy_path_sql(),
+        taxonomy_path_join=taxonomy_paths.reconciliation_join_sql(),
+        where_clause=where_clause,
+    )
 
     with conn.cursor(row_factory=dict_row) as cur:
         cur.execute(query, params)
@@ -475,6 +481,7 @@ def create_snapshot(
     conn = db.get_connection(dsn)
     try:
         _ensure_storage(conn, schema)
+        taxonomy_paths.reconcile_taxonomy_paths(conn)
 
         if max_products is not None and max_products <= 0:
             raise ValueError("max_products must be a positive integer when set")

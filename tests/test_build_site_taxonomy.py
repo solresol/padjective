@@ -278,6 +278,10 @@ def test_build_site_links_to_umllr_pages(tmp_path: Path, monkeypatch) -> None:
         "padjective.build_site._load_umllr_results",
         lambda _conn, _schema: umllr_summary,
     )
+    monkeypatch.setattr(
+        "padjective.data_access.taxonomy_paths.reconcile_taxonomy_paths",
+        lambda *_args, **_kwargs: None,
+    )
 
     output_dir = tmp_path / "site"
     build_site(

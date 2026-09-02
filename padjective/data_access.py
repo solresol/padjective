@@ -10,7 +10,6 @@ and makes it easy to expose the raw inputs for reporting purposes.
 
 from __future__ import annotations
 
-import re
 from collections import Counter
 from dataclasses import dataclass
 from datetime import datetime
@@ -21,12 +20,8 @@ from psycopg import sql
 from psycopg.rows import dict_row
 from scipy import sparse
 
-from . import db
+from . import db, taxonomy_paths
 from .product_hash import canonicalize_product_url, hash_product_url
-
-# Regex pattern to match taxonomy hierarchical separators
-_TAXONOMY_SEPARATOR_RE = re.compile(r"[>/|]")
-
 
 def is_valid_taxonomy_path(path: Optional[str]) -> bool:
     """Check if a taxonomy path is a valid numeric path.
@@ -42,10 +37,7 @@ def is_valid_taxonomy_path(path: Optional[str]) -> bool:
         True if the path is numeric (no hierarchical separators), False if it
         contains separators that indicate it's actually a taxonomy_name
     """
-    if not path:
-        return False
-    # Valid paths should NOT contain hierarchical separators - they should be numeric like "1.1.4"
-    return not bool(_TAXONOMY_SEPARATOR_RE.search(path))
+    return taxonomy_paths.is_numeric_taxonomy_path(path)
 
 
 @dataclass(frozen=True)
@@ -157,6 +149,7 @@ def _stream_live_products(
 ) -> Iterator[ProductRecord]:
     """Yield product rows directly from the live Shopify catalog tables."""
 
+    taxonomy_paths.reconcile_taxonomy_paths(conn)
     product_identifier = db.qualified_identifier(product_table)
 
     query = sql.SQL(
@@ -166,7 +159,7 @@ def _stream_live_products(
             p.product_title AS title,
             pd.product_detail->'product'->>'tags' AS tags,
             pt.taxonomy_id,
-            t.taxonomy_path,
+            {taxonomy_path} AS taxonomy_path,
             t.taxonomy_name,
             up.cv_fold
         FROM {products} AS p
@@ -177,11 +170,16 @@ def _stream_live_products(
         )
         LEFT JOIN cantbuymelove.product_taxonomy pt ON pt.product_id = p.id
         LEFT JOIN cantbuymelove.taxonomy t ON t.taxonomy_id = pt.taxonomy_id
+        {taxonomy_path_join}
         LEFT JOIN padjective.umllr_predictions up ON up.product_id = p.id
         WHERE p.product_title IS NOT NULL
         ORDER BY p.id
         """
-    ).format(products=product_identifier)
+    ).format(
+        products=product_identifier,
+        taxonomy_path=taxonomy_paths.taxonomy_path_sql(),
+        taxonomy_path_join=taxonomy_paths.reconciliation_join_sql(),
+    )
 
     with conn.cursor(row_factory=dict_row) as cur:
         cur.execute(query)
