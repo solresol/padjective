@@ -70,6 +70,7 @@ def _load_paper_dataset(
     *,
     snapshot_ref: str,
     schema: str,
+    skip_incomplete_rows: bool = False,
 ) -> PaperDataset:
     snapshot_id, _ = data_access._resolve_snapshot_id(
         conn,
@@ -144,11 +145,14 @@ def _load_paper_dataset(
     columns: list[int] = []
     runtime_records: list[benchmark_runtime.ProductRecord] = []
     labels: list[str] = []
-    for row_index, (product_hash, taxonomy_id, taxonomy_path, cv_fold) in enumerate(product_rows):
+    for product_hash, taxonomy_id, taxonomy_path, cv_fold in product_rows:
         product_hash = str(product_hash)
         taxonomy_id = str(taxonomy_id)
         if taxonomy_id not in encoded_by_taxonomy or cv_fold is None:
+            if skip_incomplete_rows:
+                continue
             raise ValueError(f"Incomplete paper snapshot row for product {product_hash}")
+        row_index = len(runtime_records)
         product_tags = sorted(set(tags_by_product.get(product_hash, [])))
         for tag in product_tags:
             rows.append(row_index)
