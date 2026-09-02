@@ -30,6 +30,7 @@ product-taxonomy-bench-hf-sync = "padjective.hf_sync:main"
 product-taxonomy-bench-notebook = "padjective.product_taxonomy_bench_notebook:main"
 benchmark-bundle = "padjective.benchmark_bundle:main"
 taxonomy-mihara-comparison = "padjective.taxonomy_mihara_comparison:main"
+taxonomy-path-audit = "padjective.taxonomy_path_audit:main"
 
 [tool.pytest.ini_options]
 markers = [

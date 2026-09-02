@@ -143,6 +143,10 @@ def test_create_snapshot_uses_persisted_product_count_after_hash_dedup(monkeypat
 
     monkeypatch.setattr("padjective.product_taxonomy_bench.db.get_connection", lambda _dsn: conn)
     monkeypatch.setattr("padjective.product_taxonomy_bench._ensure_storage", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        "padjective.product_taxonomy_bench.taxonomy_paths.reconcile_taxonomy_paths",
+        lambda *_args, **_kwargs: None,
+    )
     monkeypatch.setattr("padjective.product_taxonomy_bench._snapshot_name_exists", lambda *_args, **_kwargs: False)
     monkeypatch.setattr("padjective.product_taxonomy_bench.calculate_cv_folds", lambda *_args, **_kwargs: {1: 0, 2: 1})
     monkeypatch.setattr("padjective.product_taxonomy_bench._count_taxonomies", lambda *_args, **_kwargs: {"tax-1": 2})

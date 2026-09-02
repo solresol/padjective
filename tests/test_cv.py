@@ -60,6 +60,13 @@ def dict_identity(row):
     return row
 
 
+@pytest.fixture(autouse=True)
+def _skip_database_reconciliation(monkeypatch):
+    """Keep the CV unit tests focused on fold assignment."""
+
+    monkeypatch.setattr(cv.taxonomy_paths, "reconcile_taxonomy_paths", lambda *_args: None)
+
+
 def test_calculate_cv_folds_requires_taxonomy_path(monkeypatch):
     """We surface upstream issues if ``taxonomy_path`` is missing."""
 
