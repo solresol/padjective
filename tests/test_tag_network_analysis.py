@@ -151,6 +151,7 @@ def test_report_snapshot_uses_bounded_reviewed_queries() -> None:
 
     assert report["surface"] == "report"
     assert report["status"] == "reviewed"
+    assert report["report"] == {"asOf": "2025-12-31"}
     assert set(report["queries"]) == {
         "network_overview",
         "component_distribution",
@@ -163,6 +164,12 @@ def test_report_snapshot_uses_bounded_reviewed_queries() -> None:
         "directed_cycle_examples",
     }
     assert report["queries"]["network_overview"]["rows"][0]["cycleRank"] == 1
+    assert report["queries"]["network_overview"]["rows"][0][
+        "exactComponentsOutsideLargest"
+    ] == 0
+    assert report["queries"]["battle_overview"]["rows"][0][
+        "largestStrongComponentTags"
+    ] == 3
     assert all(
         query["source"]["filters"]
         == ["Immutable snapshot ID: 00000000-0000-0000-0000-000000000001"]

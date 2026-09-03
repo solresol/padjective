@@ -879,6 +879,17 @@ def build_report_snapshot(result: Mapping[str, object]) -> dict[str, object]:
             "largest_component_product_fraction"
         ],
         "productsOutsideLargest": bipartite["products_outside_largest_component"],
+        "productsOutsideLargestFraction": (
+            bipartite["products_outside_largest_component"] / bipartite["products"]
+            if bipartite["products"]
+            else 0.0
+        ),
+        "exactComponentsOutsideLargest": max(0, bipartite["components"] - 1),
+        "largestNonGiantComponentProducts": (
+            bipartite["top_components"][1]["products"]
+            if len(bipartite["top_components"]) > 1
+            else 0
+        ),
         "cycleRank": bipartite["cycle_rank"],
         "cycleRankPerEdge": bipartite["cycle_rank_per_edge"],
         "twoCoreEdgeFraction": bipartite["two_core"]["edge_fraction"],
@@ -938,6 +949,10 @@ def build_report_snapshot(result: Mapping[str, object]) -> dict[str, object]:
         "strongComponents": battle["strong_components"],
         "cyclicStrongComponents": battle["cyclic_strong_components"],
         "tagsInCyclicStrongComponents": battle["tags_in_cyclic_strong_components"],
+        "largestStrongComponentTags": battle["strong_component_size"]["max"],
+        "cyclicStrongComponentTagFractionOfActive": battle[
+            "cyclic_strong_component_tag_fraction_of_active"
+        ],
         "reciprocalPairs": battle["reciprocal_tag_pairs"],
         "directedThreeTagCycles": battle["directed_three_tag_cycles"],
     }
@@ -947,6 +962,11 @@ def build_report_snapshot(result: Mapping[str, object]) -> dict[str, object]:
         "title": "Circular structure in the frozen Padjective paper snapshot",
         "generatedAt": result["generated_at"],
         "status": "reviewed",
+        "report": {
+            "asOf": str(snapshot["as_of"]).split("T", maxsplit=1)[0]
+            if snapshot.get("as_of")
+            else None
+        },
         "filters": [],
         "snapshot": snapshot,
         "analysisRunId": result.get("run_id"),
