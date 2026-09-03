@@ -40,3 +40,9 @@ search is marked feasible only when the largest weak tag-battle component has
 at most ten tags. Disconnected components can be fitted or ranked separately;
 hub-suppressed components require an approximate gating or ensembling design
 and subsequent held-out evaluation.
+
+The report distinguishes all retained tags from *active battle tags*. A tag can
+belong to the frozen incidence graph without occurring in a title alongside
+another retained tag, in which case it is an isolated node in the battle graph.
+Those isolated nodes must not be mistaken for evidence that the full fitting
+problem decomposes into thousands of useful one-tag models.

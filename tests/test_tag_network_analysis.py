@@ -29,6 +29,14 @@ def test_bipartite_triangle_is_one_six_cycle() -> None:
     assert result["cycle_rank_per_edge"] == pytest.approx(1 / 6)
     assert result["two_core"]["nodes"] == 6
     assert result["two_core"]["edge_fraction"] == pytest.approx(1.0)
+    assert result["largest_component"] == {
+        "products": 3,
+        "tags": 3,
+        "nodes": 6,
+        "edges": 6,
+        "cycle_rank": 1,
+    }
+    assert result["products_outside_largest_component"] == 0
 
 
 def test_hub_suppression_is_explicit_and_preserves_isolated_products() -> None:
@@ -73,6 +81,9 @@ def test_battle_graph_detects_directed_triangle_with_distinct_supporters() -> No
     assert result["unique_directed_edges"] == 3
     assert result["weak_components"] == 1
     assert result["strong_components"] == 1
+    assert result["active_tags"] == 3
+    assert result["inactive_tags"] == 0
+    assert result["largest_weak_component_active_tag_fraction"] == pytest.approx(1.0)
     assert result["directed_three_tag_cycles"] == 1
     assert len(set(result["directed_three_tag_cycle_examples"][0]["products"])) == 3
 

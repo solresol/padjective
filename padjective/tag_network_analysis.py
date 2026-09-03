@@ -324,7 +324,15 @@ def analyse_bipartite_structure(
         for node, neighbours in adjacency.items()
     )
     product_component_sizes = [record["products"] for record in records]
+    tag_component_sizes = [record["tags"] for record in records]
     nontrivial_records = [record for record in records if record["edges"] > 0]
+    largest = records[0] if records else {
+        "products": 0,
+        "tags": 0,
+        "nodes": 0,
+        "edges": 0,
+        "cycle_rank": 0,
+    }
 
     return {
         "maximum_tag_degree": maximum_tag_degree,
@@ -338,11 +346,14 @@ def analyse_bipartite_structure(
         "nontrivial_components": len(nontrivial_records),
         "isolated_products": isolated_products,
         "largest_component_product_fraction": (
-            records[0]["products"] / total_products if records and total_products else 0.0
+            largest["products"] / total_products if total_products else 0.0
         ),
         "largest_component_tag_fraction": (
-            records[0]["tags"] / retained_tags if records and retained_tags else 0.0
+            largest["tags"] / retained_tags if retained_tags else 0.0
         ),
+        "largest_component": largest,
+        "products_outside_largest_component": total_products - largest["products"],
+        "tags_outside_largest_component": retained_tags - largest["tags"],
         "cycle_rank": cycle_rank,
         "cycle_rank_per_edge": cycle_rank / edge_count if edge_count else 0.0,
         "two_core": {
@@ -355,7 +366,23 @@ def analyse_bipartite_structure(
             "edge_fraction": core_edges / edge_count if edge_count else 0.0,
         },
         "component_product_size": _distribution(product_component_sizes),
+        "component_tag_size": _distribution(tag_component_sizes),
         "component_bins": _component_bins(product_component_sizes),
+        "components_with_at_most_10_products": sum(
+            record["products"] <= 10 for record in records
+        ),
+        "products_in_components_with_at_most_10_products": sum(
+            record["products"] for record in records if record["products"] <= 10
+        ),
+        "components_with_at_most_100_products": sum(
+            record["products"] <= 100 for record in records
+        ),
+        "products_in_components_with_at_most_100_products": sum(
+            record["products"] for record in records if record["products"] <= 100
+        ),
+        "components_with_at_most_10_tags": sum(
+            record["tags"] <= 10 for record in records
+        ),
         "products_in_components_with_at_most_10_tags": sum(
             record["products"] for record in records if record["tags"] <= 10
         ),
@@ -609,17 +636,25 @@ def analyse_battle_graph(
     weak_sizes = [len(component) for component in weak_components]
     scc_sizes = [len(component) for component in sccs]
     active_tags = sum(bool(neighbours) for neighbours in undirected.values())
+    nontrivial_weak_components = [
+        component for component in weak_components if len(component) > 1
+    ]
     largest_weak = weak_sizes[0] if weak_sizes else 0
     largest_scc = scc_sizes[0] if scc_sizes else 0
     return {
         "tags": len(nodes),
         "active_tags": active_tags,
+        "inactive_tags": len(nodes) - active_tags,
         "battle_occurrences": battle_occurrences,
         "unique_directed_edges": len(edge_supporters),
         "unique_undirected_edges": unique_undirected_edges,
         "weak_components": len(weak_components),
+        "nontrivial_weak_components": len(nontrivial_weak_components),
         "weak_component_size": _distribution(weak_sizes),
         "largest_weak_component_tag_fraction": largest_weak / len(nodes) if nodes else 0.0,
+        "largest_weak_component_active_tag_fraction": (
+            largest_weak / active_tags if active_tags else 0.0
+        ),
         "weak_components_with_at_most_10_tags": sum(size <= 10 for size in weak_sizes),
         "tags_in_weak_components_with_at_most_10_tags": sum(
             size for size in weak_sizes if size <= 10
@@ -634,6 +669,11 @@ def analyse_battle_graph(
         "strong_component_size": _distribution(scc_sizes),
         "cyclic_strong_components": len(cyclic_sccs),
         "tags_in_cyclic_strong_components": sum(len(component) for component in cyclic_sccs),
+        "cyclic_strong_component_tag_fraction_of_active": (
+            sum(len(component) for component in cyclic_sccs) / active_tags
+            if active_tags
+            else 0.0
+        ),
         "largest_strong_component_tag_fraction": largest_scc / len(nodes) if nodes else 0.0,
         "reciprocal_tag_pairs": len(reciprocal_pairs),
         "directed_three_tag_cycles": directed_triangles,
@@ -713,18 +753,29 @@ def _decision_summary(
     largest_product_fraction = float(bipartite["largest_component_product_fraction"])
     largest_battle_fraction = float(battle["largest_weak_component_tag_fraction"])
     max_battle_tags = int(battle["weak_component_size"]["max"])
-    exact_component_ensemble_helpful = largest_product_fraction < 0.8
     permutation_bruteforce_feasible = max_battle_tags <= 10
     best_diagnostic = min(
         sensitivity,
         key=lambda row: float(row["largest_component_product_fraction"]),
     )
     return {
-        "exact_component_ensemble_helpful": exact_component_ensemble_helpful,
+        "exact_component_decomposition_assessment": (
+            "strong"
+            if largest_product_fraction <= 0.5
+            else "partial_only"
+            if largest_product_fraction <= 0.8
+            else "limited"
+        ),
         "exact_battle_permutation_bruteforce_feasible": permutation_bruteforce_feasible,
         "largest_product_component_fraction": largest_product_fraction,
         "largest_battle_component_fraction": largest_battle_fraction,
         "largest_battle_component_tags": max_battle_tags,
+        "largest_product_component": bipartite["largest_component"],
+        "products_outside_largest_component": bipartite[
+            "products_outside_largest_component"
+        ],
+        "exact_components_outside_largest": int(bipartite["components"]) - 1,
+        "inactive_battle_tags": battle["inactive_tags"],
         "best_hub_suppressed_diagnostic": {
             "maximum_tag_degree": best_diagnostic["maximum_tag_degree"],
             "largest_component_product_fraction": best_diagnostic[
