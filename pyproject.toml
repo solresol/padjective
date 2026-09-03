@@ -31,6 +31,7 @@ product-taxonomy-bench-notebook = "padjective.product_taxonomy_bench_notebook:ma
 benchmark-bundle = "padjective.benchmark_bundle:main"
 taxonomy-mihara-comparison = "padjective.taxonomy_mihara_comparison:main"
 taxonomy-path-audit = "padjective.taxonomy_path_audit:main"
+tag-network-analysis = "padjective.tag_network_analysis:main"
 
 [tool.pytest.ini_options]
 markers = [
