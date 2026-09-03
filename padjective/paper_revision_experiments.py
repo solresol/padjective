@@ -6,7 +6,8 @@ schema.  They answer three reviewer-style questions without modifying the
 production model tables:
 
 * does Zubarev annealing improve when initialised by the best greedy order;
-* how does the neural baseline change with hidden-layer width; and
+* how does the neural baseline change with hidden-layer width;
+* how do classical baselines compare at the p-adic coefficient budget; and
 * does the ranking of greedy tag orders change when the depth weight ``q`` is
   varied while the base-``p`` predictions are held fixed?
 """
@@ -24,6 +25,7 @@ import numpy as np
 from psycopg import sql
 from scipy import sparse
 from sklearn.exceptions import ConvergenceWarning
+from sklearn.linear_model import LogisticRegression
 from sklearn.neural_network import MLPClassifier
 
 from . import benchmark_runtime, data_access, db, umllr
@@ -33,6 +35,7 @@ from . import benchmark_runtime, data_access, db, umllr
 class PaperDataset:
     records: list[benchmark_runtime.ProductRecord]
     features: sparse.csr_matrix
+    feature_names: tuple[str, ...]
     labels: np.ndarray
     encoded_by_taxonomy: dict[str, int]
     prime_base: int
@@ -67,6 +70,7 @@ def _load_paper_dataset(
     *,
     snapshot_ref: str,
     schema: str,
+    skip_incomplete_rows: bool = False,
 ) -> PaperDataset:
     snapshot_id, _ = data_access._resolve_snapshot_id(
         conn,
@@ -141,11 +145,14 @@ def _load_paper_dataset(
     columns: list[int] = []
     runtime_records: list[benchmark_runtime.ProductRecord] = []
     labels: list[str] = []
-    for row_index, (product_hash, taxonomy_id, taxonomy_path, cv_fold) in enumerate(product_rows):
+    for product_hash, taxonomy_id, taxonomy_path, cv_fold in product_rows:
         product_hash = str(product_hash)
         taxonomy_id = str(taxonomy_id)
         if taxonomy_id not in encoded_by_taxonomy or cv_fold is None:
+            if skip_incomplete_rows:
+                continue
             raise ValueError(f"Incomplete paper snapshot row for product {product_hash}")
+        row_index = len(runtime_records)
         product_tags = sorted(set(tags_by_product.get(product_hash, [])))
         for tag in product_tags:
             rows.append(row_index)
@@ -174,6 +181,7 @@ def _load_paper_dataset(
     return PaperDataset(
         records=runtime_records,
         features=features,
+        feature_names=tuple(feature_names),
         labels=np.asarray(labels, dtype=object),
         encoded_by_taxonomy=encoded_by_taxonomy,
         prime_base=prime_base,
@@ -182,8 +190,8 @@ def _load_paper_dataset(
 
 
 def _ensure_storage(conn, schema: str) -> None:
+    db.ensure_schema(conn, schema)
     with conn.cursor() as cur:
-        cur.execute(sql.SQL("CREATE SCHEMA IF NOT EXISTS {schema}").format(schema=sql.Identifier(schema)))
         cur.execute(
             sql.SQL(
                 """
@@ -243,6 +251,81 @@ def _ensure_storage(conn, schema: str) -> None:
                 CREATE UNIQUE INDEX IF NOT EXISTS paper_revision_neural_sizes_run_idx
                 ON {schema}.paper_revision_neural_sizes
                     (snapshot_ref, cv_fold, hidden_units, max_iterations, seed)
+                TABLESPACE pg_default
+                """
+            ).format(schema=sql.Identifier(schema))
+        )
+        cur.execute(
+            sql.SQL(
+                """
+                CREATE TABLE IF NOT EXISTS {schema}.paper_revision_constrained_neural (
+                    snapshot_ref TEXT NOT NULL,
+                    cv_fold INTEGER NOT NULL,
+                    max_tags INTEGER NOT NULL,
+                    hidden_units INTEGER NOT NULL,
+                    max_iterations INTEGER NOT NULL,
+                    seed INTEGER NOT NULL,
+                    feature_selection TEXT NOT NULL,
+                    num_train INTEGER NOT NULL,
+                    num_test INTEGER NOT NULL,
+                    mean_loss DOUBLE PRECISION NOT NULL,
+                    exact_accuracy DOUBLE PRECISION NOT NULL,
+                    mean_active_support DOUBLE PRECISION NOT NULL,
+                    num_params BIGINT NOT NULL,
+                    iterations_used INTEGER NOT NULL,
+                    converged BOOLEAN NOT NULL,
+                    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                ) TABLESPACE pg_default
+                """
+            ).format(schema=sql.Identifier(schema))
+        )
+        cur.execute(
+            sql.SQL(
+                """
+                CREATE UNIQUE INDEX IF NOT EXISTS paper_revision_constrained_neural_run_idx
+                ON {schema}.paper_revision_constrained_neural
+                    (snapshot_ref, cv_fold, max_tags, hidden_units,
+                     max_iterations, seed, feature_selection)
+                TABLESPACE pg_default
+                """
+            ).format(schema=sql.Identifier(schema))
+        )
+        cur.execute(
+            sql.SQL(
+                """
+                CREATE TABLE IF NOT EXISTS {schema}.paper_revision_matched_budget_classical (
+                    snapshot_ref TEXT NOT NULL,
+                    cv_fold INTEGER NOT NULL,
+                    model_key TEXT NOT NULL,
+                    target_parameters INTEGER NOT NULL,
+                    max_tags INTEGER NOT NULL,
+                    hidden_units INTEGER NOT NULL,
+                    max_iterations INTEGER NOT NULL,
+                    seed INTEGER NOT NULL,
+                    feature_selection TEXT NOT NULL,
+                    num_classes INTEGER NOT NULL,
+                    num_train INTEGER NOT NULL,
+                    num_test INTEGER NOT NULL,
+                    mean_loss DOUBLE PRECISION NOT NULL,
+                    exact_accuracy DOUBLE PRECISION NOT NULL,
+                    mean_active_support DOUBLE PRECISION NOT NULL,
+                    num_params BIGINT NOT NULL,
+                    nonzero_params BIGINT NOT NULL,
+                    iterations_used INTEGER NOT NULL,
+                    converged BOOLEAN NOT NULL,
+                    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                ) TABLESPACE pg_default
+                """
+            ).format(schema=sql.Identifier(schema))
+        )
+        cur.execute(
+            sql.SQL(
+                """
+                CREATE UNIQUE INDEX IF NOT EXISTS paper_revision_matched_budget_classical_run_idx
+                ON {schema}.paper_revision_matched_budget_classical
+                    (snapshot_ref, cv_fold, model_key, target_parameters,
+                     max_tags, hidden_units, max_iterations, seed,
+                     feature_selection)
                 TABLESPACE pg_default
                 """
             ).format(schema=sql.Identifier(schema))
@@ -378,6 +461,334 @@ def run_zubarev_followup(
                     annealed_exact_accuracy = EXCLUDED.annealed_exact_accuracy,
                     initial_nonzero_params = EXCLUDED.initial_nonzero_params,
                     annealed_nonzero_params = EXCLUDED.annealed_nonzero_params,
+                    updated_at = NOW()
+                """
+            ).format(schema=sql.Identifier(schema)),
+            insert_rows,
+        )
+    conn.commit()
+
+
+def select_fold_top_tags(
+    features: sparse.csr_matrix,
+    train_mask: np.ndarray,
+    max_tags: int,
+) -> np.ndarray:
+    """Return deterministic frequency-ranked columns using training rows only."""
+
+    if max_tags <= 0:
+        raise ValueError("max_tags must be positive")
+    if train_mask.shape != (features.shape[0],):
+        raise ValueError("train_mask must have one entry per feature row")
+    return benchmark_runtime.select_top_tag_indices(features[train_mask], max_tags)
+
+
+def select_snapshot_top_tags(
+    features: sparse.csr_matrix,
+    max_tags: int,
+) -> np.ndarray:
+    """Return the historical snapshot-wide frequency-ranked columns."""
+
+    if max_tags <= 0:
+        raise ValueError("max_tags must be positive")
+    tag_count = features.shape[1]
+    if max_tags >= tag_count:
+        return np.arange(tag_count, dtype=int)
+    counts = np.asarray(features.sum(axis=0)).ravel()
+    ranked = np.argsort(counts)[::-1][:max_tags]
+    return np.sort(ranked)
+
+
+def multinomial_logistic_parameter_count(num_features: int, num_classes: int) -> int:
+    """Return coefficients plus intercepts for multinomial logistic regression."""
+
+    return num_classes * (num_features + 1)
+
+
+def single_hidden_layer_parameter_count(
+    num_features: int,
+    hidden_units: int,
+    num_classes: int,
+) -> int:
+    """Return weights plus biases for a one-hidden-layer classifier."""
+
+    return (
+        num_features * hidden_units
+        + hidden_units
+        + hidden_units * num_classes
+        + num_classes
+    )
+
+
+def _model_parameter_counts(
+    model: LogisticRegression | MLPClassifier,
+) -> tuple[int, int]:
+    if isinstance(model, LogisticRegression):
+        arrays = [model.coef_, model.intercept_]
+    else:
+        arrays = [*model.coefs_, *model.intercepts_]
+    return (
+        int(sum(array.size for array in arrays)),
+        int(sum(np.count_nonzero(array) for array in arrays)),
+    )
+
+
+def run_matched_budget_classical(
+    conn,
+    dataset: PaperDataset,
+    *,
+    snapshot_ref: str,
+    schema: str,
+    target_parameters: int,
+    logistic_max_tags: int,
+    neural_max_tags: int,
+    neural_hidden_units: int,
+    max_iterations: int,
+    seed: int,
+) -> None:
+    """Run fold-local classical baselines near the p-adic parameter budget."""
+
+    if min(logistic_max_tags, neural_max_tags, neural_hidden_units, max_iterations) <= 0:
+        raise ValueError("feature, hidden-unit, and iteration budgets must be positive")
+    fold_values = np.asarray([record.cv_fold for record in dataset.records], dtype=int)
+    configurations = (
+        (
+            "pclr",
+            logistic_max_tags,
+            0,
+            lambda: LogisticRegression(
+                max_iter=max_iterations,
+                solver="lbfgs",
+                class_weight="balanced",
+            ),
+            benchmark_runtime._nonzero_linear_scoring_ops,
+        ),
+        (
+            "pcnn",
+            neural_max_tags,
+            neural_hidden_units,
+            lambda: MLPClassifier(
+                hidden_layer_sizes=(neural_hidden_units,),
+                activation="relu",
+                alpha=1e-4,
+                batch_size=256,
+                max_iter=max_iterations,
+                random_state=seed,
+            ),
+            benchmark_runtime._dense_model_scoring_ops,
+        ),
+    )
+    insert_rows: list[tuple[object, ...]] = []
+    for model_key, max_tags, hidden_units, make_model, scoring_ops in configurations:
+        for fold in sorted(set(fold_values.tolist())):
+            train_mask = fold_values != fold
+            test_mask = fold_values == fold
+            selected = select_fold_top_tags(dataset.features, train_mask, max_tags)
+            fold_features = dataset.features[:, selected]
+            model = make_model()
+            with warnings.catch_warnings(record=True) as caught:
+                warnings.simplefilter("always", ConvergenceWarning)
+                model.fit(fold_features[train_mask], dataset.labels[train_mask])
+            test_features = fold_features[test_mask]
+            predictions = model.predict(test_features)
+            true_labels = dataset.labels[test_mask]
+            losses = [
+                benchmark_runtime.p_adic_distance(
+                    dataset.encoded_by_taxonomy[str(actual)],
+                    dataset.encoded_by_taxonomy[str(predicted)],
+                    dataset.prime_base,
+                )
+                for actual, predicted in zip(true_labels, predictions)
+            ]
+            active_support = [
+                scoring_ops(model, test_features[index])
+                for index in range(test_features.shape[0])
+            ]
+            num_params, nonzero_params = _model_parameter_counts(model)
+            iterations_used = (
+                int(np.max(model.n_iter_))
+                if model_key == "pclr"
+                else int(model.n_iter_)
+            )
+            converged = not any(
+                isinstance(item.message, ConvergenceWarning) for item in caught
+            )
+            insert_rows.append(
+                (
+                    snapshot_ref,
+                    fold,
+                    model_key,
+                    target_parameters,
+                    max_tags,
+                    hidden_units,
+                    max_iterations,
+                    seed,
+                    "fold_training_frequency",
+                    len(model.classes_),
+                    int(train_mask.sum()),
+                    int(test_mask.sum()),
+                    float(np.mean(losses)),
+                    float(np.mean(predictions == true_labels)),
+                    float(np.mean(active_support)),
+                    num_params,
+                    nonzero_params,
+                    iterations_used,
+                    converged,
+                )
+            )
+            print(
+                f"Matched-budget {model_key} fold {fold}: loss={np.mean(losses):.6f}, "
+                f"parameters={num_params}, iterations={iterations_used}, "
+                f"converged={converged}"
+            )
+
+    with conn.cursor() as cur:
+        cur.executemany(
+            sql.SQL(
+                """
+                INSERT INTO {schema}.paper_revision_matched_budget_classical
+                    (snapshot_ref, cv_fold, model_key, target_parameters,
+                     max_tags, hidden_units, max_iterations, seed,
+                     feature_selection, num_classes, num_train, num_test,
+                     mean_loss, exact_accuracy, mean_active_support,
+                     num_params, nonzero_params, iterations_used, converged)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                        %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT
+                    (snapshot_ref, cv_fold, model_key, target_parameters,
+                     max_tags, hidden_units, max_iterations, seed,
+                     feature_selection)
+                DO UPDATE SET
+                    num_classes = EXCLUDED.num_classes,
+                    num_train = EXCLUDED.num_train,
+                    num_test = EXCLUDED.num_test,
+                    mean_loss = EXCLUDED.mean_loss,
+                    exact_accuracy = EXCLUDED.exact_accuracy,
+                    mean_active_support = EXCLUDED.mean_active_support,
+                    num_params = EXCLUDED.num_params,
+                    nonzero_params = EXCLUDED.nonzero_params,
+                    iterations_used = EXCLUDED.iterations_used,
+                    converged = EXCLUDED.converged,
+                    updated_at = NOW()
+                """
+            ).format(schema=sql.Identifier(schema)),
+            insert_rows,
+        )
+    conn.commit()
+
+
+def run_constrained_neural_followup(
+    conn,
+    dataset: PaperDataset,
+    *,
+    snapshot_ref: str,
+    schema: str,
+    max_tags: int,
+    hidden_units: int,
+    max_iterations: int,
+    seed: int,
+    feature_selection: str,
+) -> None:
+    """Run the appendix neural model with an explicit feature-selection scope."""
+
+    folds = np.asarray([record.cv_fold for record in dataset.records], dtype=int)
+    insert_rows: list[tuple[object, ...]] = []
+    if feature_selection not in {"fold_training_frequency", "snapshot_frequency"}:
+        raise ValueError(f"Unknown constrained neural feature selection: {feature_selection}")
+    snapshot_selected = (
+        select_snapshot_top_tags(dataset.features, max_tags)
+        if feature_selection == "snapshot_frequency"
+        else None
+    )
+    for fold in sorted(set(folds.tolist())):
+        train_mask = folds != fold
+        test_mask = folds == fold
+        selected = (
+            snapshot_selected
+            if snapshot_selected is not None
+            else select_fold_top_tags(dataset.features, train_mask, max_tags)
+        )
+        fold_features = dataset.features[:, selected]
+        model = MLPClassifier(
+            hidden_layer_sizes=(hidden_units,),
+            activation="relu",
+            alpha=1e-4,
+            batch_size=256,
+            max_iter=max_iterations,
+            random_state=seed,
+        )
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always", ConvergenceWarning)
+            model.fit(fold_features[train_mask], dataset.labels[train_mask])
+        test_features = fold_features[test_mask]
+        predictions = model.predict(test_features)
+        true_labels = dataset.labels[test_mask]
+        losses = [
+            benchmark_runtime.p_adic_distance(
+                dataset.encoded_by_taxonomy[str(actual)],
+                dataset.encoded_by_taxonomy[str(predicted)],
+                dataset.prime_base,
+            )
+            for actual, predicted in zip(true_labels, predictions)
+        ]
+        active_support = [
+            benchmark_runtime._dense_model_scoring_ops(model, test_features[index])
+            for index in range(test_features.shape[0])
+        ]
+        converged = not any(
+            isinstance(item.message, ConvergenceWarning) for item in caught
+        )
+        parameter_count = sum(array.size for array in model.coefs_) + sum(
+            array.size for array in model.intercepts_
+        )
+        insert_rows.append(
+            (
+                snapshot_ref,
+                fold,
+                max_tags,
+                hidden_units,
+                max_iterations,
+                seed,
+                feature_selection,
+                int(train_mask.sum()),
+                int(test_mask.sum()),
+                float(np.mean(losses)),
+                float(np.mean(predictions == true_labels)),
+                float(np.mean(active_support)),
+                int(parameter_count),
+                int(model.n_iter_),
+                converged,
+            )
+        )
+        print(
+            f"Constrained neural fold {fold}: loss={np.mean(losses):.6f}, "
+            f"accuracy={np.mean(predictions == true_labels):.4f}, "
+            f"iterations={model.n_iter_}, converged={converged}"
+        )
+
+    with conn.cursor() as cur:
+        cur.executemany(
+            sql.SQL(
+                """
+                INSERT INTO {schema}.paper_revision_constrained_neural
+                    (snapshot_ref, cv_fold, max_tags, hidden_units,
+                     max_iterations, seed, feature_selection, num_train,
+                     num_test, mean_loss, exact_accuracy, mean_active_support,
+                     num_params, iterations_used, converged)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                        %s, %s, %s)
+                ON CONFLICT
+                    (snapshot_ref, cv_fold, max_tags, hidden_units,
+                     max_iterations, seed, feature_selection)
+                DO UPDATE SET
+                    num_train = EXCLUDED.num_train,
+                    num_test = EXCLUDED.num_test,
+                    mean_loss = EXCLUDED.mean_loss,
+                    exact_accuracy = EXCLUDED.exact_accuracy,
+                    mean_active_support = EXCLUDED.mean_active_support,
+                    num_params = EXCLUDED.num_params,
+                    iterations_used = EXCLUDED.iterations_used,
+                    converged = EXCLUDED.converged,
                     updated_at = NOW()
                 """
             ).format(schema=sql.Identifier(schema)),
@@ -619,6 +1030,49 @@ def main() -> None:
     parser.add_argument("--zubarev-max-iterations", type=int, default=2000)
     parser.add_argument("--q-values", default="2,3,5,10,71")
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--run-matched-budget-classical", action="store_true")
+    parser.add_argument("--matched-target-parameters", type=int, default=2542)
+    parser.add_argument(
+        "--matched-logistic-max-tags",
+        type=int,
+        default=benchmark_runtime.DEFAULT_PCLR_MAX_TAGS,
+    )
+    parser.add_argument(
+        "--matched-neural-max-tags",
+        type=int,
+        default=benchmark_runtime.DEFAULT_PCNN_MAX_TAGS,
+    )
+    parser.add_argument(
+        "--matched-neural-hidden-units",
+        type=int,
+        default=benchmark_runtime.DEFAULT_PCNN_HIDDEN,
+    )
+    parser.add_argument(
+        "--matched-max-iterations",
+        type=int,
+        default=benchmark_runtime.DEFAULT_PCNN_MAX_ITER,
+    )
+    parser.add_argument("--run-constrained-neural", action="store_true")
+    parser.add_argument(
+        "--constrained-neural-max-tags",
+        type=int,
+        default=benchmark_runtime.DEFAULT_PCNN_MAX_TAGS,
+    )
+    parser.add_argument(
+        "--constrained-neural-hidden-units",
+        type=int,
+        default=benchmark_runtime.DEFAULT_PCNN_HIDDEN,
+    )
+    parser.add_argument(
+        "--constrained-neural-feature-selection",
+        choices=("fold_training_frequency", "snapshot_frequency"),
+        default="fold_training_frequency",
+    )
+    parser.add_argument(
+        "--constrained-neural-max-iterations",
+        type=int,
+        default=benchmark_runtime.DEFAULT_PCNN_MAX_ITER,
+    )
     parser.add_argument("--skip-zubarev", action="store_true")
     parser.add_argument("--skip-neural", action="store_true")
     parser.add_argument("--skip-q", action="store_true")
@@ -636,6 +1090,31 @@ def main() -> None:
             f"max digit {dataset.max_digit}, prime {dataset.prime_base}."
         )
         _ensure_storage(conn, args.schema)
+        if args.run_matched_budget_classical:
+            run_matched_budget_classical(
+                conn,
+                dataset,
+                snapshot_ref=args.snapshot_ref,
+                schema=args.schema,
+                target_parameters=args.matched_target_parameters,
+                logistic_max_tags=args.matched_logistic_max_tags,
+                neural_max_tags=args.matched_neural_max_tags,
+                neural_hidden_units=args.matched_neural_hidden_units,
+                max_iterations=args.matched_max_iterations,
+                seed=args.seed,
+            )
+        if args.run_constrained_neural:
+            run_constrained_neural_followup(
+                conn,
+                dataset,
+                snapshot_ref=args.snapshot_ref,
+                schema=args.schema,
+                max_tags=args.constrained_neural_max_tags,
+                hidden_units=args.constrained_neural_hidden_units,
+                max_iterations=args.constrained_neural_max_iterations,
+                seed=args.seed,
+                feature_selection=args.constrained_neural_feature_selection,
+            )
         if not args.skip_q:
             run_q_sensitivity_followup(
                 conn,
