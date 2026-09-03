@@ -831,6 +831,236 @@ def analyse_snapshot(
     }
 
 
+def build_report_snapshot(result: Mapping[str, object]) -> dict[str, object]:
+    """Shape an analysis result into bounded, source-described report queries."""
+
+    snapshot = result["snapshot"]
+    bipartite = result["bipartite"]
+    cycles = result["three_product_cycles"]
+    battle = result["battle"]
+    snapshot_id = str(snapshot["snapshot_id"])
+
+    def source(
+        label: str,
+        definitions: Sequence[tuple[str, str]],
+        *,
+        caveats: Sequence[str] = (),
+    ) -> dict[str, object]:
+        return {
+            "label": label,
+            "tables": [
+                "padjective.product_taxonomy_bench_snapshots",
+                "padjective.product_taxonomy_bench_product_tags",
+                "padjective.product_taxonomy_bench_title_tags",
+                "padjective.tag_network_analysis_runs",
+            ],
+            "filters": [f"Immutable snapshot ID: {snapshot_id}"],
+            "metricDefinitions": [
+                {"label": name, "definition": definition}
+                for name, definition in definitions
+            ],
+            "caveats": list(caveats),
+            "evidenceFlow": [
+                "Frozen Postgres product-tag and title-position rows",
+                "Deterministic graph construction and component analysis",
+                "Persisted reviewed analysis result",
+                "Local review report",
+            ],
+        }
+
+    overview_row = {
+        "products": bipartite["products"],
+        "tags": bipartite["retained_tags"],
+        "incidences": bipartite["edges"],
+        "components": bipartite["components"],
+        "largestComponentProducts": bipartite["largest_component"]["products"],
+        "largestComponentTags": bipartite["largest_component"]["tags"],
+        "largestComponentProductFraction": bipartite[
+            "largest_component_product_fraction"
+        ],
+        "productsOutsideLargest": bipartite["products_outside_largest_component"],
+        "cycleRank": bipartite["cycle_rank"],
+        "cycleRankPerEdge": bipartite["cycle_rank_per_edge"],
+        "twoCoreEdgeFraction": bipartite["two_core"]["edge_fraction"],
+        "twoCoreProducts": bipartite["two_core"]["products"],
+        "twoCoreTags": bipartite["two_core"]["tags"],
+    }
+    hub_rows = [
+        {
+            "maximumTagDegree": row["maximum_tag_degree"],
+            "excludedHubTags": row["excluded_hub_tags"],
+            "retainedTags": row["retained_tags"],
+            "incidences": row["edges"],
+            "components": row["components"],
+            "nontrivialComponents": row["nontrivial_components"],
+            "isolatedProducts": row["isolated_products"],
+            "largestComponentProductFraction": row[
+                "largest_component_product_fraction"
+            ],
+            "cycleRank": row["cycle_rank"],
+            "twoCoreEdgeFraction": row["two_core"]["edge_fraction"],
+        }
+        for row in result["hub_sensitivity"]
+    ]
+    expansion_rows = [
+        {
+            "startTag": expansion["start_tag"],
+            "startDegree": expansion["degree"],
+            **{
+                {
+                    "depth": "depth",
+                    "new_products": "newProducts",
+                    "new_tags": "newTags",
+                    "cumulative_products": "cumulativeProducts",
+                    "cumulative_tags": "cumulativeTags",
+                }[key]: value
+                for key, value in level.items()
+            },
+        }
+        for expansion in result["tag_expansions"]
+        for level in expansion["levels"]
+    ]
+    battle_overview_row = {
+        "tags": battle["tags"],
+        "activeTags": battle["active_tags"],
+        "inactiveTags": battle["inactive_tags"],
+        "battleOccurrences": battle["battle_occurrences"],
+        "uniqueDirectedEdges": battle["unique_directed_edges"],
+        "weakComponents": battle["weak_components"],
+        "nontrivialWeakComponents": battle["nontrivial_weak_components"],
+        "largestWeakComponentTags": battle["weak_component_size"]["max"],
+        "largestWeakComponentActiveTagFraction": battle[
+            "largest_weak_component_active_tag_fraction"
+        ],
+        "largestPermutationLog10": battle[
+            "largest_weak_component_permutation_log10"
+        ],
+        "strongComponents": battle["strong_components"],
+        "cyclicStrongComponents": battle["cyclic_strong_components"],
+        "tagsInCyclicStrongComponents": battle["tags_in_cyclic_strong_components"],
+        "reciprocalPairs": battle["reciprocal_tag_pairs"],
+        "directedThreeTagCycles": battle["directed_three_tag_cycles"],
+    }
+
+    return {
+        "surface": "report",
+        "title": "Circular structure in the frozen Padjective paper snapshot",
+        "generatedAt": result["generated_at"],
+        "status": "reviewed",
+        "filters": [],
+        "snapshot": snapshot,
+        "analysisRunId": result.get("run_id"),
+        "queries": {
+            "network_overview": {
+                "rows": [overview_row],
+                "source": source(
+                    "Frozen paper snapshot: product-tag graph overview",
+                    (
+                        ("Cycle rank", "E - V + C, the number of independent undirected cycles."),
+                        ("2-core edge fraction", "Share of incidence edges remaining after repeatedly removing nodes of degree below two."),
+                        ("Largest-component fraction", "Products in the largest connected component divided by all snapshot products."),
+                    ),
+                ),
+            },
+            "component_distribution": {
+                "rows": list(bipartite["component_bins"]),
+                "source": source(
+                    "Frozen paper snapshot: exact connected-component distribution",
+                    (("Component size", "Number of products in an exact connected component of the full bipartite graph."),),
+                ),
+            },
+            "top_product_components": {
+                "rows": [
+                    {"rank": rank, **row}
+                    for rank, row in enumerate(bipartite["top_components"][:20], start=1)
+                ],
+                "source": source(
+                    "Frozen paper snapshot: largest exact product-tag components",
+                    (("Component cycle rank", "Independent cycles within one connected component: E - V + 1."),),
+                ),
+            },
+            "hub_sensitivity": {
+                "rows": hub_rows,
+                "source": source(
+                    "Frozen paper snapshot: high-frequency-tag sensitivity",
+                    (("Maximum tag degree", "Diagnostic threshold; tags connected to more products are removed."),),
+                    caveats=(
+                        "Hub-suppressed components are not exact subproblems because removed tags are real model constraints.",
+                    ),
+                ),
+            },
+            "three_product_cycle_summary": {
+                "rows": [
+                    {
+                        "draws": cycles["draws"],
+                        "validChains": cycles["valid_chains"],
+                        "closedChains": cycles["closed_chains"],
+                        "closureRate": cycles["closure_rate"],
+                        "closureRateLow95": cycles["closure_rate_95ci"][0],
+                        "closureRateHigh95": cycles["closure_rate_95ci"][1],
+                        "eligibleMiddleProducts": cycles["eligible_middle_products"],
+                    }
+                ],
+                "source": source(
+                    "Frozen paper snapshot: chain-conditioned six-cycle sample",
+                    (("Closure rate", cycles["sampling_definition"]),),
+                    caveats=(
+                        "This is a chain-conditioned Monte Carlo rate, not the fraction of all unordered product triples.",
+                    ),
+                ),
+            },
+            "three_product_cycle_examples": {
+                "rows": [
+                    {
+                        "example": index,
+                        "products": row["products"],
+                        "tags": row["tags"],
+                        "incidence": row["incidence"],
+                    }
+                    for index, row in enumerate(cycles["examples"], start=1)
+                ],
+                "source": source(
+                    "Frozen paper snapshot: reproducible anonymised six-cycle witnesses",
+                    (("Six-cycle witness", "Three distinct products and three distinct tags, with every product incident to two cycle tags."),),
+                ),
+            },
+            "tag_expansions": {
+                "rows": expansion_rows,
+                "source": source(
+                    "Frozen paper snapshot: bounded breadth-first expansions",
+                    (("Depth", "One edge per step, alternating from tag to product to tag."),),
+                ),
+            },
+            "battle_overview": {
+                "rows": [battle_overview_row],
+                "source": source(
+                    "Frozen paper snapshot: directed title-battle graph",
+                    (
+                        ("Active battle tag", "Retained tag participating in at least one title-order battle edge."),
+                        ("Weak component", "Connected component after ignoring battle-edge direction; an independent ranking subproblem."),
+                        ("Strong component", "Set of tags mutually reachable by directed battle edges."),
+                    ),
+                    caveats=(
+                        "Isolated retained tags are counted separately and are not evidence of useful one-tag fitting modules.",
+                    ),
+                ),
+            },
+            "directed_cycle_examples": {
+                "rows": [
+                    {"example": index, **row}
+                    for index, row in enumerate(
+                        battle["directed_three_tag_cycle_examples"], start=1
+                    )
+                ],
+                "source": source(
+                    "Frozen paper snapshot: exact directed three-tag battle cycles",
+                    (("Directed three-tag cycle", "A > B, B > C, and C > A, with three distinct supporting products."),),
+                ),
+            },
+        },
+    }
+
+
 def _ensure_storage(conn, schema: str) -> None:
     db.ensure_schema(conn, schema)
     with conn.cursor() as cur:
@@ -926,6 +1156,11 @@ def main() -> None:
         help="Comma-separated maximum tag degrees for sensitivity analysis.",
     )
     parser.add_argument("--output", type=Path)
+    parser.add_argument(
+        "--report-snapshot-output",
+        type=Path,
+        help="Write a reviewed Data report query snapshot alongside the full JSON result.",
+    )
     parser.add_argument("--no-persist", action="store_true")
     args = parser.parse_args()
 
@@ -954,6 +1189,13 @@ def main() -> None:
         if args.output:
             args.output.parent.mkdir(parents=True, exist_ok=True)
             args.output.write_text(rendered + "\n", encoding="utf-8")
+        if args.report_snapshot_output:
+            report_snapshot = build_report_snapshot(result)
+            args.report_snapshot_output.parent.mkdir(parents=True, exist_ok=True)
+            args.report_snapshot_output.write_text(
+                json.dumps(report_snapshot, indent=2, sort_keys=True) + "\n",
+                encoding="utf-8",
+            )
         print(rendered)
     finally:
         conn.close()

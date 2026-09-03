@@ -25,7 +25,8 @@ Run on the database host:
 ```sh
 uv run tag-network-analysis \
   --snapshot-ref paper \
-  --output build/tag-network-analysis/paper.json
+  --output build/tag-network-analysis/paper.json \
+  --report-snapshot-output build/tag-network-analysis/report-data.json
 ```
 
 The command validates the snapshot metadata against its incidence table,

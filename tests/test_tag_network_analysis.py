@@ -3,8 +3,12 @@ from __future__ import annotations
 import pytest
 
 from padjective.tag_network_analysis import (
+    SnapshotGraphData,
+    SnapshotMetadata,
     analyse_battle_graph,
     analyse_bipartite_structure,
+    analyse_snapshot,
+    build_report_snapshot,
     sample_three_product_cycles,
     tag_expansion,
 )
@@ -114,3 +118,53 @@ def test_tag_expansion_alternates_products_and_tags() -> None:
             "cumulative_tags": 3,
         },
     ]
+
+
+def test_report_snapshot_uses_bounded_reviewed_queries() -> None:
+    metadata = SnapshotMetadata(
+        snapshot_id="00000000-0000-0000-0000-000000000001",
+        snapshot_name="paper-test",
+        created_at="2026-01-01T00:00:00+00:00",
+        as_of="2025-12-31T00:00:00+00:00",
+        product_count=3,
+        tag_count=3,
+        taxonomy_count=3,
+        min_tag_count=1,
+        min_samples_per_taxonomy=1,
+        code_version="abc123",
+        note="test fixture",
+    )
+    positions = {
+        "product-a": (("tag-c", 0, 0), ("tag-a", 0, 5)),
+        "product-b": (("tag-a", 0, 0), ("tag-b", 0, 5)),
+        "product-c": (("tag-b", 0, 0), ("tag-c", 0, 5)),
+    }
+    result = analyse_snapshot(
+        SnapshotGraphData(metadata, _triangle_products(), positions),
+        draws=20,
+        seed=42,
+        hub_caps=(2,),
+    )
+    result["run_id"] = "00000000-0000-0000-0000-000000000002"
+
+    report = build_report_snapshot(result)
+
+    assert report["surface"] == "report"
+    assert report["status"] == "reviewed"
+    assert set(report["queries"]) == {
+        "network_overview",
+        "component_distribution",
+        "top_product_components",
+        "hub_sensitivity",
+        "three_product_cycle_summary",
+        "three_product_cycle_examples",
+        "tag_expansions",
+        "battle_overview",
+        "directed_cycle_examples",
+    }
+    assert report["queries"]["network_overview"]["rows"][0]["cycleRank"] == 1
+    assert all(
+        query["source"]["filters"]
+        == ["Immutable snapshot ID: 00000000-0000-0000-0000-000000000001"]
+        for query in report["queries"].values()
+    )
