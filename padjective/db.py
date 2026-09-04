@@ -82,7 +82,7 @@ def ensure_table(
     table_tablespace: str = DEFAULT_TABLESPACE,
     index_tablespace: str | None = None,
 ) -> None:
-    """Ensure a table exists using the provided column and index SQL fragments."""
+    """Create a missing table and reconcile indexes when the caller owns it."""
 
     column_block = ",\n".join(columns_sql)
 
@@ -101,13 +101,15 @@ def ensure_table(
     with conn.cursor() as cur:
         cur.execute(
             """
-            SELECT 1
-            FROM information_schema.tables
-            WHERE table_schema = %s AND table_name = %s
+            SELECT pg_has_role(CURRENT_USER, tableowner, 'USAGE')
+            FROM pg_catalog.pg_tables
+            WHERE schemaname = %s AND tablename = %s
             """,
             (schema, table),
         )
-        table_exists = cur.fetchone() is not None
+        table_row = cur.fetchone()
+        table_exists = table_row is not None
+        can_manage_indexes = not table_exists or bool(table_row[0])
 
         if not table_exists:
             # Ensure implicit indexes created by PRIMARY KEY/UNIQUE constraints
@@ -130,15 +132,20 @@ def ensure_table(
                     tablespace=sql.Identifier(table_tablespace),
                 )
             )
-        if indexes_sql:
+        if indexes_sql and can_manage_indexes:
             for statement in indexes_sql:
                 if hasattr(statement, "as_string"):
                     statement_text = statement.as_string(conn)
                 else:
                     statement_text = str(statement)
 
-                if effective_index_tablespace and "TABLESPACE" not in statement_text.upper():
-                    index_tablespace_sql = sql.Identifier(effective_index_tablespace).as_string(conn)
+                if (
+                    effective_index_tablespace
+                    and "TABLESPACE" not in statement_text.upper()
+                ):
+                    index_tablespace_sql = sql.Identifier(
+                        effective_index_tablespace
+                    ).as_string(conn)
                     statement_text = f"{statement_text} TABLESPACE {index_tablespace_sql}"
 
                 cur.execute(statement_text)
