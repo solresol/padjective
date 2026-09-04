@@ -103,7 +103,7 @@ def calculate_cv_folds(
         """
         SELECT
             p.id,
-            {taxonomy_column}
+            {taxonomy_column} AS taxonomy_path
         FROM {products} AS p
         JOIN cantbuymelove.product_taxonomy pt ON pt.product_id = p.id
         JOIN cantbuymelove.taxonomy t ON t.taxonomy_id = pt.taxonomy_id
