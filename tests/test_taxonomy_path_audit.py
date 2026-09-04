@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+from padjective import taxonomy_path_audit
 from padjective.taxonomy_path_audit import (
     AuditProductRow,
+    EligibilityAudit,
     calculate_eligibility_audit,
 )
 
@@ -79,3 +81,64 @@ def test_audit_exposes_unresolved_paths_separately_from_product_errors() -> None
     assert audit.products_with_resolved_numeric_path == 1
     assert audit.unresolved_taxonomy_path_products == 1
     assert audit.benchmark_products_after_url_deduplication == 1
+
+
+def test_audit_keeps_rows_recovered_from_missing_observed_paths() -> None:
+    audit = calculate_eligibility_audit(
+        [_row(1, observed_path=None, resolved_path="1.1")],
+        catalogue_products=1,
+        min_tag_count=1,
+        min_samples_per_taxonomy=1,
+    )
+
+    assert audit.products_with_taxonomy_metadata == 1
+    assert audit.products_with_resolved_numeric_path == 1
+    assert audit.raw_numeric_path_products == 0
+    assert audit.reconciled_display_path_products == 1
+    assert audit.unresolved_taxonomy_path_products == 0
+    assert audit.benchmark_products_after_url_deduplication == 1
+
+
+def test_run_audit_uses_postgres_backed_aggregation(monkeypatch) -> None:
+    reconciliation = object()
+    eligibility = EligibilityAudit(*range(1, 17))
+    calls: list[tuple[object, dict[str, object]]] = []
+    connection = object()
+
+    monkeypatch.setattr(
+        taxonomy_path_audit.taxonomy_paths,
+        "reconcile_taxonomy_paths",
+        lambda conn, schema: reconciliation,
+    )
+
+    def calculate(conn, **kwargs):
+        calls.append((conn, kwargs))
+        return eligibility
+
+    monkeypatch.setattr(
+        taxonomy_path_audit,
+        "_calculate_eligibility_audit_from_postgres",
+        calculate,
+    )
+
+    result = taxonomy_path_audit.run_audit(
+        connection,
+        schema="padjective",
+        product_table="cantbuymelove.product",
+        min_tag_count=7,
+        min_samples_per_taxonomy=9,
+        persist=False,
+    )
+
+    assert result == (reconciliation, eligibility)
+    assert calls == [
+        (
+            connection,
+            {
+                "product_table": "cantbuymelove.product",
+                "schema": "padjective",
+                "min_tag_count": 7,
+                "min_samples_per_taxonomy": 9,
+            },
+        )
+    ]

@@ -14,8 +14,9 @@ from padjective import cv
 class FakeCursor:
     """Minimal cursor stub that replays predefined result sets."""
 
-    def __init__(self, results: List[Iterable], row_factory=None):
-        self._results = results
+    def __init__(self, connection: "FakeConnection", row_factory=None):
+        self._connection = connection
+        self._results = connection._result_sets
         self._row_factory = row_factory
         self._current_rows: List = []
 
@@ -25,7 +26,8 @@ class FakeCursor:
     def __exit__(self, exc_type, exc, tb):
         return False
 
-    def execute(self, _query, _params=None):
+    def execute(self, query, _params=None):
+        self._connection.executed_queries.append(query)
         if not self._results:
             raise AssertionError("No more canned results available for cursor.execute")
         next_rows = self._results.pop(0)
@@ -49,9 +51,10 @@ class FakeConnection:
 
     def __init__(self, *result_sets: Iterable):
         self._result_sets = [list(result) for result in result_sets]
+        self.executed_queries: list[object] = []
 
     def cursor(self, *_, row_factory=None):
-        return FakeCursor(self._result_sets, row_factory=row_factory)
+        return FakeCursor(self, row_factory=row_factory)
 
 
 def dict_identity(row):
@@ -106,6 +109,9 @@ def test_calculate_cv_folds_uses_taxonomy_path(monkeypatch):
 
     folds = cv.calculate_cv_folds(fake_conn, n_splits=3, random_state=0)
 
+    product_query = fake_conn.executed_queries[1]
+    assert "COALESCE" in product_query.as_string()
+    assert "AS taxonomy_path" in product_query.as_string()
     assert set(folds.keys()) == set(range(1, 10))
     # Every fold should receive at least one product from each taxonomy bucket.
     counts = np.bincount(list(folds.values()))
