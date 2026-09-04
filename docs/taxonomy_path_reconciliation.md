@@ -25,6 +25,15 @@ details, complete taxonomy metadata, resolved numeric path, non-empty tags,
 taxonomy-frequency threshold, tag-frequency threshold, canonical URL, and URL
 deduplication.
 
+The audit reads the full source join with a server-side cursor and stages only
+resolved products with non-empty filtered tags in session-local Postgres tables
+in `pg_default`. Taxonomy and tag thresholds, plus canonical-URL deduplication,
+are calculated from those tables. Application memory is therefore bounded by a
+small transfer batch; the eligible taxonomy and tag identifiers remain in
+Postgres rather than being copied into product-sized application collections.
+A row with missing or display-form source path remains eligible when the
+reconciliation table supplies a valid numeric path.
+
 ## Historical discontinuity
 
 Counts produced after human display paths began replacing numeric paths, but
