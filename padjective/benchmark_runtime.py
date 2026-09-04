@@ -1108,12 +1108,19 @@ def _initialize_coefficients_umllr_style(
     battles: Sequence[BattleRecord],
     holdout_fold: int,
     base: int,
+    *,
+    tag_order_strategy: str = DEFAULT_PRIMARY_UMLLR_STRATEGY,
 ) -> Dict[str, int]:
     tag_to_products: Dict[str, List[int]] = {}
     for record in training:
         for tag in record.tags:
             tag_to_products.setdefault(tag, []).append(record.product_id)
-    tag_order = _battle_elo_order(battles, holdout_fold, list(tag_to_products.keys()))
+    tag_order = _tag_order(
+        training,
+        battles,
+        holdout_fold,
+        strategy=tag_order_strategy,
+    )
     product_residuals: Dict[int, int] = {record.product_id: record.encoded_path for record in training}
     coefficients: Dict[str, int] = {}
     for tag in tag_order:
@@ -1202,13 +1209,20 @@ def zubarev_run_fold(
     max_iterations: int = DEFAULT_ZUBAREV_MAX_ITERATIONS,
     seed: int | None = None,
     initialization_method: str = "umllr",
+    initialization_strategy: str = DEFAULT_PRIMARY_UMLLR_STRATEGY,
 ) -> ZubarevFoldResult:
     all_training = [record for record in records if record.cv_fold != fold]
     testing = [record for record in records if record.cv_fold == fold]
     fold_seed = seed + fold if seed is not None else None
 
     if initialization_method == "umllr":
-        initial_coefficients = _initialize_coefficients_umllr_style(all_training, battles, fold, base)
+        initial_coefficients = _initialize_coefficients_umllr_style(
+            all_training,
+            battles,
+            fold,
+            base,
+            tag_order_strategy=initialization_strategy,
+        )
     elif initialization_method == "zeros":
         all_tags = {tag for record in all_training for tag in record.tags}
         initial_coefficients = {tag: 0 for tag in all_tags}
@@ -1258,7 +1272,12 @@ def zubarev_run_fold(
             )
         )
 
-    ordered_tags = _battle_elo_order(battles, fold, list(optimized_coefficients.keys()))
+    ordered_tags = _tag_order(
+        all_training,
+        battles,
+        fold,
+        strategy=initialization_strategy,
+    )
     coefficients = [
         TagCoefficient(tag=tag, coefficient=int(optimized_coefficients.get(tag, 0)), sequence=idx)
         for idx, tag in enumerate(ordered_tags)

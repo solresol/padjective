@@ -14,6 +14,9 @@ from padjective.benchmark_bundle import (
 )
 from padjective.build_site import build_site
 from padjective.benchmark_runtime import (
+    BattleRecord,
+    ProductRecord,
+    _initialize_coefficients_umllr_style,
     build_snapshot_benchmark_bundle,
     load_snapshot_tables,
 )
@@ -45,7 +48,6 @@ def _write_snapshot_fixture(root: Path) -> None:
     with (root / "tags.jsonl").open("w", encoding="utf-8") as handle:
         for row in tags:
             handle.write(json.dumps(row) + "\n")
-
     products = [
         {
             "product_id_hash": "prod-a0",
@@ -129,6 +131,48 @@ def _write_snapshot_fixture(root: Path) -> None:
     with (root / "products-00000.jsonl").open("w", encoding="utf-8") as handle:
         for row in products:
             handle.write(json.dumps(row) + "\n")
+
+
+def test_zubarev_initializer_uses_the_primary_greedy_order(monkeypatch) -> None:
+    records = [
+        ProductRecord(
+            product_id=1,
+            product_key="one",
+            tags=["less-specific", "more-specific"],
+            encoded_path=8,
+            cv_fold=0,
+            taxonomy_id="tax-a",
+            taxonomy_depth=2,
+            title_tag_positions=(),
+        ),
+        ProductRecord(
+            product_id=2,
+            product_key="two",
+            tags=["less-specific"],
+            encoded_path=4,
+            cv_fold=0,
+            taxonomy_id="tax-b",
+            taxonomy_depth=2,
+            title_tag_positions=(),
+        ),
+    ]
+    observed: dict[str, str] = {}
+
+    def fake_order(training, battles, holdout_fold, *, strategy, seed=None):
+        observed["strategy"] = strategy
+        return ["more-specific", "less-specific"]
+
+    monkeypatch.setattr("padjective.benchmark_runtime._tag_order", fake_order)
+
+    coefficients = _initialize_coefficients_umllr_style(
+        records,
+        [BattleRecord("more-specific", "less-specific", 0)],
+        1,
+        3,
+    )
+
+    assert observed["strategy"] == "taxonomy_association"
+    assert list(coefficients) == ["more-specific", "less-specific"]
 
 
 def test_snapshot_bundle_writes_json_csv_html_and_tex(tmp_path: Path) -> None:
