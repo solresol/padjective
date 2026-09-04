@@ -79,6 +79,29 @@ def test_ensure_table_skips_creation_when_table_exists() -> None:
     assert params == ("padjective", "example")
 
 
+def test_ensure_table_skips_index_ddl_when_table_exists() -> None:
+    conn = RecordingConnection(table_exists=True)
+
+    db.ensure_table(
+        conn=conn,
+        schema="padjective",
+        table="example",
+        columns_sql=["id INTEGER"],
+        indexes_sql=[
+            "CREATE INDEX IF NOT EXISTS example_id_idx "
+            "ON padjective.example (id) TABLESPACE pg_default"
+        ],
+    )
+
+    assert conn.fetchone_calls == 1
+    assert conn.commits == 1
+    assert len(conn.statements) == 1
+    statement, params = conn.statements[0]
+    assert isinstance(statement, str)
+    assert "information_schema.tables" in statement
+    assert params == ("padjective", "example")
+
+
 def test_ensure_table_creates_when_table_is_missing() -> None:
     conn = RecordingConnection(table_exists=False)
 
@@ -99,3 +122,25 @@ def test_ensure_table_creates_when_table_is_missing() -> None:
     create_statement, create_params = conn.statements[2]
     assert isinstance(create_statement, sql.Composed)
     assert create_params is None
+
+
+def test_ensure_table_creates_indexes_with_a_missing_table() -> None:
+    conn = RecordingConnection(table_exists=False)
+
+    db.ensure_table(
+        conn=conn,
+        schema="padjective",
+        table="example",
+        columns_sql=["id INTEGER"],
+        indexes_sql=[
+            "CREATE INDEX IF NOT EXISTS example_id_idx "
+            "ON padjective.example (id) TABLESPACE pg_default"
+        ],
+    )
+
+    assert conn.fetchone_calls == 1
+    assert conn.commits == 1
+    assert len(conn.statements) == 4
+    index_statement, index_params = conn.statements[3]
+    assert index_statement.endswith("TABLESPACE pg_default")
+    assert index_params is None

@@ -82,7 +82,7 @@ def ensure_table(
     table_tablespace: str = DEFAULT_TABLESPACE,
     index_tablespace: str | None = None,
 ) -> None:
-    """Ensure a table exists using the provided column and index SQL fragments."""
+    """Create a missing table and its indexes from the provided SQL fragments."""
 
     column_block = ",\n".join(columns_sql)
 
@@ -130,18 +130,25 @@ def ensure_table(
                     tablespace=sql.Identifier(table_tablespace),
                 )
             )
-        if indexes_sql:
-            for statement in indexes_sql:
-                if hasattr(statement, "as_string"):
-                    statement_text = statement.as_string(conn)
-                else:
-                    statement_text = str(statement)
+            if indexes_sql:
+                for statement in indexes_sql:
+                    if hasattr(statement, "as_string"):
+                        statement_text = statement.as_string(conn)
+                    else:
+                        statement_text = str(statement)
 
-                if effective_index_tablespace and "TABLESPACE" not in statement_text.upper():
-                    index_tablespace_sql = sql.Identifier(effective_index_tablespace).as_string(conn)
-                    statement_text = f"{statement_text} TABLESPACE {index_tablespace_sql}"
+                    if (
+                        effective_index_tablespace
+                        and "TABLESPACE" not in statement_text.upper()
+                    ):
+                        index_tablespace_sql = sql.Identifier(
+                            effective_index_tablespace
+                        ).as_string(conn)
+                        statement_text = (
+                            f"{statement_text} TABLESPACE {index_tablespace_sql}"
+                        )
 
-                cur.execute(statement_text)
+                    cur.execute(statement_text)
     conn.commit()
 
 
