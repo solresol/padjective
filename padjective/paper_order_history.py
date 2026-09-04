@@ -270,6 +270,24 @@ def load_weekly_snapshot_specs(
     ]
 
 
+def select_snapshot_specs(
+    specs: Sequence[SnapshotSpec],
+    *,
+    through_date: date | None = None,
+    max_snapshots: int | None = None,
+) -> list[SnapshotSpec]:
+    """Apply reproducible reporting bounds to the weekly snapshot series."""
+
+    selected = [
+        spec
+        for spec in specs
+        if through_date is None or spec.snapshot_date <= through_date
+    ]
+    if max_snapshots is not None:
+        selected = selected[:max_snapshots]
+    return selected
+
+
 def _snapshot_is_complete(conn, schema: str, snapshot_id: str) -> bool:
     expected_rows = (
         len(DETERMINISTIC_STRATEGIES) + len(RANDOM_SEEDS)
@@ -756,10 +774,22 @@ def main() -> None:
     parser.add_argument("--dsn")
     parser.add_argument("--schema", default=DEFAULT_SCHEMA)
     parser.add_argument("--snapshot-prefix", default=DEFAULT_SNAPSHOT_PREFIX)
-    parser.add_argument(
+    replay_group = parser.add_mutually_exclusive_group()
+    replay_group.add_argument(
         "--run-missing",
         action="store_true",
         help="Replay weekly snapshots that do not yet have complete fold rows.",
+    )
+    replay_group.add_argument(
+        "--force-rerun",
+        action="store_true",
+        help="Replay every selected weekly snapshot, replacing matching fold rows.",
+    )
+    parser.add_argument(
+        "--through-date",
+        type=date.fromisoformat,
+        metavar="YYYY-MM-DD",
+        help="Include only selected snapshots on or before this Sydney date.",
     )
     parser.add_argument(
         "--max-snapshots",
@@ -776,16 +806,21 @@ def main() -> None:
     conn = db.get_connection(args.dsn)
     try:
         _ensure_storage(conn, args.schema)
-        selected_specs = load_weekly_snapshot_specs(
-            conn,
-            schema=args.schema,
-            snapshot_prefix=args.snapshot_prefix,
+        selected_specs = select_snapshot_specs(
+            load_weekly_snapshot_specs(
+                conn,
+                schema=args.schema,
+                snapshot_prefix=args.snapshot_prefix,
+            ),
+            through_date=args.through_date,
+            max_snapshots=args.max_snapshots,
         )
-        if args.max_snapshots is not None:
-            selected_specs = selected_specs[: args.max_snapshots]
-        if args.run_missing:
+        if args.run_missing or args.force_rerun:
             for index, spec in enumerate(selected_specs, start=1):
-                if _snapshot_is_complete(conn, args.schema, spec.snapshot_id):
+                if (
+                    not args.force_rerun
+                    and _snapshot_is_complete(conn, args.schema, spec.snapshot_id)
+                ):
                     print(
                         f"[{index}/{len(selected_specs)}] {spec.snapshot_name}: "
                         "already complete"
