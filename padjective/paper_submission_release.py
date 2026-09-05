@@ -175,7 +175,11 @@ def main():
     (root / "digitwise_runtime.py").write_text(render_digitwise_runtime())
     write_notebook(root / "notebooks/product_taxonomy_bench.ipynb")
     shutil.copy2(package.parent / "uv.lock", root / "uv.lock")
-    distributions = ("numpy", "pandas", "scipy", "scikit-learn", "matplotlib", "joblib", "threadpoolctl")
+    distributions = (
+        "numpy", "pandas", "scipy", "scikit-learn", "matplotlib", "joblib",
+        "threadpoolctl", "contourpy", "cycler", "fonttools", "kiwisolver",
+        "packaging", "pillow", "pyparsing", "python-dateutil", "pytz", "six", "tzdata",
+    )
     versions = {name: importlib.metadata.version(name) for name in distributions}
     (root / "requirements.txt").write_text("\n".join(f"{name}=={version}" for name, version in versions.items()) + "\n")
     (root / "README.md").write_text(REPLICATION_README)

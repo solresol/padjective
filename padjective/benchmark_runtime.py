@@ -1823,7 +1823,7 @@ def _build_model_rows(
     model_rows.append(
         _aggregate_model_rows(
             model_key="zubarev",
-            model_label="Zubarev (greedy init.)",
+            model_label="Stochastic continuation (Zubarev-inspired)",
             short_label="Zubarev",
             color="#7c3aed",
             marker="v",

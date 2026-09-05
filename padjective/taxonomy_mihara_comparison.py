@@ -301,10 +301,11 @@ def fit_modulo_p_consensus(
 ) -> ModuloFit | None:
     """Fit the largest sampled affine congruence consensus modulo ``p``.
 
-    The returned ``accepted`` field applies Mihara's final full-rank
-    ``NoiseFreeMatrix`` criterion.  The fitted rows are removed from the
-    numerator and denominator before comparing the validation inlier fraction
-    with the threshold, matching the bias correction in the paper.
+    The returned ``accepted`` field applies this experiment's diagnostic
+    threshold, not a prescribed acceptance rule from Mihara. The candidate's
+    fitting subsystem is removed from numerator and denominator before
+    computing agreement. The remaining rows are still training observations,
+    used in candidate selection, not an independent held-out test set.
     """
 
     _validate_prime(p)
