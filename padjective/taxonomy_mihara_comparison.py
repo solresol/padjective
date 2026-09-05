@@ -5,8 +5,8 @@ Mihara's published method assumes samples from one hidden affine graph over
 necessarily satisfy those assumptions: tag vectors are sparse binary vectors,
 and the encoded taxonomy may not be an affine function of them.  This module
 therefore reports both held-out predictive performance and the diagnostic that
-matters for interpreting it: whether the fitted consensus passed Mihara's
-greater-than-90-percent noise-free acceptance test at each p-adic digit.
+matters for interpreting it: whether the fitted consensus passed this
+diagnostic's greater-than-90-percent agreement threshold at each p-adic digit.
 
 The modulo-p inner fit is a bounded RANSAC-style adaptation of Mihara's
 probabilistic ``LinearRegressionModulo`` routine.  It samples full-rank affine
@@ -14,8 +14,9 @@ systems, retains the largest congruence consensus, and caps the number of
 trials; the published routine instead uses intermediate affine-inclusion tests
 and an unbounded restart loop.  When the acceptance test fails, this comparison
 continues with the best bounded consensus so that the model can still be scored,
-but it records the digit as unaccepted.  Such a score must not be reported as a
-successful run of the published algorithm.
+but it records the digit as unaccepted.  The 90-percent threshold is chosen by
+this diagnostic, not prescribed by Mihara's published algorithm.  Such a score
+must not be reported as a successful run, or a rejection, of that algorithm.
 """
 
 from __future__ import annotations

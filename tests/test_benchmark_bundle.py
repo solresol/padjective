@@ -16,7 +16,9 @@ from padjective.build_site import build_site
 from padjective.benchmark_runtime import (
     BattleRecord,
     ProductRecord,
+    _compute_zubarev_loss,
     _initialize_coefficients_umllr_style,
+    _stochastic_optimize,
     build_snapshot_benchmark_bundle,
     load_snapshot_tables,
     zubarev_run_fold,
@@ -174,6 +176,32 @@ def test_zubarev_initializer_uses_the_primary_greedy_order(monkeypatch) -> None:
 
     assert observed["strategy"] == "taxonomy_association"
     assert list(coefficients) == ["more-specific", "less-specific"]
+
+
+def test_stochastic_training_scores_zero_without_a_reporting_default() -> None:
+    records = [
+        ProductRecord(
+            product_id=index,
+            product_key=str(index),
+            tags=tags,
+            encoded_path=1,
+            cv_fold=0,
+            taxonomy_id="tax-a",
+            taxonomy_depth=1,
+            title_tag_positions=(),
+        )
+        for index, tags in enumerate([[], ["positive", "negative"], ["positive"]])
+    ]
+    coefficients = {"positive": 1, "negative": -1}
+    # Empty support and exact cancellation each have raw-score loss one.
+    assert _compute_zubarev_loss(records, coefficients, [], 71) == 2.0
+    fitted, weights, loss, iterations = _stochastic_optimize(
+        records, coefficients, 71, max_iterations=0, seed=42
+    )
+    assert fitted == coefficients
+    assert weights == []
+    assert loss == 2.0
+    assert iterations == 0
 
 
 def test_zubarev_degree_zero_uses_greedy_default_for_cancelling_coefficients(

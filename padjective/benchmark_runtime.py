@@ -1090,15 +1090,17 @@ def _compute_zubarev_loss(
     records: Sequence[ProductRecord],
     coefficients: Mapping[str, int],
     mahler_weights: Sequence[int],
-    default_prediction: int,
     base: int,
 ) -> float:
+    """Raw-score training loss, matching the greedy coefficient pass.
+
+    Zero scores, including cancellation and empty support, are scored as zero.
+    The reporting default is fitted only after coefficient optimisation.
+    """
     total_loss = 0.0
     for record in records:
         score = sum(coefficients.get(tag, 0) for tag in record.tags)
         predicted = _mahler_predict(score, mahler_weights) if mahler_weights else score
-        if predicted == 0 and not any(coefficients.get(tag, 0) != 0 for tag in record.tags):
-            predicted = default_prediction
         total_loss += p_adic_distance(predicted, record.encoded_path, base)
     return float(total_loss)
 
@@ -1152,10 +1154,7 @@ def _stochastic_optimize(
     coefficients = dict(initial_coefficients)
     tags = list(coefficients)
     mahler_weights = [0] + [1] + [0] * (mahler_degree - 1) if mahler_degree > 0 else []
-    all_values = sorted({record.encoded_path for record in training})
-    default_prediction = all_values[0] if all_values else 0
-
-    current_loss = _compute_zubarev_loss(training, coefficients, mahler_weights, default_prediction, base)
+    current_loss = _compute_zubarev_loss(training, coefficients, mahler_weights, base)
     best_coefficients = dict(coefficients)
     best_mahler = list(mahler_weights)
     best_loss = current_loss
@@ -1173,7 +1172,7 @@ def _stochastic_optimize(
             delta = random.randint(-perturbation_scale, perturbation_scale)
 
         coefficients[tag] = old_value + delta
-        new_loss = _compute_zubarev_loss(training, coefficients, mahler_weights, default_prediction, base)
+        new_loss = _compute_zubarev_loss(training, coefficients, mahler_weights, base)
         accepted = False
         if new_loss < current_loss:
             current_loss = new_loss
