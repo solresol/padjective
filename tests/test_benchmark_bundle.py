@@ -19,6 +19,7 @@ from padjective.benchmark_runtime import (
     _initialize_coefficients_umllr_style,
     build_snapshot_benchmark_bundle,
     load_snapshot_tables,
+    zubarev_run_fold,
 )
 
 
@@ -173,6 +174,52 @@ def test_zubarev_initializer_uses_the_primary_greedy_order(monkeypatch) -> None:
 
     assert observed["strategy"] == "taxonomy_association"
     assert list(coefficients) == ["more-specific", "less-specific"]
+
+
+def test_zubarev_degree_zero_uses_greedy_default_for_cancelling_coefficients(
+    monkeypatch,
+) -> None:
+    records = [
+        ProductRecord(
+            product_id=1,
+            product_key="training",
+            tags=["positive"],
+            encoded_path=5,
+            cv_fold=0,
+            taxonomy_id="tax-a",
+            taxonomy_depth=1,
+            title_tag_positions=(),
+        ),
+        ProductRecord(
+            product_id=2,
+            product_key="testing",
+            tags=["positive", "negative"],
+            encoded_path=5,
+            cv_fold=1,
+            taxonomy_id="tax-a",
+            taxonomy_depth=1,
+            title_tag_positions=(),
+        ),
+    ]
+    monkeypatch.setattr(
+        "padjective.benchmark_runtime._initialize_coefficients_umllr_style",
+        lambda *_args, **_kwargs: {"positive": 1, "negative": -1},
+    )
+
+    result = zubarev_run_fold(
+        1,
+        records,
+        [],
+        7,
+        mahler_degree=0,
+        max_iterations=0,
+        seed=42,
+        initialization_method="umllr",
+    )
+
+    assert result.default_prediction == 5
+    assert result.predictions[0].predicted_value == 5
+    assert result.exact_accuracy == 1.0
 
 
 def test_snapshot_bundle_writes_json_csv_html_and_tex(tmp_path: Path) -> None:

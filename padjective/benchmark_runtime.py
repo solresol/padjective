@@ -1258,7 +1258,7 @@ def zubarev_run_fold(
         ]
         score = int(sum(active_coefficients))
         predicted = _mahler_predict(score, mahler_weights) if mahler_weights else score
-        if predicted == 0 and not active_coefficients:
+        if predicted == 0:
             predicted = default_prediction
         loss = p_adic_distance(predicted, record.encoded_path, base)
         total_loss += loss
