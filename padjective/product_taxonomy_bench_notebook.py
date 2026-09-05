@@ -60,12 +60,16 @@ This notebook loads an anonymised snapshot directly from Hugging Face and reruns
 - Unconstrained neural network
 - Decision tree
 - Level-wise logistic regression
-- Zubarev simulated-annealing $p$-adic regression
+- Zubarev-inspired stochastic continuation of the greedy linear fit
 
 The benchmark runtime is embedded directly in this notebook so it runs without
 Postgres access or local project imports. By default the notebook analyses the
 fixed `paper` snapshot; set `PRODUCT_TAXONOMY_BENCH_SNAPSHOT=latest` to inspect
-the rolling benchmark release instead.
+the rolling benchmark release instead (and select a revision containing it).
+The paper uses 2,000 hidden units, selected after the width sweep, and a 10,000
+iteration ceiling. The stochastic search uses raw training scores and fits the
+reporting default afterwards. The separate bounded digitwise experiment is
+documented at the end; its population is not the main benchmark population.
             """
         ),
         _code_cell(runtime_source),
@@ -74,7 +78,7 @@ the rolling benchmark release instead.
 import os
 
 DATASET_ID = os.getenv("PRODUCT_TAXONOMY_BENCH_DATASET_ID", "gregb/product-taxonomy-bench")
-REVISION = os.getenv("PRODUCT_TAXONOMY_BENCH_REVISION", "main")
+REVISION = os.getenv("PRODUCT_TAXONOMY_BENCH_REVISION", "paper-submission-2026-09-06")
 SNAPSHOT = os.getenv("PRODUCT_TAXONOMY_BENCH_SNAPSHOT", "paper")
 HF_TOKEN = os.getenv("HF_TOKEN")
 MAX_PRODUCTS = int(os.getenv("PRODUCT_TAXONOMY_BENCH_MAX_PRODUCTS", "0")) or None
@@ -86,6 +90,10 @@ snapshot_tables = load_snapshot_tables_from_hf(
     hf_token=HF_TOKEN,
     max_products=MAX_PRODUCTS,
 )
+# Paper reference: largest tested width, selected after the width sweep.
+# Override explicitly for a shorter exploratory run; it is then not the paper run.
+DEFAULT_UNN_HIDDEN = int(os.getenv("PRODUCT_TAXONOMY_BENCH_UNN_HIDDEN", "2000"))
+DEFAULT_UNN_MAX_ITER = int(os.getenv("PRODUCT_TAXONOMY_BENCH_UNN_MAX_ITER", "10000"))
 benchmark = build_snapshot_benchmark_bundle(snapshot_tables)
 
 model_results = pd.DataFrame(benchmark["models"]["rows"]).copy()
@@ -169,7 +177,9 @@ plt.show()
 
 from scipy import stats
 
-ACTIVE_PARAMS_EXCLUDED = {"pclr", "pcnn"}
+# The matched-budget models are separate feature-dropping ablations. The
+# stochastic continuation duplicates the greedy point in this paper run.
+ACTIVE_PARAMS_EXCLUDED = {"pclr", "pcnn", "zubarev"}
 
 active_results = model_results[
     ~model_results["model_key"].isin(ACTIVE_PARAMS_EXCLUDED)
@@ -389,6 +399,30 @@ results_table.sort_values("parsimony_score", ascending=False).reset_index(drop=T
         _code_cell(
             """
 ablation_table.sort_values("mean_padic_loss", ascending=True).reset_index(drop=True)
+            """
+        ),
+        _markdown_cell(
+            """
+## Additional paper experiments
+
+The frozen release includes a standalone runner and pinned dependencies in
+`submission/2026-09-06/`. Download that directory from the same revision and run:
+
+```sh
+uv venv .venv
+uv pip install --python .venv/bin/python -r requirements.txt
+.venv/bin/python paper_replication.py --suite neural --output neural.json
+.venv/bin/python paper_replication.py --suite digitwise --output digitwise.json
+```
+
+The neural sweep uses widths 4, 8, 12, 24, 48 and 2,000. The digitwise runner
+uses the separately released **6,527-product, 2,747-tag, 308-class** matrix,
+not the main **6,693-product, 2,542-tag, 363-class** matrix used above. It is a
+bounded Mihara-inspired diagnostic with 96 candidate trials per digit; its
+90% agreement threshold is an experiment setting, not a published Mihara
+acceptance criterion. The full dimension sweep can take many hours.
+Use `--caps 32 --folds 0` for a short smoke test, not a paper replication.
+See the release README and manifest for settings, provenance and checksums.
             """
         ),
     ]

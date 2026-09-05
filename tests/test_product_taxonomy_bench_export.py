@@ -87,7 +87,7 @@ def test_render_notebook_includes_embedded_runtime_and_tables() -> None:
     assert "build_snapshot_benchmark_bundle" in combined
     assert "load_snapshot_tables_from_hf" in combined
     assert "ablation_table" in combined
-    assert "ACTIVE_PARAMS_EXCLUDED = {\"pclr\", \"pcnn\"}" in combined
+    assert "ACTIVE_PARAMS_EXCLUDED = {\"pclr\", \"pcnn\", \"zubarev\"}" in combined
     assert "log10(mean p-adic loss)" in combined
 
 
