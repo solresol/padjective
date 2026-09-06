@@ -16,6 +16,7 @@ from pathlib import Path
 import platform
 
 import numpy as np
+from threadpoolctl import threadpool_info, threadpool_limits
 
 try:
     from . import benchmark_runtime as runtime
@@ -35,6 +36,12 @@ def environment_differences(root):
             actual = "missing"
         if actual != expected:
             differences.append(f"{name} {actual} != {expected}")
+    expected_libraries = manifest.get("numerical_libraries", [])
+    actual_libraries = threadpool_info()
+    for expected in expected_libraries:
+        if not any(all(actual.get(key) == value for key, value in expected.items())
+                   for actual in actual_libraries):
+            differences.append(f"numerical library differs: {expected}")
     return differences
 
 
@@ -87,6 +94,10 @@ def main():
         parser.error("folds must be drawn from 0,1,2,3,4")
     if args.output.exists():
         parser.error("output already exists; use a new run filename")
+    manifest = json.loads((args.root / "manifest.json").read_text())
+    # Reduction order is part of the reference numerical protocol.
+    reference_threads = manifest.get("numerical_threads", 12)
+    threadpool_limits(limits=reference_threads)
     differences = environment_differences(args.root)
     if differences and not args.allow_environment_drift:
         parser.error("Not the frozen paper environment: " + "; ".join(differences)

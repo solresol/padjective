@@ -81,13 +81,22 @@ below, or explicitly choose an exploratory (non-paper) run.
 import os
 import platform
 import importlib.metadata
+from threadpoolctl import threadpool_info, threadpool_limits
+
+# Reference run: Linux x86-64, OpenBLAS 0.3.28 Haswell, 12 threads.
+paper_thread_controller = threadpool_limits(limits=12)
+blas_libraries = [entry for entry in threadpool_info() if entry["user_api"] == "blas"]
+numerical_drift = not blas_libraries or any(
+    entry.get("internal_api") != "openblas" or entry.get("version") != "0.3.28"
+    or entry.get("architecture") != "Haswell" for entry in blas_libraries
+)
 
 paper_versions = {"numpy": "2.2.5", "pandas": "2.2.3", "scipy": "1.15.3", "scikit-learn": "1.6.1"}
-environment_drift = platform.python_version() != "3.11.11" or any(
+environment_drift = numerical_drift or platform.python_version() != "3.11.11" or any(
     importlib.metadata.version(name) != expected for name, expected in paper_versions.items()
 )
 if environment_drift and not os.getenv("PRODUCT_TAXONOMY_BENCH_ALLOW_ENVIRONMENT_DRIFT"):
-    raise RuntimeError("Paper replication requires Python 3.11.11 and the frozen requirements. See the setup at the end. Set PRODUCT_TAXONOMY_BENCH_ALLOW_ENVIRONMENT_DRIFT=1 only for an exploratory run.")
+    raise RuntimeError("Paper replication requires Python 3.11.11, the frozen requirements and numerical-library configuration. See the setup at the end. Set PRODUCT_TAXONOMY_BENCH_ALLOW_ENVIRONMENT_DRIFT=1 only for an exploratory run.")
 if environment_drift:
     print("Exploratory run: interpreter or scientific dependencies differ from the frozen paper environment.")
 

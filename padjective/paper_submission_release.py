@@ -14,6 +14,7 @@ from pathlib import Path
 import platform
 import shutil
 import subprocess
+from threadpoolctl import threadpool_info
 
 from . import benchmark_runtime, data_access, db, taxonomy_mihara_comparison, umllr
 from .product_taxonomy_bench_export import export_snapshot
@@ -38,6 +39,14 @@ uv pip install --python .venv/bin/python -r requirements.txt
 .venv/bin/python paper_replication.py --suite neural --output neural.json
 .venv/bin/python paper_replication.py --suite digitwise --output digitwise.json
 ```
+
+The runner sets numerical-library threads to 12, matching the reference Linux
+x86-64 run (OpenBLAS 0.3.28, Haswell kernel). The manifest records these settings;
+the runner checks them as well as interpreter and package versions. Use
+`--allow-environment-drift` only for an exploratory run on another platform.
+Using a single BLAS thread changed the width-2,000 mean loss from 0.075559 to
+0.075709 in validation. This is numerical optimisation sensitivity, not a
+replacement for the archived reference result.
 
 The models suite runs all five folds, all primary models, separate budget
 ablations and tag-order ablations. The primary neural width is 2,000 (selected
@@ -191,6 +200,11 @@ def main():
         "digitwise_counts": {"products": counts[0], "taxonomies": counts[1], "tags": counts[2]},
         "digitwise_preselection_tags": len(dataset.feature_names),
         "python_version": platform.python_version(),
+        "numerical_threads": 12,
+        "numerical_libraries": [
+            {key: value for key, value in entry.items() if key != "filepath"}
+            for entry in threadpool_info()
+        ],
         "versions": versions, "stochastic_objective": "raw_score_then_fit_reporting_default",
         "digitwise_threshold_origin": "experiment-defined, not prescribed by Mihara",
         "sha256": {str(path.relative_to(root)): hashlib.sha256(path.read_bytes()).hexdigest()

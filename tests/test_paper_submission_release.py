@@ -44,6 +44,7 @@ def test_notebook_pins_paper_configuration_and_distinct_primary_roster():
     assert 'PRODUCT_TAXONOMY_BENCH_UNN_HIDDEN", "2000"' in source
     assert 'ACTIVE_PARAMS_EXCLUDED = {"pclr", "pcnn", "zubarev"}' in source
     assert 'platform.python_version() != "3.11.11"' in source
+    assert 'paper_thread_controller = threadpool_limits(limits=12)' in source
 
 
 def test_replication_detects_interpreter_and_dependency_drift(tmp_path, monkeypatch):
@@ -55,3 +56,19 @@ def test_replication_detects_interpreter_and_dependency_drift(tmp_path, monkeypa
     assert paper_replication.environment_differences(tmp_path) == [
         "Python 3.12.3 != 3.11.11", "numpy 9.9.9 != 2.2.5",
     ]
+
+
+def test_replication_detects_numerical_library_drift(tmp_path, monkeypatch):
+    (tmp_path / "manifest.json").write_text(json.dumps({
+        "python_version": "3.11.11", "versions": {},
+        "numerical_libraries": [{"internal_api": "openblas", "num_threads": 12}],
+    }))
+    monkeypatch.setattr(paper_replication.platform, "python_version", lambda: "3.11.11")
+    monkeypatch.setattr(paper_replication, "threadpool_info", lambda: [
+        {"internal_api": "openblas", "num_threads": 1},
+    ])
+    assert len(paper_replication.environment_differences(tmp_path)) == 1
+    monkeypatch.setattr(paper_replication, "threadpool_info", lambda: [
+        {"internal_api": "openblas", "num_threads": 12, "filepath": "/private/path"},
+    ])
+    assert paper_replication.environment_differences(tmp_path) == []
