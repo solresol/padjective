@@ -28,11 +28,11 @@ Operational ingestion remains PostgreSQL-only; these are research exports.
 
 ## Run
 
-Use Python 3.12 and the pinned `requirements.txt` (the source `uv.lock` is also
+Use Python 3.11.11 and the pinned `requirements.txt` (the source `uv.lock` is also
 included). From this directory:
 
 ```sh
-uv venv --python 3.12 .venv
+uv venv --python 3.11.11 .venv
 uv pip install --python .venv/bin/python -r requirements.txt
 .venv/bin/python paper_replication.py --suite models --output models.json
 .venv/bin/python paper_replication.py --suite neural --output neural.json
@@ -183,6 +183,7 @@ def main():
     versions = {name: importlib.metadata.version(name) for name in distributions}
     (root / "requirements.txt").write_text("\n".join(f"{name}=={version}" for name, version in versions.items()) + "\n")
     (root / "README.md").write_text(REPLICATION_README)
+    (root / ".python-version").write_text(platform.python_version() + "\n")
     manifest = {
         "source_commit": subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip(),
         "paper_snapshot_id": str(snapshot_id),

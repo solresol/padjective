@@ -10,8 +10,10 @@ from __future__ import annotations
 import argparse
 from dataclasses import asdict
 import gzip
+import importlib.metadata
 import json
 from pathlib import Path
+import platform
 
 import numpy as np
 
@@ -19,6 +21,21 @@ try:
     from . import benchmark_runtime as runtime
 except ImportError:  # Standalone submission release.
     import benchmark_runtime as runtime
+
+
+def environment_differences(root):
+    manifest = json.loads((root / "manifest.json").read_text())
+    differences = []
+    if platform.python_version() != manifest["python_version"]:
+        differences.append(f"Python {platform.python_version()} != {manifest['python_version']}")
+    for name, expected in manifest["versions"].items():
+        try:
+            actual = importlib.metadata.version(name)
+        except importlib.metadata.PackageNotFoundError:
+            actual = "missing"
+        if actual != expected:
+            differences.append(f"{name} {actual} != {expected}")
+    return differences
 
 
 def neural_rows(tables, widths, folds):
@@ -62,12 +79,20 @@ def main():
     parser.add_argument("--widths", default="4,8,12,24,48,2000")
     parser.add_argument("--caps", default="32,64,128,256,512,768,1024,1536,2048,2971")
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--allow-environment-drift", action="store_true",
+                        help="Exploratory only: permit versions different from the frozen run")
     args = parser.parse_args()
     folds = [int(v) for v in args.folds.split(",")]
     if not set(folds) <= set(range(5)):
         parser.error("folds must be drawn from 0,1,2,3,4")
     if args.output.exists():
         parser.error("output already exists; use a new run filename")
+    differences = environment_differences(args.root)
+    if differences and not args.allow_environment_drift:
+        parser.error("Not the frozen paper environment: " + "; ".join(differences)
+                     + ". Follow README.md, or explicitly allow an exploratory run.")
+    if differences:
+        print("EXPLORATORY ENVIRONMENT: " + "; ".join(differences), flush=True)
     if args.suite == "digitwise":
         import digitwise_runtime as digitwise
         with gzip.open(args.root / "digitwise-products.jsonl.gz", "rt") as handle:

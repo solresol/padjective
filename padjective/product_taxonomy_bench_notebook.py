@@ -70,12 +70,26 @@ The paper uses 2,000 hidden units, selected after the width sweep, and a 10,000
 iteration ceiling. The stochastic search uses raw training scores and fits the
 reporting default afterwards. The separate bounded digitwise experiment is
 documented at the end; its population is not the main benchmark population.
+Exact paper replication uses Python 3.11.11 and the frozen requirements. Colab
+may provide a different interpreter; in that case use the standalone setup
+below, or explicitly choose an exploratory (non-paper) run.
             """
         ),
         _code_cell(runtime_source),
         _code_cell(
             """
 import os
+import platform
+import importlib.metadata
+
+paper_versions = {"numpy": "2.2.5", "pandas": "2.2.3", "scipy": "1.15.3", "scikit-learn": "1.6.1"}
+environment_drift = platform.python_version() != "3.11.11" or any(
+    importlib.metadata.version(name) != expected for name, expected in paper_versions.items()
+)
+if environment_drift and not os.getenv("PRODUCT_TAXONOMY_BENCH_ALLOW_ENVIRONMENT_DRIFT"):
+    raise RuntimeError("Paper replication requires Python 3.11.11 and the frozen requirements. See the setup at the end. Set PRODUCT_TAXONOMY_BENCH_ALLOW_ENVIRONMENT_DRIFT=1 only for an exploratory run.")
+if environment_drift:
+    print("Exploratory run: interpreter or scientific dependencies differ from the frozen paper environment.")
 
 DATASET_ID = os.getenv("PRODUCT_TAXONOMY_BENCH_DATASET_ID", "gregb/product-taxonomy-bench")
 REVISION = os.getenv("PRODUCT_TAXONOMY_BENCH_REVISION", "paper-submission-2026-09-06")
@@ -409,7 +423,7 @@ The frozen release includes a standalone runner and pinned dependencies in
 `submission/2026-09-06/`. Download that directory from the same revision and run:
 
 ```sh
-uv venv .venv
+uv venv --python 3.11.11 .venv
 uv pip install --python .venv/bin/python -r requirements.txt
 .venv/bin/python paper_replication.py --suite neural --output neural.json
 .venv/bin/python paper_replication.py --suite digitwise --output digitwise.json
