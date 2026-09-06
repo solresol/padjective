@@ -154,10 +154,11 @@ for row in model_results.itertuples(index=False):
         scatter_kwargs["linewidths"] = 2
     ax.scatter(row.params, row.mean_padic_loss, **scatter_kwargs)
     ax.annotate(
-        row.short_label,
+        "Stochastic continuation" if row.model_key == "zubarev" else row.short_label,
         (row.params, row.mean_padic_loss),
         textcoords="offset points",
-        xytext=(10, 5),
+        xytext=(-10, 5) if row.model_key == "unn" else (10, -18) if row.model_key == "zubarev" else (10, 5),
+        ha="right" if row.model_key == "unn" else "left",
         fontsize=9,
         fontweight="bold",
         color=row.color,
@@ -182,7 +183,7 @@ ax.plot(
     label=f"Parsimoniousness baseline ({benchmark['snapshot']['taxonomy_count_filtered']:,} taxonomies)",
 )
 
-ax.set_xlabel("Number of Parameters (non-zero)", fontsize=12, fontweight="bold")
+ax.set_xlabel("Stored-size measure (tree uses a node-count proxy)", fontsize=12, fontweight="bold")
 ax.set_ylabel("P-adic Loss (lower is better)", fontsize=12, fontweight="bold")
 ax.set_title("Model Complexity vs Performance (Parsimoniousness Baseline)", fontsize=14, fontweight="bold", pad=15)
 ax.set_xscale("log")
@@ -275,7 +276,8 @@ for ax, y_column, y_label, title, regression, target_name in plot_specs:
             row.short_label,
             (row.mean_scoring_ops, y_value),
             textcoords="offset points",
-            xytext=(10, 5),
+            xytext=(-10, 5) if row.model_key == "unn" else (10, 5),
+            ha="right" if row.model_key == "unn" else "left",
             fontsize=9,
             fontweight="bold",
             color=row.color,
