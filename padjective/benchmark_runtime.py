@@ -336,7 +336,9 @@ def _load_json_url(url: str, *, headers: dict[str, str] | None = None) -> dict[s
 def _load_json_url_df(url: str, *, headers: dict[str, str] | None = None) -> pd.DataFrame:
     request = urllib.request.Request(url, headers=headers or {})
     with urllib.request.urlopen(request) as response:
-        return pd.read_json(response, lines=True, compression="infer")
+        # A response stream has no filename from which pandas can infer gzip.
+        compression = "gzip" if urllib.parse.urlsplit(url).path.endswith(".gz") else None
+        return pd.read_json(response, lines=True, compression=compression)
 
 
 def _load_json_path(path: Path) -> dict[str, Any]:
@@ -465,7 +467,8 @@ def load_snapshot_tables_from_hf(
         return f"https://huggingface.co/datasets/{dataset_slug}/resolve/{revision_slug}/{path_slug}"
 
     snapshot_prefix = snapshot.strip("/") + "/"
-    dataset_meta = hf_api_json(f"datasets/{dataset_id}")
+    revision_slug = urllib.parse.quote(revision, safe="")
+    dataset_meta = hf_api_json(f"datasets/{dataset_id}/revision/{revision_slug}")
     all_paths = [entry.get("rfilename", "") for entry in dataset_meta.get("siblings", [])]
     snapshot_paths = [path for path in all_paths if path.startswith(snapshot_prefix)]
     if not snapshot_paths:
