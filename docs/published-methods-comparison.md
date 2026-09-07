@@ -128,6 +128,24 @@ Fallback to whole-vector Haar rejection if the root map is not surjective.
 Tiny-space frequency tests cover both samplers, higher coefficient digits and
 nontrivial nullspaces. No rejected candidate is selected as a fitted result.
 
+The cancellation can be checked directly on the finite coefficient space Q:
+`P(v | w, beta) = exp(-beta*(L(v)-L(w))) / sum(u in Q, exp(-beta*(L(u)-L(w))))`
+`= exp(-beta*L(v)) / sum(u in Q, exp(-beta*L(u)))`.
+Thus a fresh independent start is consistent with the published law; it is not
+a concession forced by omitting the greedy fit. The beta=0 stage is the uniform
+warm-up limit. All subsequent stages have positive beta. Polynomial arithmetic
+is exact modulo p^E; probabilities use ordinary floating-point exponentials.
+
+The truncation limitation follows from Lucas' congruence: for k < p^r,
+`binom(h,k) mod p` depends only on the first r digits of h. With binary inputs,
+these are the first r tag coordinates in the chosen order. At E=7, evaluation
+of the full residual also needs later input digits, but at K=357,910 the root
+still sees only three tags (and the whole seven-digit result at most nine).
+Allowing dependence on the 2,542nd tag at the root requires a contiguous degree
+of at least `71^2541`. This is a limitation of this direct binary encoding and
+finite contiguous truncation, not a contradiction of the approximation theorem
+or an assessment of every possible feature encoding or sparse basis scheme.
+
 Repeat training-only fold-0 pilots with the improved sampler at all three
 degrees and with the explicitly rank-reduced full-feature Mihara input
 (100,000 draws/30 seconds). Set full-run budgets after these pilots.
