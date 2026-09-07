@@ -63,6 +63,55 @@ def configuration_key(row: dict) -> tuple:
             c["degree"] if row["method"] == "zubarev" else 0, c["seed"])
 
 
+def grouped_root_error_floor(features: np.ndarray, targets: np.ndarray, p: int) -> dict:
+    groups = defaultdict(Counter)
+    for values, target in zip(features, targets, strict=True):
+        groups[tuple(int(v) for v in values)][int(target) % p] += 1
+    correct = sum(max(counts.values()) for counts in groups.values())
+    return dict(n=len(targets), groups=len(groups), maximum_root_correct=correct,
+                root_error_floor=float(Fraction(len(targets)-correct, len(targets))))
+
+
+def capacity_bounds(rows: list[dict], dataset) -> dict:
+    """Post-hoc oracle bound, NOT a fitted model or a held-out tuning signal.
+
+    K=p^r-1 cannot distinguish binary inputs with the same first r coordinates
+    at the root. Allow an oracle to choose the best root value separately for
+    every such group of held-out rows: even it cannot beat the reported bound.
+    """
+    digest = _snapshot_digest(dataset)
+    matrix = dataset.features.toarray().astype(np.int64)
+    assert np.all((matrix == 0) | (matrix == 1))
+    names = {name: i for i, name in enumerate(dataset.feature_names)}
+    folds = np.array([row.cv_fold for row in dataset.records])
+    targets = np.array([row.encoded_path for row in dataset.records], dtype=np.int64)
+    selected_rows = {}
+    for row in rows:
+        if row["method"] != "zubarev":
+            continue
+        key = (row["cv_fold"], row["configuration"]["degree"])
+        assert row["evidence"]["snapshot_digest"] == digest
+        if key in selected_rows:
+            assert selected_rows[key]["evidence"]["feature_order"] == row["evidence"]["feature_order"]
+        selected_rows[key] = row
+    assert set(selected_rows) == {(fold, degree) for fold in range(5) for degree in (70, 5040, 357910)}
+    output = []
+    for (fold, degree), row in sorted(selected_rows.items()):
+        positions = {70: 1, 5040: 2, 357910: 3}[degree]
+        assert degree + 1 == 71**positions
+        selected = [names[name] for name in row["evidence"]["feature_order"][:positions]]
+        test = folds == fold
+        bound = grouped_root_error_floor(matrix[test][:, selected], targets[test], 71)
+        output.append(dict(fold=fold, degree=degree, first_tag_positions=positions, **bound))
+    return dict(snapshot_id=PAPER_SNAPSHOT, snapshot_digest=digest,
+        scope="Post-hoc held-out-label oracle bound; not used for training, selection, or stopping",
+        validation=dict(status="passed", method="Exact modal counts within identical binary prefix groups"),
+        source_commits=sorted({row["configuration"]["source_commit"] for row in rows}),
+        bounds=output,
+        mean_root_error_floor_by_degree={degree: statistics.fmean(row["root_error_floor"] for row in output if row["degree"] == degree)
+                                         for degree in (70, 5040, 357910)})
+
+
 def validate(rows: list[dict], dataset) -> dict:
     """Require the whole predeclared grid, not a favourable subset of runs."""
     expected = set()
@@ -185,6 +234,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--source-commit", required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--capacity-only", action="store_true", help="Export a separately labelled post-hoc oracle bound")
     args = parser.parse_args()
     with db.get_connection() as conn:
         dataset = _load_paper_dataset(conn, snapshot_ref=PAPER_SNAPSHOT, schema="padjective")
@@ -192,7 +242,7 @@ def main() -> None:
             cur.execute("""SELECT * FROM padjective.paper_published_method_runs
                 WHERE NOT pilot AND configuration->>'source_commit'=%s ORDER BY started_at""", (args.source_commit,))
             rows = cur.fetchall()
-    result = validate(rows, dataset)
+    result = capacity_bounds(rows, dataset) if args.capacity_only else validate(rows, dataset)
     args.output.write_text(json.dumps(result, indent=2) + "\n")
     print(json.dumps(dict(event="validation_complete", output=str(args.output),
         sha256=hashlib.sha256(args.output.read_bytes()).hexdigest(), **result["validation"])), flush=True)
