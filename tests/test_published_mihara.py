@@ -92,6 +92,26 @@ def test_rank_obstruction_is_interrupted_not_fabricated_fit():
         predict_published_mihara(fit, x, p=5)
 
 
+def test_noisy_affine_recovery_at_paper_prime_and_precision():
+    p, precision = 71, 7
+    q = p**precision
+    rng = np.random.default_rng(208)
+    x = rng.integers(0, q, size=(2000, 4), dtype=np.int64)
+    coefficients = rng.integers(0, q, size=5, dtype=np.int64)
+    clean = (x.astype(object) @ coefficients[:-1].astype(object) + int(coefficients[-1])) % q
+    y = np.array(clean, dtype=np.int64)
+    for digit in range(precision):
+        mask = rng.random(len(y)) < .025
+        old = y[mask] // p**digit % p
+        new = rng.integers(0, p, size=int(mask.sum()))
+        y[mask] += (new-old) * p**digit
+    fit = fit_published_mihara(x, y, p=p, precision=precision, seed=301,
+                              budget=ResourceBudget(seconds=10, max_draws=100000))
+    assert fit.completed, fit
+    assert fit.coefficients == tuple(int(value) for value in coefficients)
+    assert predict_published_mihara(fit, x, p=p) == clean.tolist()
+
+
 def test_external_clock_limit_and_undefined_validation_are_distinct():
     clock = [0.0]
     budget = ResourceBudget(clock=lambda: clock[0], seconds=1)
