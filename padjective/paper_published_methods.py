@@ -178,7 +178,8 @@ def run(args) -> str:
         if args.method == "mihara":
             rank = exact_rank_certificate(x_train, p, seconds=args.rank_seconds)
             evidence["rank_certificate"] = rank
-            print(json.dumps(dict(event="rank_audit", run_id=str(run_id), **rank)), flush=True)
+            print(json.dumps(dict(event="rank_audit", run_id=str(run_id),
+                **{k: v for k, v in rank.items() if k != "independent_feature_indices"})), flush=True)
             if args.rank_reduce and "independent_feature_indices" in rank:
                 selected = rank["independent_feature_indices"]
                 x_train, x_test = x_train[:, selected], x_test[:, selected]

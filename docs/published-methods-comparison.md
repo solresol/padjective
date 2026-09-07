@@ -131,3 +131,33 @@ nontrivial nullspaces. No rejected candidate is selected as a fitted result.
 Repeat training-only fold-0 pilots with the improved sampler at all three
 degrees and with the explicitly rank-reduced full-feature Mihara input
 (100,000 draws/30 seconds). Set full-run budgets after these pilots.
+
+### Full protocol (fixed before any new held-out scores)
+
+The refined Zubarev pilots completed all 40 accepted transitions: elapsed
+about 1.04/0.73/25.13 seconds for degrees 70/5,040/357,910, including design
+construction. Rank-reduced Mihara completed no digit in its 30-second pilot.
+
+- All five stored folds, p=71, E=7; no refitting of snapshot eligibility.
+- Zubarev primary degree 357,910 (largest piloted degree); sensitivity degrees
+  70 and 5,040. Report every degree, never select one by held-out loss.
+- Three independent uniform-random coefficient starts, seed bases
+  42/1,729/20,260,907 plus fold index. No greedy seed or coefficient transfer.
+  The exact transition law does not depend on the preceding coefficient vector.
+- Beta schedule 0/4/16/64/256, 64 accepted draws per stage, at most 200,000
+  proposals per stage and 300 seconds for the sampler; construction and scoring
+  are timed separately. Report any incomplete schedule without claiming
+  convergence or substituting rejected proposals. Select only by training loss.
+- Mihara: raw full features and raw frequency prefixes 32/128, with exact rank
+  and duplicate-input inclusion certificates. Separately test the full training
+  modulo-p independent-column basis, rep=3, seed 42+fold, at most 1,000,000
+  random draws or 180 seconds after preprocessing, whichever occurs first.
+  A certificate may avoid provably impossible execution. Interrupted fits have
+  no held-out loss assigned.
+- Three concurrent single-threaded workers on raksasa; 65 runs in total.
+  Batch command: `python -m padjective.paper_published_batch --workers 3`.
+- Report five-fold means for each seed and degree, and fold means averaged over
+  the three seeds. Seeds are repeat optimiser runs, not 15 independent datasets.
+- Preserve each run UUID, configuration, coefficients, predictions, exact input
+  order, snapshot digest, completion status and resource evidence in Postgres.
+  Validate reported losses independently from stored predictions before use.
