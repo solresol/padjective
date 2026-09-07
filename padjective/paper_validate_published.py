@@ -126,7 +126,9 @@ def validate(rows: list[dict], dataset) -> dict:
             export.update(accepted_transitions=fit["accepted_transitions"], proposals=fit["proposals"],
                 full_evaluations=fit["full_evaluations"], root_loss_lower_bound=e["root_loss_lower_bound"],
                 design_bytes=e["design"]["bytes"], design_seconds=e["design"]["seconds"],
-                fit_seconds=fit["elapsed_seconds"], sampler=e["sampler"])
+                fit_seconds=fit["elapsed_seconds"], sampler=e["sampler"],
+                coefficient_sha256=hashlib.sha256(json.dumps(coefficients, separators=(",", ":")).encode()).hexdigest(),
+                prediction_sha256=hashlib.sha256(json.dumps(predictions, separators=(",", ":")).encode()).hexdigest())
         else:
             assert c["rep"] == 3 and c["seconds"] == 180 and c["max_draws"] == 1000000
             rank = {k: v for k, v in e["rank_certificate"].items() if k != "independent_feature_indices"}
@@ -162,6 +164,7 @@ def validate(rows: list[dict], dataset) -> dict:
         fold_means = [statistics.fmean(by_fold[fold]) for fold in range(5)]
         summaries.append(dict(degree=degree, runs=len(group), status_counts=dict(Counter(r["status"] for r in group)),
             mean_padic_loss=statistics.fmean(fold_means), fold_sd_after_seed_average=statistics.stdev(fold_means),
+            pooled_padic_loss=sum(r["metrics"]["held_out"]["mean_padic_loss"] * r["n_test"] for r in group) / sum(r["n_test"] for r in group),
             fold_means=fold_means, seed_five_fold_means={seed: statistics.fmean(losses) for seed, losses in by_seed.items()},
             mean_exact_accuracy=statistics.fmean(r["metrics"]["held_out"]["exact_accuracy"] for r in group),
             mean_first_digit_accuracy=statistics.fmean(r["metrics"]["held_out"]["first_digit_accuracy"] for r in group),
