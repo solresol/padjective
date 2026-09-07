@@ -1,0 +1,154 @@
+{
+  "snapshot_id": "244ddbe3-0a2c-4c04-9436-0a0253108a09",
+  "snapshot_digest": "039175941ed2a2ec888bc6c7314c3c5f8afac1201ff604413dedb55641706222",
+  "scope": "Post-hoc held-out-label oracle bound; not used for training, selection, or stopping",
+  "validation": {
+    "status": "passed",
+    "method": "Exact modal counts within identical binary prefix groups"
+  },
+  "source_commits": [
+    "7757ee2bf92fc4879933a786b7932ebe108e734d"
+  ],
+  "bounds": [
+    {
+      "fold": 0,
+      "degree": 70,
+      "first_tag_positions": 1,
+      "n": 1300,
+      "groups": 2,
+      "maximum_root_correct": 595,
+      "root_error_floor": 0.5423076923076923
+    },
+    {
+      "fold": 0,
+      "degree": 5040,
+      "first_tag_positions": 2,
+      "n": 1300,
+      "groups": 3,
+      "maximum_root_correct": 595,
+      "root_error_floor": 0.5423076923076923
+    },
+    {
+      "fold": 0,
+      "degree": 357910,
+      "first_tag_positions": 3,
+      "n": 1300,
+      "groups": 5,
+      "maximum_root_correct": 595,
+      "root_error_floor": 0.5423076923076923
+    },
+    {
+      "fold": 1,
+      "degree": 70,
+      "first_tag_positions": 1,
+      "n": 1337,
+      "groups": 2,
+      "maximum_root_correct": 589,
+      "root_error_floor": 0.5594614809274495
+    },
+    {
+      "fold": 1,
+      "degree": 5040,
+      "first_tag_positions": 2,
+      "n": 1337,
+      "groups": 3,
+      "maximum_root_correct": 589,
+      "root_error_floor": 0.5594614809274495
+    },
+    {
+      "fold": 1,
+      "degree": 357910,
+      "first_tag_positions": 3,
+      "n": 1337,
+      "groups": 5,
+      "maximum_root_correct": 589,
+      "root_error_floor": 0.5594614809274495
+    },
+    {
+      "fold": 2,
+      "degree": 70,
+      "first_tag_positions": 1,
+      "n": 1348,
+      "groups": 2,
+      "maximum_root_correct": 578,
+      "root_error_floor": 0.5712166172106825
+    },
+    {
+      "fold": 2,
+      "degree": 5040,
+      "first_tag_positions": 2,
+      "n": 1348,
+      "groups": 3,
+      "maximum_root_correct": 578,
+      "root_error_floor": 0.5712166172106825
+    },
+    {
+      "fold": 2,
+      "degree": 357910,
+      "first_tag_positions": 3,
+      "n": 1348,
+      "groups": 5,
+      "maximum_root_correct": 578,
+      "root_error_floor": 0.5712166172106825
+    },
+    {
+      "fold": 3,
+      "degree": 70,
+      "first_tag_positions": 1,
+      "n": 1372,
+      "groups": 2,
+      "maximum_root_correct": 597,
+      "root_error_floor": 0.564868804664723
+    },
+    {
+      "fold": 3,
+      "degree": 5040,
+      "first_tag_positions": 2,
+      "n": 1372,
+      "groups": 3,
+      "maximum_root_correct": 597,
+      "root_error_floor": 0.564868804664723
+    },
+    {
+      "fold": 3,
+      "degree": 357910,
+      "first_tag_positions": 3,
+      "n": 1372,
+      "groups": 5,
+      "maximum_root_correct": 597,
+      "root_error_floor": 0.564868804664723
+    },
+    {
+      "fold": 4,
+      "degree": 70,
+      "first_tag_positions": 1,
+      "n": 1336,
+      "groups": 2,
+      "maximum_root_correct": 600,
+      "root_error_floor": 0.5508982035928144
+    },
+    {
+      "fold": 4,
+      "degree": 5040,
+      "first_tag_positions": 2,
+      "n": 1336,
+      "groups": 4,
+      "maximum_root_correct": 600,
+      "root_error_floor": 0.5508982035928144
+    },
+    {
+      "fold": 4,
+      "degree": 357910,
+      "first_tag_positions": 3,
+      "n": 1336,
+      "groups": 6,
+      "maximum_root_correct": 600,
+      "root_error_floor": 0.5508982035928144
+    }
+  ],
+  "mean_root_error_floor_by_degree": {
+    "70": 0.5577505597406723,
+    "5040": 0.5577505597406723,
+    "357910": 0.5577505597406723
+  }
+}

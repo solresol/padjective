@@ -2,9 +2,10 @@
 
 ## Scope and status
 
-Implementing and validating, before full product-data runs. The author approved
-Zubarev's polynomial model (not a requirement to retain the greedy linear
-representation), independent starts, and Mihara's published procedure.
+Implemented and validated; all 65 predeclared runs finished on 8 September 2026.
+See [results and interpretation](published-methods-results.md). The author
+approved Zubarev's polynomial model (not a requirement to retain the greedy
+linear representation), independent starts, and Mihara's published procedure.
 Existing September results and the frozen release are retained as historical
 experiments, not overwritten or relabelled as these new algorithms.
 
@@ -90,7 +91,8 @@ configuration it represents; unsuccessful fits do not get fabricated losses.
   one long-running training process occupies one CPU. Initial concurrency will
   leave capacity for existing services and use single-threaded numerical workers.
 - Local branch: `codex/published-padic-methods`.
-- Full-run settings and result validation: pending the implementation/pilot gates.
+- Full-run settings appear below. Independent result validation passed; the
+  numerical record and limitations are in `published-methods-results.md`.
 - Pure algorithm gates pass: 20 tests cover both published implementations,
   including noisy affine recovery, direct-integer Mahler evaluation, overflow
   checks and a 5,000-draw comparison with an enumerated transition distribution.
