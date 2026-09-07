@@ -58,21 +58,39 @@ def test_modular_matvec_near_overflow_matches_python_integers():
         assert modular_matvec(a, w, modulus).tolist() == expected
 
 
-def test_sampler_matches_enumerated_finite_transition_mass():
-    design = MahlerDesign.build([[0], [1]], p=2, precision=1, degree=1)
+@pytest.mark.parametrize("condition_roots,precision", [(False, 1), (True, 1), (True, 2)])
+def test_sampler_matches_enumerated_finite_transition_mass(condition_roots, precision):
+    design = MahlerDesign.build([[0], [1]], p=2, precision=precision, degree=1)
     problem = GibbsProblem.create(design, [0, 1])
     beta = 2.0
-    states = list(product(range(2), repeat=2))
+    states = list(product(range(2**precision), repeat=2))
     weights = np.array([math.exp(-beta * problem.loss(np.array(state))) for state in states])
     expected = weights / weights.sum()
     rng = np.random.default_rng(81)
     counts = Counter()
     for _ in range(5000):
-        draw = draw_gibbs_transition(problem, beta=beta, rng=rng, max_proposals=1000)
+        draw = draw_gibbs_transition(problem, beta=beta, rng=rng, max_proposals=1000, condition_roots=condition_roots)
         assert draw.status == "accepted"
         counts[tuple(draw.coefficients)] += 1
     observed = np.array([counts[state] / 5000 for state in states])
     assert np.max(np.abs(observed - expected)) < 0.03
+
+
+def test_root_conditioned_sampler_preserves_uniform_nullspace():
+    design = MahlerDesign.build([[0], [2]], p=3, precision=1, degree=2)
+    problem = GibbsProblem.create(design, [1, 2])
+    assert problem.sampler == "root_conditioned_rejection"
+    assert problem.root_basis.shape == (2, 3)
+    states = list(product(range(3), repeat=3))
+    weights = np.array([math.exp(-2 * problem.loss(np.array(state))) for state in states])
+    expected = weights / weights.sum()
+    rng = np.random.default_rng(7)
+    counts = Counter()
+    for _ in range(5000):
+        draw = draw_gibbs_transition(problem, beta=2, rng=rng, max_proposals=1000)
+        assert draw.proposals == 1  # E=1: no remaining higher-digit rejection.
+        counts[tuple(draw.coefficients)] += 1
+    assert np.max(np.abs(np.array([counts[state]/5000 for state in states]) - expected)) < .025
 
 
 def test_root_lower_bound_is_a_valid_relaxation_and_sampling_can_be_interrupted():
@@ -88,6 +106,7 @@ def test_root_lower_bound_is_a_valid_relaxation_and_sampling_can_be_interrupted(
 def test_independent_start_optimizer_recovery_and_reproducibility():
     design = MahlerDesign.build([[0], [1], [2], [3], [4]], p=5, precision=1, degree=1)
     problem = GibbsProblem.create(design, [1, 3, 0, 2, 4])
+    assert problem.sampler == "haar_rejection"  # Five evaluations, two coefficients.
     kwargs = dict(seed=71, initialisation="zeros", betas=(0, 4, 16), draws_per_beta=20, proposals_per_beta=100000)
     a = fit_published_zubarev(problem, **kwargs)
     b = fit_published_zubarev(problem, **kwargs)

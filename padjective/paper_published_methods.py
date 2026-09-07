@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+from collections import Counter, defaultdict
 from dataclasses import asdict
 from datetime import datetime, timezone
 import hashlib
@@ -30,7 +31,7 @@ def training_feature_order(matrix: np.ndarray, names: tuple[str, ...]) -> list[i
 
 
 def exact_rank_certificate(matrix: np.ndarray, p: int, *, seconds: float = 120) -> dict:
-    """Sparse exact forward elimination of [X|1], separate from the fit.
+    """Sparse exact forward elimination of [1|X], separate from the fit.
 
     A completed rank smaller than D+1 certifies that Algorithm 6 cannot return
     its required full-rank affine system. It is not a sampled rejection.
@@ -43,8 +44,8 @@ def exact_rank_certificate(matrix: np.ndarray, p: int, *, seconds: float = 120) 
         if time.monotonic() - started >= seconds:
             return dict(status="rank_audit_time_limit", rank_lower_bound=len(bases),
                         columns=columns, examined=examined, elapsed_seconds=time.monotonic()-started)
-        row = {int(i): int(dense[i]) % p for i in np.flatnonzero(dense % p)}
-        row[columns - 1] = 1
+        row = {int(i) + 1: int(dense[i]) % p for i in np.flatnonzero(dense % p)}
+        row[0] = 1  # Retain the intercept in any explicit independent-column run.
         while row:
             pivot = min(row)
             if pivot not in bases:
@@ -66,7 +67,26 @@ def exact_rank_certificate(matrix: np.ndarray, p: int, *, seconds: float = 120) 
             break
     return dict(status="full_rank" if len(bases) == columns else "rank_obstruction",
                 rank=len(bases), columns=columns, examined=examined,
+                independent_feature_indices=[i - 1 for i in sorted(bases) if i],
                 elapsed_seconds=time.monotonic()-started)
+
+
+def inclusion_certificate(matrix: np.ndarray, targets: np.ndarray, p: int) -> dict:
+    """Duplicate-input upper bound for Algorithm 2 at full affine rank.
+
+    Even an arbitrary deterministic predictor cannot exceed the sum of the
+    modal first-digit counts within identical input vectors. This is an upper
+    bound, not a fitted classifier or a claim that the affine bound is attained.
+    """
+    groups = defaultdict(Counter)
+    for row, target in zip(matrix, targets, strict=True):
+        groups[np.asarray(row % p, dtype=np.int64).tobytes()][int(target) % p] += 1
+    maximum = sum(max(counts.values()) for counts in groups.values())
+    n, rank = len(matrix), matrix.shape[1] + 1
+    impossible = n <= rank or 10 * (maximum - rank) <= 9 * (n - rank)
+    return dict(status="inclusion_obstruction" if impossible else "not_ruled_out",
+                identical_input_groups=len(groups), maximum_agreement_count=maximum,
+                n=n, full_affine_rank=rank, agreement_upper_bound=maximum/n)
 
 
 def independent_scores(actual: list[int], predicted: list[int], p: int) -> dict:
@@ -159,8 +179,19 @@ def run(args) -> str:
             rank = exact_rank_certificate(x_train, p, seconds=args.rank_seconds)
             evidence["rank_certificate"] = rank
             print(json.dumps(dict(event="rank_audit", run_id=str(run_id), **rank)), flush=True)
-            if rank["status"] == "rank_obstruction":
+            if args.rank_reduce and "independent_feature_indices" in rank:
+                selected = rank["independent_feature_indices"]
+                x_train, x_test = x_train[:, selected], x_test[:, selected]
+                evidence["independent_column_preprocessing"] = dict(
+                    n_features=len(selected), feature_order=[dataset.feature_names[order[i]] for i in selected],
+                    scope="Modulo-p training column span; no claim of equivalence on unseen rows or higher digits")
+            inclusion = inclusion_certificate(x_train, y[train], p)
+            evidence["inclusion_certificate"] = inclusion
+            print(json.dumps(dict(event="inclusion_audit", run_id=str(run_id), **inclusion)), flush=True)
+            if rank["status"] == "rank_obstruction" and not args.rank_reduce:
                 status = "rank_obstruction"
+            elif inclusion["status"] == "inclusion_obstruction":
+                status = "inclusion_obstruction"
             else:
                 fit = fit_published_mihara(x_train, y[train], p=p, precision=args.precision,
                     rep=args.rep, seed=args.seed, budget=ResourceBudget(
@@ -181,6 +212,7 @@ def run(args) -> str:
                 root_active_columns=design.root_columns.tolist(), input_digits=design.input_digits)
             problem = GibbsProblem.create(design, y[train])
             evidence["root_loss_lower_bound"] = problem.root_lower_bound
+            evidence["sampler"] = problem.sampler
             print(json.dumps(dict(event="design_ready", run_id=str(run_id), **evidence["design"],
                                   root_loss_lower_bound=problem.root_lower_bound)), flush=True)
             fit = fit_published_zubarev(problem, seed=args.seed, initialisation=args.initialisation,
@@ -190,11 +222,11 @@ def run(args) -> str:
             status = fit.status
             metrics["training"] = independent_scores(y[train].tolist(), design.predict(fit.coefficients).tolist(), p)
             if not args.pilot:
-                predictions = design.predict_new(x_test, fit.coefficients).tolist()
+                test_design = MahlerDesign.build(x_test, p=p, precision=args.precision, degree=args.degree)
+                predictions = test_design.predict(fit.coefficients).tolist()
                 metrics["held_out"] = independent_scores(y[test].tolist(), predictions, p)
                 evidence["predictions"] = predictions
                 # These are polynomial terms consulted, not tag coefficients.
-                test_design = MahlerDesign.build(x_test, p=p, precision=args.precision, degree=args.degree)
                 consulted = np.count_nonzero(test_design.basis[:, fit.coefficients != 0], axis=1)
                 metrics["mean_nonzero_terms_consulted"] = float(consulted[test_design.row_groups].mean())
                 metrics["stored_nonzero_coefficients"] = int(np.count_nonzero(fit.coefficients))
@@ -223,6 +255,7 @@ def main() -> None:
     parser.add_argument("--fold", type=int, required=True)
     parser.add_argument("--pilot", action="store_true", help="Never score the outer held-out fold")
     parser.add_argument("--max-tags", type=int, default=0, help="0 uses every archived feature")
+    parser.add_argument("--rank-reduce", action="store_true", help="Explicit Mihara independent-column preprocessing experiment")
     parser.add_argument("--precision", type=int, default=7)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--seconds", type=float, default=300)
@@ -237,6 +270,8 @@ def main() -> None:
     args = parser.parse_args()
     if args.max_tags < 0:
         parser.error("--max-tags must be nonnegative")
+    if args.rank_reduce and args.method != "mihara":
+        parser.error("--rank-reduce applies only to Mihara")
     run(args)
 
 

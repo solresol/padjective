@@ -101,3 +101,33 @@ configuration it represents; unsuccessful fits do not get fabricated losses.
   eight accepted transitions and 20,000 proposals per stage, 30-second sampler
   budget. The larger degrees are complete truncations at successive base-71
   digit boundaries, not sparse replacements for the polynomial model.
+
+### Training-only pilot findings and implementation refinements
+
+The initial six fold-0 pilots are preserved in the new run table, source
+`d31a2c2`. All-feature Mihara has rank 1,695 of 2,543; the 128-tag prefix has
+rank 115 of 129. The 32-tag prefix has full rank but completed no digit in
+100,000 draws (29,139 restarts). Identical-input first-digit upper bounds are
+53.4582% at 32 tags and 64.1758% at 128 tags. These bounds certify that neither
+prefix can satisfy Algorithm 2's full-rank test, regardless of runtime.
+
+To give Mihara a separate identifiable-input test, explicitly select a training
+column basis over F_71, retaining the intercept, and run the unmodified recovery
+procedure on those columns. This preserves the modulo-p training column span;
+it is not silently substituted for the full-feature run, and does not claim
+equivalence on held-out inputs or higher digits. The selected columns are saved.
+
+All three initial Zubarev pilots reached proposal limits. Improve the exact
+sampler, not its target law: when the root evaluation matrix is surjective,
+Haar measure induces independent uniform root predictions. Sample each group's
+prediction with probability proportional to exp(beta * matching_count/N),
+sample coefficients uniformly conditional on those predictions (including the
+nullspace), and reject with probability 1-exp(-beta*(L-L_root)). This is the
+same finite-quotient Gibbs distribution. The remaining loss is in [0,1/p].
+Fallback to whole-vector Haar rejection if the root map is not surjective.
+Tiny-space frequency tests cover both samplers, higher coefficient digits and
+nontrivial nullspaces. No rejected candidate is selected as a fitted result.
+
+Repeat training-only fold-0 pilots with the improved sampler at all three
+degrees and with the explicitly rank-reduced full-feature Mihara input
+(100,000 draws/30 seconds). Set full-run budgets after these pilots.

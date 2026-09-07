@@ -144,6 +144,7 @@ class GibbsProblem:
     root_basis: np.ndarray
     root_histogram: np.ndarray
     root_lower_bound: float
+    root_right_inverse: np.ndarray | None
 
     @classmethod
     def create(cls, design: MahlerDesign, targets: Sequence[int]) -> GibbsProblem:
@@ -159,7 +160,40 @@ class GibbsProblem:
         # groups choose independently relaxes polynomial constraints, hence LB.
         lower = 1.0 - float(hist.max(axis=1).sum()) / len(y)
         lower = max(0.0, math.nextafter(lower, -math.inf))
-        return cls(design, y, unique, hist, lower)
+        # A surjective evaluation map makes root predictions independent under
+        # Haar measure. Retain its right inverse to sample their Gibbs marginal
+        # directly, then reject only on the remaining (at most 1/p) loss.
+        reduced = unique.copy()
+        transform = np.eye(len(unique), dtype=np.int64)
+        pivots = []
+        for column in range(reduced.shape[1]):
+            rank = len(pivots)
+            candidates = np.flatnonzero(reduced[rank:, column])
+            if not len(candidates):
+                continue
+            pivot = rank + int(candidates[0])
+            reduced[[rank, pivot]] = reduced[[pivot, rank]]
+            transform[[rank, pivot]] = transform[[pivot, rank]]
+            inverse = pow(int(reduced[rank, column]), -1, design.p)
+            reduced[rank] = reduced[rank] * inverse % design.p
+            transform[rank] = transform[rank] * inverse % design.p
+            factors = reduced[:, column].copy()
+            factors[rank] = 0
+            reduced = (reduced - factors[:, None] * reduced[rank]) % design.p
+            transform = (transform - factors[:, None] * transform[rank]) % design.p
+            pivots.append(column)
+            if len(pivots) == len(unique):
+                break
+        right = None
+        if len(pivots) == len(unique):
+            right = np.zeros((unique.shape[1], len(unique)), dtype=np.int64)
+            right[pivots] = transform
+            assert np.array_equal(unique @ right % design.p, np.eye(len(unique), dtype=np.int64))
+        return cls(design, y, unique, hist, lower, right)
+
+    @property
+    def sampler(self) -> str:
+        return "root_conditioned_rejection" if self.root_right_inverse is not None else "haar_rejection"
 
     def root_loss(self, root_coefficients: np.ndarray) -> float:
         predicted = self.root_basis @ root_coefficients % self.design.p
@@ -180,7 +214,8 @@ class GibbsDraw:
 
 
 def draw_gibbs_transition(problem: GibbsProblem, *, beta: float, rng: np.random.Generator,
-                         max_proposals: int, deadline: float = math.inf) -> GibbsDraw:
+                         max_proposals: int, deadline: float = math.inf,
+                         condition_roots: bool = True) -> GibbsDraw:
     """Equation (17) on (Z/p^E)^(K+1), using a proven rejection envelope.
 
     Root-digit rejection is lazy evaluation of the SAME uniform proposal and
@@ -191,13 +226,25 @@ def draw_gibbs_transition(problem: GibbsProblem, *, beta: float, rng: np.random.
         raise ValueError("Finite nonnegative beta and positive proposal budget required")
     design = problem.design
     full_evaluations = 0
+    conditioned = condition_roots and problem.root_right_inverse is not None
+    if conditioned:
+        logits = beta * (problem.root_histogram - problem.root_histogram.max(axis=1, keepdims=True)) / len(problem.targets)
+        weights = np.exp(logits)
+        cdf = np.cumsum(weights / weights.sum(axis=1, keepdims=True), axis=1)
+        cdf[:, -1] = 1.0
     for proposal in range(max_proposals):
         if time.monotonic() >= deadline:
             return GibbsDraw(None, None, proposal, full_evaluations, "time_limit")
         root = rng.integers(0, design.p, size=len(design.root_columns), dtype=np.int64)
+        if conditioned:
+            desired = (rng.random(len(cdf))[:, None] >= cdf).sum(axis=1)
+            correction = desired - problem.root_basis @ root
+            root = (root + problem.root_right_inverse @ (correction % design.p)) % design.p
         uniform = max(float(rng.random()), np.finfo(float).tiny)
-        allowed_loss = math.inf if beta == 0 else problem.root_lower_bound - math.log(uniform) / beta
-        if problem.root_loss(root) > allowed_loss:
+        root_loss = problem.root_loss(root)
+        envelope = root_loss if conditioned else problem.root_lower_bound
+        allowed_loss = math.inf if beta == 0 else envelope - math.log(uniform) / beta
+        if root_loss > allowed_loss:
             continue
         coefficients = rng.integers(0, design.modulus, size=design.degree + 1, dtype=np.int64)
         coefficients[design.root_columns] = root + design.p * rng.integers(
