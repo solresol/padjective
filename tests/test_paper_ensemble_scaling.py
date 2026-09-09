@@ -4,6 +4,9 @@ from padjective.paper_validate_ensemble_scaling import nested_consensus
 from padjective.paper_validate_randomised import direct_consensus
 from padjective.randomised_linear import consensus_predictions
 from padjective.paper_ensemble_scaling_analysis import crossing, evaluate, fit_curve, ols
+from padjective.paper_audit_ensemble_scaling import prefix_count_scores
+from padjective.paper_validate_published import exact_scores
+from fractions import Fraction
 import numpy as np
 import pytest
 
@@ -78,3 +81,21 @@ def test_log_log_ols_is_log10_and_counts_configurations():
     assert fit["intercept"] == pytest.approx(np.log10(.4))
     assert fit["r_squared"] == pytest.approx(1)
     assert fit["n"] == 6
+
+
+@pytest.mark.parametrize("p,precision", [(2, 4), (3, 3), (71, 7)])
+def test_prefix_histogram_metrics_against_direct_integer_scores(p, precision):
+    rng = np.random.default_rng(71)
+    actual = rng.integers(0, p**precision, 300)
+    predicted = rng.integers(0, p**precision, 300)
+    predicted[::5] = actual[::5]
+    predicted[1::7] = (actual[1::7]+p) % p**precision
+    predicted[2::11] = (actual[2::11]+p**(precision-1)) % p**precision
+    assert prefix_count_scores(actual, predicted, p, precision) == exact_scores(actual.tolist(), predicted.tolist(), p, precision)
+
+
+def test_prefix_histogram_hand_calculated_exact_root_and_deep_errors():
+    score = prefix_count_scores([0, 0, 0, 0], [1, 3, 9, 0], 3, 3)
+    assert score["mean_padic_loss"] == float((Fraction(1)+Fraction(1,3)+Fraction(1,9))/4)
+    assert score["first_digit_accuracy"] == .75
+    assert score["exact_accuracy"] == .25

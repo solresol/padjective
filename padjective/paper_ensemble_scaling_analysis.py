@@ -251,6 +251,9 @@ def persist_analysis(conn, result):
     """Save this new analysis without touching any earlier experiment report."""
     from psycopg.types.json import Jsonb
     with conn.cursor() as cur:
+        cur.execute("SELECT report FROM padjective.paper_ensemble_scaling_metric_audit WHERE batch_id=%s", (result["batch_id"],))
+        audit = cur.fetchone()
+        assert audit and audit[0]["status"] == "passed" and audit[0]["aggregate_sha256"] == result["aggregate_sha256"]
         cur.execute("SET LOCAL default_tablespace='pg_default'")
         cur.execute("""CREATE TABLE IF NOT EXISTS padjective.paper_ensemble_scaling_analysis (
             batch_id UUID PRIMARY KEY, analysed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
