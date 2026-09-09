@@ -12,7 +12,6 @@ import subprocess
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-from matplotlib.ticker import ScalarFormatter
 import numpy as np
 from scipy.optimize import curve_fit
 from scipy.stats import linregress
@@ -248,11 +247,25 @@ def plot_results(result, directory):
     plt.close(fig)
 
 
+def persist_analysis(conn, result):
+    """Save this new analysis without touching any earlier experiment report."""
+    from psycopg.types.json import Jsonb
+    with conn.cursor() as cur:
+        cur.execute("SET LOCAL default_tablespace='pg_default'")
+        cur.execute("""CREATE TABLE IF NOT EXISTS padjective.paper_ensemble_scaling_analysis (
+            batch_id UUID PRIMARY KEY, analysed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            report JSONB NOT NULL) TABLESPACE pg_default""")
+        cur.execute("INSERT INTO padjective.paper_ensemble_scaling_analysis (batch_id,report) VALUES (%s,%s)",
+                    (result["batch_id"], Jsonb(result)))
+    conn.commit()
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--results", type=Path, required=True)
     parser.add_argument("--baseline-directory", type=Path, default=Path("build/paper-submission-2026-09-06/hf-stage/submission/2026-09-06"))
     parser.add_argument("--output-directory", type=Path, required=True)
+    parser.add_argument("--persist", action="store_true", help="Persist the newly computed analysis to Shopify Postgres")
     args = parser.parse_args()
     aggregate = json.loads(args.results.read_text())
     assert aggregate["validation"]["status"] == "passed" and aggregate["validation"]["members"] == 1215
@@ -265,6 +278,10 @@ def main():
     args.output_directory.mkdir(parents=True, exist_ok=True)
     (args.output_directory/"analysis.json").write_text(json.dumps(result, indent=2)+"\n")
     plot_results(result, args.output_directory)
+    if args.persist:
+        from . import db
+        with db.get_connection() as conn:
+            persist_analysis(conn, result)
     print(json.dumps({key:result[key] for key in ("original_ols", "primary", "curves", "overlays")}, indent=2))
 
 
