@@ -232,6 +232,10 @@ def summarise(exports, ensembles):
     groups = defaultdict(list)
     for row in exports:
         groups[(row["family"], 0)].append(row)
+        # M=1 uses the first seed, not the mean of all seed runs. Keep its raw
+        # counterpart visible so projection and seed choice are not conflated.
+        if not row["family"].startswith("linear_association") and row["seed"]-row["fold"] == SEED_BASES[0]:
+            groups[(row["family"] + "/first1", 0)].append(row)
         # Matched three-seed control for the boundary-degree sensitivity.
         if row["family"] == "zubarev_random/k357910" and row["seed"]-row["fold"] in SEED_BASES[:3]:
             groups[(row["family"] + "/first3", 0)].append(row)
@@ -257,7 +261,15 @@ def summarise(exports, ensembles):
             tied=sum(v == 0 for v in differences), worsened=sum(v > 0 for v in differences),
             mean_final_minus_first_loss=statistics.fmean(differences),
             min_sweeps=min(r["sweeps"] for r in final), max_sweeps=max(r["sweeps"] for r in final)))
-    return output, paired
+    decoder = []
+    for row in output:
+        if row["members"] != 1:
+            continue
+        raw = next(r for r in output if r["family"] == row["family"] + "/first1")
+        decoder.append(dict(family=row["family"], raw_seed42_loss=raw["mean"]["mean_padic_loss"],
+            projected_seed42_loss=row["mean"]["mean_padic_loss"],
+            projected_minus_raw_loss=row["mean"]["mean_padic_loss"]-raw["mean"]["mean_padic_loss"]))
+    return output, paired, decoder
 
 
 def persist(conn, batch_id, report, private):
@@ -294,7 +306,7 @@ def main():
     dataset = _load_paper_dataset(conn, snapshot_ref=PAPER_SNAPSHOT, schema="padjective")
     exports, members, validation = validate(rows, dataset, args.source_commit)
     ensembles, private = form_ensembles(members, dataset)
-    summaries, paired = summarise(exports, ensembles)
+    summaries, paired, decoder = summarise(exports, ensembles)
     validation.update(ensemble_rows=len(ensembles),
         reconstructed_consensus_predictions=sum(row["metrics"]["n"] for row in ensembles),
         elapsed_seconds=time.monotonic()-started)
@@ -305,7 +317,7 @@ def main():
         worker_job_seconds=sum(row["evidence"]["elapsed_seconds"] for row in rows),
         first_started_at=min(row["started_at"] for row in rows).isoformat(),
         last_finished_at=max(row["finished_at"] for row in rows).isoformat(),
-        summaries=summaries, paired=paired, models=exports, ensembles=ensembles)
+        summaries=summaries, paired=paired, decoder_controls=decoder, models=exports, ensembles=ensembles)
     persist(conn, args.batch_id, report, private)
     args.output.parent.mkdir(parents=True, exist_ok=True)
     with args.output.open("x") as output:

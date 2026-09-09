@@ -68,8 +68,9 @@ def test_summaries_keep_fold_averaging_and_three_seed_control():
                         metrics=dict(held_out=dict(mean_padic_loss=loss, first_digit_accuracy=1-loss, exact_accuracy=.5),
                                      mean_nonzero_terms_consulted=2, stored_nonzero_coefficients=20),
                         fit_seconds=1, sweeps=1 if label == "one_pass" else 4))
-    summaries, paired = summarise(rows, [])
-    assert len(summaries) == 4
+    summaries, paired, decoder = summarise(rows, [])
+    assert len(summaries) == 6
+    assert decoder == []
     assert paired[0]["pairs"] == paired[0]["improved"] == 15
     assert paired[1]["pairs"] == paired[1]["improved"] == 5
     assert paired[0]["mean_final_minus_first_loss"] == pytest.approx(-.1)
