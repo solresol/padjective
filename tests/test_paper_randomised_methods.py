@@ -5,6 +5,7 @@ from padjective.paper_randomised_batch import jobs
 from padjective.paper_randomised_methods import (
     SEED_BASES, association_order, model_evidence, supported_order,
 )
+from padjective.published_zubarev import MahlerDesign
 
 
 def test_predeclared_grid_and_pilots():
@@ -42,3 +43,17 @@ def test_pilot_never_predicts_or_scores_held_out():
     assert record["training_predictions"] == [1, 2]
     assert "predictions" not in record
     assert "held_out" not in metrics
+
+
+def test_one_extra_mahler_term_exposes_fourth_root_coordinate():
+    # Small-prime exhaustive analogue of the 71**3 boundary used in the study.
+    from itertools import product
+    x = np.array(list(product((0, 1), repeat=4)), dtype=np.int64)
+    short = MahlerDesign.build(x, p=3, precision=2, degree=3**3-1)
+    longer = MahlerDesign.build(x, p=3, precision=2, degree=3**3)
+    weights = np.zeros(3**3+1, dtype=np.int64)
+    weights[-1] = 1
+    assert np.array_equal(longer.predict(weights) % 3, x[:, 3])
+    roots = short.basis[short.row_groups] % 3
+    # Every pair differs only in its fourth feature: all old root terms agree.
+    assert np.array_equal(roots[::2], roots[1::2])
