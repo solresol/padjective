@@ -97,3 +97,29 @@ worker wall time. Member support and consensus work are reported separately;
 an ensemble does not inherit one member's cost or remain a single linear model.
 Seeds are repeated optimisation runs, not independent population samples.
 The old greedy/classical results remain references, not rerun replacements.
+
+## Pilot observations and frozen full-run budgets
+
+Recorded before dispatching any full-grid job on 9 September 2026.
+Pilot batch `58920975-6e3d-40b0-a3a5-ac50b9ac648e`, source `6512a3b`,
+used two single-threaded workers and fold 0 only. All four jobs completed:
+random linear converged after six sweeps (3.02 fitting seconds); the
+association-initialised fit converged after five sweeps. The degree-357,911
+polynomial used an 11-row, 31,496,256-byte training design and completed its
+40 accepted transitions in 9.62 seconds including loading/design/scoring.
+The degree-357,910 pilot also completed its 40-transition schedule.
+No pilot held-out predictions or scores were computed.
+
+The preceding pilot batch `a9d2141d-6283-49b1-a9b5-da93e4b822b3` exposed a
+first-use PostgreSQL DDL race in one job. The other three completed; its logs
+and rows are retained. Table creation is now transaction-advisory-locked and
+performed before worker dispatch. The entire four-job pilot was repeated;
+the failed batch is not substituted into the full experiment.
+
+Freeze linear limits at 100 complete sweeps / 300 fitting seconds, and
+polynomial limits at five beta stages (0, 4, 16, 64, 256), 64 accepted
+transitions and 200,000 proposals per stage / 300 sampler seconds.
+Use the complete 110-job grid above, three single-threaded workers, no
+held-out-dependent stopping, selection or extension. Raksasa preflight found
+37 GiB available RAM and 96 GB free disk; production jobs remain untouched.
+The full-run source revision is recorded in the batch manifest and every row.
