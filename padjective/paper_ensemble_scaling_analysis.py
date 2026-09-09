@@ -80,9 +80,20 @@ def ols(points):
 def references(aggregate, baseline_directory):
     paths = [baseline_directory/"validation-single-thread-models.json", baseline_directory/"validated-neural-2000.json"]
     bundle, neural = [json.loads(p.read_text()) for p in paths]
+    manifest_path = baseline_directory/"manifest.json"
+    manifest = json.loads(manifest_path.read_text())
+    assert manifest["paper_snapshot_id"] == aggregate["snapshot_id"]
+    assert manifest["paper_counts"] == [6693, 2542, 363] and manifest["numerical_threads"] == 12
+    for path in paths:
+        assert hashlib.sha256(path.read_bytes()).hexdigest() == manifest["sha256"][path.name]
+    paths.append(manifest_path)
     wanted = {"dummy", "umllr", "ulr", "dt", "levelwise"}
     selected = [r for r in bundle["models"]["rows"] if r["model_key"] in wanted]
     assert len(selected) == 5 and len(neural) == 5 and {r["cv_fold"] for r in neural} == set(range(5))
+    new_fold_sizes = {r["fold"]:r["metrics"]["n"] for r in aggregate["ensembles"] if r["roster"] == 0 and r["members"] == 1}
+    assert set(new_fold_sizes) == set(range(5)) and sum(new_fold_sizes.values()) == 6693
+    for row in selected:
+        assert {r["cv_fold"]:r["num_test_samples"] for r in row["folds"]} == new_fold_sizes
     points = [dict(key=r["model_key"], label=LABELS[r["model_key"]], active=r["mean_scoring_ops"],
         loss=r["mean_padic_loss"], stored=r["params"], exact_accuracy=r["mean_exact_accuracy"],
         fold_losses=[v["padic_loss_mean"] for v in sorted(r["folds"], key=lambda v:v["cv_fold"])]) for r in selected]
