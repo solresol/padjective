@@ -230,11 +230,12 @@ def plot_results(result, directory):
             ("Member coefficient consultations only", "Members + defaults + consensus-prefix proxy")):
         points = result["reference_points"]
         ax.scatter([r["active"] for r in points], [r["loss"] for r in points], color=grey, s=30, zorder=3)
-        offsets = {"dummy": (8, 0), "umllr": (7, -4), "ulr": (-4, -15), "dt": (5, 1),
-                   "levelwise": (-90, 9), "unn": (-56, -14)}
+        offsets = {"dummy": (8, 0), "umllr": (15, 32), "ulr": (-4, -15), "dt": (5, -9),
+                   "levelwise": (-90, 9), "unn": (-62, 10)}
         for point in points:
             ax.annotate(point["label"], (point["active"], point["loss"]), xytext=offsets[point["key"]],
-                        textcoords="offset points", fontsize=8, color=grey)
+                textcoords="offset points", fontsize=8, color=grey,
+                arrowprops=dict(arrowstyle="-", color=grey, lw=.6) if point["key"] == "umllr" else None)
         fit = result["original_ols"]
         line_x = np.geomspace(.8, 2e6, 300)
         ax.plot(line_x, 10**fit["intercept"]*line_x**fit["slope"], color=grey, ls="--", lw=1.2, label="Original six-model line")

@@ -1,0 +1,25 @@
+{
+  "status": "passed",
+  "batch_id": "059d7eb8-14b5-4d5d-857f-134a2098fd89",
+  "metric_implementation": "nested prefix-agreement histogram",
+  "execution": {
+    "new_fits": 1170,
+    "first_started": "2026-09-10T06:07:32.485864+10:00",
+    "last_finished": "2026-09-10T06:33:07.452923+10:00",
+    "summed_job_seconds": 4834.621475314256,
+    "wall_seconds": 1534.967059
+  },
+  "numerical_versions": [
+    {
+      "python": "3.11.11",
+      "numpy": "2.2.5"
+    }
+  ],
+  "checked_model_rows": 1215,
+  "checked_ensemble_rows": 945,
+  "score_sets": 5805,
+  "model_prediction_scores_checked": 16263990,
+  "ensemble_prediction_scores_checked": 1264977,
+  "aggregate_sha256": "565d6b9180896080a3f6d84ab5671061942c0d70a8c2d8312edc099f2ad105e7",
+  "audit_commit": "ab40da3c9fbe5c38f7f7f02e42c9ae445cc13b0b"
+}
