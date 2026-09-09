@@ -292,14 +292,41 @@ def persist(conn, batch_id, report, private):
     conn.commit()
 
 
+def wait_for_grid(conn, batch_id, seconds):
+    """Wait for this one dispatched batch; do not select scores or run new fits."""
+    deadline = time.monotonic() + seconds
+    previous = None
+    while True:
+        with conn.cursor() as cur:
+            cur.execute("""SELECT count(*), count(*) FILTER (WHERE finished_at IS NOT NULL),
+                count(*) FILTER (WHERE status='failed')
+                FROM padjective.paper_randomised_method_runs WHERE batch_id=%s""", (batch_id,))
+            total, finished, failed = cur.fetchone()
+        conn.commit()
+        assert total <= 110 and not failed, "Unexpected or failed jobs in the fixed grid"
+        if finished == 110:
+            return
+        if time.monotonic() >= deadline:
+            raise TimeoutError(f"Only {finished}/110 jobs completed before validation wait limit")
+        if (total, finished) != previous:
+            print(json.dumps(dict(event="waiting_for_grid", registered=total, finished=finished)), flush=True)
+            previous = total, finished
+        time.sleep(min(30, max(0, deadline-time.monotonic())))
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--batch-id", required=True)
     parser.add_argument("--source-commit", required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--wait-seconds", type=float, default=0,
+                        help="Wait for this batch before validation (no new fitting)")
     args = parser.parse_args()
     started = time.monotonic()
     conn = db.get_connection()
+    if args.wait_seconds:
+        wait_for_grid(conn, args.batch_id, args.wait_seconds)
+        started = time.monotonic()
     with conn.cursor(row_factory=dict_row) as cur:
         cur.execute("SELECT * FROM padjective.paper_randomised_method_runs WHERE batch_id=%s ORDER BY job_key", (args.batch_id,))
         rows = cur.fetchall()
