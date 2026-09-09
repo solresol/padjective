@@ -53,6 +53,10 @@ residuals, fitted floors and leave-one-fold-out sensitivity. Fit through size
 functional-form check along the size axis, not an independent product test.
 Compare early-size extrapolation with the extended evidence; do not force a
 zero asymptote or select the curve that produces an attractive crossing.
+Use unweighted nonlinear least squares on loss (equal weight per size),
+separately for the primary roster and the mean of the 20 alternative rosters.
+Leave-one-fold-out ranges are sensitivity ranges, not confidence intervals;
+keep the comparator target fixed at its full five-fold mean for these ranges.
 
 The target is the best measured comparator on these folds, NN-2000 loss
 0.0755591194166452; L1 logistic loss 0.08583859907596855 is a second reference.
