@@ -197,7 +197,8 @@ def plot_results(result, directory):
     ax.plot(x, y, "o-", color=blue, lw=2, ms=4, label="Fixed primary roster")
     for name, target in TARGETS.items():
         ax.axhline(target, color=grey, ls="--" if name == "NN-2000" else ":", lw=1)
-        ax.annotate(f"{name} {target:.4f}", (1.08, target), xytext=(0, 4), textcoords="offset points", color=grey, fontsize=9)
+        ax.annotate(f"{name} {target:.4f}", (1.08, target), xytext=(0, -12 if name == "NN-2000" else 4),
+                    textcoords="offset points", color=grey, fontsize=9)
     ax.set_xscale("log")
     ax.set_xticks(x, [str(v) for v in x], rotation=45)
     ax.set(xlabel="Ensemble members (log scale)", ylabel="Mean held-out p-adic loss", ylim=(.055, .34), title="Observed sizes")
@@ -224,7 +225,7 @@ def plot_results(result, directory):
 
     fig, axes = plt.subplots(1, 2, figsize=(13, 5.8), sharey=True)
     fig.suptitle("Ensembles against the original six-model log–log relationship", x=.07, ha="left", fontsize=15)
-    fig.text(.07, .91, "Frozen original regression; ensemble sizes are one dependent model family, not independent replications", color=grey)
+    fig.text(.07, .91, "6,693 products · five folds · frozen original regression · ensemble sizes are dependent, not independent replications", color=grey)
     for ax, convention, title in zip(axes, ("mean_member_terms_consulted", "broader_scoring_proxy"),
             ("Member coefficient consultations only", "Members + defaults + consensus-prefix proxy")):
         points = result["reference_points"]
@@ -241,8 +242,11 @@ def plot_results(result, directory):
         ax.plot([r["active"] for r in rows], [r["loss"] for r in rows], "o-", color=blue, ms=4, lw=1.5, label="Ensemble trajectory")
         for row in rows:
             if row["members"] in (1,9,27,243):
-                shift = (5, 7) if convention == "mean_member_terms_consulted" else (6, 4 if row["members"] == 1 else -5)
-                ax.annotate(str(row["members"]), (row["active"],row["loss"]), xytext=shift, textcoords="offset points", color=blue, fontsize=9)
+                shift = (5, 7) if convention == "mean_member_terms_consulted" else {
+                    1:(8,6), 9:(12,18), 27:(-27,-18), 243:(18,-5)}[row["members"]]
+                arrow = dict(arrowstyle="-", color=blue, lw=.6) if convention == "broader_scoring_proxy" and row["members"] != 1 else None
+                ax.annotate(str(row["members"]), (row["active"],row["loss"]), xytext=shift,
+                    textcoords="offset points", color=blue, fontsize=9, arrowprops=arrow)
         ax.set_xscale("log")
         ax.set_yscale("log")
         ax.set(xlabel="Mean per-prediction count (log scale)", title=title, xlim=(.7, 2e6), ylim=(.045,.7))
