@@ -10,7 +10,8 @@ import subprocess
 import sys
 import uuid
 
-from .paper_randomised_methods import SEED_BASES
+from . import db
+from .paper_randomised_methods import SEED_BASES, ensure_storage
 
 
 def jobs(pilot: bool = False) -> list[tuple[str, list[str]]]:
@@ -41,6 +42,8 @@ def main():
     args = parser.parse_args()
     if not 1 <= args.workers <= 3:
         parser.error("Use one to three workers on the shared host")
+    with db.get_connection() as conn:
+        ensure_storage(conn)
     batch_id = str(uuid.uuid4())
     directory = args.log_root / batch_id
     directory.mkdir(parents=True, exist_ok=False)

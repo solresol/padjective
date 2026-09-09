@@ -2,7 +2,7 @@
 
 These isolated algorithms do not change the historical floating-point greedy
 fit. Strict integer comparisons and canonical residues are explicit protocol
-choices. A first-pass checkpoint supplies a genuinely paired control.
+choices. A first-pass checkpoint supplies a paired control.
 """
 from __future__ import annotations
 

@@ -2,9 +2,8 @@
 from __future__ import annotations
 
 import argparse
-from collections import Counter, defaultdict
+from collections import Counter
 from dataclasses import asdict
-import hashlib
 import json
 import os
 import platform
@@ -52,6 +51,9 @@ def association_order(features, targets, names) -> list[int]:
 
 def ensure_storage(conn):
     with conn.cursor() as cur:
+        # Serialize first-use DDL even when independent job controllers start
+        # together. IF NOT EXISTS alone does not prevent pg_type races.
+        cur.execute("SELECT pg_advisory_xact_lock(71357911)")
         cur.execute("SET LOCAL default_tablespace = 'pg_default'")
         cur.execute("""CREATE TABLE IF NOT EXISTS padjective.paper_randomised_method_runs (
             run_id UUID PRIMARY KEY, batch_id UUID NOT NULL, job_key TEXT NOT NULL,
