@@ -74,7 +74,22 @@ def audit(conn, aggregate):
         ensemble_examples += actual["n"]
         sets += 1
     conn.commit()
+    with conn.cursor(row_factory=dict_row) as cur:
+        cur.execute("""SELECT count(*) AS new_fits, min(started_at) AS first_started,
+            max(finished_at) AS last_finished, sum((evidence->>'elapsed_seconds')::float) AS summed_job_seconds
+            FROM padjective.paper_randomised_method_runs WHERE batch_id=%s""", (batch_id,))
+        execution = dict(cur.fetchone())
+        cur.execute("""SELECT DISTINCT configuration->>'python' AS python, configuration->>'numpy' AS numpy
+            FROM padjective.paper_randomised_method_runs WHERE batch_id=ANY(%s::uuid[])
+            AND method='linear_random' AND NOT pilot""", ([batch_id, aggregate["base_batch"]],))
+        versions = [dict(r) for r in cur.fetchall()]
+    assert execution["new_fits"] == 1170 and versions == [dict(python="3.11.11", numpy="2.2.5")]
+    execution["wall_seconds"] = (execution["last_finished"]-execution["first_started"]).total_seconds()
+    for key in ("first_started", "last_finished"):
+        execution[key] = execution[key].isoformat()
+    conn.commit()
     return dict(status="passed", batch_id=batch_id, metric_implementation="nested prefix-agreement histogram",
+        execution=execution, numerical_versions=versions,
         checked_model_rows=len(aggregate["models"]), checked_ensemble_rows=len(aggregate["ensembles"]),
         score_sets=sets, model_prediction_scores_checked=examples, ensemble_prediction_scores_checked=ensemble_examples)
 
