@@ -298,3 +298,27 @@ The XNOR construction above makes that difference concrete.
 These are exact descriptions of the fixed finite-precision hypothesis classes,
 not computationally efficient ways to enumerate them: a member's multilinear
 expansion can contain 2^k terms, and the raw-residue vocabulary can have q values.
+
+## 10. Constant-distance votes act like abstentions in raw consensus
+
+If a raw vote u is equally distant from every candidate in C, adding it does
+not change raw valid-candidate consensus: it adds the same constant to every
+candidate's objective. In particular, a vote whose root is absent from C is
+at distance one from all candidates and has no effect on the decision.
+
+Early projection need not preserve that property. Such a vote ties across C,
+so the specified projection assigns it to the smallest code c_0. Adding enough
+of these projected votes creates a strict majority for c_0, which forces all
+three projected aggregators to choose it.
+
+For example, with C={1,2}, start with an informative vote at 2 and add two votes
+at 3. Raw valid-candidate consensus remains 2: the two extra votes add a cost
+of two to either candidate. Projection changes the votes to 2,1,1, so each
+projected aggregation rule returns 1. Raw plurality followed by projection
+also returns 1 because the repeated raw code 3 wins first.
+
+This does not prove that early projection is generally harmful. It identifies
+one exact mechanism by which it can turn an uninformative vote into an
+arbitrary preference. The empirical experiment is needed to establish whether
+that mechanism matters in the product data. Here "absent" refers to the fixed
+fitting-fold vocabulary C, not necessarily to the complete external taxonomy.

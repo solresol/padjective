@@ -145,3 +145,11 @@ def test_parity_witness_annihilates_every_lower_degree_monomial():
             for columns in combinations(range(r),degree):
                 monomial=np.prod(inputs[:,columns],axis=1)
                 assert int(parity@monomial)==0
+
+
+def test_projection_turns_constant_distance_votes_into_arbitrary_preferences():
+    outputs=dict(aggregate_sizes([[2,3,3]],[1,2],[1,3]))
+    assert outputs[1]['raw_valid_medoid'].tolist()==[2]
+    assert outputs[3]['raw_valid_medoid'].tolist()==[2]
+    for rule in ('projected_medoid','projected_plurality','projected_survivor','raw_plurality_project'):
+        assert outputs[3][rule].tolist()==[1]
