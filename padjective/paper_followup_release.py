@@ -55,6 +55,7 @@ uv venv --python 3.11.11 .venv
 uv pip install --python .venv/bin/python -r requirements.txt
 .venv/bin/python followup_replication.py --suite published --workers 3 --output-dir rerun-published
 .venv/bin/python followup_replication.py --suite ensembles --workers 4 --output-dir rerun-ensembles
+.venv/bin/python followup_capacity_replication.py --output rerun-capacity.json
 ```
 
 The runners require only local, anonymised files. There is no PostgreSQL,
@@ -89,6 +90,9 @@ restart counts are not expected to match across machines. An incomplete
 Mihara fit has no predictive score; a time limit is not an algorithmic failure
 proof. Full-rank/inclusion impossibility certificates are distinguished from
 those externally interrupted attempts.
+The separate capacity runner recomputes all 15 held-out-label oracle bounds;
+these are post-hoc representation certificates, not fitted models or tuning
+signals. Figure generation is described in `paper-evidence/README.md`.
 
 ## Coverage and provenance
 

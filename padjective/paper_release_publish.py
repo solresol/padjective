@@ -12,6 +12,7 @@ import json
 from pathlib import Path
 import shutil
 import subprocess
+import sys
 import urllib.request
 
 from .paper_followup_release import README, REFERENCE_COMMIT, REFERENCE_TAG_COMMIT
@@ -96,12 +97,19 @@ def seal(root, ensembles, published, paper):
     shutil.copy2(manifest_path, directory / "input-manifest.json")
     shutil.copy2(ensembles, directory / "ensembles.json")
     shutil.copy2(published, directory / "published.json")
+    # This short independent check has no model-selection feedback path.
+    from .followup_capacity_replication import verify_capacity
+    sys.path.insert(0, str(root.resolve()))
+    capacity = verify_capacity(root)
+    (directory / "capacity.json").write_text(json.dumps(capacity, indent=2)+"\n")
+    shutil.copy2(Path(__file__).with_name("followup_capacity_replication.py"), root / "followup_capacity_replication.py")
     paper_commit = copy_paper(paper, root)
     (root / "README.md").write_text(README)
     manifest.update(validation_status="passed", validation_input_manifest_sha256=manifest_hash,
                     manuscript_source_commit=paper_commit,
                     validation=dict(refitted_coordinate_models=1215, reconstructed_ensembles=945,
                                     refitted_zubarev_models=45, reproduced_mihara_cases=20,
+                                    recomputed_posthoc_capacity_bounds=15,
                                     timing_counts_not_bitwise_targets=True),
                     sealing_source_commit=subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip())
     manifest["sha256"] = {name: sha256(path) for name, path in release_files(root).items() if name != "manifest.json"}

@@ -12,6 +12,7 @@ import pytest
 
 from padjective.paper_followup_release import HELPERS, build_algorithms, extract_helpers
 from padjective.paper_release_publish import check_report, release_files
+from padjective.followup_capacity_replication import prefix_bound
 
 
 SOURCE = Path(__file__).resolve().parents[1] / "padjective"
@@ -126,3 +127,8 @@ def test_publication_inventory_excludes_bytecode_and_download_cache(tmp_path):
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text("content")
     assert set(release_files(tmp_path)) == {"manifest.json", "algorithms/model.py"}
+
+
+def test_posthoc_bound_counts_modal_roots_within_prefixes():
+    bound = prefix_bound([[0], [0], [0], [1]], [1, 72, 2, 3])
+    assert bound == dict(n=4, groups=2, maximum_root_correct=3, root_error_floor=.25)
