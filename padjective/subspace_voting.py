@@ -6,7 +6,6 @@ import numpy as np
 from scipy.stats import t
 
 from .paper_validate_randomised import distance_matrix
-from .paper_validate_ensemble_scaling import nested_consensus
 
 FRACTIONS = (0.125, 0.25, 0.5, 0.75, 1.0)
 RULES = ('raw_valid_medoid', 'projected_medoid', 'projected_plurality',
@@ -78,26 +77,48 @@ def survivor_vote(values,p=71,precision=7):
 
 
 def aggregate_sizes(bank,candidates,sizes,p=71,precision=7):
+    requests=[(0,np.arange(np.asarray(bank).shape[1]),sizes)]
+    for _,size,output in aggregate_rosters(bank,candidates,requests,p,precision):
+        yield size,output
+
+
+def aggregate_rosters(bank,candidates,requests,p=71,precision=7):
+    """Reuse exact distance tables across fixed nested rosters; bounded memory."""
     bank=np.asarray(bank,dtype=np.int64)
+    assert bank.ndim==2 and bank.shape[0] and bank.shape[1]
+    assert bank.shape[1]*p**precision<=np.iinfo(np.int64).max
     candidates=np.unique(candidates)
     for candidate in candidates:
         path_digits(candidate,p,precision)
     projected=project_codes(bank,candidates,p,precision)
-    order=[np.arange(bank.shape[1])]
-    raw_results={m:y for _,m,y in nested_consensus(bank,candidates,sizes,order,p,precision)}
-    projected_results={m:y for _,m,y in nested_consensus(projected,candidates,sizes,order,p,precision)}
-    for size in sizes:
-        voters=projected[:,:size]
-        output=dict(raw_valid_medoid=raw_results[size],projected_medoid=projected_results[size],
-            projected_plurality=np.array([plurality(row) for row in voters],dtype=np.int64),
-            projected_survivor=np.array([survivor_vote(row,p,precision) for row in voters],dtype=np.int64),
-            raw_plurality_project=project_codes([plurality(row) for row in bank[:,:size]],candidates,p,precision))
-        assert all(np.all(np.isin(y,candidates)) for y in output.values())
-        for rule in ('projected_medoid','projected_plurality','projected_survivor'):
-            assert np.all(np.any(voters==output[rule][:,None],axis=1))
-        if size==1:
-            assert all(np.array_equal(y,output['raw_valid_medoid']) for y in output.values())
-        yield size,output
+    raw_values,raw_index=np.unique(bank,return_inverse=True)
+    raw_index=raw_index.reshape(bank.shape)
+    raw_lookup=distance_matrix(raw_values,candidates,p,precision)
+    projected_index=np.searchsorted(candidates,projected)
+    projected_lookup=distance_matrix(candidates,candidates,p,precision)
+    for roster,order,sizes in requests:
+        order=np.asarray(order,dtype=int)
+        assert sorted(order)==list(range(bank.shape[1]))
+        assert len(sizes)==len(set(sizes)) and all(1<=s<=bank.shape[1] for s in sizes)
+        raw_costs=np.zeros((len(bank),len(candidates)),dtype=np.int64)
+        projected_costs=np.zeros_like(raw_costs)
+        for size,member in enumerate(order[:max(sizes)],start=1):
+            raw_costs+=raw_lookup[raw_index[:,member]]
+            projected_costs+=projected_lookup[projected_index[:,member]]
+            if size not in sizes:
+                continue
+            voters=projected[:,order[:size]]
+            output=dict(raw_valid_medoid=candidates[np.argmin(raw_costs,axis=1)],
+                projected_medoid=candidates[np.argmin(projected_costs,axis=1)],
+                projected_plurality=np.array([plurality(row) for row in voters],dtype=np.int64),
+                projected_survivor=np.array([survivor_vote(row,p,precision) for row in voters],dtype=np.int64),
+                raw_plurality_project=project_codes([plurality(row) for row in bank[:,order[:size]]],candidates,p,precision))
+            assert all(np.all(np.isin(y,candidates)) for y in output.values())
+            for rule in ('projected_medoid','projected_plurality','projected_survivor'):
+                assert np.all(np.any(voters==output[rule][:,None],axis=1))
+            if size==1:
+                assert all(np.array_equal(y,output['raw_valid_medoid']) for y in output.values())
+            yield roster,size,output
 
 
 def corrected_test(differences,fold_sizes):

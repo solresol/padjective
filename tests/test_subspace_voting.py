@@ -3,7 +3,7 @@ import numpy as np
 import pytest
 from scipy.stats import t
 from padjective.randomised_linear import medoid
-from padjective.subspace_voting import (FRACTIONS, aggregate_sizes, corrected_test, feature_mask,
+from padjective.subspace_voting import (FRACTIONS, aggregate_rosters, aggregate_sizes, corrected_test, feature_mask,
     holm, path_digits, plurality, project_codes, survivor_vote)
 
 
@@ -93,3 +93,32 @@ def test_singleton_components_create_non_affine_interaction():
         assert outputs[x]==survivor_vote(voters)==medoid(voters,71,7)[0]
     assert outputs[(0,0,0)]==outputs[(1,0,0)]==outputs[(0,1,0)]==2
     assert outputs[(1,1,0)]==1  # Violates affine parallelogram identity mod 71.
+
+
+def test_rosters_against_original_consensus():
+    from padjective.randomised_linear import consensus_predictions
+    rng=np.random.default_rng(20260911)
+    bank=rng.integers(0,3**3,size=(12,9))
+    candidates=[1,2,4,5,7,8,13,14,16,17,22,23,25,26]
+    requests=[(0,np.arange(9),(1,3,9)),(1,rng.permutation(9),(3,9))]
+    outputs={}
+    for roster,size,pred in aggregate_rosters(bank,candidates,requests,p=3,precision=3):
+        voters=bank[:,requests[roster][1][:size]]
+        projected=project_codes(voters,candidates,3,3)
+        for rule,values in (('raw_valid_medoid',voters),('projected_medoid',projected)):
+            expected,_=consensus_predictions(values,candidates,p=3,precision=3)
+            assert np.array_equal(expected,pred[rule])
+        assert pred['projected_survivor'].tolist()==[tree_reference(row,3) for row in projected]
+        outputs[roster,size]=pred
+    assert all(np.array_equal(outputs[0,9][key],outputs[1,9][key]) for key in outputs[0,9])
+
+
+def test_raw_plurality_retains_latent_codes_and_represents_xnor():
+    # g1=143*x1, g2=143*x2, defaults 72; g3=0, default 2.
+    # Both 72 and 143 project to 72, but raw-code collisions carry information.
+    bank=np.array([[143*x if x else 72,143*y if y else 72,2]
+                   for x,y in product([0,1],repeat=2)])
+    result=dict(aggregate_sizes(bank,[2,72],[3]))[3]
+    assert result['raw_plurality_project'].tolist()==[72,2,2,72]
+    for rule in ('raw_valid_medoid','projected_medoid','projected_plurality','projected_survivor'):
+        assert result[rule].tolist()==[72]*4
