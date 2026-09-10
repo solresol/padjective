@@ -166,7 +166,11 @@ def verify_and_tag(root, commit, previous_revision):
     assert api.whoami()["name"] == "gregb"
     refs = {r.name: r.target_commit for r in api.list_repo_refs(REPO, repo_type="dataset").tags}
     assert refs["paper-submission-2026-09-06"] == REFERENCE_TAG_COMMIT
-    assert TAG not in refs or refs[TAG] == commit, "Never move an existing tag"
+    # The refs endpoint returns the annotated tag-object OID, not its peeled
+    # content commit. Resolve via repo_info before comparing commit identities.
+    assert api.repo_info(REPO, repo_type="dataset", revision="paper-submission-2026-09-06").sha == REFERENCE_COMMIT
+    if TAG in refs:
+        assert api.repo_info(REPO, repo_type="dataset", revision=TAG).sha == commit, "Never move an existing tag"
     base = f"https://huggingface.co/datasets/{REPO}/resolve/{commit}/{PREFIX}"
 
     def check_public(item):
@@ -193,8 +197,10 @@ def verify_and_tag(root, commit, previous_revision):
         api.create_tag(REPO, repo_type="dataset", tag=TAG, revision=commit,
                        tag_message="Frozen validated public-matrix replication of the September 8 and 10 paper experiments")
     refs = {r.name: r.target_commit for r in api.list_repo_refs(REPO, repo_type="dataset").tags}
-    assert refs[TAG] == commit and refs["paper-submission-2026-09-06"] == REFERENCE_TAG_COMMIT
+    assert api.repo_info(REPO, repo_type="dataset", revision=TAG).sha == commit
+    assert refs["paper-submission-2026-09-06"] == REFERENCE_TAG_COMMIT
     receipt = dict(status="published_and_verified", repository=REPO, revision=commit, tag=TAG,
+                   tag_object=refs[TAG], previous_tag_object=REFERENCE_TAG_COMMIT,
                    parent_commit=previous_revision, previous_reference_commit=REFERENCE_COMMIT,
                    preserved_previous_files=len(before)-len(changes), verified_new_files=len(files),
                    appended_new_file_lfs_rules=storage_rules,
