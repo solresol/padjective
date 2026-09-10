@@ -11,7 +11,7 @@ import numpy as np
 import pytest
 
 from padjective.paper_followup_release import HELPERS, build_algorithms, extract_helpers
-from padjective.paper_release_publish import check_report, release_files
+from padjective.paper_release_publish import check_report, release_files, check_storage_rules
 from padjective.followup_capacity_replication import prefix_bound
 
 
@@ -132,3 +132,15 @@ def test_publication_inventory_excludes_bytecode_and_download_cache(tmp_path):
 def test_posthoc_bound_counts_modal_roots_within_prefixes():
     bound = prefix_bound([[0], [0], [0], [1]], [1, 72, 2, 3])
     assert bound == dict(n=4, groups=2, maximum_root_correct=3, root_error_floor=.25)
+
+
+def test_hub_storage_rules_may_only_append_exact_new_release_paths():
+    old = "*.gz filter=lfs diff=lfs merge=lfs -text\n"
+    path = "submission/2026-09-10/paper-evidence/output/pdf/padjective-padic-journal.pdf"
+    rule = path+" filter=lfs diff=lfs merge=lfs -text\n"
+    assert check_storage_rules(old, old+rule, {path}) == [path]
+    for bad in (rule, old+"*.pdf filter=lfs diff=lfs merge=lfs -text\n",
+                old+"submission/2026-09-06/a.pdf filter=lfs diff=lfs merge=lfs -text\n",
+                old+path+" text\n"):
+        with pytest.raises(AssertionError):
+            check_storage_rules(old, bad, {path})

@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import argparse
 from collections import Counter
+from concurrent.futures import ThreadPoolExecutor
 import hashlib
 import json
 from pathlib import Path
@@ -129,15 +130,84 @@ def seal(root, ensembles, published, paper):
                          manifest_sha256=sha256(manifest_path), paper_commit=paper_commit)), flush=True)
 
 
-def publish(root):
-    from huggingface_hub import CommitOperationAdd, HfApi
-
+def checked_files(root):
     manifest = json.loads((root / "manifest.json").read_text())
     assert manifest["validation_status"] == "passed"
     files = release_files(root)
     assert set(files) == set(manifest["sha256"]) | {"manifest.json"}
     for name, digest in manifest["sha256"].items():
         assert sha256(files[name]) == digest, name
+    return files
+
+
+def check_storage_rules(previous, current, new_paths):
+    """Hub may append exact new-file LFS rules; never allow old/global rewrites."""
+    assert current.startswith(previous), "Existing storage rules changed"
+    additions = current[len(previous):].splitlines()
+    paths = []
+    for line in additions:
+        if not line.strip():
+            continue
+        fields = line.split()
+        assert len(fields) == 5 and fields[1:] == ["filter=lfs", "diff=lfs", "merge=lfs", "-text"]
+        path = fields[0]
+        assert path.startswith(PREFIX) and path in new_paths
+        assert not any(c in path for c in "*?[]\\"), "Wildcard storage rule"
+        paths.append(path)
+    assert len(paths) == len(set(paths))
+    return paths
+
+
+def verify_and_tag(root, commit, previous_revision):
+    from huggingface_hub import HfApi
+
+    files = checked_files(root)
+    api = HfApi()
+    assert api.whoami()["name"] == "gregb"
+    refs = {r.name: r.target_commit for r in api.list_repo_refs(REPO, repo_type="dataset").tags}
+    assert refs["paper-submission-2026-09-06"] == REFERENCE_TAG_COMMIT
+    assert TAG not in refs or refs[TAG] == commit, "Never move an existing tag"
+    base = f"https://huggingface.co/datasets/{REPO}/resolve/{commit}/{PREFIX}"
+
+    def check_public(item):
+        name, path = item
+        content = urllib.request.urlopen(base+name, timeout=90).read()
+        assert hashlib.sha256(content).hexdigest() == sha256(path), name
+
+    with ThreadPoolExecutor(max_workers=6) as executor:
+        list(executor.map(check_public, files.items()))
+    print(json.dumps(dict(event="public_bytes_verified", files=len(files))), flush=True)
+    before = {r.path: (r.blob_id, str(getattr(r, "lfs", None))) for r in api.list_repo_tree(REPO, repo_type="dataset", revision=previous_revision, recursive=True) if hasattr(r, "blob_id")}
+    after = {r.path: (r.blob_id, str(getattr(r, "lfs", None))) for r in api.list_repo_tree(REPO, repo_type="dataset", revision=commit, recursive=True) if hasattr(r, "blob_id")}
+    assert set(after)-set(before) == {PREFIX+name for name in files}
+    assert not set(before)-set(after)
+    changes = {name for name, value in before.items() if after[name] != value}
+    assert changes <= {".gitattributes"}, sorted(changes)
+    storage_rules = []
+    if changes:
+        url = f"https://huggingface.co/datasets/{REPO}/resolve/"
+        old = urllib.request.urlopen(url+previous_revision+"/.gitattributes", timeout=60).read().decode()
+        new = urllib.request.urlopen(url+commit+"/.gitattributes", timeout=60).read().decode()
+        storage_rules = check_storage_rules(old, new, {PREFIX+name for name in files})
+    if TAG not in refs:
+        api.create_tag(REPO, repo_type="dataset", tag=TAG, revision=commit,
+                       tag_message="Frozen validated public-matrix replication of the September 8 and 10 paper experiments")
+    refs = {r.name: r.target_commit for r in api.list_repo_refs(REPO, repo_type="dataset").tags}
+    assert refs[TAG] == commit and refs["paper-submission-2026-09-06"] == REFERENCE_TAG_COMMIT
+    receipt = dict(status="published_and_verified", repository=REPO, revision=commit, tag=TAG,
+                   parent_commit=previous_revision, previous_reference_commit=REFERENCE_COMMIT,
+                   preserved_previous_files=len(before)-len(changes), verified_new_files=len(files),
+                   appended_new_file_lfs_rules=storage_rules,
+                   manifest_sha256=sha256(root/"manifest.json"),
+                   url=f"https://huggingface.co/datasets/{REPO}/tree/{TAG}/{PREFIX.rstrip('/')}")
+    print(json.dumps(receipt, indent=2), flush=True)
+    return receipt
+
+
+def publish(root):
+    from huggingface_hub import CommitOperationAdd, HfApi
+
+    files = checked_files(root)
     api = HfApi()
     assert api.whoami()["name"] == "gregb"
     refs = api.list_repo_refs(REPO, repo_type="dataset")
@@ -153,26 +223,7 @@ def publish(root):
         commit_message="Freeze published-method and 243-member ensemble replication release (2026-09-10)")
     commit = result.oid
     print(json.dumps(dict(event="uploaded", commit=commit)), flush=True)
-    # Verify public bytes by immutable commit before creating the dated tag.
-    base = f"https://huggingface.co/datasets/{REPO}/resolve/{commit}/{PREFIX}"
-    for name, path in files.items():
-        content = urllib.request.urlopen(base+name, timeout=90).read()
-        assert hashlib.sha256(content).hexdigest() == sha256(path), name
-    # Verify every pre-existing path retains its immutable content identifier.
-    before = {r.path: (r.blob_id, str(getattr(r, "lfs", None))) for r in api.list_repo_tree(REPO, repo_type="dataset", revision=head, recursive=True) if hasattr(r, "blob_id")}
-    after = {r.path: (r.blob_id, str(getattr(r, "lfs", None))) for r in api.list_repo_tree(REPO, repo_type="dataset", revision=commit, recursive=True) if hasattr(r, "blob_id")}
-    assert all(after.get(name) == value for name, value in before.items())
-    api.create_tag(REPO, repo_type="dataset", tag=TAG, revision=commit,
-                   tag_message="Frozen validated public-matrix replication of the September 8 and 10 paper experiments")
-    refs = {r.name: r.target_commit for r in api.list_repo_refs(REPO, repo_type="dataset").tags}
-    assert refs[TAG] == commit and refs["paper-submission-2026-09-06"] == REFERENCE_TAG_COMMIT
-    receipt = dict(status="published_and_verified", repository=REPO, revision=commit, tag=TAG,
-                   parent_commit=head, previous_reference_commit=REFERENCE_COMMIT,
-                   preserved_previous_files=len(before), verified_new_files=len(files),
-                   manifest_sha256=sha256(root/"manifest.json"),
-                   url=f"https://huggingface.co/datasets/{REPO}/tree/{TAG}/{PREFIX.rstrip('/')}")
-    print(json.dumps(receipt, indent=2), flush=True)
-    return receipt
+    return verify_and_tag(root, commit, head)
 
 
 def main():
@@ -182,13 +233,22 @@ def main():
     parser.add_argument("--published", type=Path)
     parser.add_argument("--paper-repo", type=Path)
     parser.add_argument("--publish", action="store_true")
+    parser.add_argument("--verify-upload", help="Verify/tag this observed upload commit without uploading again")
+    parser.add_argument("--previous-revision", help="Observed parent revision for --verify-upload")
     parser.add_argument("--receipt", type=Path)
     args = parser.parse_args()
-    if args.publish:
+    if args.publish or args.verify_upload:
+        if args.publish and args.verify_upload:
+            parser.error("Choose new publication or verification of an existing upload")
         if not args.receipt or args.receipt.exists():
             parser.error("A new receipt path outside the release is required")
         assert not args.receipt.resolve().is_relative_to(args.release_dir.resolve())
-        receipt = publish(args.release_dir)
+        if args.verify_upload:
+            if not args.previous_revision:
+                parser.error("Existing upload verification requires its observed parent revision")
+            receipt = verify_and_tag(args.release_dir, args.verify_upload, args.previous_revision)
+        else:
+            receipt = publish(args.release_dir)
         args.receipt.write_text(json.dumps(receipt, indent=2)+"\n")
     else:
         if not all((args.ensembles, args.published, args.paper_repo)):
