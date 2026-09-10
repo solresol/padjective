@@ -1,9 +1,14 @@
 # Handwritten corrections captured on 10 September 2026
 
-Status: **Captured and visually transcribed; manuscript edits have not been
-applied in this capture pass.** The table records 32 correction groups. A group
-can contain several connected pen marks. Unfinished wording, blank quantities
-and uncertain arrow destinations are retained below.
+Status: **All 32 correction groups applied on 10 September 2026**, following
+the author's request after capture. Papers commit: `c821aa2`.
+The tables below preserve the marks and interpretations from the capture pass;
+the application record below resolves its outstanding items.
+
+The completed checklist is in the Papers repository at
+`padjective/padic-journal/annotation-review-2026-09-10.md`. The rebuilt
+`output/pdf/padjective-padic-journal.pdf` is 22 pages, and the local review copy
+is `/Users/gregb/Documents/padjective-padic-journal-review.pdf`.
 
 ## Source and verification
 
@@ -83,21 +88,32 @@ exact source revision from which the reMarkable base PDF was built.
 | P3-09 | L235, stratification fallback | Strike “and otherwise falls back to unstratified folds.” | Clear requested deletion. Preserve the instruction without treating it as evidence that the implementation changed. |
 | P3-10 | L236–237, archived assignments | Strike “The archived fold assignments, rather than regeneration from the filtered release, define the reported experiment.” | Clear deletion. The final fold sizes that follow remain unmarked. |
 
-## Items to resolve when applying
+## Application record
 
-1. **Scrape scope (P1-11):** obtain the intended store and product counts from
-   the appropriate source/date; neither number is present in the handwriting.
-2. **Ensemble description (P2-02):** complete the deliberately unfinished
-   explanation using the actual ensemble prediction rule.
-3. **Arrow destinations (P1-03, P1-08, P2-05):** settle the comparator placement,
-   the catalogue paragraph order, and the destination of the new opening.
-4. **Abstract grammar (P1-06):** decide how to join the new “We observe…” opening
-   with the retained association wording.
-5. **Small insertion mark (P2-07):** verify that “p-adic” qualifies “loss”; the
-   handwriting and automated extraction disagree about its placement.
+1. **Scrape scope (P1-11):** filled with **263,959 sites and 39,438,160 products**.
+   These are distinct store domains and distinct store–product-handle pairs in
+   `shopifystores.public.product_details`, counted on 10 September 2026 across
+   the three scraping runs. The 49,903,005 raw rows include repeat collection.
+   The paper footnote defines the date, deduplication and pre-filter scope.
+   Results are persisted as audit `handwritten-corrections-2026-09-10` in
+   `padjective.paper_corpus_scope_audits`; both table and primary-key index use
+   `pg_default`. An aggregate export is committed with the manuscript.
+2. **Ensemble description (P2-02):** completed from the existing Section 5.3
+   prediction rule, including fitting-set candidates, member defaults and ties.
+3. **Arrow destinations (P1-03, P1-08, P2-05):** placed the comparator before
+   the greedy abstract result; moved the missing-label sentence after the
+   browsing-hierarchy description; made the revised empirical-paper sentence
+   the introduction's opening.
+4. **Abstract grammar (P1-06):** used “We observe an unexpected log-log
+   association between active support and loss.”
+5. **Small insertion mark (P2-07):** applied “p-adic” to “loss”, matching the
+   reported metric and preserving the classical-classifier description.
 
-These are capture notes, not an instruction to rerun experiments, change
-database records, update a public release, or replace the annotated document.
+All remaining additions, deletions, replacements and punctuation changes are
+checked off in the manuscript's application ledger. Original capture files
+remain unchanged. Application outputs are saved separately under
+`/Users/gregb/Documents/padjective-annotations-20260910/application/`.
+No benchmark rerun, public release change or reMarkable replacement was made.
 
 ## Validation
 
@@ -114,3 +130,10 @@ database records, update a public release, or replace the annotated document.
   outside Git with SHA-256 hashes in `provenance.json`.
 - Required Padjective unit tests: `uv run -m pytest -q` — **237 passed,
   6 skipped**. Twelve existing small-sample neural-network batch-size warnings.
+- Application verification: rebuilt 22-page PDF; pages 1–3 visually checked
+  and all 22 pages inspected as a contact sheet; no overfull boxes or undefined
+  citations/references. Existing publisher font/float warnings remain.
+- Application tests: **237 passed, 6 skipped** again, plus **18 manuscript
+  evidence tests passed**. Original capture-file checksums are unchanged.
+- Revised PDF SHA-256:
+  `c7ecc6c67430f6c303cca90e316f643038efded2e21e7ef6257109ead5afac24`.
