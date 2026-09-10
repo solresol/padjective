@@ -31,11 +31,15 @@ and orange (`#d18a3c`), plus charcoal/grey/white. Different marker shapes and li
 styles distinguish series without colour. No red/green significance encoding.
 Common font: DejaVu Sans. Axis anchors remain visible; light horizontal grids.
 
-Footprint: size comparison 12 by 5 inches; primary contrasts 10 by 9 inches.
+Footprint: size comparison 12 by 6 inches; primary contrasts 10 by 9 inches.
 Titles, legends, axis labels, metric direction, n=6,693/five folds, exploratory
 status and source-batch provenance must fit the actual exported PDF/PNG. Inspect
 both previews at their final size; render the PDF too if preview and PDF layouts
 diverge. Exact score lookup belongs in the accompanying tables, not on 90 points.
+
+PDF QA found that the first size-comparison legend overlapped the 12.5% curve.
+The reviewed version places both legends above their plotting areas and adds
+vertical space; the quantitative axes and data are unchanged.
 
 Output names: `subspace-size-comparisons.pdf/.png` and
 `subspace-primary-contrasts.pdf/.png`, alongside the aggregate JSON and notes.

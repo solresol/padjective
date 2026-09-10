@@ -30,7 +30,7 @@ def export(report,directory):
     assert len(lookup)==225
     plt.rcParams.update({'font.family':'DejaVu Sans','font.size':10,'axes.titlesize':12,
                          'axes.spines.top':False,'axes.spines.right':False,'pdf.fonttype':42})
-    fig,axes=plt.subplots(1,2,figsize=(12,5),sharey=True)
+    fig,axes=plt.subplots(1,2,figsize=(12,6),sharey=True)
     for i,f in enumerate(FRACTIONS):
         axes[0].plot(SIZES,[lookup[f,m,RULES[0]]['mean_metrics']['mean_padic_loss'] for m in SIZES],
             color=COLOURS[i],marker=MARKERS[i],linestyle=STYLES[i],linewidth=1.5,
@@ -44,13 +44,13 @@ def export(report,directory):
         ax.set_xticks([1,3,9,27,81,243],labels=['1','3','9','27','81','243'])
         ax.set_xlabel('Ensemble members (log scale)')
         ax.grid(axis='y',color='#dddddd',linewidth=.6)
-        ax.legend(loc='upper right',frameon=False,fontsize=8)
+        ax.legend(loc='lower left',bbox_to_anchor=(0,1.02),ncol=2,frameon=False,fontsize=8)
     axes[0].set_ylabel('Mean p-adic loss (lower is better)')
-    axes[0].set_title('Feature fraction: current valid-path consensus',loc='left')
-    axes[1].set_title('Aggregation rule: all-feature components',loc='left')
+    axes[0].set_title('Feature fraction: current valid-path consensus',loc='left',y=1.32)
+    axes[1].set_title('Aggregation rule: all-feature components',loc='left',y=1.32)
     fig.suptitle('Random feature subsets and ensemble aggregation',x=.07,ha='left',fontsize=15)
-    fig.text(.07,.90,'Five fold means; 6,693 products; fixed nested member banks; no extrapolation.',fontsize=10)
-    fig.subplots_adjust(left=.07,right=.985,top=.82,bottom=.18,wspace=.12)
+    fig.text(.07,.925,'Five fold means; 6,693 products; fixed nested member banks; no extrapolation.',fontsize=10)
+    fig.subplots_adjust(left=.07,right=.985,top=.66,bottom=.16,wspace=.12)
     fig.text(.07,.035,'Exploratory extension on reused folds. Feature eligibility is determined from the fitting fold only.\n'
         f'Source: Postgres experiment {report["batch_id"]}.',fontsize=8,color='#444444')
     save(fig,directory/'subspace-size-comparisons')

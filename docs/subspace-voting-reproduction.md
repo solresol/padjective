@@ -32,7 +32,7 @@ OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 \
   uv run -m padjective.paper_subspace_experiment --workers 4
 ```
 
-The active study's batch is `773bf2ab-d2b1-4c32-bfde-15d501782fa0`. Once every
+The completed study's batch is `773bf2ab-d2b1-4c32-bfde-15d501782fa0`. Once every
 one of the 4,860 new fits has finished with an independent coordinate-optimum
 certificate, evaluate from a separate clean checkout containing the evaluator:
 
@@ -42,6 +42,13 @@ OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 \
   --batch-id 773bf2ab-d2b1-4c32-bfde-15d501782fa0 \
   --output build/subspace-20260911/results.json
 ```
+
+That UUID records the original execution. For a new full reproduction,
+substitute the newly printed fitting UUID; do not overwrite the completed
+study. To recheck the published statistical calculations without refitting,
+run `uv run -m pytest -q tests/test_subspace_assets.py` against the saved
+aggregate. The full aggregate and interpretation are linked from
+[the results note](subspace-voting-results.md).
 
 Evaluation refuses a partial bank. It reconstructs every component's fitting
 and held-out predictions, verifies masks/seeds/hashes/defaults, checks all
