@@ -67,3 +67,13 @@ def test_model_readback_reconstruction():
     broken['predictions'][0]=2
     with pytest.raises(AssertionError):
         check_model(broken,c,np.arange(2))
+
+
+def test_figure_exports_require_validated_complete_grid(tmp_path):
+    from padjective.paper_subspace_figures import export
+    report=dict(batch_id='synthetic-test-only',validation=dict(status='passed'),analysis=analyse(synthetic_grid()))
+    export(report,tmp_path)
+    assert len(list(tmp_path.iterdir()))==4
+    assert all(p.stat().st_size>1000 for p in tmp_path.iterdir())
+    with pytest.raises(AssertionError):
+        export(report,tmp_path)
