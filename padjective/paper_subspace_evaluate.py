@@ -193,7 +193,11 @@ def evaluate(args):
                         evidence=dict(fraction=fraction,fold=fold,roster=roster,members=size,rule=rule,
                             metrics=metrics,prediction_sha256=fingerprint(pred.tolist()),
                             candidate_sha256=fingerprint(candidates.tolist()),candidate_paths=len(candidates),
-                            mean_depth=float(np.mean([len(path_digits(v)) for v in pred])),**costs)
+                            mean_depth=float(np.mean([len(path_digits(v)) for v in pred])),
+                            exact_correct=int(np.count_nonzero(c['y_test']==pred)),
+                            root_correct=int(np.count_nonzero(c['y_test']%71==pred%71)),**costs)
+                        assert evidence['exact_correct']==round(metrics['exact_accuracy']*metrics['n'])
+                        assert evidence['root_correct']==round(metrics['first_digit_accuracy']*metrics['n'])
                         if fraction==1. and roster==0 and rule==RULES[0]:
                             original=next(r for r in baseline['ensembles'] if r['fold']==fold and r['roster']==0 and r['members']==size)
                             assert original['prediction_sha256']==evidence['prediction_sha256']
@@ -214,7 +218,17 @@ def evaluate(args):
                     conn.commit()
                 emit('subspace_bank_evaluated',fraction=fraction,fold=fold,complete_banks=len(component_summaries)//243)
         assert len(results)==6125 and len(component_summaries)==6075
+        with conn.cursor(row_factory=dict_row) as cur:
+            cur.execute('''SELECT min(started_at) AS first_started,max(finished_at) AS last_finished,
+                sum((evidence->>'job_seconds')::float) AS summed_job_seconds,
+                sum((evidence->'fit'->>'elapsed_seconds')::float) AS summed_fitting_seconds
+                FROM padjective.paper_subspace_runs WHERE batch_id=%s''',(args.batch_id,))
+            execution=dict(cur.fetchone())
+        execution['fitting_wall_seconds']=(execution['last_finished']-execution['first_started']).total_seconds()
+        for key in ('first_started','last_finished'):
+            execution[key]=execution[key].isoformat()
         report=dict(batch_id=args.batch_id,manifest=batch['manifest'],evaluator_commit=evaluator_commit,
+                    execution=execution,
                     validation=dict(status='passed',component_readbacks=6075,new_coordinate_certificates=4860,
                         original_prediction_sets_matched=45,evaluation_rows=6125,
                         independent_aggregation_sample_rows_per_set=8,all_metrics_double_checked=True),
