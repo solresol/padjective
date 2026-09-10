@@ -263,3 +263,38 @@ inputs. This counting obstruction is independent of which of the five fixed
 aggregation rules is used. It neither supplies a useful numerical
 generalisation bound for the present data nor prevents good performance on
 structured taxonomies.
+
+## 9. A multiclass description: local scores, different decision regions
+
+The binary obstruction has a useful multiclass counterpart. Suppose every
+mask has at most k features. Any real-valued function of one member's input
+has an exact multilinear expansion of degree at most k on the Boolean cube.
+Consequently every candidate's summed p-adic cost and every path's vote count
+is a polynomial of degree at most k, even though the component map itself
+involves modular arithmetic and decoding.
+
+Medoid and whole-path plurality compare these additive candidate scores.
+A fixed candidate's winning region is an intersection of pairwise degree-k
+polynomial inequalities. This does not make the complete multiclass decision
+a single polynomial threshold function.
+
+For survivor voting, let N_s(x) count projected votes with prefix s, and let
+T_s(x) count votes ending exactly at s. Both have degree at most k. The rule's
+stop decision is 2T_s>=N_s; its branch decisions compare N_sb over children b.
+For any fixed output path, membership in its decision region is a conjunction
+of the root-choice, ancestor-continue, child-choice and final-stop inequalities,
+with the specified strict/weak inequalities for ties. This characterises the
+hierarchical rule by low-degree local comparisons without claiming that their
+composition has threshold degree k in a multiclass problem.
+
+Raw plurality followed by projection first makes an argmax decision among the
+intermediate residues, whose vote counts also have degree at most k. It then
+merges all winning-residue regions assigned to the same valid path by pi_C.
+Each final region can therefore be a **union** of distinct intermediate
+winning regions. With only two final paths, early projection gives a single
+binary comparison, but late projection can preserve this union structure.
+The XNOR construction above makes that difference concrete.
+
+These are exact descriptions of the fixed finite-precision hypothesis classes,
+not computationally efficient ways to enumerate them: a member's multilinear
+expansion can contain 2^k terms, and the raw-residue vocabulary can have q values.
