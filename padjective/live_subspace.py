@@ -264,6 +264,8 @@ def fit_one(batch, fold, fraction, member):
         raise RuntimeError(f'Incomplete member {fold}/{fraction}/{member}: {fitted["status"]}')
     weights = fitted['coefficients']
     train_raw = live_exact.certificate(x_train, c['y_train'], weights, P, E)
+    if fitted['history'][-1]['loss_units'] != live_exact.total(live_exact.units(c['y_train']-train_raw, P, E)):
+        raise AssertionError('Saved fitting loss disagrees with reconstructed model')
     raw = live_exact.direct_predict(x_test, weights, P**E)
     if not np.array_equal(raw, live_exact.predict(x_test, weights, P, E)):
         raise AssertionError('Independent held-out predictions disagree')
@@ -382,14 +384,20 @@ def compare_trend(previous_rows, current_rows, previous_predictions, current_pre
 
 
 def evaluate(conn, batch, rows, spec):
-    reports, predictions = [], {}
+    reports, predictions, memberships = [], {}, {}
     for fold in range(5):
         c = context(rows, fold)
         candidates = np.unique(c['y_train'])
         feature_sets = {r['feature_sha256'] for r in c['train']}
         groups = dict(all=np.ones(len(c['test']), dtype=bool),
             paper_overlap=np.array([r['paper_overlap'] for r in c['test']]),
-            outside_paper=np.array([not r['paper_overlap'] for r in c['test']]))
+            outside_paper=np.array([not r['paper_overlap'] for r in c['test']]),
+            zero_features=c['x_test'].getnnz(axis=1) == 0,
+            has_features=c['x_test'].getnnz(axis=1) > 0,
+            unseen_target=~np.isin(c['y_test'], candidates),
+            unseen_feature_set=np.array([r['feature_sha256'] not in feature_sets for r in c['test']]))
+        for i, row in enumerate(c['test']):
+            memberships[row['product_key']] = {name: bool(keep[i]) for name, keep in groups.items()}
         for fraction in FRACTIONS:
             models = list(conn.execute('''SELECT member,evidence FROM padjective.live_subspace_models
                 WHERE batch_id=%s AND fold=%s AND fraction=%s ORDER BY member''', (batch, fold, fraction)))
@@ -430,12 +438,15 @@ def evaluate(conn, batch, rows, spec):
                 candidate_paths=len(candidates), zero_feature_products=int(np.sum(c['x_test'].getnnz(axis=1) == 0)),
                 unseen_target_products=int(np.sum(~np.isin(c['y_test'], candidates))),
                 feature_sets_seen_in_training=sum(r['feature_sha256'] in feature_sets for r in c['test']),
+                total_tag_occurrences=sum(len(r['tags']) for r in c['test']),
+                eligible_tag_occurrences=int(c['x_test'].nnz),
+                union_selected_features=len({j for _, m in models for j in m['mask']}),
                 stored_nonzero_coefficients=sum(m[1]['nonzero_coefficients'] for m in models),
                 component_job_seconds=sum(m[1]['job_seconds'] for m in models))
             for name, keep in groups.items():
                 if np.any(keep):
                     reports.append(dict(fold=fold, fraction=fraction, cohort=name,
-                        metrics=live_exact.scores(c['y_test'][keep], pred[keep], P, E), coverage=coverage))
+                        metrics=live_exact.scores(c['y_test'][keep], pred[keep], P, E), fold_coverage=coverage))
         emit('live_fold_evaluated', batch_id=batch, fold=fold, n=len(c['test']))
     comparisons = {}
     for group in ('all', 'paper_overlap', 'outside_paper'):
@@ -448,8 +459,8 @@ def evaluate(conn, batch, rows, spec):
             comparisons[group]['mean_fold_loss'] = {str(fr): float(np.mean([
                 selected[f, fr]['mean_padic_loss'] for f in range(5)])) for fr in FRACTIONS}
     pooled = {}
-    for group in ('all', 'paper_overlap', 'outside_paper'):
-        selected = [r for r in rows if group == 'all' or r['paper_overlap'] == (group == 'paper_overlap')]
+    for group in groups:
+        selected = [r for r in rows if memberships[r['product_key']][group]]
         if selected:
             pooled[group] = {str(fr): live_exact.scores([r['target'] for r in selected],
                 [predictions[r['product_key']][str(fr)] for r in selected], P, E) for fr in FRACTIONS}
