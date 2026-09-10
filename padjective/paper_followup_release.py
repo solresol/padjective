@@ -251,6 +251,9 @@ def main():
                       row_order_equal=True, feature_order_equal=True, labels_equal=True, folds_equal=True,
                       reference_commit=REFERENCE_COMMIT, reference_manifest_sha256=REFERENCE_MANIFEST_SHA256)
         with conn.cursor() as cur:
+            # Also applies explicitly to the primary-key index, which otherwise
+            # inherits this host's non-default session tablespace.
+            cur.execute("SET LOCAL default_tablespace = 'pg_default'")
             cur.execute("""CREATE TABLE IF NOT EXISTS padjective.paper_replication_release_checks (
                 release_name TEXT NOT NULL, check_name TEXT NOT NULL, checked_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
                 evidence JSONB NOT NULL, PRIMARY KEY(release_name,check_name)
