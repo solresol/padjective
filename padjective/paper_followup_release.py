@@ -61,6 +61,9 @@ The runners require only local, anonymised files. There is no PostgreSQL,
 Shopify, network, credential or production-service dependency. The publisher
 verified this public matrix against the archived Shopify PostgreSQL matrix:
 all 6,693 rows, 2,542 ordered tag columns, 363 paths and five stored folds.
+Eleven rows have stale scalar `tag_count` metadata (smaller than their actual
+feature list); neither numerical loader uses it. The unchanged relation/list
+is authoritative, and the parity check compares every actual matrix entry.
 Operational ingestion remains PostgreSQL-only; this is an offline research
 consumer of an already-public export, not a CSV-based production pipeline.
 
@@ -222,10 +225,16 @@ def main():
         assert np.array_equal(targets, [r.encoded_path for r in dataset.records])
         assert np.array_equal(folds, [r.cv_fold for r in dataset.records])
         assert len(set(targets)) == 363
+        public_rows = [row for path in (root / "reference/paper").glob("products-*.jsonl.gz")
+                       for row in runtime.read_jsonl(path)]
+        stale_counts = sum(row["tag_count"] != len(row["tag_features"]) for row in public_rows)
+        assert stale_counts == 11
         parity = dict(status="passed", snapshot_id=SNAPSHOT, snapshot_digest=digest,
                       rows=len(targets), ordered_features=len(names), paths=len(set(targets)),
                       folds={str(f): int(np.sum(folds == f)) for f in range(5)},
                       nonzero_entries=int(matrix.nnz), differing_matrix_entries=0,
+                      stale_tag_count_metadata_rows=stale_counts,
+                      metadata_scope="tag_count is not used by either numerical loader; actual feature lists are unchanged",
                       row_order_equal=True, feature_order_equal=True, labels_equal=True, folds_equal=True,
                       reference_commit=REFERENCE_COMMIT, reference_manifest_sha256=REFERENCE_MANIFEST_SHA256)
         with conn.cursor() as cur:

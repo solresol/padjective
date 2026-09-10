@@ -63,7 +63,7 @@ def test_loader_preserves_tag_rank_and_stored_folds(standalone):
     write_rows(directory / "tags.jsonl.gz", [dict(tag_id="a", tag_rank=2), dict(tag_id="z", tag_rank=1)])
     write_rows(directory / "products-00000.jsonl.gz", [
         dict(product_id_hash="second", tag_count=2, tag_features=[dict(tag_id="z"), dict(tag_id="a")], taxonomy_path="2.3", cv_fold=4),
-        dict(product_id_hash="first", tag_count=1, tag_features=[dict(tag_id="a")], taxonomy_path="1", cv_fold=0)])
+        dict(product_id_hash="first", tag_count=0, tag_features=[dict(tag_id="a")], taxonomy_path="1", cv_fold=0)])
     matrix, targets, folds, names, digest = runtime.load_matrix(root)
     assert names == ("z", "a")
     assert matrix.toarray().tolist() == [[0, 1], [1, 1]]

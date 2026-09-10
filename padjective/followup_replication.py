@@ -53,7 +53,9 @@ def load_matrix(root):
     rows, columns, targets, folds, ordered = [], [], [], [], []
     for i, row in enumerate(products):
         features = sorted(item["tag_id"] for item in row["tag_features"])
-        assert len(features) == len(set(features)) == row["tag_count"]
+        # Historical tag_count metadata is stale on 11 rows. Both numerical
+        # pipelines use the actual relation/list, never that scalar count.
+        assert len(features) == len(set(features))
         path = [int(d) for d in row["taxonomy_path"].split(".")]
         assert all(0 < d < 71 for d in path) and len(path) <= 7
         target = sum(d * 71**j for j, d in enumerate(path))
