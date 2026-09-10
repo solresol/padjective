@@ -48,7 +48,15 @@ It adds the 8 September published-method comparison and the 10 September
 
 ## Reproduce the newer fits without the private database
 
-Download this complete directory, not just its README. With `uv` installed:
+Download this complete directory, not just its README. With `uv` installed,
+the following command fetches only this dated package, not the rolling data:
+
+```sh
+uvx --from huggingface-hub hf download gregb/product-taxonomy-bench --repo-type dataset --revision paper-submission-2026-09-10 --include 'submission/2026-09-10/**' --local-dir archive
+cd archive/submission/2026-09-10
+```
+
+Then create the numerical environment and run:
 
 ```sh
 uv venv --python 3.11.11 .venv
