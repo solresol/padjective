@@ -11,6 +11,7 @@ import numpy as np
 import pytest
 
 from padjective.paper_followup_release import HELPERS, build_algorithms, extract_helpers
+from padjective.paper_release_publish import check_report, release_files
 
 
 SOURCE = Path(__file__).resolve().parents[1] / "padjective"
@@ -108,3 +109,20 @@ def test_standalone_exact_fit_and_consensus(standalone):
     for _, size, predictions in checks:
         original, _ = runtime.consensus_predictions(bank[:, :size], options, p=3, precision=2)
         assert np.array_equal(predictions, original)
+
+
+def test_sealing_rejects_smoke_runs_and_wrong_manifest():
+    report = dict(status="passed", full_grid=False)
+    with pytest.raises(AssertionError):
+        check_report(report, "ensembles", "expected", 1215)
+    report.update(full_grid=True, context=dict(suite="ensembles", manifest_sha256="different"))
+    with pytest.raises(AssertionError):
+        check_report(report, "ensembles", "expected", 1215)
+
+
+def test_publication_inventory_excludes_bytecode_and_download_cache(tmp_path):
+    for name in ("manifest.json", "algorithms/model.py", "algorithms/__pycache__/model.pyc", ".cache/huggingface/state"):
+        path = tmp_path / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("content")
+    assert set(release_files(tmp_path)) == {"manifest.json", "algorithms/model.py"}

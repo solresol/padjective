@@ -144,10 +144,11 @@ the sparse greedy solution.
 ## Rights
 
 The parent dataset remains `license: other`. This release does not grant new
-rights to the source catalogue or broaden existing reuse terms. No raw tag
-strings, product titles, merchant identifiers or source product URLs are added.
+rights to the source catalogue or broaden existing reuse terms. No raw
+catalogue export, merchant identifiers or source product URLs are added.
 Public numeric taxonomy paths and the existing anonymous tag/product IDs are
-unchanged. Contact Greg Baker through the dataset repository for reuse terms.
+unchanged; the manuscript retains its few disclosed named examples. Contact
+Greg Baker through the dataset repository for reuse terms.
 """
 
 
