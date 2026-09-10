@@ -4,9 +4,13 @@
 consensus remains the best aggregation rule tested. The apparent improvement
 from feature masking needs confirmation on fresh data.
 
-The manuscript has separately been updated with the earlier valid-path
-ablation. This study has not been inserted into the main paper, its original
-active-support regression, or the frozen 10 September release.
+The manuscript now includes this study and the earlier valid-path ablation
+(papers revision `0d14259`). The new methods, subset-size figure, aggregation
+comparisons, statistical tests and representational proofs remain separate
+from the original eight-configuration active-support regression. The full
+labelled-catalogue comparison has an explicit results placeholder in Section
+6.5; no partial or smoke-test scores were inserted. The frozen 10 September
+release is unchanged.
 
 ## Experiment and checks
 
