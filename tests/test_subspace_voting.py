@@ -127,6 +127,14 @@ def test_raw_plurality_retains_latent_codes_and_represents_xnor():
     assert result['raw_plurality_project'].tolist()==[72,2,2,72]
     for rule in ('raw_valid_medoid','projected_medoid','projected_plurality','projected_survivor'):
         assert result[rule].tolist()==[72]*4
+    seven=bank[:,[0,0,1,1,2,2,2]]
+    for row in seven:
+        counts=sorted(Counter(row).values(),reverse=True)
+        assert counts[0]>counts[1]  # A unique winner, independent of tie order.
+    result=dict(aggregate_sizes(seven,[2,72],[7]))[7]
+    assert result['raw_plurality_project'].tolist()==[72,2,2,72]
+    for rule in ('raw_valid_medoid','projected_medoid','projected_plurality','projected_survivor'):
+        assert result[rule].tolist()==[72]*4
 
 
 def test_parity_witness_annihilates_every_lower_degree_monomial():

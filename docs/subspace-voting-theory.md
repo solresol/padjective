@@ -160,10 +160,20 @@ followed by projection can represent a function those rules cannot, under the
 same singleton-mask restriction. This is a separation example, not a claim that
 one whole hypothesis class contains the other in all settings.
 
-The example depends on the stated raw-code tie rule. It demonstrates that
-collisions between intermediate codes can carry information that early
-projection discards; it does not say that this mechanism will be learnt or
-will help on product classification.
+The three-member example uses the stated tie rule, but the separation does
+not require ties. Take two copies of each singleton member and three copies of
+the constant member, for seven members in total. On equal inputs one raw code
+has four votes and code 2 has three. On unequal inputs codes 72 and 143 have
+two votes each and code 2 has three. Every raw plurality winner is unique, and
+the same XNOR output follows. After early projection, path 72 has four votes
+at every input, so the projected rules remain constant. The threshold-degree
+obstruction still applies to all four other rules for any singleton parameters
+and any number of members.
+
+Thus collisions between intermediate codes can carry information that early
+projection discards, independently of the numerical tie ordering. This does
+not say that the optimiser will learn that mechanism or that it will help on
+product classification.
 
 ## 6. A strict path majority makes the three projected rules agree
 
