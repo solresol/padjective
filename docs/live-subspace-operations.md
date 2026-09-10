@@ -30,6 +30,26 @@ record unlabelled scraper archive.
 
 ## Commands on raksasa
 
+The first full run was started on 11 September 2026 as batch
+`bdf961d0-9b86-4422-8e2c-c9feaa9fed8b`, using pinned source
+`e8d4049c05b09da822df711ebdfac86e82051fc9` and the frozen first cohort above.
+Its log is `experiment-logs/full-20260911.log`. A second end-to-end smoke test
+at this final source (`18b07f54-0bcc-42c0-9d35-74c9b3af000a`) passed before
+launch, with identical paired predictions to the first smoke run. The local
+full suite passed: 269 tests, six skips, 12 existing sklearn warnings.
+
+This is a launch record, not a claim of full-ensemble completion. Check the
+database for current status. The background runner was verified reparented to
+PID 1, with its Python workers continuing after the launch SSH shell exited.
+
+A same-thread daily follow-up named `Padjective live 75-percent ensemble
+tracking` was created for 12:15 Sydney time after the nightly pipeline.
+Its automation ID is `padjective-live-75-percent-ensemble-tracking`. The
+follow-up checks completion and records/refits changed labelled cohorts;
+it does not change the production cron. The desktop app and computer need to
+be available for the scheduled follow-up. The already-running raksasa fit does
+not depend on keeping that app open.
+
 Dedicated checkout: `/home/gregb/tmp/padjective-live-subspace-20260911`.
 The existing `/home/gregb/devel/padjective` production checkout is not changed.
 Use the existing Shopify Postgres connection; never copy credentials or
