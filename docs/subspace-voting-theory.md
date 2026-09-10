@@ -121,6 +121,12 @@ This statement is deliberately binary. It is not a general degree bound for
 multiclass survivor voting, and it does not apply to raw-code plurality before
 projection.
 
+The threshold-degree language and orthogonality-witness method are standard;
+see Section 2.1 and Theorem 2.2 of Alexander Sherstov's
+[*The Intersection of Two Halfspaces Has High Threshold Degree*](https://web.cs.ucla.edu/~sherstov/pdf/hshs.pdf).
+The argument above applies that framework to the present masks and decoding
+rules. It is not a new general lower-bound technique.
+
 ## 5. Raw-code plurality can escape that obstruction
 
 Here is an explicit XNOR construction with two singleton members and one
@@ -203,6 +209,22 @@ extra vote each at 1, 72 and 143. Give root 2 seventy-three identical votes at
 73+72/71>74. The medoid therefore selects the minority root 2, whereas survivor
 voting selects root 1. This distinction is relevant for large ensembles; it
 would be missed by replacing metric minimisation with greedy prefix voting.
+
+A useful sufficient agreement condition is available for valid-path voters.
+Suppose the most popular root a has n_a votes and every other root b has n_b
+votes. If
+
+\[
+n_a-n_b>(n_a-1)/p\quad\text{for every }b\ne a,
+\]
+
+then every p-adic medoid lies in root a. To see this, choose any observed vote
+in root a as a candidate. Its cost is at most M-n_a+(n_a-1)/p: other-root votes
+cost one, its own vote costs zero, and each remaining same-root vote costs at
+most 1/p. Every candidate in root b costs at least M-n_b. The displayed
+condition makes the first bound strictly smaller. In particular, with M<=p,
+a unique root-plurality winner must also be the medoid's root. This is a
+sufficient condition, not a sharp threshold for the first possible disagreement.
 
 ## 8. Fixed precision gives a finite capacity bound
 
