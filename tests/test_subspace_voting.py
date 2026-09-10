@@ -1,4 +1,5 @@
-from itertools import combinations_with_replacement, product
+from itertools import combinations, combinations_with_replacement, product
+from collections import Counter
 import numpy as np
 import pytest
 from scipy.stats import t
@@ -65,6 +66,10 @@ def test_exhaustive_tree_vote_and_majority_property():
             mode=plurality(values)
             if values.count(mode)>size/2:
                 assert winner==mode==medoid(values,3,7)[0]
+            roots=Counter(v%3 for v in values)
+            root=max(roots,key=roots.get)
+            if all(roots[root]-n>(roots[root]-1)/3 for r,n in roots.items() if r!=root):
+                assert medoid(values,3,7)[0]%3==root
 
 
 def test_all_one_member_rules_equal_projection():
@@ -122,3 +127,13 @@ def test_raw_plurality_retains_latent_codes_and_represents_xnor():
     assert result['raw_plurality_project'].tolist()==[72,2,2,72]
     for rule in ('raw_valid_medoid','projected_medoid','projected_plurality','projected_survivor'):
         assert result[rule].tolist()==[72]*4
+
+
+def test_parity_witness_annihilates_every_lower_degree_monomial():
+    for r in range(2,7):
+        inputs=np.array(list(product([-1,1],repeat=r)))
+        parity=np.prod(inputs,axis=1)
+        for degree in range(r):
+            for columns in combinations(range(r),degree):
+                monomial=np.prod(inputs[:,columns],axis=1)
+                assert int(parity@monomial)==0
