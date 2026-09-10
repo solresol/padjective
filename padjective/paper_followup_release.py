@@ -53,9 +53,9 @@ Download this complete directory, not just its README. With `uv` installed:
 ```sh
 uv venv --python 3.11.11 .venv
 uv pip install --python .venv/bin/python -r requirements.txt
-.venv/bin/python followup_replication.py --suite published --workers 3 --output-dir rerun-published
-.venv/bin/python followup_replication.py --suite ensembles --workers 4 --output-dir rerun-ensembles
-.venv/bin/python followup_capacity_replication.py --output rerun-capacity.json
+.venv/bin/python followup_replication.py --suite published --workers 3 --output-dir ../rerun-published
+.venv/bin/python followup_replication.py --suite ensembles --workers 4 --output-dir ../rerun-ensembles
+.venv/bin/python followup_capacity_replication.py --output ../rerun-capacity.json
 ```
 
 The runners require only local, anonymised files. There is no PostgreSQL,
