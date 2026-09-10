@@ -49,15 +49,20 @@ def check_report(report, suite, manifest_hash, expected_rows):
             "schedule_complete": 45, "rank_obstruction": 10, "inclusion_obstruction": 5, "time_limit": 5}
 
 
-def copy_paper(repository, root):
-    """Copy committed scientific source only, retaining relative bibliography paths."""
-    commit = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=repository, text=True).strip()
+def paper_source_files(repository):
     paths = subprocess.check_output(["git", "ls-files", "padjective/padic-journal"], cwd=repository, text=True).splitlines()
     selected = [name for name in paths if (Path(name).suffix in {
         ".tex", ".rty", ".bst", ".dot", ".eps", ".png", ".py", ".json", ".csv"}
         or Path(name).name == "Makefile" or name.endswith("/data/README.md"))
         and Path(name).name != "cover-letter.tex"]
     selected += ["bibliography.bib", "output/pdf/padjective-padic-journal.pdf"]
+    return selected
+
+
+def copy_paper(repository, root):
+    """Copy committed scientific source only, retaining relative bibliography paths."""
+    commit = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=repository, text=True).strip()
+    selected = paper_source_files(repository)
     for name in selected:
         # Reject uncommitted changes rather than freezing untraceable bytes.
         content = subprocess.check_output(["git", "show", f"{commit}:{name}"], cwd=repository)
@@ -105,6 +110,12 @@ def seal(root, ensembles, published, paper):
     shutil.copy2(Path(__file__).with_name("followup_capacity_replication.py"), root / "followup_capacity_replication.py")
     paper_commit = copy_paper(paper, root)
     (root / "README.md").write_text(README)
+    expected_files = set(manifest["sha256"]) | {
+        "manifest.json", "followup_capacity_replication.py", "validation/input-manifest.json",
+        "validation/ensembles.json", "validation/published.json", "validation/capacity.json",
+        "paper-evidence/README.md"} | {"paper-evidence/"+name for name in paper_source_files(paper)}
+    actual_files = set(release_files(root))
+    assert actual_files == expected_files, dict(unexpected=sorted(actual_files-expected_files), missing=sorted(expected_files-actual_files))
     manifest.update(validation_status="passed", validation_input_manifest_sha256=manifest_hash,
                     manuscript_source_commit=paper_commit,
                     validation=dict(refitted_coordinate_models=1215, reconstructed_ensembles=945,
