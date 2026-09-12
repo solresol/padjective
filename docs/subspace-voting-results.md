@@ -4,13 +4,32 @@
 consensus remains the best aggregation rule tested. The apparent improvement
 from feature masking needs confirmation on fresh data.
 
-The manuscript now includes this study and the earlier valid-path ablation
-(papers revision `0d14259`). The new methods, subset-size figure, aggregation
+The manuscript includes this study and the earlier valid-path ablation
+(papers revision `0d14259`). The methods, subset-size figure, aggregation
 comparisons, statistical tests and representational proofs remain separate
-from the original eight-configuration active-support regression. The full
-labelled-catalogue comparison has an explicit results placeholder in Section
-6.5; no partial or smoke-test scores were inserted. The frozen 10 September
-release is unchanged.
+from the original eight-configuration active-support regression.
+
+**12 September manuscript update:** papers revision `b0b78a4` replaces Section
+6.5's placeholder with three completed full labelled-catalogue comparisons
+(31,038 / 31,138 / 31,238 products), all 2,430 certified components per run,
+overlap/non-overlap and coverage subgroups, paired uncertainty and the two
+unchanged-common-product refit comparisons. The latest equal-fold losses are
+0.626790 (75%) and 0.634762 (100%); the difference's approximate 95% interval
+is [-0.017379,+0.001435], p=0.07827. All three overall intervals include zero.
+About 60% of products have no usable fitting-fold tags. These partially
+overlapping store-grouped refits are not independent confirmation, frozen-model
+drift measurements or replacements for the fixed-snapshot numbers below.
+
+Public evidence and its read-only export/portable arithmetic checks are in
+`papers/padjective/padic-journal/data/live-subspace-results.json`,
+`export_live_subspace_evidence.py` and `generate_live_subspace_assets.py`.
+Private product rows and predictions remain on raksasa. All 39 manuscript
+asset tests and 269 Padjective tests pass (six skips). The rebuilt, visually
+reviewed 34-page canonical PDF has SHA-256
+`c90c7a7e5fbbd7dc92a80b4bad9a5e82188c1564add2aeca148e43ed60492011`.
+No partial or smoke-test scores were inserted. The frozen 10 September release,
+original log-log assets, fitting code, running service and reMarkable library
+are unchanged by the manuscript update.
 
 ## Experiment and checks
 
