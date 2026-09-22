@@ -247,7 +247,32 @@ def analyse(report):
         for x,budgets in (('active',(3,10,30,100,300,1000,3000,10000)),
                 ('stored_slots',(100,1000,3000,10000,30000,100000,300000,1000000))):
             tables[f'{label}_{x}']=budget_table(weight_rows(rows,weight),x,budgets)
+    crossovers=[]
+    for weight in ('balanced',None):
+        for linear in ('padic100','padic75'):
+            bank=[r for r in rows if r['series']==linear]
+            for family in ('tree','forest'):
+                classical=frontier([r for r in weight_rows(rows,weight) if r['series']==family])
+                previous=None
+                for point in classical:
+                    available=[r for r in bank if r['active']<=point['active']]
+                    if available:
+                        best=min(available,key=lambda r:r['mean_padic_loss'])
+                        if point['mean_padic_loss']<best['mean_padic_loss']:
+                            crossovers.append(dict(weight=weight,linear=linear,family=family,
+                                previous_frontier_point=previous,first_overtaking_point=point,
+                                best_affordable_linear=best))
+                            break
+                    previous=point
+    dominated=[]
+    trees=[r for r in weight_rows(rows,None) if r['series']=='tree']
+    for p in [r for r in rows if r['config']['family']=='padic']:
+        options=[r for r in trees if r['stored_slots']<=p['stored_slots'] and r['mean_padic_loss']<p['mean_padic_loss']]
+        if options:
+            t=min(options,key=lambda r:r['mean_padic_loss'])
+            dominated.append(dict(padic=p['config'],tree=t['config']))
     return dict(batch_id=report['batch_id'],rows=rows,budget_tables=tables,
+                active_crossovers=crossovers,storage_dominated_by_unweighted_tree=dominated,
                 note='All frontiers and budget winners are descriptive selections on the same held-out folds.')
 
 
@@ -293,6 +318,7 @@ def main():
     assert report['validation']['status']=='passed'
     analysis=analyse(report)
     analysis['results_sha256']=hashlib.sha256(raw).hexdigest()
+    analysis['analysis_source_sha256']=hashlib.sha256(Path(__file__).read_bytes()).hexdigest()
     reference_path=Path('docs/ensemble-scaling/analysis.json')
     reference=next(r for r in json.loads(reference_path.read_text())['reference_points'] if r['key']=='dt')
     tree=next(r for r in analysis['rows'] if r['config']==dict(family='tree',
