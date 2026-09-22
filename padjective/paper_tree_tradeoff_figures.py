@@ -251,11 +251,43 @@ def analyse(report):
                 note='All frontiers and budget winners are descriptive selections on the same held-out folds.')
 
 
+def persist_review(output):
+    """Attach the reviewed aggregate bundle to its own experiment record."""
+    from psycopg.types.json import Jsonb
+    from . import db
+    raw=(output/'results.json').read_bytes()
+    result=json.loads(raw)
+    analysis=json.loads((output/'analysis.json').read_text())
+    assert analysis['results_sha256']==hashlib.sha256(raw).hexdigest()
+    assert result['batch_id']==analysis['batch_id']
+    assert analysis['reference_check']['status']=='passed'
+    bundle=dict(analysis=analysis,writeup=(output/'results.md').read_text(),
+        artifacts={p.name:hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(output.iterdir())
+                   if p.suffix in ('.json','.md','.png','.svg','.pdf')})
+    with db.get_connection() as conn:
+        prior=conn.execute('SELECT report FROM padjective.paper_tree_tradeoff_batches WHERE batch_id=%s',
+                           (result['batch_id'],)).fetchone()[0]
+        assert prior['rows']==result['rows'] and prior['validation']==result['validation']
+        conn.execute('''UPDATE padjective.paper_tree_tradeoff_batches
+            SET report=report || %s WHERE batch_id=%s''',
+            (Jsonb(dict(review_bundle=bundle)),result['batch_id']))
+        conn.commit()
+        saved=conn.execute("SELECT report->'review_bundle' FROM padjective.paper_tree_tradeoff_batches WHERE batch_id=%s",
+                           (result['batch_id'],)).fetchone()[0]
+        assert saved==bundle
+    print(json.dumps(dict(review_persisted=True,batch_id=result['batch_id'],artifacts=len(bundle['artifacts']))))
+
+
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--results',type=Path,required=True)
     parser.add_argument('--output-directory',type=Path,required=True)
+    parser.add_argument('--persist-review',action='store_true',
+        help='Persist an already generated and reviewed bundle to Postgres; do not redraw.')
     args=parser.parse_args()
+    if args.persist_review:
+        persist_review(args.output_directory)
+        return
     raw=args.results.read_bytes()
     report=json.loads(raw)
     assert report['validation']['status']=='passed'
