@@ -5,6 +5,7 @@ import argparse
 from collections import defaultdict
 import hashlib
 import json
+import os
 from pathlib import Path
 
 import matplotlib
@@ -13,7 +14,10 @@ import matplotlib.pyplot as plt
 from matplotlib.ticker import PercentFormatter, FuncFormatter
 import numpy as np
 
-from .paper_tree_ensemble_tradeoff import config_key
+
+def config_key(config):
+    # Keep the aggregate plotting module usable without the database runner.
+    return json.dumps(config, sort_keys=True, separators=(',', ':'))
 
 METRICS = ('mean_padic_loss', 'first_digit_accuracy', 'exact_accuracy')
 STYLES = {
@@ -110,32 +114,48 @@ def budget_table(rows,x,budgets):
 
 
 def setup_style():
-    plt.rcParams.update({'font.family':'DejaVu Sans','font.size':11,
+    os.environ.setdefault('SOURCE_DATE_EPOCH', '1790035200')
+    from matplotlib.font_manager import findfont
+    family=None
+    for candidate in ('Courier', 'Courier New', 'Nimbus Mono PS'):
+        try:
+            findfont(candidate, fallback_to_default=False)
+            family=candidate
+            break
+        except ValueError:
+            pass
+    if family is None:
+        raise RuntimeError('Install Courier or its URW equivalent Nimbus Mono PS for journal figures.')
+    plt.rcParams.update({'font.family':family,'font.size':11,
         'axes.spines.top':False,'axes.spines.right':False,'axes.edgecolor':'#AAAAAA',
         'text.color':'#252525','axes.labelcolor':'#252525','xtick.color':'#555555',
-        'ytick.color':'#555555','svg.fonttype':'none','pdf.fonttype':42,
+        'ytick.color':'#555555','svg.fonttype':'path','svg.hashsalt':'padjective-tradeoff',
+        'pdf.fonttype':42,'ps.fonttype':42,
         'axes.titleweight':'semibold','savefig.facecolor':'white'})
 
 
 def save(fig,output,name):
-    for extension in ('png','svg','pdf'):
-        fig.savefig(output/f'{name}.{extension}',dpi=180,bbox_inches='tight')
+    for extension in ('png','svg','pdf','eps'):
+        fig.savefig(output/f'{name}.{extension}',dpi=180,bbox_inches='tight',
+                    metadata={'Creator':'Padjective trade-off figures'})
     plt.close(fig)
 
 
-def axis(ax,x,metric):
+def axis(ax,x,metric,linear_loss=False):
     ax.set_xscale('symlog',linthresh=1)
-    ax.xaxis.set_major_formatter(FuncFormatter(lambda v,p:f'{v:,.0f}' if v>=1 else f'{v:g}'))
-    ax.grid(True,which='major',color='#E8E8E8',linewidth=.7)
+    ax.xaxis.set_major_formatter(FuncFormatter(lambda v,p:
+        f'{v/1e6:g}M' if v>=1e6 else f'{v/1e3:g}k' if v>=1e3 else f'{v:g}'))
+    ax.grid(False)
     ax.set_axisbelow(True)
     ax.set_xlabel({'active':'Mean decisions or coefficient consultations / product',
         'stored_slots':'Stored inference slots (declared representation)',
         'broader_work_lower':'Broader scoring proxy / product'}[x])
     if metric=='mean_padic_loss':
-        ax.set_yscale('log')
-        ax.set_ylim(.06,1.05)
-        ticks=[.06,.08,.1,.15,.2,.3,.5,.7,1.]
-        ax.set_yticks(ticks,labels=[str(t) for t in ticks])
+        ax.set_yscale('linear' if linear_loss else 'log')
+        ax.set_ylim((0,1.05) if linear_loss else (.06,1.05))
+        if not linear_loss:
+            ticks=[.06,.08,.1,.15,.2,.3,.5,.7,1.]
+            ax.set_yticks(ticks,labels=[str(t) for t in ticks])
         ax.set_ylabel('Held-out p-adic loss · lower is better')
     else:
         ax.set_ylim(0,1)
@@ -147,7 +167,8 @@ def curves(ax,rows,x,metric='mean_padic_loss',label=True):
     for name,style in STYLES.items():
         selected=[r for r in rows if r['series']==name]
         ax.scatter([r[x] for r in selected],[r[metric] for r in selected],s=20,
-            color=style['color'],marker=style['marker'],alpha=.25,linewidths=0)
+            color=tuple(.75+.25*c for c in matplotlib.colors.to_rgb(style['color'])),
+            marker=style['marker'],linewidths=0)
         if name.startswith('padic'):
             points=sorted(selected,key=lambda r:r['config']['members'])
         else:
@@ -157,13 +178,43 @@ def curves(ax,rows,x,metric='mean_padic_loss',label=True):
             linestyle=style['linestyle'],linewidth=1.7,label=style['label'] if label else None)
 
 
-def landscape(rows,output,x,name):
+def annotate_point(ax,row,x,text,offset,metric='mean_padic_loss',bold=False):
+    ax.annotate(text,(row[x],row[metric]),xytext=offset,textcoords='offset points',
+                fontsize=8,ha='left' if offset[0]>=0 else 'right',va='center',
+                color='#202020',fontweight='bold' if bold else 'normal',
+                bbox=dict(facecolor='white',edgecolor='none',pad=1),
+                arrowprops=dict(arrowstyle='-',color='#555555',lw=.65),zorder=8)
+
+
+def annotate_members(ax,rows,x,linear_loss=False,metric='mean_padic_loss'):
+    # Sparse labels: member counts on two banks and tree counts on the forest.
+    specs=[('padic100',1,'1 member',(-8,19)),
+           ('padic100',9,'9 members',(-28,-25)),
+           ('padic75',15,'15 members',(6,24)),
+           ('padic75',243,'243 members',(9,33)),
+           ('forest',81,'81 trees',(-8,19))]
+    for name,m,label,offset in specs:
+        candidates=[r for r in rows if r['series']==name and r['config']['members']==m]
+        row=min(candidates,key=lambda r:r['mean_padic_loss'])
+        if x!='active' and name=='padic100':
+            continue
+        if x=='broader_work_lower' and name=='padic75':
+            offset=(-22,28) if m==15 else (28,57)
+        if metric!='mean_padic_loss':
+            offset=(offset[0],-offset[1])
+        annotate_point(ax,row,x,label,offset,metric,bold=name=='padic75' and m==15)
+
+
+def landscape(rows,output,x,name,linear_loss=False):
     fig,axes=plt.subplots(1,2,figsize=(14,5.4))
     for ax,weight,title in zip(axes,('balanced',None),('Class-balanced trees and forests','Unweighted trees and forests')):
         curves(ax,weight_rows(rows,weight),x)
-        axis(ax,x,'mean_padic_loss')
+        axis(ax,x,'mean_padic_loss',linear_loss)
+        annotate_members(ax,weight_rows(rows,weight),x,linear_loss)
         ax.set_title(title,fontsize=12,pad=12)
-    axes[0].legend(loc='lower left',frameon=False,fontsize=9)
+    handles,labels=axes[0].get_legend_handles_labels()
+    fig.legend(handles,labels,loc='upper center',bbox_to_anchor=(.54,.94),
+               ncol=4,frameon=False,fontsize=9)
     fig.suptitle('Model complexity and held-out hierarchical loss',fontsize=17,x=.08,ha='left',y=1.03)
     fig.text(.08,.965,'6,693 products · five frozen folds · forest scores averaged over three seeds per fold',fontsize=10)
     fig.text(.08,-.045,'Faint marks: all settings. Tree/forest lines: descriptive held-out frontiers; p-adic lines: fixed member sequence.\n'
@@ -180,6 +231,7 @@ def accuracy_plot(rows,output):
     for ax,metric,title in zip(axes,METRICS[1:],('Correct taxonomy root','Correct complete taxonomy path')):
         curves(ax,selected,'active',metric)
         axis(ax,'active',metric)
+        annotate_members(ax,selected,'active',metric=metric)
         ax.set_title(title,fontsize=12,pad=12)
     axes[0].legend(loc='lower right',frameon=False,fontsize=9)
     fig.suptitle('Accuracy and prediction work',fontsize=17,x=.08,ha='left',y=1.03)
@@ -190,13 +242,13 @@ def accuracy_plot(rows,output):
     save(fig,output,'accuracy-vs-work')
 
 
-def fold_plot(rows,output):
+def fold_plot(rows,output,linear_loss=False):
     fig,axes=plt.subplots(2,3,figsize=(15,9))
     selected=weight_rows(rows,None)
     for f,ax in enumerate(axes.flat[:5]):
         per_fold=[dict(r,**r['folds'][f]) for r in selected]
         curves(ax,per_fold,'active')
-        axis(ax,'active','mean_padic_loss')
+        axis(ax,'active','mean_padic_loss',linear_loss)
         ax.set_title(f"Fold {f+1} · {per_fold[0]['n']:,} held-out products",fontsize=11)
         ax.tick_params(labelsize=9)
         ax.set_xlabel('Mean active work / product',fontsize=10)
@@ -208,7 +260,7 @@ def fold_plot(rows,output):
     fig.text(.07,.93,'Unweighted trees and forests · the same p-adic banks in every comparison · lines are descriptive',fontsize=10)
     fig.text(.07,.012,'Folds share training products; their spread is not five independent replications. No seeds or ensemble members were selected on held-out labels.',fontsize=9)
     fig.subplots_adjust(top=.87,bottom=.085,hspace=.34,wspace=.25)
-    save(fig,output,'fold-comparisons')
+    save(fig,output,'fold-comparisons-linear' if linear_loss else 'fold-comparisons')
 
 
 def depth_plot(rows,output):
@@ -230,13 +282,62 @@ def depth_plot(rows,output):
         ax.set_xlabel('Maximum permitted tree depth')
         ax.set_ylabel('p-adic loss · lower is better')
         ax.set_title(title,fontsize=12,pad=12)
-        ax.grid(True,color='#E8E8E8')
+        ax.grid(False)
     axes[0].legend(loc='upper right',frameon=False,fontsize=9)
     fig.suptitle('Tree depth, training fit and held-out performance',fontsize=17,x=.08,ha='left',y=1.03)
     fig.text(.08,.965,'Five frozen folds · fixed seed 42 · all 2,542 binary tag features · fixed 9-member references',fontsize=10)
     fig.text(.08,-.025,'Depth is a maximum; the main trade-off charts use actual mean decisions. Leaf-count and post-pruning sweeps are included there.',fontsize=9,color='#555555')
     fig.subplots_adjust(top=.84,bottom=.14,wspace=.25)
     save(fig,output,'tree-depth')
+
+
+def small_ensemble_plot(rows,output):
+    fig,ax=plt.subplots(figsize=(8,4.8))
+    for name in ('padic100','padic75'):
+        bank=sorted((r for r in rows if r['series']==name),key=lambda r:r['config']['members'])
+        ax.plot([r['config']['members'] for r in bank],[r['mean_padic_loss'] for r in bank],
+                **STYLES[name],markersize=5,linewidth=1.5)
+    for name,m,offset in [('padic100',9,(-40,15)),('padic75',15,(-10,-31)),
+                          ('padic75',81,(-2,22)),('padic75',243,(-8,-29))]:
+        row=next(r for r in rows if r['series']==name and r['config']['members']==m)
+        annotate_point(ax,dict(row,members=m),'members',f"{m} members: {row['mean_padic_loss']:.4f}",
+                       offset,bold=m==15)
+    ax.set_xscale('log')
+    ax.set_xticks([1,3,9,15,27,81,243],labels=['1','3','9','15','27','81','243'])
+    ax.set_xlim(.85,310)
+    ax.set_ylim(.105,.315)
+    ax.set_xlabel('Ensemble members (log scale)')
+    ax.set_ylabel('Held-out p-adic loss (linear scale)')
+    ax.set_title('Most of the measured gain arrives in a small ensemble',fontsize=13,pad=14)
+    ax.legend(frameon=False,loc='upper right',fontsize=10)
+    fig.text(.125,-.04,'15 members at 75% features: 91.8% of the 1-to-243 loss reduction at 6.2% of the member work.\n'
+             'Descriptive choice on the existing five folds; aggregation is additional work.',fontsize=9)
+    save(fig,output,'small-ensemble')
+
+
+def journal_figures(rows,output):
+    """17.5 cm vector artwork; use line/marker differences for monochrome print."""
+    selected=weight_rows(rows,None)
+    with plt.rc_context({'font.size':9}):
+        for name,panels in (
+            ('tree_tradeoff_work',[('active',False,'(a) Logarithmic loss'),
+                                  ('active',True,'(b) Linear loss')]),
+            ('tree_tradeoff_costs',[('stored_slots',True,'(a) Stored inference slots'),
+                                   ('broader_work_lower',True,'(b) Broader scoring proxy')])):
+            fig,axes=plt.subplots(2,1,figsize=(17.5/2.54,7.3))
+            for ax,(x,linear,title) in zip(axes,panels):
+                curves(ax,selected,x)
+                axis(ax,x,'mean_padic_loss',linear)
+                annotate_members(ax,selected,x,linear)
+                ax.set_title(title,loc='left',fontsize=10,pad=9)
+                ax.set_ylabel('Mean p-adic loss')
+                ax.tick_params(labelsize=8)
+                ax.set_xlabel({'active':'Mean branch decisions or coefficient consultations / product',
+                    'stored_slots':'Stored inference slots',
+                    'broader_work_lower':'Broader scoring proxy / product'}[x],fontsize=9)
+            axes[0].legend(frameon=False,loc='upper right',fontsize=8)
+            fig.subplots_adjust(top=.96,bottom=.08,left=.12,right=.98,hspace=.42)
+            save(fig,output,name)
 
 
 def analyse(report):
@@ -271,7 +372,16 @@ def analyse(report):
         if options:
             t=min(options,key=lambda r:r['mean_padic_loss'])
             dominated.append(dict(padic=p['config'],tree=t['config']))
-    return dict(batch_id=report['batch_id'],rows=rows,budget_tables=tables,
+    bank={r['config']['members']:r for r in rows if r['series']=='padic75'}
+    small=bank[15]
+    tradeoff=dict(config=small['config'],active=small['active'],loss=small['mean_padic_loss'],
+        root_accuracy=small['first_digit_accuracy'],exact_accuracy=small['exact_accuracy'],
+        fraction_of_1_to_243_loss_reduction=(bank[1]['mean_padic_loss']-small['mean_padic_loss'])/
+            (bank[1]['mean_padic_loss']-bank[243]['mean_padic_loss']),
+        fraction_of_243_member_work=small['active']/bank[243]['active'],
+        same_budget_comparisons=budget_table(weight_rows(rows,None),'active',[small['active']])[0],
+        selection='Illustrative choice after inspecting the fixed-fold results; not a validated optimum.')
+    return dict(batch_id=report['batch_id'],rows=rows,budget_tables=tables,small_ensemble_tradeoff=tradeoff,
                 active_crossovers=crossovers,storage_dominated_by_unweighted_tree=dominated,
                 note='All frontiers and budget winners are descriptive selections on the same held-out folds.')
 
@@ -288,7 +398,7 @@ def persist_review(output):
     assert analysis['reference_check']['status']=='passed'
     bundle=dict(analysis=analysis,writeup=(output/'results.md').read_text(),
         artifacts={p.name:hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(output.iterdir())
-                   if p.suffix in ('.json','.md','.png','.svg','.pdf')})
+                   if p.suffix in ('.json','.md','.png','.svg','.pdf','.eps')})
     with db.get_connection() as conn:
         prior=conn.execute('SELECT report FROM padjective.paper_tree_tradeoff_batches WHERE batch_id=%s',
                            (result['batch_id'],)).fetchone()[0]
@@ -335,9 +445,15 @@ def main():
     landscape(analysis['rows'],output,'active','loss-vs-work')
     landscape(analysis['rows'],output,'stored_slots','loss-vs-storage')
     landscape(analysis['rows'],output,'broader_work_lower','loss-vs-broader-work')
+    for x,name in [('active','loss-vs-work'),('stored_slots','loss-vs-storage'),
+                   ('broader_work_lower','loss-vs-broader-work')]:
+        landscape(analysis['rows'],output,x,name+'-linear',linear_loss=True)
     accuracy_plot(analysis['rows'],output)
     fold_plot(analysis['rows'],output)
+    fold_plot(analysis['rows'],output,linear_loss=True)
     depth_plot(analysis['rows'],output)
+    small_ensemble_plot(analysis['rows'],output)
+    journal_figures(analysis['rows'],output)
     print(json.dumps(dict(configurations=len(analysis['rows']),output=str(output))))
 
 

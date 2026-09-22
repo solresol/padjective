@@ -1,6 +1,7 @@
 # P-adic ensembles, decision trees and random forests
 
-22 September 2026. Separate experiment and review note; the paper has not been edited.
+22 September 2026. Experiment and review note. The journal manuscript now includes
+this as a separate capacity comparison, with annotated vector figures.
 
 **There is a substantial range in which the p-adic ensembles achieve better
 accuracy with fewer active member terms than the tested trees and forests.
@@ -52,6 +53,10 @@ show an early advantage for p-adic ensembles and a later crossover.
 
 ![Held-out loss versus active work](loss-vs-work.png)
 
+[The same comparison with linear loss](loss-vs-work-linear.pdf) makes absolute
+improvements easier to compare. Selected points now show ensemble member counts
+or forest tree counts; the 15-member, 75%-feature point is highlighted.
+
 Lower loss is better. The loss axis is logarithmic; the work axis is logarithmic
 above 1 and linear from 0 to 1. Faint points show every configuration. Classical
 lines join the observed lower-loss frontier; the p-adic lines retain the fixed
@@ -97,9 +102,36 @@ decisions.
 
 ## Accuracy and the high-capacity end
 
+### A useful small-ensemble compromise
+
+The **15-member ensemble with 75% of features per member** is a useful point
+to highlight: **0.147371 loss, 85.38% root accuracy and 56.06% exact-path
+accuracy**, at **17.86 coefficient consultations per product**.
+It achieves **91.8% of the loss reduction from one to 243 members** in that
+same feature-subset series, with **6.2% of the 243-member model's active member
+work**. These percentages describe loss reduction and member work, respectively;
+they are not percentages of maximum achievable accuracy or complete runtime.
+
+At that work ceiling the best measured unweighted tree and forest have losses
+0.525845 and 0.509827. Going from 15 to 243 members reduces p-adic loss by
+another 0.012716 and increases root and exact-path accuracy by 1.27 and
+1.33 percentage points, while multiplying member work by 16.1.
+Nine all-feature members remain a simpler alternative at 12.02 consultations
+and 83.99% root accuracy.
+
+![Small ensembles and diminishing returns](small-ensemble.png)
+
+The 15-member choice is **illustrative and made after inspecting these results**.
+It is not a prespecified elbow criterion, an independently validated optimum,
+or a significant win for the 75% feature mask. The original multiple-testing
+qualification still applies. Its declared storage is 19,151.2 slots, and it
+still requires consensus; the low member count does not establish a smaller
+stored model or faster full prediction.
+
 | Configuration | Mean active work | p-adic loss | Root accuracy | Exact-path accuracy | Stored slots |
 |---|---:|---:|---:|---:|---:|
 | p-adic, all features, 9 members | 12.02 | 0.161197 | 83.99% | 55.50% | 13,346 |
+| p-adic, 75% features, 15 members | 17.86 | 0.147371 | 85.38% | 56.06% | 19,151 |
 | p-adic, 75% features, 81 members | 96.41 | 0.136581 | 86.46% | 57.23% | 101,995 |
 | p-adic, all features, 243 members | 324.76 | 0.144596 | 85.65% | 57.52% | 352,778 |
 | p-adic, 75% features, 243 members | 287.73 | 0.134655 | 86.65% | 57.39% | 304,580 |
@@ -161,7 +193,7 @@ The experiment supports a claim about the sparsity of the member calculation.
 It does not demonstrate faster end-to-end inference or a shorter complete
 human explanation once consensus is included.
 
-## What this could support in the paper
+## Interpretation in the paper
 
 A defensible result would be: on the fixed sparse-product benchmark, small
 p-adic ensembles achieve lower hierarchical loss than the tested trees and
@@ -172,11 +204,11 @@ the lowest measured loss. The crossover depends on class weighting and the
 complexity definition; it does not extend to stored model size or establish
 an end-to-end computational advantage.
 
-I would include this as a separate complexity–accuracy experiment if that
-qualified claim is useful to the paper. The active-work and stored-state
-graphs should travel together, with the consensus-cost limitation close to
-the claim. These deliberately varied configurations remain separate from
-the paper's active-support regression.
+The manuscript now includes a separate capacity–accuracy subsection, a selected
+configuration table, log–log and linear-loss work panels, and stored-state and
+broader-work panels. The abstract, introduction, methods, limitations, conclusion
+and reproduction notes refer to the experiment where relevant. These deliberately
+varied configurations remain separate from the paper's active-support regression.
 
 ## Scope, validation and reproduction
 
@@ -228,7 +260,7 @@ OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 \
   --workers 2 --output /path/to/new-results.json
 ```
 
-All six figures are available in PNG, SVG and PDF. Their repeated curve form
+All figures are available in PNG, SVG, vector PDF and EPS. Their repeated curve form
 is deliberate: each examines an ordered capacity sweep, a different counting
 convention, a different accuracy metric, or the same relationship across folds.
 
@@ -240,6 +272,18 @@ convention, a different accuracy metric, or the same relationship across folds.
 | [Accuracy PDF](accuracy-vs-work.pdf) | Is the full path correct, or only the root? | Active work versus the two accuracy metrics |
 | [Depth PDF](tree-depth.pdf) | What changes as trees grow deeper? | Maximum depth versus training and held-out loss |
 | [Folds PDF](fold-comparisons.pdf) | Is the shape driven by one fold? | Active work versus loss in all five folds |
+| [Linear loss/work PDF](loss-vs-work-linear.pdf) | How large are absolute loss differences? | Same configurations and annotations, linear loss |
+| [Linear loss/storage PDF](loss-vs-storage-linear.pdf) | Is there a storage advantage? | Same storage proxy, linear loss |
+| [Linear broader-work PDF](loss-vs-broader-work-linear.pdf) | What does consensus add? | Same broader counter, linear loss |
+| [Linear fold PDF](fold-comparisons-linear.pdf) | Do absolute gaps recur across folds? | Five-fold panels with linear loss |
+| [Small-ensemble PDF](small-ensemble.pdf) | Where do returns begin to diminish? | Loss versus member count; the 15-member compromise |
+| [Journal work PDF](tree_tradeoff_work.pdf) | What goes into the paper? | Annotated log–log and linear-loss panels, unweighted fits |
+| [Journal costs PDF](tree_tradeoff_costs.pdf) | What qualifies the claim? | Stored slots and broader scoring proxy |
+
+The [figure-format note](figure-formats.md) records the checked journal
+instructions and earlier Sudoku EPS workflow. EPS files use embedded Courier
+fonts (the portable fallback is URW's Courier equivalent, Nimbus Mono PS).
+The source emits actual vector paths and text; PNGs are viewing copies.
 
 Colours and markers consistently identify model families: blue circles for
 all-feature p-adic ensembles, lighter blue diamonds for 75%-feature ensembles,

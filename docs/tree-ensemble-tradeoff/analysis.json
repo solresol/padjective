@@ -21048,6 +21048,77 @@
       }
     ]
   },
+  "small_ensemble_tradeoff": {
+    "config": {
+      "family": "padic",
+      "fraction": 0.75,
+      "members": 15,
+      "seed": "fixed_primary_roster"
+    },
+    "active": 17.855169209232884,
+    "loss": 0.14737086694423163,
+    "root_accuracy": 0.8538022821385205,
+    "exact_accuracy": 0.5605752231697836,
+    "fraction_of_1_to_243_loss_reduction": 0.9175724764535318,
+    "fraction_of_243_member_work": 0.06205470222439207,
+    "same_budget_comparisons": {
+      "budget": 17.855169209232884,
+      "padic100": {
+        "config": {
+          "family": "padic",
+          "fraction": 1.0,
+          "members": 9,
+          "seed": "fixed_primary_roster"
+        },
+        "loss": 0.16119706300065992,
+        "active": 12.024667658988719,
+        "stored_slots": 13346.4,
+        "root_accuracy": 0.8399307356173453,
+        "exact_accuracy": 0.5550498450067972
+      },
+      "padic75": {
+        "config": {
+          "family": "padic",
+          "fraction": 0.75,
+          "members": 15,
+          "seed": "fixed_primary_roster"
+        },
+        "loss": 0.14737086694423163,
+        "active": 17.855169209232884,
+        "stored_slots": 19151.2,
+        "root_accuracy": 0.8538022821385205,
+        "exact_accuracy": 0.5605752231697836
+      },
+      "tree": {
+        "config": {
+          "class_weight": null,
+          "family": "tree",
+          "max_depth": 8,
+          "seed": 42,
+          "sweep": "depth"
+        },
+        "loss": 0.5258448986181308,
+        "active": 7.808910444824167,
+        "stored_slots": 121.0,
+        "root_accuracy": 0.4765866202399723,
+        "exact_accuracy": 0.1003435356161575
+      },
+      "forest": {
+        "config": {
+          "class_weight": null,
+          "family": "forest",
+          "max_depth": 16,
+          "members": 1
+        },
+        "loss": 0.5098274689387191,
+        "active": 15.570546279558247,
+        "stored_slots": 1192.4666666666667,
+        "root_accuracy": 0.4925929605302505,
+        "exact_accuracy": 0.11486763691159207
+      }
+    },
+    "selection": "Illustrative choice after inspecting the fixed-fold results; not a validated optimum."
+  },
   "active_crossovers": [
     {
       "weight": "balanced",
@@ -23940,7 +24011,7 @@
   ],
   "note": "All frontiers and budget winners are descriptive selections on the same held-out folds.",
   "results_sha256": "de0758f83cdef5157f27f21669b7770c26f27cd2ebff27f31865a6be235790c7",
-  "analysis_source_sha256": "7e6734a80e832492bca1a08dfec4361ba3c171b4464d55336118f4186dcf7a9c",
+  "analysis_source_sha256": "17fd2d0b6988ed6e7dc65882e663802611025a81be9244bbb96de7dc4c9e62bd",
   "reference_check": {
     "status": "passed",
     "path": "docs/ensemble-scaling/analysis.json",
