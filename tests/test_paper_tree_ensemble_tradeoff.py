@@ -74,3 +74,27 @@ def test_padic_metric_distinguishes_root_and_exact_correctness():
     assert score['mean_padic_loss']==pytest.approx((1+1/71)/3)
     assert score['first_digit_accuracy']==pytest.approx(2/3)
     assert score['exact_accuracy']==pytest.approx(1/3)
+
+
+def test_frontier_uses_no_interpolation_and_handles_equal_costs():
+    from padjective.paper_tree_tradeoff_figures import frontier
+    rows=[dict(active=x,mean_padic_loss=y) for x,y in [(1,.4),(1,.3),(2,.35),(3,.2),(4,.2)]]
+    result=frontier(rows)
+    assert [(r['active'],r['mean_padic_loss']) for r in result]==[(1,.3),(3,.2)]
+
+
+def test_seed_averaging_is_within_fold_not_pooled_by_fold_size():
+    from padjective.paper_tree_tradeoff_figures import group_rows
+    rows=[]
+    for fold in range(5):
+        for seed,value in zip(study.SEEDS,(.1,.2,.3)):
+            rows.append(dict(fold=fold,config=dict(family='forest',seed=seed,
+                class_weight=None,members=3,max_depth=2),
+                metrics=dict(n=10+fold*100,mean_padic_loss=value+fold/10,
+                    exact_accuracy=.4,first_digit_accuracy=.5),
+                active=dict(mean=6),counts=dict(stored_slots=50),broader_work=12))
+    grouped=group_rows(rows)
+    assert len(grouped)==1
+    assert grouped[0]['mean_padic_loss']==pytest.approx(.4)
+    assert grouped[0]['folds'][0]['mean_padic_loss_seed_min']==.1
+    assert grouped[0]['folds'][0]['mean_padic_loss_seed_max']==.3
