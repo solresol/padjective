@@ -153,10 +153,11 @@ def test_diagnostics_do_not_change_seeded_trajectory(optimizer):
     json.dumps(events)
 
 
-def test_terminal_full_batch_toy_is_stationary_with_positive_raw_slopes():
+@pytest.mark.parametrize("p,precision",[(3,3),(71,7)])
+def test_terminal_full_batch_toy_is_stationary_with_positive_raw_slopes(p,precision):
     x=sparse.csr_matrix([[1,0],[0,1],[1,1],[1,1],[1,1]])
     events=[]
-    fit=fit_tree(x,np.array([1,26,0,0,0]),[0,0],p=3,precision=3,
+    fit=fit_tree(x,np.array([1,p**precision-1,0,0,0]),[0,0],p=p,precision=precision,
                  optimizer="adam",updates=1,batch_schedule=lambda _:np.arange(5),
                  diagnostic_callback=events.append,seconds=5)
     record=events[0]
@@ -166,6 +167,21 @@ def test_terminal_full_batch_toy_is_stationary_with_positive_raw_slopes():
     assert record["coordinates"][0]["used_slopes"]==pytest.approx([0.2,0])
     assert not record["coordinates"][0]["down_allowed"]
     assert not record["clipped"] and record["numerical_noops"]==0
+
+
+@pytest.mark.parametrize("p,precision",[(3,3),(71,7)])
+def test_analytic_whole_coordinate_certificate_matches_exact_medoid(p,precision):
+    from padjective.paper_salazar_synthetic import analytic_certificate, certify
+    certificate=analytic_certificate(p,precision)
+    assert certificate["coordinate_minimizers"]==[[0],[0]]
+    assert certificate["initial_loss"]==0.4
+    assert certificate["joint_minimizers"]==[[1,p**precision-1]]
+    assert certificate["exact_medoid_certificate"]["examined"]==2
+    assert not certificate["exhaustive_enumeration"]
+    if p==3:
+        exhaustive=certify()
+        assert exhaustive["initial_units"]==certificate["initial_units"]
+        assert exhaustive["joint_minimizers"]==certificate["joint_minimizers"]
 
 
 @pytest.mark.parametrize("schedule",[[],[0,0],[1.5],[5]])

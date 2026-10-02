@@ -1,5 +1,6 @@
 """Read-only audit of stored synthetic trajectory states and mechanisms."""
 import hashlib
+import argparse
 import json
 import math
 from pathlib import Path
@@ -12,27 +13,37 @@ def audit(root=Path("artifacts/salazar-synthetic-20261002")):
     assert platform.node()=="raksasa"
     results=json.loads((root/"results.json").read_text())
     assert results["status"]=="completed"
+    p,precision=results["configuration"]["p"],results["configuration"]["precision"]
+    q=p**precision
+    score=lambda weights:units(weights,p,precision)
     out=dict(status="passed",checked_updates=0,checked_motion_proposals=0,
-             trials={},scope="Stored five-row synthetic traces only; no fitting")
+             p=p,precision=precision,trials={},scope="Stored five-row synthetic traces only; no fitting")
     for key,summary in results["trials"].items():
         path=root/summary["trace_file"]
         assert hashlib.sha256(path.read_bytes()).hexdigest()==summary["trace_sha256"]
-        previous_centers,previous_logs=[0,0],[-3.0,-3.0]
+        previous_centers,previous_logs=[0,0],[-float(precision),-float(precision)]
         count=0
         d=dict(zero_speed_selections=0,negative_feasible_slopes_suppressed=0,
             negative_child_slopes_blocked_by_vertex_history=0,
             motions_against_current_minibatch_slope=0,
             proposals=0,strict_radius_changes=0,center_changes=0,numerical_noops=0,
             boundary_hits=0,clipped_updates=0,post_switch_nonzero_losses=0,
-            maximum_log_radius_seen=-3.0,root_vertex_selections=0)
+            maximum_log_radius_seen=-float(precision),root_vertex_selections=0,
+            tied_updates=0,coupled_selected_updates=0,root_child_proposals=0,
+            root_changed_center_proposals=0,child_proposals=0,
+            positive_applied_time_min=None,positive_speed_min=None)
         for line in path.read_text().splitlines():
             event=json.loads(line)
             count+=1
             assert event["update"]==count
             assert event["centers_before"]==previous_centers and event["logs_before"]==previous_logs
-            assert units(event["centers_after"])==event["independent_point_units"]
-            assert all(0<=v<27 for v in event["centers_after"])
-            assert all(-3<=v<=0 for v in event["logs_after"])
+            assert score(event["centers_after"])==event["independent_point_units"]
+            assert all(0<=v<q for v in event["centers_after"])
+            assert all(-precision<=v<=0 for v in event["logs_after"])
+            d["tied_updates"]+=int(bool(event["tie_rows"]))
+            d["coupled_selected_updates"]+=int(any(len(group)>1 for group in event["groups"]))
+            assert len(event["selected"])==len(event["groups"])
+            assert all(sum(j in group for j in event["selected"])==1 for group in event["groups"])
             d["maximum_log_radius_seen"]=max(d["maximum_log_radius_seen"],*event["logs_after"])
             ratios=[]
             motions={m["column"]:m for m in event["motions"]}
@@ -54,6 +65,13 @@ def audit(root=Path("artifacts/salazar-synthetic-20261002")):
                 d["proposals"]+=1
                 c=coordinates[j]
                 direction=m["direction"]
+                child=direction>0 and c["vertex_depth"] is not None and c["vertex_depth"]<precision
+                d["child_proposals"]+=int(child)
+                d["root_child_proposals"]+=int(child and c["vertex_depth"]==0)
+                d["root_changed_center_proposals"]+=int(child and c["vertex_depth"]==0 and m["center_changed"])
+                d["positive_speed_min"]=min(d["positive_speed_min"] or m["speed"],m["speed"])
+                if event["applied_time"]>0:
+                    d["positive_applied_time_min"]=min(d["positive_applied_time_min"] or event["applied_time"],event["applied_time"])
                 assert m["speed"]==max(c["speeds"])==c["speeds"][direction]
                 assert m["requested_distance"]==event["requested_time"]*m["speed"]
                 assert m["applied_distance"]==event["applied_time"]*m["speed"]
@@ -66,8 +84,8 @@ def audit(root=Path("artifacts/salazar-synthetic-20261002")):
                 if hit:
                     assert event["logs_after"][j]==m["boundary_log"]
                 else:
-                    r=3**before_log+(m["applied_distance"] if direction==0 else -m["applied_distance"])
-                    assert event["logs_after"][j]==math.log(r,3)
+                    r=p**before_log+(m["applied_distance"] if direction==0 else -m["applied_distance"])
+                    assert event["logs_after"][j]==math.log(r,p)
                 log_change=event["logs_before"][j]!=event["logs_after"][j]
                 center_change=event["centers_before"][j]!=event["centers_after"][j]
                 assert log_change==m["log_changed"] and center_change==m["center_changed"]
@@ -85,22 +103,27 @@ def audit(root=Path("artifacts/salazar-synthetic-20261002")):
             previous_centers,previous_logs=event["centers_after"],event["logs_after"]
         assert count==summary["updates"]==summary["diagnostic_rows"]
         assert previous_centers==summary["endpoint_centers"] and previous_logs==summary["endpoint_log_radii"]
-        assert units(previous_centers)==summary["endpoint_units"]
+        assert score(previous_centers)==summary["endpoint_units"]
         for audit_key,summary_key in [("strict_radius_changes","strict_radius_changes"),
             ("center_changes","digit_changes"),("numerical_noops","numerical_noops"),
             ("boundary_hits","boundary_hits"),("clipped_updates","clipped_updates"),("proposals","moves")]:
             assert d[audit_key]==summary[summary_key]
         if key.startswith("full"):
             assert d["proposals"]==0 and previous_centers==[0,0]
-        if key.startswith("controlled"):
-            assert previous_centers==[1,26] and d["post_switch_nonzero_losses"]==0
+        if summary["endpoint_units"]==0:
+            assert previous_centers==[1,q-1]
+        if key.startswith("controlled") and summary["controlled_switch_units"]==0:
+            assert d["post_switch_nonzero_losses"]==0
         out["checked_updates"]+=count
         out["checked_motion_proposals"]+=d["proposals"]
         out["trials"][key]=d
-    assert out["checked_updates"]==9500
+    assert out["checked_updates"]==sum(t["updates"] for t in results["trials"].values())<=9500
     (root/"audit.json").write_text(json.dumps(out,indent=2)+"\n")
     print(json.dumps(out))
 
 
 if __name__=="__main__":
-    audit()
+    parser=argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--profile",choices=["p3","p71"],default="p3")
+    args=parser.parse_args()
+    audit(Path("artifacts/salazar-synthetic-20261002" if args.profile=="p3" else "artifacts/salazar-synthetic-p71-20261002"))

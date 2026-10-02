@@ -1,5 +1,6 @@
 """Bounded, fully logged five-row validation; no product data are accessed."""
 from fractions import Fraction
+import argparse
 import hashlib
 import itertools
 import json
@@ -12,6 +13,7 @@ import numpy as np
 from scipy import sparse
 
 from .salazar_affine import fit_tree
+from .randomised_linear import coordinate_certificate
 
 X=sparse.csr_matrix([[1,0],[0,1],[1,1],[1,1],[1,1]],dtype=np.int64)
 Y=np.array([1,26,0,0,0],dtype=np.int64)
@@ -23,21 +25,57 @@ CONFIG=dict(p=3,precision=3,initial_centers=[0,0],initial_log_radius=-3,
     extraction="retained canonical centers modulo 27",scope="five synthetic rows only")
 
 
-def units(weights):
+def units(weights, p=3, precision=3):
+    q=p**precision
+    targets=[1,q-1,0,0,0]
     total=0
-    for i,gold in enumerate(Y):
-        predicted=sum(int(weights[j]) for j in X.indices[X.indptr[i]:X.indptr[i+1]])%27
-        delta=(predicted-int(gold))%27
+    for i,gold in enumerate(targets):
+        predicted=sum(int(weights[j]) for j in X.indices[X.indptr[i]:X.indptr[i+1]])%q
+        delta=(predicted-gold)%q
         if delta:
-            value=27
-            while delta%3==0:
-                delta//=3
-                value//=3
+            value=q
+            while delta%p==0:
+                delta//=p
+                value//=p
             total+=value
     return total
 
 
-def certify():
+def analytic_certificate(p, precision):
+    """A universal valuation argument, independently checked by exact medoids.
+
+    With the other coefficient zero, the five-row unnormalized cost is
+    |w-s|_p + 1 + 3|w|_p, s=+1 or -1. If p divides w, |w-s|=1,
+    so cost is 2+3|w|, with equality only at residue w=0. Otherwise
+    |w|=1 and cost is 4+|w-s| >=4. This covers every residue without
+    enumerating q or q^2. The singleton equations force (1,q-1), which
+    also cancels on the three joint rows and has the lower bound loss 0.
+    """
+    q=p**precision
+    certificate=coordinate_certificate(X,np.array([1,q-1,0,0,0]),[0,0],p=p,precision=precision)
+    assert certificate["status"]=="coordinate_optimum"
+    assert units([0,0],p,precision)==2*q
+    assert units([1,q-1],p,precision)==0
+    # Bounded probes of every valuation stratum and both singleton signs.
+    probes=sorted({0,1,q-1}|{s*p**depth%q for s in [1,-1] for depth in range(1,precision)})
+    for w in probes:
+        for column in range(2):
+            weights=[0,0]
+            weights[column]=w
+            assert units(weights,p,precision)>=2*q
+            assert (units(weights,p,precision)==2*q)==(w==0)
+    return dict(status="passed",method="Universal valuation-case proof plus exact residual-medoid coordinate certificate",
+        modulus=q,denominator=5*q,initial_units=2*q,initial_loss=0.4,
+        coordinate_minimizers=[[0],[0]],global_minimum_units=0,joint_minimizers=[[1,q-1]],
+        proof="For each coordinate, C(w)=|w-s|_p+1+3|w|_p. If p divides w, C(w)=2+3|w|_p, equal to 2 only at w=0. For a unit, C(w)=4+|w-s|_p>=4. Singleton rows force the unique zero-loss pair (1,-1) modulo q.",
+        exact_medoid_certificate=certificate,bounded_probe_candidates=probes,
+        bounded_coordinate_probes_checked=2*len(probes),joint_candidates_checked=1,
+        exhaustive_enumeration=False)
+
+
+def certify(p=3, precision=3):
+    if (p,precision)!=(3,3):
+        return analytic_certificate(p,precision)
     before=units([0,0])
     coordinate_costs=[[units([candidate,0]) for candidate in range(27)],
                       [units([0,candidate]) for candidate in range(27)]]
@@ -52,11 +90,13 @@ def certify():
         joint_minimizers=minimizers,method="Independent Python integer exhaustive finite-ring scoring")
 
 
-def trial(key,*,optimizer,seed,batch_size,updates,schedule,root,deadline):
+def trial(key,*,optimizer,seed,batch_size,updates,schedule,root,deadline,p=3,precision=3):
+    q=p**precision
+    score=lambda weights:units(weights,p,precision)
     filename=root/(key+".jsonl")
     summary=dict(optimizer=optimizer,seed=seed,batch_size=batch_size,
-        trace_file=filename.name,requested_updates=updates,initial_units=54,
-        best_units=54,first_improvement_update=None,first_zero_update=None,
+        trace_file=filename.name,requested_updates=updates,initial_units=2*q,
+        best_units=2*q,first_improvement_update=None,first_zero_update=None,
         negative_raw_slope_selections=0,zero_used_slope_selections=0,
         clipped_updates=0,boundary_hits=0,numerical_noops=0,strict_radius_changes=0,
         changed_center_motions=0,tied_updates=0,minimum_applied_positive_time=None,
@@ -65,11 +105,11 @@ def trial(key,*,optimizer,seed,batch_size,updates,schedule,root,deadline):
     with filename.open("w") as trace:
         def log(event):
             assert time.monotonic()<deadline,"Synthetic overall time cap"
-            cost=units(event["centers_after"])
+            cost=score(event["centers_after"])
             event["independent_point_units"]=cost
-            assert event["point_loss"]==float(Fraction(cost,135))
+            assert event["point_loss"]==float(Fraction(cost,5*q))
             assert event["centers_before"]==[0,0] if event["update"]==1 else True
-            if cost<54 and summary["first_improvement_update"] is None:
+            if cost<2*q and summary["first_improvement_update"] is None:
                 summary["first_improvement_update"]=event["update"]
             if cost==0 and summary["first_zero_update"] is None:
                 summary["first_zero_update"]=event["update"]
@@ -89,39 +129,42 @@ def trial(key,*,optimizer,seed,batch_size,updates,schedule,root,deadline):
                 summary["controlled_switch_units"]=cost
             summary["diagnostic_rows"]+=1
             trace.write(json.dumps(event,separators=(",",":"))+"\n")
-        fit=fit_tree(X,Y,[0,0],p=3,precision=3,seed=seed,optimizer=optimizer,
-            initial_log_radius=-3,updates=updates,seconds=min(5,deadline-time.monotonic()),
+        fit=fit_tree(X,np.array([1,q-1,0,0,0]),[0,0],p=p,precision=precision,seed=seed,optimizer=optimizer,
+            initial_log_radius=-precision,updates=updates,seconds=min(5,deadline-time.monotonic()),
             batch_size=batch_size,kappa=1,batch_schedule=schedule,diagnostic_callback=log)
     summary.update(status=fit.status,updates=fit.updates,endpoint_centers=fit.centers.tolist(),
-        endpoint_log_radii=fit.log_radii.tolist(),endpoint_units=units(fit.centers),
-        endpoint_loss=float(Fraction(units(fit.centers),135)),moves=fit.moves,
+        endpoint_log_radii=fit.log_radii.tolist(),endpoint_units=score(fit.centers),
+        endpoint_loss=float(Fraction(score(fit.centers),5*q)),moves=fit.moves,
         coordinate_updates=fit.coordinate_updates,digit_changes=fit.digit_changes,
         elapsed_seconds=time.monotonic()-started,
         trace_sha256=hashlib.sha256(filename.read_bytes()).hexdigest(),trace_bytes=filename.stat().st_size)
-    summary["escaped_at_endpoint"]=summary["endpoint_units"]<54
+    summary["escaped_at_endpoint"]=summary["endpoint_units"]<2*q
     print(json.dumps(dict(event="trial_finished",key=key,**summary)),flush=True)
     return summary
 
 
-def run():
+def run(p=3, precision=3):
     assert platform.node()=="raksasa","Authorized synthetic host is raksasa"
+    assert (p,precision) in {(3,3),(71,7)},"Only the two authorized fixed profiles"
     started=time.monotonic()
     deadline=started+60
-    root=Path("artifacts/salazar-synthetic-20261002")
+    root=Path("artifacts/salazar-synthetic-20261002" if p==3 else "artifacts/salazar-synthetic-p71-20261002")
     root.mkdir(exist_ok=True)
     # Do not overwrite prior traces on a repeated invocation.
     if (root/"results.json").exists() or list(root.glob("*.jsonl")):
         raise RuntimeError("Synthetic artifacts already exist; preserve them before an explicitly authorized rerun")
-    result=dict(configuration=CONFIG,hostname=platform.node(),
+    config=dict(CONFIG,p=p,precision=precision,initial_log_radius=-precision,
+        extraction=f"retained canonical centers modulo {p**precision}")
+    result=dict(configuration=config,hostname=platform.node(),
         source_commit=subprocess.check_output(["git","rev-parse","HEAD"],text=True).strip(),
         source_sha256={n:hashlib.sha256(Path(n).read_bytes()).hexdigest()
             for n in ["padjective/salazar_affine.py","padjective/paper_salazar_synthetic.py"]},
-        certification=certify(),trials={})
+        certification=certify(p,precision),trials={})
     print(json.dumps(dict(event="certified",**result["certification"])),flush=True)
     full=lambda _:np.arange(5,dtype=np.int64)
     controlled=lambda step:np.array([0,1],dtype=np.int64) if step<=200 else np.arange(5,dtype=np.int64)
     def add(key,**kw):
-        result["trials"][key]=trial(key,root=root,deadline=deadline,**kw)
+        result["trials"][key]=trial(key,root=root,deadline=deadline,p=p,precision=precision,**kw)
         (root/"results.json").write_text(json.dumps(result,indent=2)+"\n")
     for optimizer in CONFIG["optimizers"]:
         add("full_"+optimizer,optimizer=optimizer,seed=42,batch_size=5,updates=100,schedule=full)
@@ -136,4 +179,7 @@ def run():
 
 
 if __name__=="__main__":
-    run()
+    parser=argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--profile",choices=["p3","p71"],default="p3")
+    args=parser.parse_args()
+    run(*( (3,3) if args.profile=="p3" else (71,7) ))
