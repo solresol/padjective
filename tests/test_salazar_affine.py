@@ -6,6 +6,7 @@ import numpy as np
 import pytest
 from scipy import sparse
 
+from padjective.randomised_linear import coordinate_certificate, fit_coordinates, linear_predictions
 from padjective.salazar_affine import (
     child_centers, direct_loss, directions, fit_tree, groups, limits,
     vertex_average, vertex_depth,
@@ -172,3 +173,31 @@ def test_invalid_batch_schedule_is_rejected(schedule):
     with pytest.raises(ValueError,match="Batch schedule"):
         fit_tree([[1],[1]],np.array([1,2]),[0],p=3,precision=3,
                  updates=1,seconds=5,batch_schedule=lambda _:schedule)
+
+
+@pytest.mark.parametrize("optimizer",["gd","momentum","adam"])
+def test_controlled_schedule_escapes_certified_whole_coordinate_optimum(optimizer):
+    # A deliberately curated stream is an escape-path regression test,
+    # not evidence about unbiased stochastic training.
+    x=sparse.csr_matrix([[1,0],[0,1],[1,1],[1,1],[1,1]])
+    y=np.array([1,26,0,0,0])
+    initial=fit_coordinates(x,y,p=3,precision=3,seed=42)
+    assert initial.coefficients.tolist()==[0,0] and initial.final_units==54
+    assert coordinate_certificate(x,y,initial.coefficients,p=3,precision=3)["status"]=="coordinate_optimum"
+    schedule=lambda step:np.array([0,1]) if step<=200 else np.arange(5)
+    fit=fit_tree(x,y,initial.coefficients,p=3,precision=3,seed=42,
+        optimizer=optimizer,updates=400,seconds=5,batch_schedule=schedule)
+    assert fit.status=="update_limit" and fit.centers.tolist()==[1,26]
+    np.testing.assert_array_equal(linear_predictions(x,fit.centers,3,3),y)
+
+
+@pytest.mark.parametrize("optimizer",["momentum","adam"])
+def test_predeclared_seed_1729_batch_one_escapes_certified_toy(optimizer):
+    # Retain both observed stochastic positive controls as regressions. The
+    # complete fixed-seed trial roster, including six nonescapes, is reported.
+    x=sparse.csr_matrix([[1,0],[0,1],[1,1],[1,1],[1,1]])
+    y=np.array([1,26,0,0,0])
+    fit=fit_tree(x,y,[0,0],p=3,precision=3,seed=1729,optimizer=optimizer,
+        updates=1000,seconds=5,batch_size=1)
+    assert fit.status=="update_limit" and fit.centers.tolist()==[1,26]
+    np.testing.assert_array_equal(linear_predictions(x,fit.centers,3,3),y)
