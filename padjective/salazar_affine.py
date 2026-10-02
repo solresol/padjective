@@ -276,7 +276,7 @@ def fit_tree(features, targets, initial, *, p=71, precision=7, seed=42,
             else:
                 r = p**float(logs[j]) + (distance if direction == 0 else -distance)
                 new_log = math.log(r, p)
-            digit_changes += center != centers[j]
+            digit_changes += int(center != centers[j])
             centers[j], logs[j] = center, new_log
             moves += 1
         completed = step

@@ -198,6 +198,9 @@ def run(output=Path("artifacts/salazar-single-results.json")):
     except Exception as exc:
         conn.rollback()
         evidence["error"] = dict(type=type(exc).__name__,message=str(exc))
+        # Preserve already-saved checkpoints if the new checkpoint itself
+        # cannot be serialized. Error bookkeeping must not repeat that failure.
+        evidence.pop("checkpoint",None)
         save("failed")
         raise
     finally:

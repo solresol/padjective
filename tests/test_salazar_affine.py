@@ -1,4 +1,7 @@
 """Mathematical tests for the independent bounded affine tree adapter."""
+import json
+from dataclasses import asdict
+
 import numpy as np
 import pytest
 from scipy import sparse
@@ -86,6 +89,8 @@ def test_single_parameter_learns_children_and_preserves_feature_mask(optimizer):
     assert np.all(fit.log_radii >= -3, where=np.isfinite(fit.log_radii))
     assert fit.digit_changes >= 2
     assert fit.history[-1]["training_point_loss"] == 0
+    # Checkpoint and final metadata go directly to Postgres JSONB.
+    json.dumps({k:v for k,v in asdict(fit).items() if k not in ("centers","log_radii")})
 
 
 def test_seed_reproduces_states_and_counters():
