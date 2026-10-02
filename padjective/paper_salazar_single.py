@@ -180,6 +180,8 @@ def run(output=Path("artifacts/salazar-single-results.json")):
                 score["sampled_training_examples"] = evidence["fit"][variant]["updates"]*32
                 score["training_example_equivalents"] = score["sampled_training_examples"]/len(y_train)
             metrics[variant] = score
+            private["optimization_status"] = evidence["fit"][variant]["status"]
+            private["completed"] = private["optimization_status"] in {"coordinate_optimum","update_limit"}
             evidence["models"][variant].update(private)
         evidence["elapsed_seconds"] = time.monotonic()-started
         save("completed")
