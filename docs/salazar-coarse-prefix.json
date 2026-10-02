@@ -1,0 +1,35 @@
+{
+  "status": "passed",
+  "matched_batch_updates": 100,
+  "profiles": {
+    "fine": {
+      "proposals": 20920,
+      "center_changes": 0,
+      "numerical_noops": 0,
+      "clipped_updates": 100,
+      "maximum_log_radius": -5.834109599753473,
+      "endpoint_point_loss": 0.26111689009390665,
+      "applied_to_requested_time_ratio": {
+        "minimum": 1.791403836049397e-19,
+        "median": 4.115292837906514e-15,
+        "p95": 4.9644164278178e-13,
+        "maximum": 9.54321920034109e-12
+      }
+    },
+    "coarse": {
+      "proposals": 23766,
+      "center_changes": 9,
+      "numerical_noops": 0,
+      "clipped_updates": 100,
+      "maximum_log_radius": -0.7229158672525972,
+      "endpoint_point_loss": 0.2611726885694729,
+      "applied_to_requested_time_ratio": {
+        "minimum": 1.3213144636585058e-11,
+        "median": 3.354785862549849e-06,
+        "p95": 0.004111714895123463,
+        "maximum": 0.01980805683476002
+      }
+    }
+  },
+  "scope": "Matched first-100-update trace windows; diagnostic comparison only, no checkpoint selection"
+}
