@@ -1,0 +1,1074 @@
+{
+  "status": "passed",
+  "identical_optimizer_sha256": "9601f31fe1fc492b5d28e211c2c54bed0a54c127a9755c26915cdc039c4019ff",
+  "identical_fixed_configuration": {
+    "initial_centers": [
+      0,
+      0
+    ],
+    "optimizers": [
+      "gd",
+      "momentum",
+      "adam"
+    ],
+    "kappa": 1,
+    "beta": 0.9,
+    "beta2": 0.999,
+    "epsilon": 1e-08,
+    "full_batch_updates": 100,
+    "controlled_updates": 400,
+    "controlled_singleton_updates": 200,
+    "stochastic_optimizers": [
+      "momentum",
+      "adam"
+    ],
+    "seeds": [
+      42,
+      1729
+    ],
+    "batch_sizes": [
+      1,
+      2
+    ],
+    "stochastic_updates": 1000,
+    "seconds_per_trial": 5,
+    "overall_seconds": 60,
+    "scope": "five synthetic rows only"
+  },
+  "matched_batch_updates": 9500,
+  "trials": {
+    "full_gd": [
+      {
+        "p": 3,
+        "precision": 3,
+        "first_improvement_update": null,
+        "first_zero_update": null,
+        "endpoint_loss": 0.4,
+        "best_loss": 0.4,
+        "endpoint_centers": [
+          0,
+          0
+        ],
+        "maximum_log_radius_seen": -3.0,
+        "proposals": 0,
+        "digit_changes": 0,
+        "tied_updates": 100,
+        "clipped_updates": 0,
+        "numerical_noops": 0,
+        "root_selections": 0,
+        "root_child_proposals": 0,
+        "root_changed_center_proposals": 0,
+        "initial_raw_slopes": [
+          [
+            0.2,
+            0.1
+          ]
+        ],
+        "initial_used_slopes": [
+          [
+            0.2,
+            0.0
+          ]
+        ]
+      },
+      {
+        "p": 71,
+        "precision": 7,
+        "first_improvement_update": null,
+        "first_zero_update": null,
+        "endpoint_loss": 0.4,
+        "best_loss": 0.4,
+        "endpoint_centers": [
+          0,
+          0
+        ],
+        "maximum_log_radius_seen": -7.0,
+        "proposals": 0,
+        "digit_changes": 0,
+        "tied_updates": 100,
+        "clipped_updates": 0,
+        "numerical_noops": 0,
+        "root_selections": 0,
+        "root_child_proposals": 0,
+        "root_changed_center_proposals": 0,
+        "initial_raw_slopes": [
+          [
+            0.2,
+            0.1
+          ]
+        ],
+        "initial_used_slopes": [
+          [
+            0.2,
+            0.0
+          ]
+        ]
+      }
+    ],
+    "full_momentum": [
+      {
+        "p": 3,
+        "precision": 3,
+        "first_improvement_update": null,
+        "first_zero_update": null,
+        "endpoint_loss": 0.4,
+        "best_loss": 0.4,
+        "endpoint_centers": [
+          0,
+          0
+        ],
+        "maximum_log_radius_seen": -3.0,
+        "proposals": 0,
+        "digit_changes": 0,
+        "tied_updates": 100,
+        "clipped_updates": 0,
+        "numerical_noops": 0,
+        "root_selections": 0,
+        "root_child_proposals": 0,
+        "root_changed_center_proposals": 0,
+        "initial_raw_slopes": [
+          [
+            0.2,
+            0.1
+          ]
+        ],
+        "initial_used_slopes": [
+          [
+            0.2,
+            0.0
+          ]
+        ]
+      },
+      {
+        "p": 71,
+        "precision": 7,
+        "first_improvement_update": null,
+        "first_zero_update": null,
+        "endpoint_loss": 0.4,
+        "best_loss": 0.4,
+        "endpoint_centers": [
+          0,
+          0
+        ],
+        "maximum_log_radius_seen": -7.0,
+        "proposals": 0,
+        "digit_changes": 0,
+        "tied_updates": 100,
+        "clipped_updates": 0,
+        "numerical_noops": 0,
+        "root_selections": 0,
+        "root_child_proposals": 0,
+        "root_changed_center_proposals": 0,
+        "initial_raw_slopes": [
+          [
+            0.2,
+            0.1
+          ]
+        ],
+        "initial_used_slopes": [
+          [
+            0.2,
+            0.0
+          ]
+        ]
+      }
+    ],
+    "full_adam": [
+      {
+        "p": 3,
+        "precision": 3,
+        "first_improvement_update": null,
+        "first_zero_update": null,
+        "endpoint_loss": 0.4,
+        "best_loss": 0.4,
+        "endpoint_centers": [
+          0,
+          0
+        ],
+        "maximum_log_radius_seen": -3.0,
+        "proposals": 0,
+        "digit_changes": 0,
+        "tied_updates": 100,
+        "clipped_updates": 0,
+        "numerical_noops": 0,
+        "root_selections": 0,
+        "root_child_proposals": 0,
+        "root_changed_center_proposals": 0,
+        "initial_raw_slopes": [
+          [
+            0.2,
+            0.1
+          ]
+        ],
+        "initial_used_slopes": [
+          [
+            0.2,
+            0.0
+          ]
+        ]
+      },
+      {
+        "p": 71,
+        "precision": 7,
+        "first_improvement_update": null,
+        "first_zero_update": null,
+        "endpoint_loss": 0.4,
+        "best_loss": 0.4,
+        "endpoint_centers": [
+          0,
+          0
+        ],
+        "maximum_log_radius_seen": -7.0,
+        "proposals": 0,
+        "digit_changes": 0,
+        "tied_updates": 100,
+        "clipped_updates": 0,
+        "numerical_noops": 0,
+        "root_selections": 0,
+        "root_child_proposals": 0,
+        "root_changed_center_proposals": 0,
+        "initial_raw_slopes": [
+          [
+            0.2,
+            0.1
+          ]
+        ],
+        "initial_used_slopes": [
+          [
+            0.2,
+            0.0
+          ]
+        ]
+      }
+    ],
+    "controlled_gd": [
+      {
+        "p": 3,
+        "precision": 3,
+        "first_improvement_update": 8,
+        "first_zero_update": 14,
+        "endpoint_loss": 0.0,
+        "best_loss": 0.0,
+        "endpoint_centers": [
+          1,
+          26
+        ],
+        "maximum_log_radius_seen": 0.0,
+        "proposals": 28,
+        "digit_changes": 4,
+        "tied_updates": 200,
+        "clipped_updates": 6,
+        "numerical_noops": 0,
+        "root_selections": 2,
+        "root_child_proposals": 2,
+        "root_changed_center_proposals": 2,
+        "initial_raw_slopes": [
+          [
+            -0.25,
+            0.25
+          ],
+          [
+            -0.25,
+            0.25
+          ]
+        ],
+        "initial_used_slopes": [
+          [
+            -0.25,
+            0.0
+          ],
+          [
+            -0.25,
+            0.0
+          ]
+        ]
+      },
+      {
+        "p": 71,
+        "precision": 7,
+        "first_improvement_update": 11,
+        "first_zero_update": 21,
+        "endpoint_loss": 0.0,
+        "best_loss": 0.0,
+        "endpoint_centers": [
+          1,
+          9095120158390
+        ],
+        "maximum_log_radius_seen": 0.0,
+        "proposals": 42,
+        "digit_changes": 8,
+        "tied_updates": 200,
+        "clipped_updates": 13,
+        "numerical_noops": 0,
+        "root_selections": 2,
+        "root_child_proposals": 2,
+        "root_changed_center_proposals": 2,
+        "initial_raw_slopes": [
+          [
+            -0.25,
+            0.25
+          ],
+          [
+            -0.25,
+            0.25
+          ]
+        ],
+        "initial_used_slopes": [
+          [
+            -0.25,
+            0.0
+          ],
+          [
+            -0.25,
+            0.0
+          ]
+        ]
+      }
+    ],
+    "controlled_momentum": [
+      {
+        "p": 3,
+        "precision": 3,
+        "first_improvement_update": 20,
+        "first_zero_update": 33,
+        "endpoint_loss": 0.0,
+        "best_loss": 0.0,
+        "endpoint_centers": [
+          1,
+          26
+        ],
+        "maximum_log_radius_seen": 0.0,
+        "proposals": 56,
+        "digit_changes": 4,
+        "tied_updates": 200,
+        "clipped_updates": 6,
+        "numerical_noops": 0,
+        "root_selections": 12,
+        "root_child_proposals": 2,
+        "root_changed_center_proposals": 2,
+        "initial_raw_slopes": [
+          [
+            -0.25,
+            0.25
+          ],
+          [
+            -0.25,
+            0.25
+          ]
+        ],
+        "initial_used_slopes": [
+          [
+            -0.25,
+            0.0
+          ],
+          [
+            -0.25,
+            0.0
+          ]
+        ]
+      },
+      {
+        "p": 71,
+        "precision": 7,
+        "first_improvement_update": 19,
+        "first_zero_update": 34,
+        "endpoint_loss": 0.0,
+        "best_loss": 0.0,
+        "endpoint_centers": [
+          1,
+          9095120158390
+        ],
+        "maximum_log_radius_seen": 0.0,
+        "proposals": 58,
+        "digit_changes": 8,
+        "tied_updates": 200,
+        "clipped_updates": 14,
+        "numerical_noops": 0,
+        "root_selections": 12,
+        "root_child_proposals": 2,
+        "root_changed_center_proposals": 2,
+        "initial_raw_slopes": [
+          [
+            -0.25,
+            0.25
+          ],
+          [
+            -0.25,
+            0.25
+          ]
+        ],
+        "initial_used_slopes": [
+          [
+            -0.25,
+            0.0
+          ],
+          [
+            -0.25,
+            0.0
+          ]
+        ]
+      }
+    ],
+    "controlled_adam": [
+      {
+        "p": 3,
+        "precision": 3,
+        "first_improvement_update": 7,
+        "first_zero_update": 12,
+        "endpoint_loss": 0.0,
+        "best_loss": 0.0,
+        "endpoint_centers": [
+          1,
+          26
+        ],
+        "maximum_log_radius_seen": 0.0,
+        "proposals": 20,
+        "digit_changes": 4,
+        "tied_updates": 200,
+        "clipped_updates": 6,
+        "numerical_noops": 0,
+        "root_selections": 6,
+        "root_child_proposals": 2,
+        "root_changed_center_proposals": 2,
+        "initial_raw_slopes": [
+          [
+            -0.25,
+            0.25
+          ],
+          [
+            -0.25,
+            0.25
+          ]
+        ],
+        "initial_used_slopes": [
+          [
+            -0.25,
+            0.0
+          ],
+          [
+            -0.25,
+            0.0
+          ]
+        ]
+      },
+      {
+        "p": 71,
+        "precision": 7,
+        "first_improvement_update": 12,
+        "first_zero_update": 22,
+        "endpoint_loss": 0.0,
+        "best_loss": 0.0,
+        "endpoint_centers": [
+          1,
+          9095120158390
+        ],
+        "maximum_log_radius_seen": 0.0,
+        "proposals": 38,
+        "digit_changes": 8,
+        "tied_updates": 200,
+        "clipped_updates": 14,
+        "numerical_noops": 0,
+        "root_selections": 8,
+        "root_child_proposals": 2,
+        "root_changed_center_proposals": 2,
+        "initial_raw_slopes": [
+          [
+            -0.25,
+            0.25
+          ],
+          [
+            -0.25,
+            0.25
+          ]
+        ],
+        "initial_used_slopes": [
+          [
+            -0.25,
+            0.0
+          ],
+          [
+            -0.25,
+            0.0
+          ]
+        ]
+      }
+    ],
+    "stochastic_momentum_42_b1": [
+      {
+        "p": 3,
+        "precision": 3,
+        "first_improvement_update": null,
+        "first_zero_update": null,
+        "endpoint_loss": 0.4,
+        "best_loss": 0.4,
+        "endpoint_centers": [
+          0,
+          0
+        ],
+        "maximum_log_radius_seen": -0.22408185312889395,
+        "proposals": 395,
+        "digit_changes": 0,
+        "tied_updates": 428,
+        "clipped_updates": 89,
+        "numerical_noops": 0,
+        "root_selections": 0,
+        "root_child_proposals": 0,
+        "root_changed_center_proposals": 0,
+        "initial_raw_slopes": [
+          [
+            -0.5,
+            0.5
+          ],
+          [
+            0.0,
+            0.0
+          ]
+        ],
+        "initial_used_slopes": [
+          [
+            -0.5,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ]
+        ]
+      },
+      {
+        "p": 71,
+        "precision": 7,
+        "first_improvement_update": null,
+        "first_zero_update": null,
+        "endpoint_loss": 0.4,
+        "best_loss": 0.4,
+        "endpoint_centers": [
+          0,
+          0
+        ],
+        "maximum_log_radius_seen": 0.0,
+        "proposals": 384,
+        "digit_changes": 0,
+        "tied_updates": 408,
+        "clipped_updates": 109,
+        "numerical_noops": 0,
+        "root_selections": 10,
+        "root_child_proposals": 2,
+        "root_changed_center_proposals": 0,
+        "initial_raw_slopes": [
+          [
+            -0.5,
+            0.5
+          ],
+          [
+            0.0,
+            0.0
+          ]
+        ],
+        "initial_used_slopes": [
+          [
+            -0.5,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ]
+        ]
+      }
+    ],
+    "stochastic_momentum_42_b2": [
+      {
+        "p": 3,
+        "precision": 3,
+        "first_improvement_update": null,
+        "first_zero_update": null,
+        "endpoint_loss": 0.4,
+        "best_loss": 0.4,
+        "endpoint_centers": [
+          0,
+          0
+        ],
+        "maximum_log_radius_seen": -2.0,
+        "proposals": 29,
+        "digit_changes": 0,
+        "tied_updates": 876,
+        "clipped_updates": 8,
+        "numerical_noops": 0,
+        "root_selections": 0,
+        "root_child_proposals": 0,
+        "root_changed_center_proposals": 0,
+        "initial_raw_slopes": [
+          [
+            0.0,
+            0.25
+          ]
+        ],
+        "initial_used_slopes": [
+          [
+            0.0,
+            0.0
+          ]
+        ]
+      },
+      {
+        "p": 71,
+        "precision": 7,
+        "first_improvement_update": null,
+        "first_zero_update": null,
+        "endpoint_loss": 0.4,
+        "best_loss": 0.4,
+        "endpoint_centers": [
+          0,
+          0
+        ],
+        "maximum_log_radius_seen": -3.0,
+        "proposals": 27,
+        "digit_changes": 0,
+        "tied_updates": 870,
+        "clipped_updates": 18,
+        "numerical_noops": 0,
+        "root_selections": 0,
+        "root_child_proposals": 0,
+        "root_changed_center_proposals": 0,
+        "initial_raw_slopes": [
+          [
+            0.0,
+            0.25
+          ]
+        ],
+        "initial_used_slopes": [
+          [
+            0.0,
+            0.0
+          ]
+        ]
+      }
+    ],
+    "stochastic_momentum_1729_b1": [
+      {
+        "p": 3,
+        "precision": 3,
+        "first_improvement_update": 305,
+        "first_zero_update": 321,
+        "endpoint_loss": 0.0,
+        "best_loss": 0.0,
+        "endpoint_centers": [
+          1,
+          26
+        ],
+        "maximum_log_radius_seen": 0.0,
+        "proposals": 358,
+        "digit_changes": 4,
+        "tied_updates": 462,
+        "clipped_updates": 31,
+        "numerical_noops": 0,
+        "root_selections": 16,
+        "root_child_proposals": 3,
+        "root_changed_center_proposals": 2,
+        "initial_raw_slopes": [
+          [
+            0.5,
+            0.0
+          ]
+        ],
+        "initial_used_slopes": [
+          [
+            0.5,
+            0.0
+          ]
+        ]
+      },
+      {
+        "p": 71,
+        "precision": 7,
+        "first_improvement_update": 305,
+        "first_zero_update": 330,
+        "endpoint_loss": 0.0,
+        "best_loss": 0.0,
+        "endpoint_centers": [
+          1,
+          9095120158390
+        ],
+        "maximum_log_radius_seen": 0.0,
+        "proposals": 356,
+        "digit_changes": 8,
+        "tied_updates": 459,
+        "clipped_updates": 62,
+        "numerical_noops": 0,
+        "root_selections": 16,
+        "root_child_proposals": 3,
+        "root_changed_center_proposals": 2,
+        "initial_raw_slopes": [
+          [
+            0.5,
+            0.0
+          ]
+        ],
+        "initial_used_slopes": [
+          [
+            0.5,
+            0.0
+          ]
+        ]
+      }
+    ],
+    "stochastic_momentum_1729_b2": [
+      {
+        "p": 3,
+        "precision": 3,
+        "first_improvement_update": null,
+        "first_zero_update": null,
+        "endpoint_loss": 0.4,
+        "best_loss": 0.4,
+        "endpoint_centers": [
+          0,
+          0
+        ],
+        "maximum_log_radius_seen": -3.0,
+        "proposals": 0,
+        "digit_changes": 0,
+        "tied_updates": 901,
+        "clipped_updates": 0,
+        "numerical_noops": 0,
+        "root_selections": 0,
+        "root_child_proposals": 0,
+        "root_changed_center_proposals": 0,
+        "initial_raw_slopes": [
+          [
+            0.0,
+            0.25
+          ]
+        ],
+        "initial_used_slopes": [
+          [
+            0.0,
+            0.0
+          ]
+        ]
+      },
+      {
+        "p": 71,
+        "precision": 7,
+        "first_improvement_update": null,
+        "first_zero_update": null,
+        "endpoint_loss": 0.4,
+        "best_loss": 0.4,
+        "endpoint_centers": [
+          0,
+          0
+        ],
+        "maximum_log_radius_seen": -7.0,
+        "proposals": 0,
+        "digit_changes": 0,
+        "tied_updates": 901,
+        "clipped_updates": 0,
+        "numerical_noops": 0,
+        "root_selections": 0,
+        "root_child_proposals": 0,
+        "root_changed_center_proposals": 0,
+        "initial_raw_slopes": [
+          [
+            0.0,
+            0.25
+          ]
+        ],
+        "initial_used_slopes": [
+          [
+            0.0,
+            0.0
+          ]
+        ]
+      }
+    ],
+    "stochastic_adam_42_b1": [
+      {
+        "p": 3,
+        "precision": 3,
+        "first_improvement_update": null,
+        "first_zero_update": null,
+        "endpoint_loss": 0.4,
+        "best_loss": 0.4,
+        "endpoint_centers": [
+          0,
+          0
+        ],
+        "maximum_log_radius_seen": 0.0,
+        "proposals": 331,
+        "digit_changes": 0,
+        "tied_updates": 477,
+        "clipped_updates": 154,
+        "numerical_noops": 0,
+        "root_selections": 8,
+        "root_child_proposals": 2,
+        "root_changed_center_proposals": 0,
+        "initial_raw_slopes": [
+          [
+            -0.5,
+            0.5
+          ],
+          [
+            0.0,
+            0.0
+          ]
+        ],
+        "initial_used_slopes": [
+          [
+            -0.5,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ]
+        ]
+      },
+      {
+        "p": 71,
+        "precision": 7,
+        "first_improvement_update": 402,
+        "first_zero_update": 419,
+        "endpoint_loss": 0.0,
+        "best_loss": 0.0,
+        "endpoint_centers": [
+          1,
+          9095120158390
+        ],
+        "maximum_log_radius_seen": 0.0,
+        "proposals": 149,
+        "digit_changes": 8,
+        "tied_updates": 556,
+        "clipped_updates": 85,
+        "numerical_noops": 0,
+        "root_selections": 15,
+        "root_child_proposals": 2,
+        "root_changed_center_proposals": 2,
+        "initial_raw_slopes": [
+          [
+            -0.5,
+            0.5
+          ],
+          [
+            0.0,
+            0.0
+          ]
+        ],
+        "initial_used_slopes": [
+          [
+            -0.5,
+            0.0
+          ],
+          [
+            0.0,
+            0.0
+          ]
+        ]
+      }
+    ],
+    "stochastic_adam_42_b2": [
+      {
+        "p": 3,
+        "precision": 3,
+        "first_improvement_update": null,
+        "first_zero_update": null,
+        "endpoint_loss": 0.4,
+        "best_loss": 0.4,
+        "endpoint_centers": [
+          0,
+          0
+        ],
+        "maximum_log_radius_seen": -0.9529142504393427,
+        "proposals": 35,
+        "digit_changes": 0,
+        "tied_updates": 847,
+        "clipped_updates": 15,
+        "numerical_noops": 0,
+        "root_selections": 0,
+        "root_child_proposals": 0,
+        "root_changed_center_proposals": 0,
+        "initial_raw_slopes": [
+          [
+            0.0,
+            0.25
+          ]
+        ],
+        "initial_used_slopes": [
+          [
+            0.0,
+            0.0
+          ]
+        ]
+      },
+      {
+        "p": 71,
+        "precision": 7,
+        "first_improvement_update": null,
+        "first_zero_update": null,
+        "endpoint_loss": 0.4,
+        "best_loss": 0.4,
+        "endpoint_centers": [
+          0,
+          0
+        ],
+        "maximum_log_radius_seen": -3.0,
+        "proposals": 27,
+        "digit_changes": 0,
+        "tied_updates": 870,
+        "clipped_updates": 18,
+        "numerical_noops": 0,
+        "root_selections": 0,
+        "root_child_proposals": 0,
+        "root_changed_center_proposals": 0,
+        "initial_raw_slopes": [
+          [
+            0.0,
+            0.25
+          ]
+        ],
+        "initial_used_slopes": [
+          [
+            0.0,
+            0.0
+          ]
+        ]
+      }
+    ],
+    "stochastic_adam_1729_b1": [
+      {
+        "p": 3,
+        "precision": 3,
+        "first_improvement_update": 36,
+        "first_zero_update": 40,
+        "endpoint_loss": 0.0,
+        "best_loss": 0.0,
+        "endpoint_centers": [
+          1,
+          26
+        ],
+        "maximum_log_radius_seen": 0.0,
+        "proposals": 57,
+        "digit_changes": 4,
+        "tied_updates": 568,
+        "clipped_updates": 15,
+        "numerical_noops": 0,
+        "root_selections": 10,
+        "root_child_proposals": 2,
+        "root_changed_center_proposals": 2,
+        "initial_raw_slopes": [
+          [
+            0.5,
+            0.0
+          ]
+        ],
+        "initial_used_slopes": [
+          [
+            0.5,
+            0.0
+          ]
+        ]
+      },
+      {
+        "p": 71,
+        "precision": 7,
+        "first_improvement_update": 54,
+        "first_zero_update": 71,
+        "endpoint_loss": 0.0,
+        "best_loss": 0.0,
+        "endpoint_centers": [
+          1,
+          9095120158390
+        ],
+        "maximum_log_radius_seen": 0.0,
+        "proposals": 75,
+        "digit_changes": 8,
+        "tied_updates": 562,
+        "clipped_updates": 41,
+        "numerical_noops": 0,
+        "root_selections": 24,
+        "root_child_proposals": 2,
+        "root_changed_center_proposals": 2,
+        "initial_raw_slopes": [
+          [
+            0.5,
+            0.0
+          ]
+        ],
+        "initial_used_slopes": [
+          [
+            0.5,
+            0.0
+          ]
+        ]
+      }
+    ],
+    "stochastic_adam_1729_b2": [
+      {
+        "p": 3,
+        "precision": 3,
+        "first_improvement_update": null,
+        "first_zero_update": null,
+        "endpoint_loss": 0.4,
+        "best_loss": 0.4,
+        "endpoint_centers": [
+          0,
+          0
+        ],
+        "maximum_log_radius_seen": -3.0,
+        "proposals": 0,
+        "digit_changes": 0,
+        "tied_updates": 901,
+        "clipped_updates": 0,
+        "numerical_noops": 0,
+        "root_selections": 0,
+        "root_child_proposals": 0,
+        "root_changed_center_proposals": 0,
+        "initial_raw_slopes": [
+          [
+            0.0,
+            0.25
+          ]
+        ],
+        "initial_used_slopes": [
+          [
+            0.0,
+            0.0
+          ]
+        ]
+      },
+      {
+        "p": 71,
+        "precision": 7,
+        "first_improvement_update": null,
+        "first_zero_update": null,
+        "endpoint_loss": 0.4,
+        "best_loss": 0.4,
+        "endpoint_centers": [
+          0,
+          0
+        ],
+        "maximum_log_radius_seen": -7.0,
+        "proposals": 0,
+        "digit_changes": 0,
+        "tied_updates": 901,
+        "clipped_updates": 0,
+        "numerical_noops": 0,
+        "root_selections": 0,
+        "root_child_proposals": 0,
+        "root_changed_center_proposals": 0,
+        "initial_raw_slopes": [
+          [
+            0.0,
+            0.25
+          ]
+        ],
+        "initial_used_slopes": [
+          [
+            0.0,
+            0.0
+          ]
+        ]
+      }
+    ]
+  },
+  "scope": "Stored synthetic trajectories only; no fitting, product data or selection"
+}
