@@ -126,3 +126,49 @@ def test_seven_digit_binary_sum_and_terminal_disk_agree_with_python_ints():
     # Every exact residue match lies within the terminal output disk; the
     # direct loss is r/2 even if the integer dot product differs by q.
     assert direct_loss(x,y.astype(np.int64),centers,logs,p=p,precision=precision) == pytest.approx(0.5/q, rel=1e-14, abs=0)
+
+
+def test_tie_can_hide_genuinely_improving_joint_downward_germ():
+    x=sparse.csr_matrix([[1,1]])
+    y,c=np.array([0]),np.array([0,0])
+    logs=np.array([-0.5,-0.5])
+    assert directions(x,y,c,logs,0,p=3,precision=3).tolist()==[0.5,0.0]
+    r=3**(-0.5)
+    joint=np.log(np.array([r-1e-4,r-1e-4]))/np.log(3)
+    assert (direct_loss(x,y,c,joint,p=3,precision=3)-direct_loss(x,y,c,logs,p=3,precision=3))/1e-4==pytest.approx(-0.5)
+
+
+@pytest.mark.parametrize("optimizer",["gd","momentum","adam"])
+def test_diagnostics_do_not_change_seeded_trajectory(optimizer):
+    x=sparse.csr_matrix([[1,1],[1,0],[0,1]])
+    kw=dict(p=3,precision=3,seed=42,optimizer=optimizer,updates=30,seconds=5)
+    events=[]
+    a=fit_tree(x,np.array([4,2,1]),[0,0],**kw)
+    b=fit_tree(x,np.array([4,2,1]),[0,0],diagnostic_callback=events.append,**kw)
+    np.testing.assert_array_equal(a.centers,b.centers)
+    np.testing.assert_array_equal(a.log_radii,b.log_radii)
+    assert a.coordinate_updates==b.coordinate_updates
+    assert len(events)==30
+    json.dumps(events)
+
+
+def test_terminal_full_batch_toy_is_stationary_with_positive_raw_slopes():
+    x=sparse.csr_matrix([[1,0],[0,1],[1,1],[1,1],[1,1]])
+    events=[]
+    fit=fit_tree(x,np.array([1,26,0,0,0]),[0,0],p=3,precision=3,
+                 optimizer="adam",updates=1,batch_schedule=lambda _:np.arange(5),
+                 diagnostic_callback=events.append,seconds=5)
+    record=events[0]
+    assert fit.moves==0 and fit.centers.tolist()==[0,0]
+    assert record["groups"]==[[0,1]] and len(record["tie_rows"])==3
+    assert record["coordinates"][0]["raw_slopes"]==pytest.approx([0.2,0.1])
+    assert record["coordinates"][0]["used_slopes"]==pytest.approx([0.2,0])
+    assert not record["coordinates"][0]["down_allowed"]
+    assert not record["clipped"] and record["numerical_noops"]==0
+
+
+@pytest.mark.parametrize("schedule",[[],[0,0],[1.5],[5]])
+def test_invalid_batch_schedule_is_rejected(schedule):
+    with pytest.raises(ValueError,match="Batch schedule"):
+        fit_tree([[1],[1]],np.array([1,2]),[0],p=3,precision=3,
+                 updates=1,seconds=5,batch_schedule=lambda _:schedule)

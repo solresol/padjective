@@ -157,7 +157,8 @@ class TreeFit:
 def fit_tree(features, targets, initial, *, p=71, precision=7, seed=42,
              optimizer="adam", initial_log_radius=None, updates=1000,
              seconds=120, batch_size=32, kappa=1.0, beta=0.9,
-             beta2=0.999, epsilon=1e-8, checkpoint=None):
+             beta2=0.999, epsilon=1e-8, checkpoint=None,
+             batch_schedule=None, diagnostic_callback=None):
     if optimizer not in {"momentum", "adam", "gd"}:
         raise ValueError("Unknown optimizer")
     if updates < 1 or seconds <= 0 or batch_size < 1 or kappa <= 0:
@@ -192,8 +193,25 @@ def fit_tree(features, targets, initial, *, p=71, precision=7, seed=42,
         if time.monotonic()-started >= seconds:
             status = "time_limit"
             break
-        ids = rng_batch.choice(len(targets), size=min(batch_size, len(targets)), replace=False)
+        if batch_schedule is None:
+            ids = rng_batch.choice(len(targets), size=min(batch_size, len(targets)), replace=False)
+        else:
+            ids = np.asarray(batch_schedule(step))
+            if (ids.ndim != 1 or not len(ids) or ids.dtype.kind not in "iu"
+                    or np.any(ids < 0) or np.any(ids >= len(targets))
+                    or len(np.unique(ids)) != len(ids)):
+                raise ValueError("Batch schedule must return unique valid integer row indices")
+            ids = ids.astype(np.int64)
         batch, y = matrix[ids], targets[ids]
+        if diagnostic_callback:
+            before_centers, before_logs = centers.copy(), logs.copy()
+            diagnostic_coordinates, diagnostic_motions, tie_rows = [], [], []
+            for i in range(batch.shape[0]):
+                cols = batch.indices[batch.indptr[i]:batch.indptr[i+1]]
+                if len(cols):
+                    active = cols[logs[cols] == np.max(logs[cols])]
+                    if len(active) > 1:
+                        tie_rows.append(dict(row=int(ids[i]), attaining=active.tolist()))
         components = groups(batch, logs, mask)
         selected = []
         for group in components:
@@ -218,6 +236,8 @@ def fit_tree(features, targets, initial, *, p=71, precision=7, seed=42,
             else:
                 slopes = np.zeros(1+(p if depth is not None and depth < precision else 1))
             up, down = limits(float(logs[j]), p=p, precision=precision)
+            if diagnostic_callback:
+                raw_slopes = slopes.copy()
             # The finite quotient does not specify derivatives below its
             # terminal disk. Use zero for that unavailable direction when
             # updating histories; this capacity convention is an explicit
@@ -257,6 +277,13 @@ def fit_tree(features, targets, initial, *, p=71, precision=7, seed=42,
             if down[0] == 0:
                 speeds[1:] = 0
             speed = float(np.max(speeds))
+            if diagnostic_callback:
+                diagnostic_coordinates.append(dict(column=j, clock=clock, vertex_depth=depth,
+                    raw_slopes=raw_slopes.tolist(), used_slopes=slopes.tolist(),
+                    moment=[float(v) if np.isfinite(v) else None for v in moment],
+                    second_moment=float(second[j]), speeds=speeds.tolist(),
+                    up_distance=float(up[0]), down_distance=float(down[0]),
+                    up_allowed=up[0]>0, down_allowed=down[0]>0))
             if speed <= 0:
                 continue
             choices = np.flatnonzero(speeds == speed)
@@ -277,9 +304,30 @@ def fit_tree(features, targets, initial, *, p=71, precision=7, seed=42,
                 r = p**float(logs[j]) + (distance if direction == 0 else -distance)
                 new_log = math.log(r, p)
             digit_changes += int(center != centers[j])
+            if diagnostic_callback:
+                diagnostic_motions.append(dict(column=j, direction=direction,
+                    speed=speed, requested_distance=alpha*speed,
+                    applied_distance=distance, boundary_distance=float(boundary[0]),
+                    boundary_log=float(boundary[1]), boundary_hit=dt==boundary[0]/speed,
+                    log_changed=new_log!=float(logs[j]), center_changed=center!=int(centers[j]),
+                    numerical_noop=new_log==float(logs[j]) and center==int(centers[j])))
             centers[j], logs[j] = center, new_log
             moves += 1
         completed = step
+        if diagnostic_callback:
+            finite_logs=lambda values: [float(v) if np.isfinite(v) else None for v in values]
+            diagnostic_callback(dict(update=step, batch_indices=ids.tolist(),
+                groups=components, selected=selected, tie_rows=tie_rows,
+                centers_before=before_centers.tolist(), logs_before=finite_logs(before_logs),
+                centers_after=centers.tolist(), logs_after=finite_logs(logs),
+                coordinates=diagnostic_coordinates, motions=diagnostic_motions,
+                requested_time=alpha, applied_time=dt,
+                clipped=bool(proposals) and dt<alpha,
+                clipping_coordinates=[j for j,_,s,b,_ in proposals if dt==b[0]/s],
+                numerical_noops=sum(m["numerical_noop"] for m in diagnostic_motions),
+                strict_radius_changes=sum(m["log_changed"] for m in diagnostic_motions),
+                point_loss=float(loss_units((targets-np.asarray(matrix @ centers).reshape(-1))%q,p,precision).sum())/(len(targets)*q),
+                direct_loss=direct_loss(matrix,targets,centers,logs,p=p,precision=precision)))
         if step == 1 or step % 100 == 0 or step == updates:
             item = dict(update=step, groups=len(components), selected=len(selected),
                         moves=moves, digit_changes=digit_changes,
