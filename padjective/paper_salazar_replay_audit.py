@@ -5,6 +5,7 @@ import hashlib
 import json
 import math
 import platform
+import time
 
 import numpy as np
 
@@ -71,6 +72,7 @@ def raw_slopes(rows,weights,logs,column,depth):
 
 def audit():
     assert platform.node()=="raksasa"
+    started=time.monotonic()
     result=json.loads((ROOT/"results.json").read_text())
     assert result["status"]=="completed"
     trace=ROOT/"trace.jsonl"
@@ -81,6 +83,7 @@ def audit():
     assert private["coefficients"]==initial.tolist()
     baseline_units=point_units(matrix,targets,initial)
     baseline_loss=float(Fraction(baseline_units,len(targets)*Q))
+    print(json.dumps(dict(event="audit_loaded",elapsed_seconds=time.monotonic()-started)),flush=True)
     counts=Counter()
     time_values,ratios,distances=[],[],[]
     limiting_columns=Counter()
@@ -89,6 +92,7 @@ def audit():
     previous_centers,previous_logs=initial.tolist(),[-7.0]*matrix.shape[1]
     minimum_reached_vertex=Counter()
     verified_slopes=0
+    hidden_joint_events=[]
     with trace.open() as stream:
         for number,line in enumerate(stream,1):
             event=json.loads(line)
@@ -109,7 +113,9 @@ def audit():
             counts["attaining_tie_rows"]+=len(event["tie_rows"])
             counts["coupled_groups"]+=sum(len(group)>1 for group in event["groups"])
             assert len(event["groups"])==len(event["selected"])
-            assert all(sum(j in group for j in event["selected"])==1 for group in event["groups"])
+            selected=set(event["selected"])
+            assert len(selected)==len(event["selected"])
+            assert all(len(selected.intersection(group))==1 for group in event["groups"])
             coordinates={c["column"]:c for c in event["coordinates"]}
             motions={m["column"]:m for m in event["motions"]}
             assert set(coordinates)==set(event["selected"])
@@ -157,7 +163,13 @@ def audit():
                         individual[active[0]]+=slope
                 counts["feasible_coupled_downward_germs_checked"]+=1
                 counts["negative_joint_downward_germs"]+=int(joint<0)
-                counts["negative_joint_descent_hidden_from_all_individual_down_germs"]+=int(joint<0 and min(individual.values())>=0)
+                hidden=joint<0 and min(individual.values())>=0
+                counts["negative_joint_descent_hidden_from_all_individual_down_germs"]+=int(hidden)
+                if hidden:
+                    hidden_joint_events.append(dict(update=number,columns=group,
+                        log_radius=previous_logs[group[0]],joint_downward_slope=joint/len(rows),
+                        individual_retained_downward_slopes={j:value/len(rows) for j,value in individual.items()},
+                        interpretation="Feasible minibatch relaxation descent with retained centers; no point-loss claim"))
             bounds=[]
             for j,m in motions.items():
                 c=coordinates[j]
@@ -183,6 +195,9 @@ def audit():
                 counts["boundary_hits"]+=int(hit)
                 counts["motions_with_batch_absent_column"]+=int(j not in present)
                 counts["motions_against_current_minibatch_slope"]+=int(c["used_slopes"][direction]>=0)
+                counts["motions_at_zero_current_slope"]+=int(c["used_slopes"][direction]==0)
+                counts["motions_against_strictly_positive_current_slope"]+=int(c["used_slopes"][direction]>0)
+                counts["motions_with_negative_current_slope"]+=int(c["used_slopes"][direction]<0)
                 counts["child_proposals"]+=int(direction>0 and c["vertex_depth"] is not None and c["vertex_depth"]<E)
                 if hit:
                     limiting_columns[j]+=1
@@ -196,6 +211,9 @@ def audit():
             ratios.append(event["applied_time"]/event["requested_time"])
             shallowest=[max(a,b) for a,b in zip(shallowest,event["logs_after"],strict=True)]
             previous_centers,previous_logs=event["centers_after"],event["logs_after"]
+            if number%20==0:
+                print(json.dumps(dict(event="audit_progress",checked_updates=number,
+                    verified_supported_slopes=verified_slopes,elapsed_seconds=time.monotonic()-started)),flush=True)
     assert number==result["completed_updates"]==result["fit"]["updates"]
     assert counts["motion_proposals"]==result["fit"]["moves"]
     assert counts["coordinate_selections"]==result["fit"]["coordinate_updates"]
@@ -216,10 +234,12 @@ def audit():
         coordinates_ever_at_or_above_depth_5=sum(value>=-5 for value in shallowest),
         applied_time_distribution=quantiles(time_values),applied_to_requested_time_ratio=quantiles(ratios),
         positive_motion_distance_distribution=quantiles([value for value in distances if value>0]),
+        total_common_applied_time=sum(time_values),hidden_joint_downward_germs=hidden_joint_events,
         limiting_coordinate_counts=dict(limiting_columns),
         limiting_coordinate_first_updates=first_limiting_step,
         scope="Read-only training trace audit; no held-out predictions or fitting",
-        interpretation="Counts identify mechanisms in this prefix. No counterfactual ablation establishes a dominant cause of the original full-run result.")
+        interpretation="The legacy motions_against_current_minibatch_slope counter includes zero slopes; strict positive/zero/negative counts are separate. Counts identify mechanisms in this prefix. No counterfactual ablation establishes a dominant cause of the original full-run result.")
+    out["elapsed_seconds"]=time.monotonic()-started
     (ROOT/"audit.json").write_text(json.dumps(out,indent=2)+"\n")
     print(json.dumps(out))
 

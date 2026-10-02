@@ -1,0 +1,161 @@
+{
+  "status": "completed",
+  "configuration": {
+    "p": 71,
+    "precision": 7,
+    "fold": 0,
+    "seed": 42,
+    "batch_size": 32,
+    "optimizer": "adam",
+    "initial_log_radius": -7,
+    "kappa": 1.0,
+    "beta": 0.9,
+    "beta2": 0.999,
+    "epsilon": 1e-08,
+    "updates": 100,
+    "seconds": 20,
+    "overall_seconds": 30,
+    "scope": "Training-only diagnostic replay of the original frozen warm Adam member"
+  },
+  "hostname": "raksasa",
+  "source_commit": "c6fc45250f3fc1b94de3f5ce61beda9df5c11752",
+  "source_sha256": {
+    "padjective/salazar_affine.py": "9601f31fe1fc492b5d28e211c2c54bed0a54c127a9755c26915cdc039c4019ff",
+    "padjective/paper_salazar_replay.py": "c82776c6b63cf3f5d9570acba5ad02864b892a696903f6f3a19ae08705ff2286"
+  },
+  "completed_updates": 100,
+  "checkpoint_comparisons": [
+    {
+      "update": 1,
+      "matched_fields": [
+        "moves",
+        "groups",
+        "update",
+        "selected",
+        "digit_changes",
+        "coordinate_updates",
+        "maximum_log_radius",
+        "minimum_log_radius",
+        "training_point_loss",
+        "training_direct_loss"
+      ],
+      "mismatches": [],
+      "status": "passed"
+    },
+    {
+      "update": 100,
+      "matched_fields": [
+        "moves",
+        "groups",
+        "update",
+        "selected",
+        "digit_changes",
+        "coordinate_updates",
+        "maximum_log_radius",
+        "minimum_log_radius",
+        "training_point_loss",
+        "training_direct_loss"
+      ],
+      "mismatches": [],
+      "status": "passed"
+    }
+  ],
+  "provenance": {
+    "original_run_id": "b5bff126-fb4a-492d-969b-b960ccc2220f",
+    "snapshot_id": "244ddbe3-0a2c-4c04-9436-0a0253108a09",
+    "snapshot_digest": "039175941ed2a2ec888bc6c7314c3c5f8afac1201ff604413dedb55641706222",
+    "n_train": 5393,
+    "n_features": 2542,
+    "n_supported": 2542,
+    "training_nnz": 26863,
+    "feature_names_sha256": "94c1a7fb6e2cdcf1190e5ee351e677bc0f7cbb93f6c6988b1c97ee8123799eee",
+    "mask_sha256": "176db5139726999ed088987baadabb385ac0541f2607911afef506fa3fcd8642",
+    "initial_coefficient_sha256": "2580c3aaaa7d8232a18f271dbd7ad5c9b3f08db79c75964f4fd157b0fd844098",
+    "original_row_fingerprint": [
+      "3fd6b356144389a06eebfa7e138818e7",
+      "completed"
+    ],
+    "original_configuration": {
+      "p": 71,
+      "beta": 0.9,
+      "fold": 0,
+      "mask": "all training-supported features; unsupported coefficients frozen zero",
+      "seed": 42,
+      "beta2": 0.999,
+      "kappa": 1.0,
+      "numpy": "2.2.5",
+      "python": "3.11.11",
+      "epsilon": 1e-08,
+      "updates": 1000,
+      "grouping": "conservative attaining-term connected components, no cancellation splitting",
+      "hostname": "raksasa",
+      "variants": [
+        "exact_coordinate",
+        "warm_momentum",
+        "warm_adam",
+        "cold_adam"
+      ],
+      "precision": 7,
+      "selection": "fixed endpoint, no held-out or validation tuning",
+      "batch_size": 32,
+      "extraction": "retained center modulo p^7; regression Section 5",
+      "constraints": "Z_p disks with radius in [p^-7,1]; no fractional coefficients",
+      "exact_seconds": 300,
+      "source_commit": "fe6a089f94296e94cc973a86e975fd8145728c44",
+      "source_sha256": {
+        "padjective/salazar_affine.py": "20022c4af9389cd69cb9069041f6b64ba3dde21c665a8d0e9835f16a70117ee6",
+        "padjective/paper_salazar_single.py": "512cbc33611e7ed9d405a62222d7f0d9d99d52ab3cd6ee9f2c7114d5761f04a3"
+      },
+      "official_source": "53ffd9e79890e76b82ef2dc3c7230984053f9801",
+      "exact_max_sweeps": 100,
+      "seconds_per_tree_fit": 120,
+      "cold_initial_log_radius": 0,
+      "warm_initial_log_radius": -7
+    }
+  },
+  "loading_seconds": 0.342347658239305,
+  "last_training_point_loss": 0.26111689009390665,
+  "last_maximum_log_radius": -5.840328332229523,
+  "fit": {
+    "updates": 100,
+    "coordinate_updates": 249935,
+    "moves": 20920,
+    "digit_changes": 0,
+    "elapsed_seconds": 14.991265029646456,
+    "status": "update_limit",
+    "history": [
+      {
+        "update": 1,
+        "groups": 2261,
+        "selected": 2261,
+        "moves": 6,
+        "digit_changes": 0,
+        "coordinate_updates": 2261,
+        "elapsed_seconds": 0.12617868604138494,
+        "training_direct_loss": 0.26111689009390754,
+        "training_point_loss": 0.26111689009390665,
+        "maximum_log_radius": -6.0,
+        "minimum_log_radius": -7.0
+      },
+      {
+        "update": 100,
+        "groups": 2534,
+        "selected": 2534,
+        "moves": 20920,
+        "digit_changes": 0,
+        "coordinate_updates": 249935,
+        "elapsed_seconds": 14.958013894036412,
+        "training_direct_loss": 0.2611168900937926,
+        "training_point_loss": 0.26111689009390665,
+        "maximum_log_radius": -5.840328332229523,
+        "minimum_log_radius": -7.0
+      }
+    ]
+  },
+  "endpoint_coefficient_sha256": "2580c3aaaa7d8232a18f271dbd7ad5c9b3f08db79c75964f4fd157b0fd844098",
+  "coefficients_unchanged": true,
+  "original_row_unchanged": true,
+  "elapsed_seconds": 15.349606192205101,
+  "trace_bytes": 77631646,
+  "trace_sha256": "e0e3e15787bf2e76e7bc8f11dbea7e906439eeb52e9caa2366c47f91e875fe8b"
+}
