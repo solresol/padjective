@@ -157,12 +157,12 @@ def main() -> None:
     import argparse
 
     parser = argparse.ArgumentParser(
-        description="Upload a product-taxonomy-bench export directory to a Hugging Face dataset repo."
+        description="Upload a SHIMP export directory to a Hugging Face dataset repo."
     )
     parser.add_argument(
         "--repo-id",
         required=True,
-        help="Hugging Face repo id (e.g. username/product-taxonomy-bench)",
+        help="Hugging Face repo id (e.g. gregb/shimp)",
     )
     parser.add_argument(
         "--out-root",

@@ -1,9 +1,18 @@
-# Automating Hugging Face publishing
+# Publishing SHIMP to Hugging Face
 
-This repo can generate two dataset exports:
+**SHIMP** stands for **Shopify Hierarchy Inference from Merchant Products**.
+The default publishing target in `weekly_hf_publish.sh` is `gregb/shimp`.
+The existing dataset at
+[`gregb/product-taxonomy-bench`](https://huggingface.co/datasets/gregb/product-taxonomy-bench)
+is the legacy target; this code change does not rename, move, delete, or upload
+either Hub repository. Publishing to `gregb/shimp` is a separate live step on
+the publishing machine with database access and a suitable Hugging Face token.
+
+This repo can generate three dataset exports:
 
 - `paper/`: a fixed point-in-time snapshot (cut off at the timestamp recorded in the paper, or an explicit `--paper-as-of`)
 - `latest/`: a rolling snapshot from the current database state
+- `first1000/`: the first 1,000 labelled products for a small sanity check
 
 The exports are written to a local folder and can optionally be uploaded to a
 Hugging Face *dataset* repo.
@@ -37,13 +46,17 @@ export SHOPIFY_DB_DSN='postgresql://…'
 export HF_TOKEN='hf_…'
 
 uv run -m padjective.product_taxonomy_bench_publish \
-  --out-root /data/hf/product-taxonomy-bench \
+  --out-root /data/hf/shimp \
   --paper-tex ../papers/padjective/sigir-ecom/padjective-ecom.tex \
-  --hf-repo-id yourname/product-taxonomy-bench
+  --hf-repo-id gregb/shimp
 ```
 
 Notes:
 
+- Omitting `--hf-repo-id` keeps the Python publisher export-only. Generated
+  cards and notebooks default to `gregb/shimp`; with `--hf-repo-id`, the card
+  and notebook use that target. `--dataset-id` and `--pretty-name` remain
+  available to override card metadata explicitly.
 - For a strictly stable paper snapshot, pin it explicitly:
   `--paper-as-of "2026-02-11 19:15 UTC"` (or whatever the paper’s dataset cutoff
   is) so future edits to the paper TeX can’t move the cutoff.
@@ -56,7 +69,7 @@ Export:
 
 ```bash
 uv run -m padjective.product_taxonomy_bench_publish \
-  --out-root /data/hf/product-taxonomy-bench \
+  --out-root /data/hf/shimp \
   --paper-tex ../papers/padjective/sigir-ecom/padjective-ecom.tex
 ```
 
@@ -64,8 +77,8 @@ Upload:
 
 ```bash
 uv run -m padjective.hf_sync \
-  --repo-id yourname/product-taxonomy-bench \
-  --out-root /data/hf/product-taxonomy-bench
+  --repo-id gregb/shimp \
+  --out-root /data/hf/shimp
 ```
 
 ## Weekly publish cadence
@@ -79,6 +92,18 @@ The helper script `weekly_hf_publish.sh` wraps the default publish command:
 ```bash
 SHOPIFY_DB_DSN='postgresql://…' HF_TOKEN='hf_…' ./weekly_hf_publish.sh
 ```
+
+`PADJECTIVE_HF_REPO_ID` still overrides the weekly upload target, including
+`PADJECTIVE_HF_REPO_ID=gregb/product-taxonomy-bench` for the legacy repository.
+The local output default remains `build/hf/product-taxonomy-bench` for existing
+jobs; set `PADJECTIVE_HF_OUT_ROOT` to choose another directory.
+
+Python module names, `product-taxonomy-bench-*` commands, notebook paths,
+Postgres table names, and `PRODUCT_TAXONOMY_BENCH_*` notebook environment
+variables remain compatible. For example, set
+`PRODUCT_TAXONOMY_BENCH_DATASET_ID=gregb/product-taxonomy-bench` to read the
+existing release before SHIMP is published. Snapshot cutoffs, anonymisation,
+fields, and cross-validation folds are unchanged.
 
 ## Cron example (Monday 06:30 Australia/Sydney time)
 

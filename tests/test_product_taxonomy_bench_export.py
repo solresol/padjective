@@ -2,7 +2,10 @@ import json
 from datetime import datetime, timezone
 import uuid
 
+import pytest
+
 import padjective.product_taxonomy_bench_export as export_mod
+from padjective.dataset_metadata import DEFAULT_HF_DATASET_ID, DEFAULT_HF_PRETTY_NAME
 from padjective.product_taxonomy_bench_export import (
     DEFAULT_DATASET_CITATION_BIBTEX,
     SnapshotMetadata,
@@ -14,7 +17,13 @@ from padjective.product_taxonomy_bench_export import (
 from padjective.product_taxonomy_bench_notebook import render_notebook
 
 
-def test_render_hf_dataset_card_includes_snapshots() -> None:
+@pytest.mark.parametrize(
+    "dataset_id", ["gregb/shimp", "gregb/product-taxonomy-bench", "someone/custom"]
+)
+@pytest.mark.parametrize("include_first1000", [False, True])
+def test_render_hf_dataset_card_includes_snapshots(
+    dataset_id, include_first1000
+) -> None:
     paper = SnapshotMetadata(
         snapshot_id=uuid.UUID("00000000-0000-0000-0000-000000000001"),
         snapshot_name="paper-2026-02-11",
@@ -45,16 +54,17 @@ def test_render_hf_dataset_card_includes_snapshots() -> None:
     )
 
     card = render_hf_dataset_card(
-        dataset_id="product-taxonomy-bench",
-        pretty_name="Product Taxonomy Bench (Anonymized)",
+        dataset_id=dataset_id,
+        pretty_name=DEFAULT_HF_PRETTY_NAME,
         paper=paper,
         latest=latest,
+        first1000=latest if include_first1000 else None,
     )
 
     assert "paper-2026-02-11" in card
     assert "latest-2026-02-24" in card
-    assert "product-taxonomy-bench" in card
-    assert "Product Taxonomy Bench (Anonymized)" in card
+    assert dataset_id in card
+    assert "SHIMP (Shopify Hierarchy Inference from Merchant Products)" in card
     assert "notebooks/product_taxonomy_bench.ipynb" in card
     assert "Open in Colab" in card
     assert "defaults to the fixed `paper` snapshot" in card
@@ -64,18 +74,50 @@ def test_render_hf_dataset_card_includes_snapshots() -> None:
     assert '"paper/products-*.jsonl.gz"' in card
     assert "- config_name: latest" in card
     assert '"latest/products-*.jsonl.gz"' in card
-    assert DEFAULT_DATASET_CITATION_BIBTEX in card
+    assert ("- config_name: first1000" in card) == include_first1000
+    assert card.count("  - split: train") == (3 if include_first1000 else 2)
+    assert "`cv_fold`: 0–4" in card
+    assert "Tags are anonymised as `tagNNNNNN`" in card
+    citation = DEFAULT_DATASET_CITATION_BIBTEX.replace(DEFAULT_HF_DATASET_ID, dataset_id)
+    assert citation in card
+    assert f"https://huggingface.co/datasets/{dataset_id}" in card
     assert "TODO" not in card
 
 
-def test_stage_hf_notebook_generates_ablation_notebook(tmp_path) -> None:
-    notebook_path = stage_hf_notebook(tmp_path)
+@pytest.mark.parametrize("dataset_id", [None, "gregb/product-taxonomy-bench", "someone/custom"])
+def test_stage_hf_notebook_generates_ablation_notebook(tmp_path, dataset_id) -> None:
+    kwargs = {"dataset_id": dataset_id} if dataset_id else {}
+    notebook_path = stage_hf_notebook(tmp_path, **kwargs)
     notebook_text = notebook_path.read_text(encoding="utf-8")
     assert "UMLLR tag-order ablation" in notebook_text
     assert "Active parameters vs p-adic loss" in notebook_text
     assert "Fitted equation:" in notebook_text
     assert "mean_prefix2_accuracy" in notebook_text
     assert notebook_path.name == "product_taxonomy_bench.ipynb"
+    notebook = json.loads(notebook_text)
+    introduction = "".join(notebook["cells"][0]["source"])
+    assert "Shopify Hierarchy Inference from Merchant Products" in introduction
+    config_source = "".join(notebook["cells"][2]["source"])
+    expected_id = dataset_id or "gregb/shimp"
+    assert f'DATASET_ID = os.getenv("PRODUCT_TAXONOMY_BENCH_DATASET_ID", {expected_id!r})' in config_source
+    for cell in notebook["cells"]:
+        if cell["cell_type"] == "code":
+            compile("".join(cell["source"]), str(notebook_path), "exec")
+
+
+def test_notebook_keeps_legacy_environment_override(monkeypatch) -> None:
+    notebook = render_notebook()
+    config_source = "".join(notebook["cells"][2]["source"])
+    # Stop at the first load rather than downloading data or running baselines.
+    setup_source = config_source.split("snapshot_tables =", 1)[0]
+    monkeypatch.setenv("PRODUCT_TAXONOMY_BENCH_DATASET_ID", "gregb/product-taxonomy-bench")
+    monkeypatch.delenv("PRODUCT_TAXONOMY_BENCH_SNAPSHOT", raising=False)
+    namespace = {}
+
+    exec(compile(setup_source, "notebook-config", "exec"), namespace)
+
+    assert namespace["DATASET_ID"] == "gregb/product-taxonomy-bench"
+    assert namespace["SNAPSHOT"] == "paper"
 
 
 def test_render_notebook_includes_embedded_runtime_and_tables() -> None:
