@@ -3,6 +3,8 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+from types import SimpleNamespace
+from unittest.mock import Mock
 
 import pytest
 
@@ -94,4 +96,34 @@ def test_weekly_publisher_target_default_and_override(tmp_path, override):
 
     args = args_file.read_text().splitlines()
     assert args[args.index("--hf-repo-id") + 1] == (override or "gregb/shimp")
+
+
+def test_publish_uses_upload_target_for_citation_and_notebook(monkeypatch, tmp_path):
+    metadata = SimpleNamespace(snapshot_name="fixed")
+    connection = SimpleNamespace(close=lambda: None)
+    monkeypatch.setattr(publish_mod, "create_snapshot", Mock(return_value="snapshot-id"))
+    monkeypatch.setattr(publish_mod.db, "get_connection", Mock(return_value=connection))
+    monkeypatch.setattr(publish_mod, "export_snapshot", Mock(return_value=metadata))
+    card = Mock(return_value="dataset card")
+    notebook = Mock()
+    monkeypatch.setattr(publish_mod, "render_hf_dataset_card", card)
+    monkeypatch.setattr(publish_mod, "stage_hf_notebook", notebook)
+    for name in ("load_snapshot_tables", "build_snapshot_benchmark_bundle", "write_bundle_outputs"):
+        monkeypatch.setattr(publish_mod, name, Mock())
+    upload = Mock()
+    monkeypatch.setattr(publish_mod, "upload_export_root", upload)
+
+    publish_mod.publish(
+        dsn=None, schema="padjective", product_table="cantbuymelove.product",
+        paper_as_of=publish_mod.parse_as_of("2026-02-11 19:15 UTC"),
+        min_tag_count=5, min_samples_per_taxonomy=5,
+        out_root=tmp_path, formats=("jsonl",), gzip_jsonl=True,
+        rows_per_shard=200_000, dataset_id="custom-card", pretty_name="Custom dataset",
+        hf_repo_id="someone/custom",
+    )
+
+    assert card.call_args.kwargs["dataset_id"] == "custom-card"
+    assert card.call_args.kwargs["hf_repo_id"] == "someone/custom"
+    assert notebook.call_args.kwargs["dataset_id"] == "someone/custom"
+    assert upload.call_args.args[1].repo_id == "someone/custom"
 

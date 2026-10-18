@@ -27,11 +27,15 @@ if __package__ in {None, ""}:
     if str(project_root) not in sys.path:
         sys.path.append(str(project_root))
     from padjective import db
-    from padjective.dataset_metadata import DEFAULT_HF_DATASET_ID, DEFAULT_HF_PRETTY_NAME
+    from padjective.dataset_metadata import (
+        DEFAULT_HF_DATASET_ID, DEFAULT_HF_PRETTY_NAME, resolve_hf_repo_id,
+    )
     from padjective.product_taxonomy_bench_notebook import write_notebook
 else:  # pragma: no cover
     from . import db
-    from .dataset_metadata import DEFAULT_HF_DATASET_ID, DEFAULT_HF_PRETTY_NAME
+    from .dataset_metadata import (
+        DEFAULT_HF_DATASET_ID, DEFAULT_HF_PRETTY_NAME, resolve_hf_repo_id,
+    )
     from .product_taxonomy_bench_notebook import write_notebook
 
 try:  # Optional dependency; used only for Parquet exports.
@@ -47,13 +51,19 @@ DEFAULT_HF_NOTEBOOK_SOURCE = (
     Path(__file__).resolve().parent.parent / "docs" / "product_taxonomy_bench.ipynb"
 )
 DEFAULT_HF_NOTEBOOK_DEST = Path("notebooks/product_taxonomy_bench.ipynb")
-DEFAULT_DATASET_CITATION_BIBTEX = """@misc{baker2026shimp,
-  author={Gregory D. Baker},
-  title={{SHIMP}: Shopify Hierarchy Inference from Merchant Products},
-  year={2026},
-  howpublished={\\url{https://huggingface.co/datasets/gregb/shimp}},
-  note={Hugging Face dataset}
-}"""
+
+
+def render_dataset_citation_bibtex(repo_id: str = DEFAULT_HF_DATASET_ID) -> str:
+    return f"""@misc{{baker2026shimp,
+  author={{Gregory D. Baker}},
+  title={{{{SHIMP}}: Shopify Hierarchy Inference from Merchant Products}},
+  year={{2026}},
+  howpublished={{\\url{{https://huggingface.co/datasets/{repo_id}}}}},
+  note={{Hugging Face dataset}}
+}}"""
+
+
+DEFAULT_DATASET_CITATION_BIBTEX = render_dataset_citation_bibtex()
 
 
 @dataclass(frozen=True)
@@ -536,7 +546,10 @@ def render_hf_dataset_card(
     paper: SnapshotMetadata,
     latest: SnapshotMetadata,
     first1000: SnapshotMetadata | None = None,
+    hf_repo_id: str | None = None,
 ) -> str:
+    repo_id = resolve_hf_repo_id(dataset_id, hf_repo_id)
+
     def _fmt(meta: SnapshotMetadata) -> str:
         as_of = f"; as_of `{meta.as_of.isoformat()}`" if meta.as_of else ""
         return (
@@ -622,6 +635,7 @@ def render_hf_dataset_card(
             "",
             "# Start Here",
             "",
+            f"- Dataset repository: [`{repo_id}`](https://huggingface.co/datasets/{repo_id}).",
             "- Read this dataset card for the snapshot layout and field definitions.",
             "- Open the benchmark notebook at [`notebooks/product_taxonomy_bench.ipynb`](./notebooks/product_taxonomy_bench.ipynb). On the notebook page, use the Hub's **Open in Colab** button to run it interactively. The notebook defaults to the fixed `paper` snapshot.",
             "- Use the snapshot folders according to your goal: `paper/` for the canonical point-in-time paper snapshot, `latest/` for the rolling benchmark, and `first1000/` for a tiny sanity-check slice when present.",
@@ -649,7 +663,7 @@ def render_hf_dataset_card(
             "If you use this dataset, please cite the dataset release:",
             "",
             "```bibtex",
-            DEFAULT_DATASET_CITATION_BIBTEX.replace(DEFAULT_HF_DATASET_ID, dataset_id),
+            render_dataset_citation_bibtex(repo_id),
             "```",
         ]
     )
@@ -666,7 +680,7 @@ def stage_hf_notebook(
     """Generate the benchmark notebook into the export root for Hub publication."""
 
     destination = out_root / notebook_dest
-    return write_notebook(destination, dataset_id=dataset_id)
+    return write_notebook(destination, dataset_id=resolve_hf_repo_id(dataset_id))
 
 
 def export_snapshot(

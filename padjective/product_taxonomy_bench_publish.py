@@ -23,7 +23,9 @@ from psycopg import sql
 from .benchmark_bundle import write_bundle_outputs, write_paper_tex_outputs
 from .benchmark_runtime import build_snapshot_benchmark_bundle, load_snapshot_tables
 from . import db
-from .dataset_metadata import DEFAULT_HF_DATASET_ID, DEFAULT_HF_PRETTY_NAME
+from .dataset_metadata import (
+    DEFAULT_HF_DATASET_ID, DEFAULT_HF_PRETTY_NAME, resolve_hf_repo_id,
+)
 from .hf_sync import UploadOptions, upload_export_root
 from .product_taxonomy_bench import create_snapshot, parse_as_of
 from .product_taxonomy_bench_export import (
@@ -226,16 +228,18 @@ def publish(
     finally:
         conn.close()
 
+    repo_id = resolve_hf_repo_id(dataset_id, hf_repo_id)
     readme = render_hf_dataset_card(
         dataset_id=dataset_id,
         pretty_name=pretty_name,
         paper=paper_meta,
         latest=latest_meta,
         first1000=first1000_meta,
+        hf_repo_id=repo_id,
     )
     out_root.mkdir(parents=True, exist_ok=True)
     (out_root / "README.md").write_text(readme, encoding="utf-8")
-    stage_hf_notebook(out_root, dataset_id=hf_repo_id or dataset_id)
+    stage_hf_notebook(out_root, dataset_id=repo_id)
 
     reports_root = out_root / "reports"
     paper_bundle = build_snapshot_benchmark_bundle(

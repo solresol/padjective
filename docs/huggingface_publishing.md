@@ -56,7 +56,11 @@ Notes:
 - Omitting `--hf-repo-id` keeps the Python publisher export-only. Generated
   cards and notebooks default to `gregb/shimp`; with `--hf-repo-id`, the card
   and notebook use that target. `--dataset-id` and `--pretty-name` remain
-  available to override card metadata explicitly.
+  available to override card metadata explicitly. When `--dataset-id` is a
+  short display label, the repository link, citation, and notebook still use
+  `--hf-repo-id` (or `gregb/shimp` for a local export). A full `owner/name`
+  passed to `--dataset-id` also selects the notebook and citation target when
+  `--hf-repo-id` is omitted.
 - For a strictly stable paper snapshot, pin it explicitly:
   `--paper-as-of "2026-02-11 19:15 UTC"` (or whatever the paper’s dataset cutoff
   is) so future edits to the paper TeX can’t move the cutoff.

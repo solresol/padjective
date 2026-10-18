@@ -18,11 +18,18 @@ from padjective.product_taxonomy_bench_notebook import render_notebook
 
 
 @pytest.mark.parametrize(
-    "dataset_id", ["gregb/shimp", "gregb/product-taxonomy-bench", "someone/custom"]
+    "dataset_id,hf_repo_id,expected_repo_id",
+    [
+        ("gregb/shimp", None, "gregb/shimp"),
+        ("gregb/product-taxonomy-bench", None, "gregb/product-taxonomy-bench"),
+        ("someone/custom", None, "someone/custom"),
+        ("custom-card", "someone/custom", "someone/custom"),
+        ("custom-card", None, "gregb/shimp"),
+    ],
 )
 @pytest.mark.parametrize("include_first1000", [False, True])
 def test_render_hf_dataset_card_includes_snapshots(
-    dataset_id, include_first1000
+    dataset_id, hf_repo_id, expected_repo_id, include_first1000
 ) -> None:
     paper = SnapshotMetadata(
         snapshot_id=uuid.UUID("00000000-0000-0000-0000-000000000001"),
@@ -59,6 +66,7 @@ def test_render_hf_dataset_card_includes_snapshots(
         paper=paper,
         latest=latest,
         first1000=latest if include_first1000 else None,
+        hf_repo_id=hf_repo_id,
     )
 
     assert "paper-2026-02-11" in card
@@ -78,9 +86,11 @@ def test_render_hf_dataset_card_includes_snapshots(
     assert card.count("  - split: train") == (3 if include_first1000 else 2)
     assert "`cv_fold`: 0–4" in card
     assert "Tags are anonymised as `tagNNNNNN`" in card
-    citation = DEFAULT_DATASET_CITATION_BIBTEX.replace(DEFAULT_HF_DATASET_ID, dataset_id)
+    citation = DEFAULT_DATASET_CITATION_BIBTEX.replace(DEFAULT_HF_DATASET_ID, expected_repo_id)
     assert citation in card
-    assert f"https://huggingface.co/datasets/{dataset_id}" in card
+    assert f"https://huggingface.co/datasets/{expected_repo_id}" in card
+    if dataset_id == "custom-card":
+        assert "https://huggingface.co/datasets/custom-card" not in card
     assert "TODO" not in card
 
 
