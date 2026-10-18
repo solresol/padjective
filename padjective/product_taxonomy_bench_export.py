@@ -1,4 +1,4 @@
-"""Export product-taxonomy-bench snapshots for publication (JSONL/Parquet + HF card).
+"""Export SHIMP snapshots for publication (JSONL/Parquet + HF card).
 
 The snapshot source of truth is Postgres (Shopify stores database). Exports are
 materialized to the local filesystem for publishing on platforms such as
@@ -27,9 +27,15 @@ if __package__ in {None, ""}:
     if str(project_root) not in sys.path:
         sys.path.append(str(project_root))
     from padjective import db
+    from padjective.dataset_metadata import (
+        DEFAULT_HF_DATASET_ID, DEFAULT_HF_PRETTY_NAME, resolve_hf_repo_id,
+    )
     from padjective.product_taxonomy_bench_notebook import write_notebook
 else:  # pragma: no cover
     from . import db
+    from .dataset_metadata import (
+        DEFAULT_HF_DATASET_ID, DEFAULT_HF_PRETTY_NAME, resolve_hf_repo_id,
+    )
     from .product_taxonomy_bench_notebook import write_notebook
 
 try:  # Optional dependency; used only for Parquet exports.
@@ -45,13 +51,19 @@ DEFAULT_HF_NOTEBOOK_SOURCE = (
     Path(__file__).resolve().parent.parent / "docs" / "product_taxonomy_bench.ipynb"
 )
 DEFAULT_HF_NOTEBOOK_DEST = Path("notebooks/product_taxonomy_bench.ipynb")
-DEFAULT_DATASET_CITATION_BIBTEX = """@misc{baker2026producttaxonomybench,
-  author={Gregory D. Baker},
-  title={product-taxonomy-bench: An anonymized benchmark for Shopify product taxonomy prediction from tags},
-  year={2026},
-  howpublished={\\url{https://huggingface.co/datasets/gregb/product-taxonomy-bench}},
-  note={Hugging Face dataset}
-}"""
+
+
+def render_dataset_citation_bibtex(repo_id: str = DEFAULT_HF_DATASET_ID) -> str:
+    return f"""@misc{{baker2026shimp,
+  author={{Gregory D. Baker}},
+  title={{{{SHIMP}}: Shopify Hierarchy Inference from Merchant Products}},
+  year={{2026}},
+  howpublished={{\\url{{https://huggingface.co/datasets/{repo_id}}}}},
+  note={{Hugging Face dataset}}
+}}"""
+
+
+DEFAULT_DATASET_CITATION_BIBTEX = render_dataset_citation_bibtex()
 
 
 @dataclass(frozen=True)
@@ -534,7 +546,10 @@ def render_hf_dataset_card(
     paper: SnapshotMetadata,
     latest: SnapshotMetadata,
     first1000: SnapshotMetadata | None = None,
+    hf_repo_id: str | None = None,
 ) -> str:
+    repo_id = resolve_hf_repo_id(dataset_id, hf_repo_id)
+
     def _fmt(meta: SnapshotMetadata) -> str:
         as_of = f"; as_of `{meta.as_of.isoformat()}`" if meta.as_of else ""
         return (
@@ -614,12 +629,13 @@ def render_hf_dataset_card(
         [
             "# Dataset Summary",
             "",
-            f"`{dataset_id}` is an anonymised benchmark dataset for predicting Shopify Product Taxonomy categories from Shopify product tags.",
+            f"{pretty_name} (`{dataset_id}`) is an anonymised benchmark dataset for predicting Shopify Product Taxonomy categories from Shopify product tags.",
             "",
             "This dataset does **not** include raw product titles, raw tags, or product URLs. Tags are anonymised as `tagNNNNNN`.",
             "",
             "# Start Here",
             "",
+            f"- Dataset repository: [`{repo_id}`](https://huggingface.co/datasets/{repo_id}).",
             "- Read this dataset card for the snapshot layout and field definitions.",
             "- Open the benchmark notebook at [`notebooks/product_taxonomy_bench.ipynb`](./notebooks/product_taxonomy_bench.ipynb). On the notebook page, use the Hub's **Open in Colab** button to run it interactively. The notebook defaults to the fixed `paper` snapshot.",
             "- Use the snapshot folders according to your goal: `paper/` for the canonical point-in-time paper snapshot, `latest/` for the rolling benchmark, and `first1000/` for a tiny sanity-check slice when present.",
@@ -647,7 +663,7 @@ def render_hf_dataset_card(
             "If you use this dataset, please cite the dataset release:",
             "",
             "```bibtex",
-            DEFAULT_DATASET_CITATION_BIBTEX,
+            render_dataset_citation_bibtex(repo_id),
             "```",
         ]
     )
@@ -658,11 +674,13 @@ def render_hf_dataset_card(
 def stage_hf_notebook(
     out_root: Path,
     notebook_dest: Path = DEFAULT_HF_NOTEBOOK_DEST,
+    *,
+    dataset_id: str = DEFAULT_HF_DATASET_ID,
 ) -> Path:
     """Generate the benchmark notebook into the export root for Hub publication."""
 
     destination = out_root / notebook_dest
-    return write_notebook(destination)
+    return write_notebook(destination, dataset_id=resolve_hf_repo_id(dataset_id))
 
 
 def export_snapshot(
@@ -731,7 +749,7 @@ def _clear_snapshot_output_dir(out_dir: Path) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Export product-taxonomy-bench snapshots to JSONL/Parquet and scaffold a HF dataset card."
+        description="Export SHIMP snapshots to JSONL/Parquet and scaffold a HF dataset card."
     )
     parser.add_argument(
         "--dsn",
@@ -777,12 +795,12 @@ def main() -> None:
     )
     parser.add_argument(
         "--dataset-id",
-        default="product-taxonomy-bench",
+        default=DEFAULT_HF_DATASET_ID,
         help="HF dataset repo id/name used in the dataset card template.",
     )
     parser.add_argument(
         "--pretty-name",
-        default="Product Taxonomy Bench (Anonymized)",
+        default=DEFAULT_HF_PRETTY_NAME,
         help="HF dataset pretty_name used in the dataset card template.",
     )
     args = parser.parse_args()
@@ -837,7 +855,7 @@ def main() -> None:
             )
             args.out_root.mkdir(parents=True, exist_ok=True)
             (args.out_root / "README.md").write_text(readme, encoding="utf-8")
-            stage_hf_notebook(args.out_root)
+            stage_hf_notebook(args.out_root, dataset_id=args.dataset_id)
     finally:
         conn.close()
 
