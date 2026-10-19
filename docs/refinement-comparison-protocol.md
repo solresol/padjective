@@ -117,6 +117,19 @@ untouched. Tests cover overlap/carry counterexamples, signs, truncation,
 degenerate cases, exhaustive small-ring implications, wrong-only scoring,
 and rejection of modified predictions/defaults.
 
+After persistence, `scripts/audit_refinement_comparison.py` can read the private
+rows back and independently recheck their sums, defaults, classifications and
+all exported aggregates against the public report. It checks original model
+hashes and reports reference-depth diagnostics for disjoint-support errors.
+This replay performs no PostgreSQL writes:
+
+```bash
+PYTHONPATH=. OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 PYTHONDONTWRITEBYTECODE=1 \
+  uv run --no-sync python scripts/audit_refinement_comparison.py \
+  --report docs/refinement-comparison/results-2026-10-19.json \
+  --output /tmp/refinement-replay-new-check.json
+```
+
 ## Mathematical counterexamples
 
 At base 2, contributions `3=1+2` and `2` have distinct valuations 0 and 1 but

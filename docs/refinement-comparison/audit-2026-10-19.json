@@ -1,0 +1,34 @@
+{
+  "all_aggregates_reconstructed": true,
+  "audit_code_sha256": "d12fd94bf7012cacf8d8a1c56d3915a2aaa6dbec3ae23df19a677f60580e2811",
+  "checked_at": "2026-10-19T05:26:07.585211+00:00",
+  "disjoint_errors": [
+    {
+      "error_valuation": 3,
+      "n": 3,
+      "prediction_is_frozen_label": false,
+      "target_depth": 3,
+      "taxonomy_id": "gid://shopify/TaxonomyCategory/aa-1-4"
+    },
+    {
+      "error_valuation": 2,
+      "n": 1,
+      "prediction_is_frozen_label": true,
+      "target_depth": 2,
+      "taxonomy_id": "gid://shopify/TaxonomyCategory/fr-7"
+    },
+    {
+      "error_valuation": 2,
+      "n": 2,
+      "prediction_is_frozen_label": true,
+      "target_depth": 2,
+      "taxonomy_id": "gid://shopify/TaxonomyCategory/hg-9"
+    }
+  ],
+  "private_evidence_sha256": "3dcd60e2f1337c7330c389ccf526cad835c149f45ec5bfc1b42c86fdf439a7a2",
+  "report_sha256": "2bf1df1e2870323fd5d1fc3c64f3256dee8dc8dcb0c7879b23d983e61f91eeb3",
+  "rows_checked": 6693,
+  "source_analysis_id": "291dae98-735f-4ad1-aede-395deecbd2d7",
+  "source_models_checked": 5,
+  "status": "passed"
+}
