@@ -37,6 +37,8 @@ def test_signed_support_matches_a_provably_sufficient_finite_depth_exhaustively(
             finite = classify(terms, p, bound)
             assert exact == finite["disjoint"]
             assert not exact or finite["valuation_separated"]
+            if exact and any(z < 0 for z in terms):
+                assert sum(terms) < 0  # A disjoint negative tail survives every finite positive term.
 
 
 def test_integer_distance_does_not_drop_nonzero_high_precision_errors():
