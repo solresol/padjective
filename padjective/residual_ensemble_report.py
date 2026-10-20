@@ -66,12 +66,20 @@ def make_figures(report, summary, directory):
         for fold in range(5):
             fold_rows = sorted([r for r in report['rows'] if r['roster'] == 0 and
                                 r['method'] == method and r['fold'] == fold], key=lambda r: r['members'])
-            axes[0, 0].plot(sizes, [r['held_out']['mean_padic_loss'] for r in fold_rows],
-                            color=color, alpha=.13, linewidth=.7)
-        axes[0, 0].plot(sizes, [r['held_out']['mean_padic_loss'] for r in rows], color=color,
-                        label=label, linewidth=2)
-        axes[0, 1].plot(sizes, [100*r['held_out']['exact_accuracy'] for r in rows],
-                        color=color, label=label, linewidth=2)
+            for parity in ((0, 1) if method == 'error_only' else (None,)):
+                part = [r for r in fold_rows if parity is None or r['members'] % 2 == parity]
+                axes[0, 0].plot([r['members'] for r in part],
+                    [r['held_out']['mean_padic_loss'] for r in part], color=color, alpha=.13, linewidth=.7)
+        for parity in ((0, 1) if method == 'error_only' else (None,)):
+            part = [r for r in rows if parity is None or r['members'] % 2 == parity]
+            part_label = label if parity is None else f"Error-only, {'even' if parity == 0 else 'odd'} sizes"
+            style = '--' if parity == 1 else '-'
+            axes[0, 0].plot([r['members'] for r in part],
+                [r['held_out']['mean_padic_loss'] for r in part], color=color,
+                label=part_label, linestyle=style, linewidth=2)
+            axes[0, 1].plot([r['members'] for r in part],
+                [100*r['held_out']['exact_accuracy'] for r in part], color=color,
+                label=part_label, linestyle=style, linewidth=2)
         axes[1, 0].plot(sizes, [100*(1-r['training']['exact_accuracy']) for r in rows],
                         color=color, label=label+': wrong after vote', linewidth=1.6)
         if method == 'error_only':
@@ -81,13 +89,16 @@ def make_figures(report, summary, directory):
         for method, color, short in (('error_only', blue, 'Errors'), ('independent', grey, 'Independent')):
             rows = [r for r in summary['summaries'] if r['roster'] == roster and
                     r['method'] == method and r['members'] <= 81]
-            axes[1, 1].plot([r['members'] for r in rows], [r['held_out']['mean_padic_loss'] for r in rows],
-                            color=color, linestyle=style, label=f'{short}, start {roster}', linewidth=1.6)
+            for parity in ((0, 1) if method == 'error_only' else (None,)):
+                part = [r for r in rows if parity is None or r['members'] % 2 == parity]
+                axes[1, 1].plot([r['members'] for r in part], [r['held_out']['mean_padic_loss'] for r in part],
+                    color=color, linestyle=style, label=f'{short}, start {roster}' if parity != 1 else None,
+                    linewidth=1.6)
     for ax, title, ylabel in (
         (axes[0, 0], 'Held-out loss: five-fold mean and fold curves', 'Mean p-adic loss (lower is better)'),
         (axes[0, 1], 'Exact taxonomy-path accuracy', 'Held-out exact accuracy (%)'),
         (axes[1, 0], 'Training errors and the next fit', 'Training rows (%)'),
-        (axes[1, 1], 'Sensitivity to three fixed starting orders', 'Held-out mean p-adic loss'),
+        (axes[1, 1], 'Three starting orders (even / odd branches shown)', 'Held-out mean p-adic loss'),
     ):
         ax.set_title(title, fontsize=11)
         ax.set_xscale('log')
@@ -100,6 +111,8 @@ def make_figures(report, summary, directory):
     fig.suptitle('Training each new member only on the preceding ensemble’s mistakes', fontsize=14)
     for extension in ('png', 'svg', 'pdf'):
         fig.savefig(directory / f'ensemble-curves.{extension}', dpi=180)
+    svg = directory / 'ensemble-curves.svg'
+    svg.write_text('\n'.join(line.rstrip() for line in svg.read_text().splitlines())+'\n')
     plt.close(fig)
 
 
@@ -112,9 +125,15 @@ def write_markdown(report, summary, directory):
                         key=lambda r: r['held_out']['mean_padic_loss'])
     final, independent_final = lookup[(0, 'error_only', 243)], lookup[(0, 'independent', 243)]
     bscore, fscore = best['held_out'], final['held_out']
+    compared = [r for r in summary['paired_comparisons'] if r['members'] > 1]
+    wins = sum(r['loss_difference'] < -1e-12 for r in compared)
     lines = [
         '# Error-only training ensemble results', '',
         'The paper has not been changed. This is an exploratory comparison on the existing five folds.', '',
+        f"**Error-only training beats the matched independent ensemble in {wins} of {len(compared)} "
+        'tested multi-member configurations.** The one-member controls are identical. '
+        'Each configuration is a starting order and member count, scored over the same five folds; '
+        'the configurations are correlated, not independent statistical trials.', '',
         f"The primary error-only run has its lowest measured mean p-adic loss at **{best['members']} members: "
         f"{bscore['mean_padic_loss']:.6f}**, with {bscore['exact_accuracy']:.2%} exact-path accuracy. "
         f"At 243 members its loss is {fscore['mean_padic_loss']:.6f}, compared with "
@@ -169,11 +188,24 @@ def write_markdown(report, summary, directory):
             f"{r['training_fraction']:.2%} | {r['forgotten_correct_rows']:.1f} | "
             f"{r['stored_nonzero_coefficients']:.1f} | {r['mean_active_terms']:.2f} |")
     late81, late135 = lookup[(0, 'error_only', 81)], lookup[(0, 'error_only', 135)]
+    best_early = min(primary[:81], key=lambda r: r['held_out']['mean_padic_loss'])
+    parity_loss = {parity: statistics.fmean(r['held_out']['mean_padic_loss'] for r in primary
+                   if r['members'] >= 135 and r['members'] % 2 == parity) for parity in (0, 1)}
     lines += ['', f"The measured loss change is {late135['held_out']['mean_padic_loss']-late81['held_out']['mean_padic_loss']:+.6f} "
         f"from 81 to 135 and {fscore['mean_padic_loss']-late135['held_out']['mean_padic_loss']:+.6f} from 135 to 243. "
         'Finite curves do not establish an asymptotic floor. Both member-budget comparisons and '
         'the coefficient counts matter: a member is not a fixed unit of storage or prediction work. '
         'Active terms exclude defaults and consensus search.', '',
+        'The every-prefix evaluation reveals a persistent **even/odd oscillation**. '
+        f"Over sizes 135–243, mean loss across even sizes is {parity_loss[0]:.6f}; across odd sizes "
+        f"it is {parity_loss[1]:.6f}. The figures join each parity separately to make this visible. "
+        f"The best prefix through 81 was {best_early['members']} members "
+        f"(loss {best_early['held_out']['mean_padic_loss']:.6f}), only "
+        f"{best_early['held_out']['mean_padic_loss']-bscore['mean_padic_loss']:.6f} above the best through 243. "
+        'This is a descriptive pattern found after scoring, not a new selection or stopping rule. '
+        'New members repeatedly overturn correct training predictions: the last member makes '
+        f"{final['forgotten_correct_rows']:.1f} previously correct rows wrong per fold on average. "
+        'The measured behaviour is a fluctuating plateau rather than steady convergence.', '',
         '## Evidence and limitations', '',
         f"Batch: `{report['batch_id']}`. Fitting source: `{report['manifest']['source_commit']}`. "
         f"Snapshot: `{report['manifest']['snapshot_id']}`; digest `{report['manifest']['snapshot_digest']}`.", '',
