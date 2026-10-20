@@ -129,6 +129,9 @@ def markdown(report, summary, directory):
         f"Its best observed primary prefix is **{best['members']} members, loss "
         f"{best['held_out']['mean_padic_loss']:.6f}**. This was selected after scoring, so it is "
         'an exploratory observation, not a validated stopping rule.', '',
+        'The all-previous control oscillates between even and odd sizes. Its 243-member score '
+        'represents the worse odd-size branch; the full curves and comparisons below retain '
+        'both branches.', '',
         '## Matched primary curves', '',
         'Numbers are equal-fold means over the same five folds. Loss is p-adic distance, not an '
         'error percentage. Smaller loss is better.', '',
@@ -140,6 +143,17 @@ def markdown(report, summary, directory):
         lines.append(f"| {n} | {values[0]:.6f} | {values[1]:.6f} | {values[2]:.6f} | "
                      f"{lookup[(0, 'half_reference', n)]['held_out']['exact_accuracy']:.2%} |")
     lines += ['', '![Measured curves](ensemble-curves.png)', '',
+        '## Best observed primary prefix for each method', '',
+        '| Method | Members | Mean loss | Exact accuracy |',
+        '| --- | ---: | ---: | ---: |']
+    for method, label in (('half_reference', 'Random half of previous members'),
+                           ('error_only', 'All previous members'), ('independent', 'Independent fits')):
+        chosen = min([lookup[(0, method, n)] for n in range(1, 244)],
+                     key=lambda r: r['held_out']['mean_padic_loss'])
+        lines.append(f"| {label} | {chosen['members']} | {chosen['held_out']['mean_padic_loss']:.6f} | "
+                     f"{chosen['held_out']['exact_accuracy']:.2%} |")
+    lines += ['', 'All three best-prefix selections are descriptive, using the same held-out folds. '
+        'Their values are potentially optimistic and are not independent model-selection results.', '',
         '## Comparisons across all tested sizes', '']
     for method, label in (('independent', 'independent fits'), ('error_only', 'all-previous error training')):
         rows = [r for r in summary['comparisons'] if r['comparator'] == method and r['members'] > 1]
