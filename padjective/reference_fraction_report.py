@@ -200,23 +200,48 @@ def markdown(report, summary, directory):
     windows = {(r['method'], r['lower'], r['upper']): r for r in summary['windows']}
     parity = {(r['percent'], r['kind']): r for r in summary['parity']}
     baseline = lookup[(0, 'independent', 243)]
+    endpoint_best = min(RATE_METHODS, key=lambda p:
+        lookup[(0, RATE_METHODS[p], 243)]['held_out']['mean_padic_loss'])
+    early_best = min(RATE_METHODS, key=lambda p: windows[(RATE_METHODS[p], 81, 135)]['mean_loss'])
+    late_ranking = sorted(RATE_METHODS, key=lambda p: windows[(RATE_METHODS[p], 135, 243)]['mean_loss'])
+    endpoint = lookup[(0, RATE_METHODS[endpoint_best], 243)]['held_out']
     lines = ['# Reference committee fraction sweep', '',
         'The paper and earlier reports are unchanged. New 10%, 25%, 75% and 90% '
         'experiments are compared with the validated 50%, 100% and independent controls. '
         'All values use the same 6,693 products and five frozen folds.', '',
+        '## Findings', '',
+        f"At 243 members, {endpoint_best}% has the lowest loss among the error-focused variants "
+        f"({endpoint['mean_padic_loss']:.6f}, exact accuracy {endpoint['exact_accuracy']:.2%}). "
+        f"Independent fits give loss {baseline['held_out']['mean_padic_loss']:.6f} and "
+        f"exact accuracy {baseline['held_out']['exact_accuracy']:.2%}.", '',
+        'The three lowest late-window losses, from best to worst, use '
+        +', '.join(f'{p}%' for p in late_ranking[:3])+'. '
+        f'The best fraction changes from {early_best}% over sizes 81–135 to '
+        f'{late_ranking[0]}% over sizes 135–243. These averages support a broad region of '
+        'better performance, without establishing one optimal fraction or stopping size.', '',
+        'At the fixed 81-member and 243-member budgets, every error-focused variant has '
+        'higher mean loss than the matched independent ensemble. This also holds at 81 '
+        'members in both additional starting orders. Occasional lower-loss prefixes exist, '
+        'but were found by examining many correlated sizes and do not establish a reliable gain.', '',
+        'Smaller reference fractions reduce the measured full-ensemble odd/even oscillation. '
+        'The remaining oscillation makes endpoints alone misleading, without establishing '
+        'a causal effect of committee-size parity. The late curves still fluctuate; '
+        'the sweep does not locate a common saturation point.', '',
         '## Fixed-budget and late-size comparison', '',
         'Lower mean p-adic loss is better. Loss is hierarchical distance, not an error percentage. '
         'Each prefix score is an equal-fold mean. Window means average these prefix scores and '
         'describe the curve; they are not independent repetitions.', '',
-        '| Fraction | Loss at 81 | Loss at 243 | Exact accuracy at 243 | Mean loss, sizes 81–135 | Mean loss, sizes 135–243 |',
-        '| ---: | ---: | ---: | ---: | ---: | ---: |']
+        '| Fraction | Loss at 81 | Loss at 243 | Exact accuracy at 243 | Root accuracy at 243 | Mean loss, sizes 81–135 | Mean loss, sizes 135–243 |',
+        '| ---: | ---: | ---: | ---: | ---: | ---: | ---: |']
     for percent, method in RATE_METHODS.items():
         at81, final = lookup[(0, method, 81)], lookup[(0, method, 243)]
         lines.append(f"| {percent}% | {at81['held_out']['mean_padic_loss']:.6f} | "
             f"{final['held_out']['mean_padic_loss']:.6f} | {final['held_out']['exact_accuracy']:.2%} | "
+            f"{final['held_out']['first_digit_accuracy']:.2%} | "
             f"{windows[(method, 81, 135)]['mean_loss']:.6f} | {windows[(method, 135, 243)]['mean_loss']:.6f} |")
     lines.append(f"| Independent | {lookup[(0, 'independent', 81)]['held_out']['mean_padic_loss']:.6f} | "
         f"{baseline['held_out']['mean_padic_loss']:.6f} | {baseline['held_out']['exact_accuracy']:.2%} | "
+        f"{baseline['held_out']['first_digit_accuracy']:.2%} | "
         f"{windows[('independent', 81, 135)]['mean_loss']:.6f} | {windows[('independent', 135, 243)]['mean_loss']:.6f} |")
     lines += ['', '![Fraction curves and late-size patterns](fraction-patterns.png)', '',
         '## Loss across ensemble sizes', '',
