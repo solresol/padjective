@@ -81,6 +81,13 @@ def figures(report, summary, directory):
             r['method'] == 'half_reference' and r['fold'] == fold], key=lambda r: r['members'])
         axes[0, 0].plot([r['members'] for r in rows], [r['held_out']['mean_padic_loss'] for r in rows],
                         color=blue, alpha=.1, linewidth=.65)
+    best = min([r for r in summary['summaries'] if r['roster'] == 0 and r['method'] == 'half_reference'],
+               key=lambda r: r['held_out']['mean_padic_loss'])
+    location = (best['members'], best['held_out']['mean_padic_loss'])
+    axes[0, 0].scatter(*location, color=blue, s=20, zorder=5)
+    axes[0, 0].annotate(f"{best['members']} members\nobserved minimum", xy=location,
+        xytext=(.52, .10), textcoords='axes fraction', fontsize=8, color=blue,
+        arrowprops=dict(arrowstyle='->', color=blue, linewidth=.8))
     for roster, style in ((0, '-'), (9, '--'), (18, ':')):
         for method, color, short in (('half_reference', blue, 'Half-reference'),
                                      ('independent', grey, 'Independent')):
@@ -137,7 +144,7 @@ def markdown(report, summary, directory):
         'error percentage. Smaller loss is better.', '',
         '| Members | Independent loss | All-previous error loss | Half-reference loss | Half-reference exact accuracy |',
         '| ---: | ---: | ---: | ---: | ---: |']
-    for n in SIZES:
+    for n in sorted(set(SIZES) | {best['members']}):
         values = [lookup[(0, method, n)]['held_out']['mean_padic_loss'] for method in
                   ('independent', 'error_only', 'half_reference')]
         lines.append(f"| {n} | {values[0]:.6f} | {values[1]:.6f} | {values[2]:.6f} | "
@@ -164,7 +171,22 @@ def markdown(report, summary, directory):
             +(f"The first primary size with lower loss is {min(first)}." if first else
               'No primary size has lower loss.'), '']
     lines += ['These are correlated size/order configurations on the same data, not independent trials '
-        'or a significance test.', '', '## Starting-order and sampling sensitivity', '',
+        'or a significance test. The main table includes the observed primary minimum in addition '
+        'to the predeclared display sizes.', '',
+        'The following are all prefixes with lower mean loss than the matched independent control:', '',
+        '| Order | Members | Half-reference loss | Independent loss | Folds with lower loss | Exact accuracy difference (percentage points) |',
+        '| ---: | ---: | ---: | ---: | ---: | ---: |']
+    winners = [r for r in summary['comparisons'] if r['comparator'] == 'independent'
+               and r['members'] > 1 and r['loss_difference'] < -1e-12]
+    for r in winners:
+        trial = lookup[(r['roster'], 'half_reference', r['members'])]
+        base = lookup[(r['roster'], 'independent', r['members'])]
+        lines.append(f"| {r['roster']} | {r['members']} | {trial['held_out']['mean_padic_loss']:.6f} | "
+            f"{base['held_out']['mean_padic_loss']:.6f} | {r['folds_better']}/5 | "
+            f"{100*r['exact_accuracy_difference']:+.2f} |")
+    lines += ['', 'These exceptions do not establish consistent superiority; whole-path accuracy '
+        'can move differently from the hierarchical p-adic loss.', '',
+        '## Starting-order and sampling sensitivity', '',
         '| Order | Half-reference loss at 81 | Independent loss at 81 | All-previous error loss at 81 | Half-reference accuracy |',
         '| ---: | ---: | ---: | ---: | ---: |']
     for roster in TRAJECTORIES:
@@ -187,6 +209,11 @@ def markdown(report, summary, directory):
                    for n in range(135, 244) if n % 2 == parity) for parity in (0, 1)]
         lines += ['', f"Across sizes 135–243, the {label} mean over even sizes is {means[0]:.6f}; "
             f"the mean over odd sizes is {means[1]:.6f}; the absolute difference is {abs(means[1]-means[0]):.6f}."]
+    windows = [statistics.fmean(lookup[(0, 'half_reference', n)]['held_out']['mean_padic_loss']
+               for n in range(lower, upper+1)) for lower, upper in ((81, 135), (135, 243))]
+    lines += ['', f"Mean loss across primary sizes 81–135 is {windows[0]:.6f}; across 135–243 it is "
+        f"{windows[1]:.6f}. These descriptive averages show no sustained improvement in the later "
+        f"range, despite the isolated minimum at {best['members']}. They do not define a stopping rule."]
     lines += ['', 'This parity comparison describes the measured curves. It was not used to tune '
         'the sampling rate, select members or stop fitting. Finite curves cannot establish an '
         'asymptotic floor. Active terms exclude defaults and consensus search; member counts '
