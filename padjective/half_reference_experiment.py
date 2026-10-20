@@ -33,8 +33,8 @@ CONTROL_BATCH = '06577b0c-a433-42bd-b8cd-a865838c11ad'
 PROTOCOL = Path('docs/half-reference-ensemble-protocol.md')
 
 
-def reference(bank, candidates, fold, roster):
-    selected = reference_members(len(bank), fold=fold, roster=roster)
+def reference(bank, candidates, fold, roster, percent=50):
+    selected = reference_members(len(bank), fold=fold, roster=roster, percent=percent)
     if not len(selected):
         return selected, None
     return selected, reference_consensus(np.column_stack([bank[i] for i in selected]), candidates)
@@ -57,6 +57,9 @@ def manifest():
 def fit_trajectory(batch_id, fold, roster):
     limit = TRAJECTORIES[roster]
     with db.get_connection() as conn:
+        specification = conn.execute('SELECT manifest FROM padjective.residual_ensemble_batches '
+            'WHERE batch_id=%s', (batch_id,)).fetchone()[0]
+        percent = specification.get('reference_percent', 50)
         c = load_fold(conn, fold)
         # Held-out labels are never used in this fitting path.
         x, y, test = (c[k] for k in ('x_train', 'y_train', 'x_test'))
@@ -68,7 +71,7 @@ def fit_trajectory(batch_id, fold, roster):
             (batch_id, fold, roster)).fetchall()
         assert [r[0] for r in saved] == list(range(len(saved)))
         for _, e in saved:
-            ids, vote = reference(bank, candidates, fold, roster)
+            ids, vote = reference(bank, candidates, fold, roster, percent)
             assert ids.tolist() == e['reference_members']
             assert error_rows(y, vote).tolist() == e['selected_rows']
             bank.append(np.array(e['training_predictions'], dtype=np.int64))
@@ -77,7 +80,7 @@ def fit_trajectory(batch_id, fold, roster):
         status = 'complete'
         for index in range(len(saved), limit):
             started = time.monotonic()
-            ids, vote = reference(bank, candidates, fold, roster)
+            ids, vote = reference(bank, candidates, fold, roster, percent)
             previous_full = state.predict() if bank else None
             member = fit_error_member(x, y, test, previous_predictions=vote,
                                       seed=order_for(roster)[index]+fold)
@@ -116,12 +119,12 @@ def fit_trajectory(batch_id, fold, roster):
                 WHERE batch_id=%s AND cv_fold=%s AND roster=%s''', (len(bank), batch_id, fold, roster))
             conn.commit()
             if len(bank) == 1 or len(bank) % 9 == 0 or len(bank) == limit:
-                emit('fit_progress', fold=fold, roster=roster, members=len(bank), limit=limit,
+                emit('fit_progress', percent=percent, fold=fold, roster=roster, members=len(bank), limit=limit,
                      reference_members=len(ids), training_rows=len(member.selected_rows),
                      training_errors=e['consensus_training_errors'])
         conn.execute('''UPDATE padjective.residual_ensemble_trajectories SET status=%s,members=%s
             WHERE batch_id=%s AND cv_fold=%s AND roster=%s''', (status, len(bank), batch_id, fold, roster))
-    return dict(fold=fold, roster=roster, members=len(bank), status=status)
+    return dict(percent=percent, fold=fold, roster=roster, members=len(bank), status=status)
 
 
 def run(args):
@@ -170,6 +173,10 @@ def run(args):
 
 def evaluate_trajectory(batch_id, fold, roster):
     with db.get_connection() as conn:
+        specification = conn.execute('SELECT manifest FROM padjective.residual_ensemble_batches '
+            'WHERE batch_id=%s', (batch_id,)).fetchone()[0]
+        percent = specification.get('reference_percent', 50)
+        method = 'half_reference' if percent == 50 else f'reference_{percent:02d}'
         c = load_fold(conn, fold)
         y, candidates = c['y_train'], np.unique(c['y_train'])
         records = conn.execute('''SELECT member_index,evidence FROM padjective.residual_ensemble_members
@@ -187,7 +194,7 @@ def evaluate_trajectory(batch_id, fold, roster):
         previous_full = None
         for index in range(TRAJECTORIES[roster]):
             if index < count:
-                ids, vote = reference(banks[0], candidates, fold, roster)
+                ids, vote = reference(banks[0], candidates, fold, roster, percent)
                 selected = error_rows(y, vote)
                 model = records[index][1]
                 assert ids.tolist() == model['reference_members']
@@ -213,7 +220,7 @@ def evaluate_trajectory(batch_id, fold, roster):
                 assert int(np.count_nonzero(votes[0] != y)) == model['consensus_training_errors']
             else:
                 if index == count:
-                    ids, vote = reference(banks[0], candidates, fold, roster)
+                    ids, vote = reference(banks[0], candidates, fold, roster, percent)
                     assert status == 'reference_perfect' and not len(error_rows(y, vote))
                 selected, forgotten = [], 0
                 votes = [s.predict() for s in states]
@@ -221,7 +228,7 @@ def evaluate_trajectory(batch_id, fold, roster):
                 for bank, vote in zip(banks, votes, strict=True):
                     prefix, _ = consensus_predictions(np.column_stack(bank), candidates, p=71, precision=7)
                     assert np.array_equal(prefix, vote)
-            evidence = dict(fold=fold, roster=roster, method='half_reference', members=index+1,
+            evidence = dict(fold=fold, roster=roster, method=method, members=index+1,
                 fitted_members=len(banks[0]), reference_members_count=len(ids), training_rows=len(selected),
                 training=prefix_count_scores(y, votes[0]), held_out=prefix_count_scores(c['y_test'], votes[1]),
                 forgotten_correct_rows=forgotten, stored_nonzero_coefficients=stored,
@@ -231,11 +238,11 @@ def evaluate_trajectory(batch_id, fold, roster):
             conn.execute('''INSERT INTO padjective.residual_ensemble_scores
                 (batch_id,cv_fold,roster,method,members,evidence) VALUES (%s,%s,%s,%s,%s,%s)
                 ON CONFLICT (batch_id,cv_fold,roster,method,members) DO UPDATE SET evidence=EXCLUDED.evidence''',
-                (batch_id, fold, roster, 'half_reference', index+1, Jsonb(evidence)))
+                (batch_id, fold, roster, method, index+1, Jsonb(evidence)))
             exported.append(evidence)
             previous_full = votes[0]
         conn.commit()
-    emit('trajectory_audited', fold=fold, roster=roster, certified_coordinates=certified,
+    emit('trajectory_audited', percent=percent, fold=fold, roster=roster, certified_coordinates=certified,
          reference_checkpoint_checks=ref_checks)
     return dict(rows=exported, certified_coordinates=certified, reference_checkpoint_checks=ref_checks)
 

@@ -8,15 +8,15 @@ from .randomised_linear import check_precision
 SAMPLING_SEED = 20261020
 
 
-def reference_members(previous_count, *, fold, roster):
+def reference_members(previous_count, *, fold, roster, percent=50):
     """One reproducible uniform sample, independent of labels and fit RNGs."""
-    if previous_count < 0 or fold < 0 or roster < 0:
+    if previous_count < 0 or fold < 0 or roster < 0 or not isinstance(percent, int) or not 1 <= percent <= 100:
         raise ValueError('Nonnegative counts and stream identifiers required')
     if not previous_count:
         return np.array([], dtype=np.int64)
     rng = np.random.default_rng(np.random.SeedSequence(
         [SAMPLING_SEED, fold, roster, previous_count]))
-    return np.sort(rng.choice(previous_count, (previous_count+1)//2, replace=False))
+    return np.sort(rng.choice(previous_count, (percent*previous_count+99)//100, replace=False))
 
 
 def reference_consensus(predictions, candidates, *, p=71, precision=7):
