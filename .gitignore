@@ -183,3 +183,6 @@ battles.sqlite
 tag_rankings.csv
 tag_rankings.html
 tag_rankings.png
+
+# Local browser automation snapshots
+/.playwright-cli/
