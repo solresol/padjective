@@ -2,7 +2,11 @@
 
 set -euo pipefail
 
-cd "$(dirname "$0")"
+SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
+if [[ "${PADJECTIVE_CRON_LOGGED:-0}" != "1" ]]; then
+    exec python3 "$SCRIPT_DIR/padjective/cron_output.py" -- "$SCRIPT_DIR/cronscript.sh" "$@"
+fi
+cd "$SCRIPT_DIR"
 
 git pull -q
 

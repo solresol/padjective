@@ -7,6 +7,7 @@ import html
 import json
 import math
 import shutil
+import sys
 import textwrap
 import urllib.parse
 from collections import Counter
@@ -1704,7 +1705,7 @@ def _create_comprehensive_dumps(conn, datadumps_dir: Path, schema: str) -> None:
             _dump_table_to_sql(conn, table_schema, table_name, dump_path)
             print(f"Exported {table_schema}.{table_name} to {dump_path.name}")
         except Exception as e:
-            print(f"Warning: Failed to export {table_schema}.{table_name}: {e}")
+            print(f"Warning: Failed to export {table_schema}.{table_name}: {e}", file=sys.stderr)
 
     # Special handling for product_details - only dump rows for products in cantbuymelove.product
     if _table_exists(conn, "public", "product_details"):
@@ -1742,7 +1743,7 @@ def _create_comprehensive_dumps(conn, datadumps_dir: Path, schema: str) -> None:
                 f.write("COMMIT;\n")
             print(f"Exported public.product_details (filtered) to {dump_path.name}")
         except Exception as e:
-            print(f"Warning: Failed to export public.product_details: {e}")
+            print(f"Warning: Failed to export public.product_details: {e}", file=sys.stderr)
 
 
 def _write_defective_taxonomy_page(output_dir: Path, dataset: data_access.ProductDataset) -> Path:
@@ -3933,7 +3934,7 @@ def _write_umllr_pages(output_dir: Path, summary: Dict[str, Any], conn=None, sch
                         prime_base
                     )
             except Exception as e:
-                print(f"Warning: Could not generate prediction detail pages for fold {fold}: {e}")
+                print(f"Warning: Could not generate prediction detail pages for fold {fold}: {e}", file=sys.stderr)
 
             # Generate tag debug pages for each non-zero coefficient tag
             try:
@@ -3956,7 +3957,7 @@ def _write_umllr_pages(output_dir: Path, summary: Dict[str, Any], conn=None, sch
                             tag_sequence,
                         )
             except Exception as e:
-                print(f"Warning: Could not generate tag debug pages for fold {fold}: {e}")
+                print(f"Warning: Could not generate tag debug pages for fold {fold}: {e}", file=sys.stderr)
 
         # Build prediction table rows with links to detail pages
         prediction_table_rows_list = []
