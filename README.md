@@ -2,6 +2,13 @@
 
 Calculate p-adic adjective embeddings and product taxonomy classification
 
+## Licences
+
+The released anonymised SHIMP benchmark is licensed under CC BY 4.0, and
+Gregory D. Baker's original code is licensed under MIT. See [LICENSE](LICENSE)
+for scope, [LICENSE-DATA](LICENSE-DATA) and [LICENSE-CODE](LICENSE-CODE) for
+the full terms, and [third-party notices](THIRD_PARTY_NOTICES.md).
+
 ## Overview
 
 This project learns adjective ordering rules and product taxonomy classification using p-adic techniques. It combines theoretical research into p-adic embeddings with practical applications in e-commerce product categorization.
