@@ -25,6 +25,7 @@ from .benchmark_runtime import build_snapshot_benchmark_bundle, load_snapshot_ta
 from . import db
 from .hf_sync import UploadOptions, upload_export_root
 from .product_taxonomy_bench import create_snapshot, parse_as_of
+from .release_licensing import stage_release_licenses
 from .product_taxonomy_bench_export import (
     DEFAULT_DATASET_PRETTY_NAME,
     SnapshotMetadata,
@@ -236,6 +237,7 @@ def publish(
     out_root.mkdir(parents=True, exist_ok=True)
     (out_root / "README.md").write_text(readme, encoding="utf-8")
     stage_hf_notebook(out_root)
+    stage_release_licenses(out_root)
 
     reports_root = out_root / "reports"
     paper_bundle = build_snapshot_benchmark_bundle(

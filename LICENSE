@@ -1,0 +1,32 @@
+SHIMP licensing
+
+Copyright (c) 2026 Gregory D. Baker
+
+Dataset: CC BY 4.0
+
+The original compilation and derived data in the released, anonymised SHIMP
+benchmark, including stored folds, snapshot metadata and aggregate benchmark
+results, are licensed under Creative Commons Attribution 4.0 International.
+The full terms are in LICENSE-DATA and at:
+https://creativecommons.org/licenses/by/4.0/
+
+Please credit Gregory D. Baker and SHIMP. The preferred dataset citation is
+https://doi.org/10.57967/hf/8413. Follow the attribution and change-notice
+requirements in the licence.
+
+Code: MIT
+
+Original export, analysis and replication code by Gregory D. Baker is
+licensed under the MIT licence. The full terms and copyright notice are in
+LICENSE-CODE.
+
+Scope and third-party material
+
+These grants cover only copyright and database rights the licensor holds.
+Shopify taxonomy material retains its MIT licence; see
+THIRD_PARTY_NOTICES.md for the source and full notice. Other third-party
+software and bundled publication styles retain their existing terms.
+
+The private source catalogue is outside the public release. Manuscript
+text, manuscript figures and publisher style files are outside these grants
+unless an individual file supplies its own licence notice.

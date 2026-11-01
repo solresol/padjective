@@ -11,6 +11,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable, Optional, Sequence
 
+from .release_licensing import RELEASE_LICENSE_FILES
+
 
 class HuggingFaceHubUnavailable(RuntimeError):
     pass
@@ -131,15 +133,18 @@ def upload_export_root(out_root: Path, options: UploadOptions) -> None:
             commit_message=f"{options.commit_message} (replace {folder}/)",
         )
 
-    # Root README
-    api.upload_file(
-        repo_id=options.repo_id,
-        repo_type=options.repo_type,
-        path_or_fileobj=str(readme_path),
-        path_in_repo="README.md",
-        token=options.token,
-        commit_message=options.commit_message,
-    )
+    # Root card and any staged licence notices.
+    for name in ("README.md", *RELEASE_LICENSE_FILES):
+        path = out_root / name
+        if path.is_file():
+            api.upload_file(
+                repo_id=options.repo_id,
+                repo_type=options.repo_type,
+                path_or_fileobj=str(path),
+                path_in_repo=name,
+                token=options.token,
+                commit_message=options.commit_message,
+            )
 
     # Snapshot folders
     for snapshot_dir in snapshot_dirs:
