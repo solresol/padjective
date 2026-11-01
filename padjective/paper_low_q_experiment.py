@@ -27,7 +27,7 @@ from .randomised_linear import apply_default, linear_predictions
 from .subspace_voting import feature_mask
 
 
-EXPERIMENT = "low-q-2026-11-02-v1"
+EXPERIMENT = "low-q-2026-11-02-v2"
 SOURCE_BATCH = "773bf2ab-d2b1-4c32-bfde-15d501782fa0"
 Q_VALUES = {"sqrt2": math.sqrt(2), "2": 2., "3": 3., "5": 5., "10": 10., "71": 71.}
 ORDERS = ("taxonomy_association", "random", "frequency", "battle_elo", "mean_title_position")
@@ -75,6 +75,15 @@ def ensure_storage(conn):
 
 
 def fit_greedy(dataset, context, *, kind, strategy, seed, battles):
+    if kind == '71':
+        original = runtime.umllr_run_fold(context['fold'], dataset.records, battles, 71,
+                                          tag_order_strategy=strategy, tag_order_seed=seed)
+        predictions = [r.predicted_value for r in original.predictions]
+        return dict(status='one_pass_complete',
+                    coefficients=[dict(tag=c.tag, coefficient=c.coefficient) for c in original.coefficients],
+                    default=original.default_prediction, predictions=predictions,
+                    scores=score(context['y_test'], predictions), tag_order_seed=seed,
+                    reference_implementation='Original historical floating-point greedy fitter')
     train = context['training_records']
     order = runtime._tag_order(train, battles, context['fold'], strategy=strategy, seed=seed)
     matrix = context['x_train'].tocsc()
@@ -279,6 +288,7 @@ def evaluate(args, dataset, context, records, rosters, source_hash):
                 snapshot_id=PAPER_SNAPSHOT, snapshot_digest=SNAPSHOT_DIGEST, products=6693, prime=71,
                 precision=7, members_retrained=args.members, q_values=Q_VALUES,
                 algorithm_sha256=source_hash, classical_baselines_included=False,
+                reference_greedy_implementation='Original historical fitter, fold loss and exact accuracy verified',
                 interpretation='Exploratory reused-fold comparison; fixed original fits rescored and low-Q fits retrained. '
                                'Ensemble consensus uses the training Q. No hyperparameters selected from these scores.',
                 series=series, rankings=rankings)

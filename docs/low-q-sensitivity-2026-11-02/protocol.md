@@ -21,7 +21,12 @@ the taxonomy encoding prime remains 71.
 Reconstruct the five original one-pass orders with their original rules,
 including random seeds 7, 13, 23, 37 and 101. Check the Q=71 control's fold
 losses and exact accuracies against the October stored report before trusting
-the low-Q comparisons. Refit those orders under sqrt(2) and 2, preserving
+the low-Q comparisons. Use the original historical floating-point greedy
+fitter for the controls: a preflight with integer medoids matched Q=71 loss
+but changed exact matches through deep-level numerical ties. That preflight
+was stopped before any low-Q ranking was inspected; its one completed row
+is isolated under experiment v1. The corrected comparison uses v2.
+Refit those orders under sqrt(2) and 2, preserving
 their tag orders and training-only default policy. Their residuals retain
 the original unrestricted-integer convention.
 
