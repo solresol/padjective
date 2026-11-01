@@ -1,5 +1,11 @@
 # Automating Hugging Face publishing
 
+The public dataset is **SHIMP (Shopify Hierarchical Inference for Merchant
+Products)**. Its repository remains `gregb/product-taxonomy-bench` and its DOI
+is [10.57967/hf/8413](https://doi.org/10.57967/hf/8413). Both publishing commands
+use SHIMP as the default display name and include the dataset citation in the
+generated card.
+
 This repo can generate two dataset exports:
 
 - `paper/`: a fixed point-in-time snapshot (cut off at the timestamp recorded in the paper, or an explicit `--paper-as-of`)

@@ -65,6 +65,9 @@ def test_render_hf_dataset_card_includes_snapshots() -> None:
     assert "- config_name: latest" in card
     assert '"latest/products-*.jsonl.gz"' in card
     assert DEFAULT_DATASET_CITATION_BIBTEX in card
+    assert "SHIMP (Shopify Hierarchical Inference for Merchant Products)" in card
+    assert "title={{SHIMP: Shopify Hierarchical Inference for Merchant Products}}" in card
+    assert "doi={10.57967/hf/8413}" in card
     assert "TODO" not in card
 
 

@@ -45,12 +45,14 @@ DEFAULT_HF_NOTEBOOK_SOURCE = (
     Path(__file__).resolve().parent.parent / "docs" / "product_taxonomy_bench.ipynb"
 )
 DEFAULT_HF_NOTEBOOK_DEST = Path("notebooks/product_taxonomy_bench.ipynb")
+DEFAULT_DATASET_PRETTY_NAME = "SHIMP (Shopify Hierarchical Inference for Merchant Products)"
 DEFAULT_DATASET_CITATION_BIBTEX = """@misc{baker2026producttaxonomybench,
   author={Gregory D. Baker},
-  title={product-taxonomy-bench: An anonymized benchmark for Shopify product taxonomy prediction from tags},
+  title={{SHIMP: Shopify Hierarchical Inference for Merchant Products}},
   year={2026},
-  howpublished={\\url{https://huggingface.co/datasets/gregb/product-taxonomy-bench}},
-  note={Hugging Face dataset}
+  doi={10.57967/hf/8413},
+  howpublished={Dataset and code package},
+  url={https://huggingface.co/datasets/gregb/product-taxonomy-bench}
 }"""
 
 
@@ -612,9 +614,9 @@ def render_hf_dataset_card(
 
     body = "\n".join(
         [
-            "# Dataset Summary",
+            "# SHIMP",
             "",
-            f"`{dataset_id}` is an anonymised benchmark dataset for predicting Shopify Product Taxonomy categories from Shopify product tags.",
+            f"{DEFAULT_DATASET_PRETTY_NAME}, hosted at `{dataset_id}`, is an anonymised benchmark dataset for predicting Shopify Product Taxonomy categories from Shopify product tags.",
             "",
             "This dataset does **not** include raw product titles, raw tags, or product URLs. Tags are anonymised as `tagNNNNNN`.",
             "",
@@ -786,7 +788,7 @@ def main() -> None:
     )
     parser.add_argument(
         "--pretty-name",
-        default="Product Taxonomy Bench (Anonymized)",
+        default=DEFAULT_DATASET_PRETTY_NAME,
         help="HF dataset pretty_name used in the dataset card template.",
     )
     args = parser.parse_args()
