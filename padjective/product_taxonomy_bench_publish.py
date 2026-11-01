@@ -26,6 +26,7 @@ from . import db
 from .hf_sync import UploadOptions, upload_export_root
 from .product_taxonomy_bench import create_snapshot, parse_as_of
 from .product_taxonomy_bench_export import (
+    DEFAULT_DATASET_PRETTY_NAME,
     SnapshotMetadata,
     export_snapshot,
     render_hf_dataset_card,
@@ -331,7 +332,7 @@ def main() -> None:
     )
     parser.add_argument(
         "--pretty-name",
-        default="Product Taxonomy Bench (Anonymized)",
+        default=DEFAULT_DATASET_PRETTY_NAME,
         help="HF dataset pretty_name used in the dataset card template.",
     )
     parser.add_argument(
