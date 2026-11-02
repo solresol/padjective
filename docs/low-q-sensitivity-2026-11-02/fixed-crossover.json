@@ -1,0 +1,12 @@
+{
+  "comparison": "Original 243-member 75% minus 100% feature models; no retraining",
+  "crossing_q": 1.0674218498295618,
+  "loss_at_crossing": 0.3891248994662537,
+  "difference_at_q1_limit": 0.0013910070649244544,
+  "difference_at_sqrt2": -0.004152927596965061,
+  "difference_at_q71": -0.009941159560600377,
+  "scope": "Secondary descriptive crossing within the bracket (1,sqrt(2)); no additional fitted model or selected Q.",
+  "snapshot_id": "244ddbe3-0a2c-4c04-9436-0a0253108a09",
+  "snapshot_digest": "039175941ed2a2ec888bc6c7314c3c5f8afac1201ff604413dedb55641706222",
+  "source": "results.json; original Q=71 fitted 243-member endpoints"
+}
