@@ -4,13 +4,13 @@ Both axes are logarithmic: Q versus the equal-weight mean held-out d_71,Q loss. 
 
 The older appendix already reports Q = 2, 3, 5, 10 and 71 for greedy and ensemble models. The matched 2 November results add sqrt(2) and the dummy/classical models on all six Q values. No new training or rescoring run was needed for this figure.
 
-The curves use the original Q=71 native fits and unchanged classical objectives throughout. The separate native retraining experiments at sqrt(2) and 2 are not mixed into these curves. Markers identify scored values; connecting segments guide the eye rather than assert a power law. Bands show sample fold SD, not confidence intervals.
+The curves use the original Q=71 native fits and unchanged classical objectives throughout. The separate native retraining experiments at sqrt(2) and 2 are not mixed into these curves. Markers identify scored values; connecting segments guide the eye rather than assert a power law. Sample fold SDs are reported in the table below.
 
-The figure uses black lines, distinct markers and dash patterns, and grey SD bands. Experimental context and uncertainty details are in the separate caption, without a subtitle or explanatory footer inside the figure.
+The figure uses black lines with distinct markers and dash patterns. Experimental context is in the separate caption, without a subtitle or explanatory footer inside the figure.
 
 ## Caption
 
-Mean held-out $d_{71,Q}$ loss versus $Q$ on logarithmic axes. Fixed predictions across five frozen paper folds (6,693 products). Encoding base stays 71. Only the scoring weight $Q$ changes. Markers show the calculated $Q$ values. Shading shows $\pm1$ sample fold SD, not a confidence interval. Lines connect scored points; no power law is fitted
+Mean held-out $d_{71,Q}$ loss versus $Q$ on logarithmic axes. Fixed predictions across five frozen paper folds (6,693 products). Encoding base stays 71. Only the scoring weight $Q$ changes. Markers show the calculated $Q$ values. Lines connect scored points; no power law is fitted
 
 `caption.md` contains the caption text; `caption.tex` provides the LaTeX caption command.
 
@@ -29,7 +29,7 @@ Mean held-out $d_{71,Q}$ loss versus $Q$ on logarithmic axes. Fixed predictions 
 
 ## Evidence and reproduction
 
-`data.json` contains all 48 plotted points, their five fold scores, log10 coordinates, band endpoints and source hashes. Source aggregate files:
+`data.json` contains all 48 plotted points, their five fold scores, log10 coordinates, SD interval endpoints and source hashes. Source aggregate files:
 
 - `../low-q-sensitivity-2026-11-02/results.json` (native fits).
 - `../low-q-classical-2026-11-02/results.json` (dummy and classical fits).

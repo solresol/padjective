@@ -32,7 +32,6 @@ CAPTION = (
     "Fixed predictions across five frozen paper folds (6,693 products). "
     "Encoding base stays 71. Only the scoring weight $Q$ changes. "
     "Markers show the calculated $Q$ values. "
-    r"Shading shows $\pm1$ sample fold SD, not a confidence interval. "
     "Lines connect scored points; no power law is fitted"
 )
 
@@ -104,9 +103,6 @@ def render(data, output):
         ps = curve["points"]
         x = [p["q"] for p in ps]
         y = [p["mean_loss"] for p in ps]
-        ax.fill_between(x, [p["mean_loss"] - p["sample_fold_sd"] for p in ps],
-                        [p["mean_loss"] + p["sample_fold_sd"] for p in ps],
-                        color="0.90", alpha=.7, linewidth=0, zorder=1)
         marker_face = "white" if curve["configuration"] in {"unn", "ulr", "dt", "levelwise"} else color
         ax.plot(x, y, color=color, marker=marker, linestyle=line, linewidth=1.5,
                 markersize=5, markerfacecolor=marker_face, markeredgewidth=1.1,
@@ -144,9 +140,9 @@ def write_readme(data, output):
              "The curves use the original Q=71 native fits and unchanged classical objectives "
              "throughout. The separate native retraining experiments at sqrt(2) and 2 are not "
              "mixed into these curves. Markers identify scored values; connecting segments "
-             "guide the eye rather than assert a power law. Bands show sample fold SD, not confidence intervals.", "",
-             "The figure uses black lines, distinct markers and dash patterns, and grey SD bands. "
-             "Experimental context and uncertainty details are in the separate caption, without "
+             "guide the eye rather than assert a power law. Sample fold SDs are reported in the table below.", "",
+             "The figure uses black lines with distinct markers and dash patterns. "
+             "Experimental context is in the separate caption, without "
              "a subtitle or explanatory footer inside the figure.", "",
              "## Caption", "", CAPTION, "",
              "`caption.md` contains the caption text; `caption.tex` provides the LaTeX caption command.", "",
@@ -158,7 +154,7 @@ def write_readme(data, output):
         lines.append(f"| {curve['label']} | {values} |")
     lines += ["", "## Evidence and reproduction", "",
               "`data.json` contains all 48 plotted points, their five fold scores, log10 "
-              "coordinates, band endpoints and source hashes. Source aggregate files:", "",
+              "coordinates, SD interval endpoints and source hashes. Source aggregate files:", "",
               "- `../low-q-sensitivity-2026-11-02/results.json` (native fits).",
               "- `../low-q-classical-2026-11-02/results.json` (dummy and classical fits).", "",
               "All curves use the same 6,693 products and fold sizes 1300, 1337, 1348, 1372, 1336. "

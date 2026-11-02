@@ -23,5 +23,7 @@
   "separate_caption_files": [
     "caption.md",
     "caption.tex"
-  ]
+  ],
+  "shading_removed": true,
+  "caption_matches_unshaded_figure": true
 }
