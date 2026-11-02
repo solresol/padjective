@@ -1,0 +1,19 @@
+{
+  "postgres_report_matches_export": true,
+  "snapshot_digest": "039175941ed2a2ec888bc6c7314c3c5f8afac1201ff604413dedb55641706222",
+  "snapshot_products": 6693,
+  "model_folds": 25,
+  "independently_checked_predictions": 33465,
+  "product_ids_labels_and_fold_order_match": true,
+  "score_grid": {
+    "sqrt2": 1.4142135623730951,
+    "2": 2.0,
+    "3": 3.0,
+    "5": 5.0,
+    "10": 10.0,
+    "71": 71.0
+  },
+  "independent_scores_and_fold_aggregates_match": true,
+  "all_archived_q71_losses_and_exact_accuracies_match": true,
+  "private_predictions_exported": false
+}

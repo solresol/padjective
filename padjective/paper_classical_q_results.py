@@ -84,7 +84,8 @@ def render(report, output):
                 marker=["o", "s", "^", "D", "v", "P", "X", "*"][i], linewidth=1.4, markersize=6)
         ax.text(-.07, ys[0], LABELS[key], ha="right", va="center", fontsize=10)
     ax.set_xticks([0, 1, 2], ["Original fits\nscore Q = 71", "Original fits\nscore Q = √2",
-                            "Native fits retrained at √2\nall models scored at √2"])
+                            "p-adic fits retrained at √2\nall models scored at √2"])
+    ax.get_xticklabels()[-1].set_ha("right")
     ax.set_yticks(range(1, 9))
     ax.yaxis.tick_right()
     ax.set_ylim(8.45, .55)
@@ -117,6 +118,18 @@ def write_readme(report, output):
         cells = [lookups[n][key] for n in ("original", "retrained_sqrt2", "retrained_q2")]
         losses = " | ".join(f"{c['mean_loss']:.3f} ± {c['fold_sd']:.3f}" for c in cells)
         lines.append(f"| {LABELS[key]} | {losses} | {cells[1]['exact_accuracy']:.1%} |")
+    lines += ["", "## Findings", ""]
+    original_top = [r["configuration"] for r in comparisons["original"][:3]]
+    if all([r["configuration"] for r in rows[:3]] == original_top for rows in comparisons.values()):
+        lines.append("The leading three models retain their order in all five comparisons: "
+                     + ", ".join(LABELS[k] for k in original_top) + ".")
+    rank = lambda arm: lookups[arm]["levelwise"]["rank"]
+    lines += ["", f"Across all 16 configurations, level-wise logistic regression moves from rank "
+              f"{rank('original')} at Q=71 to {rank('fixed_sqrt2')} under fixed-fit sqrt(2) rescoring, "
+              f"and to {rank('retrained_sqrt2')} when native models are also retrained. At Q=2 its "
+              f"ranks are {rank('fixed_q2')} (fixed) and {rank('retrained_q2')} (retrained).", "",
+              "The paired table below distinguishes mean-order changes from fold-wise consistency. "
+              "These reused folds support a sensitivity comparison, rather than independent confirmation."]
     lines += ["", "## Complete rankings", "",
               "Point-estimate ranks are descriptive, without a significance claim. The same "
               "folds have already been used for other experiments. Fixed-fit rows isolate "
@@ -142,6 +155,7 @@ def write_readme(report, output):
               "- `reference.json`: frozen environment and archived fold aggregates, with source SHA-256 hashes.",
               "- `protocol.md`: fixed training and evaluation settings.",
               "- `validation.json`: independent PostgreSQL reconstruction and export checks.",
+              "- `validation-notes.md`: test, environment, storage and figure checks.",
               "- `../low-q-sensitivity-2026-11-02/results.json`: unchanged native comparison.", "",
               "Private recovered predictions are in `padjective.paper_classical_q_runs`; the aggregate "
               "classical report is in `padjective.paper_low_q_reports`. No manuscript text was changed.", ""]
