@@ -57,3 +57,40 @@ def test_plot_rejects_silent_changes_to_stored_aggregates():
     classical["series"][0]["mean_losses"]["sqrt2"] += .001
     with pytest.raises(ValueError, match="Stored aggregates"):
         build_data(native, classical)
+
+
+def additional_report(native, classical):
+    grid = {"1.01": 1.01, "1.1": 1.1}
+    selected = {s["configuration"]: s for s in native["series"] if s["training_q"] == "71"}
+    selected.update({s["configuration"]: s for s in classical["series"]})
+    extra = {k: native[k] for k in ("snapshot_id", "snapshot_digest", "products", "prime")}
+    extra.update(experiment_key="additional", q_values=grid, series=[])
+    for key, s in selected.items():
+        folds = [dict(n=f["n"], losses={q: f["losses"]["2"] * math.sqrt(2 / value)
+                                      for q, value in grid.items()}) for f in s["folds"]]
+        extra["series"].append(dict(
+            configuration=key, training_q=s["training_q"], folds=folds,
+            mean_losses={q: mean(f["losses"][q] for f in folds) for q in grid},
+            fold_sd={q: stdev(f["losses"][q] for f in folds) for q in grid}))
+    return extra
+
+
+def test_near_one_extension_preserves_all_original_points():
+    native, classical = reports()
+    original = build_data(native, classical)
+    extended = build_data(native, classical, additional_report(native, classical))
+    assert list(extended["q_values"].values())[:2] == [1.01, 1.1]
+    for old, new in zip(original["curves"], extended["curves"], strict=True):
+        assert new["points"][2:] == old["points"]
+        assert len(new["points"]) == 8
+
+
+def test_near_one_extension_rejects_changed_models_or_snapshot():
+    native, classical = reports()
+    extra = additional_report(native, classical)
+    extra["series"][0]["training_q"] = "sqrt2"
+    with pytest.raises(ValueError, match="same training objective"):
+        build_data(native, classical, extra)
+    extra["snapshot_digest"] = "another"
+    with pytest.raises(ValueError, match="snapshot_digest"):
+        build_data(native, classical, extra)
