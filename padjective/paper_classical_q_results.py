@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
+from statistics import mean, stdev
 
 import matplotlib
 matplotlib.use("Agg")
@@ -47,10 +48,21 @@ def combine(native, classical):
                 exact_accuracy=s["exact_accuracy"], root_accuracy=s["root_accuracy"],
             ))
         comparisons[name] = records
+    paired = []
+    for name in ("fixed_sqrt2", "retrained_sqrt2", "fixed_q2", "retrained_q2"):
+        rows = {r["configuration"]: r for r in comparisons[name]}
+        for key in ("ensemble_0.75_243", "ensemble_1_243"):
+            differences = [a - b for a, b in zip(rows[key]["fold_losses"],
+                                                rows["levelwise"]["fold_losses"], strict=True)]
+            paired.append(dict(comparison=name, configuration=key,
+                               mean_native_minus_levelwise=mean(differences),
+                               paired_fold_sd=stdev(differences),
+                               native_wins=sum(d < 0 for d in differences),
+                               ties=sum(d == 0 for d in differences), folds=5))
     return dict(
         native_experiment=native["experiment_key"], classical_experiment=classical["experiment_key"],
         snapshot_id=native["snapshot_id"], snapshot_digest=native["snapshot_digest"],
-        products=native["products"], prime=71, comparisons=comparisons,
+        products=native["products"], prime=71, comparisons=comparisons, paired_comparisons=paired,
         interpretation="Classical training objectives unchanged. Fixed comparisons change only Q in "
                        "evaluation. Retrained comparisons also use Q-specific native fits and consensus. "
                        "Ranks use fold-mean point estimates; no significance claim.",
@@ -115,7 +127,16 @@ def write_readme(report, output):
         lines += [f"| {r['rank']} | {r['label']} | {r['mean_loss']:.6f} | {r['fold_sd']:.6f} | {r['exact_accuracy']:.2%} |"
                   for r in rows]
         lines.append("")
-    lines += ["## Evidence", "",
+    lines += ["## Paired comparison with level-wise logistic regression", "",
+              "Differences are native ensemble minus level-wise loss on the same fold. "
+              "Negative means favour the ensemble. No significance test or independent test set is implied.", "",
+              "| Comparison | Ensemble | Mean difference | Paired fold SD | Ensemble fold wins |",
+              "|---|---|---:|---:|---:|"]
+    for row in report["paired_comparisons"]:
+        lines.append(f"| {row['comparison']} | {LABELS[row['configuration']]} | "
+                     f"{row['mean_native_minus_levelwise']:.6f} | {row['paired_fold_sd']:.6f} | "
+                     f"{row['native_wins']}/5 |")
+    lines += ["", "## Evidence", "",
               "- `results.json`: classical fold scores, histograms, prediction hashes and provenance; no product rows.",
               "- `rankings.json`: all five comparison arms with paired fold losses.",
               "- `reference.json`: frozen environment and archived fold aggregates, with source SHA-256 hashes.",

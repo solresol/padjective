@@ -44,3 +44,14 @@ def test_combination_rejects_a_different_snapshot_or_fold_population():
     classical["series"][0]["folds"][0]["n"] = 1301
     with pytest.raises(ValueError, match="Fold populations"):
         combine(native, classical)
+
+
+def test_paired_fold_comparisons_keep_the_training_arms_separate():
+    native, classical = reports()
+    paired = combine(native, classical)["paired_comparisons"]
+    original = next(r for r in paired if r["comparison"] == "fixed_sqrt2")
+    retrained = next(r for r in paired if r["comparison"] == "retrained_sqrt2")
+    assert original["mean_native_minus_levelwise"] == pytest.approx(.2)
+    assert original["native_wins"] == 0
+    assert retrained["mean_native_minus_levelwise"] == pytest.approx(-.1)
+    assert retrained["native_wins"] == 5
