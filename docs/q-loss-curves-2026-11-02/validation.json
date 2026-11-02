@@ -1,6 +1,6 @@
 {
-  "plotted_points_independently_checked": 48,
-  "fold_score_values": 240,
+  "plotted_points_independently_checked": 64,
+  "fold_score_values": 320,
   "legacy_q_score_cells_checked": 15,
   "legacy_q_values": [
     2,
@@ -11,13 +11,12 @@
   ],
   "source_fold_means_sample_sds_and_log_coordinates_match": true,
   "original_native_fits_only": true,
-  "unit_tests_passed": 350,
+  "unit_tests_passed": 353,
   "unit_tests_skipped": 6,
   "png_visually_inspected": true,
   "exported_pdf_grayscale_render_visually_inspected": true,
   "source_postgres_reports_match": true,
   "postgres_chart_report_matches_export": true,
-  "numerical_data_unchanged": true,
   "png_and_pdf_render_have_only_neutral_pixels": true,
   "figure_subtitle_and_footer_removed": true,
   "separate_caption_files": [
@@ -25,5 +24,13 @@
     "caption.tex"
   ],
   "shading_removed": true,
-  "caption_matches_unshaded_figure": true
+  "caption_matches_unshaded_figure": true,
+  "original_48_points_unchanged": true,
+  "new_q_values": [
+    1.01,
+    1.1
+  ],
+  "additional_private_predictions_checked": 53544,
+  "all_eight_q_values_checked_on_saved_predictions": true,
+  "near_one_axis_labels_visually_checked": true
 }

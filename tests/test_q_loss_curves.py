@@ -4,7 +4,7 @@ from statistics import mean, stdev
 
 import pytest
 
-from padjective.q_loss_curves import FOLD_SIZES, STYLES, build_data
+from padjective.q_loss_curves import FOLD_SIZES, STYLES, build_data, canonical_sha256
 
 
 def reports():
@@ -64,7 +64,9 @@ def additional_report(native, classical):
     selected = {s["configuration"]: s for s in native["series"] if s["training_q"] == "71"}
     selected.update({s["configuration"]: s for s in classical["series"]})
     extra = {k: native[k] for k in ("snapshot_id", "snapshot_digest", "products", "prime")}
-    extra.update(experiment_key="additional", q_values=grid, series=[])
+    extra.update(experiment_key="additional", q_values=grid, series=[],
+                 sources=[dict(experiment_key=r["experiment_key"], canonical_sha256=canonical_sha256(r))
+                          for r in (native, classical)])
     for key, s in selected.items():
         folds = [dict(n=f["n"], losses={q: f["losses"]["2"] * math.sqrt(2 / value)
                                       for q, value in grid.items()}) for f in s["folds"]]
@@ -93,4 +95,8 @@ def test_near_one_extension_rejects_changed_models_or_snapshot():
         build_data(native, classical, extra)
     extra["snapshot_digest"] = "another"
     with pytest.raises(ValueError, match="snapshot_digest"):
+        build_data(native, classical, extra)
+    extra = additional_report(native, classical)
+    extra["sources"][0]["canonical_sha256"] = "different predictions"
+    with pytest.raises(ValueError, match="same fixed-prediction source reports"):
         build_data(native, classical, extra)

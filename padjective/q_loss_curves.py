@@ -55,6 +55,10 @@ def build_data(native, classical, additional=None):
         for key in ("snapshot_id", "snapshot_digest", "products", "prime"):
             if native[key] != additional[key]:
                 raise ValueError(f"Additional report disagrees on {key}")
+        parents = [dict(experiment_key=r["experiment_key"], canonical_sha256=canonical_sha256(r))
+                   for r in (native, classical)]
+        if additional.get("sources") != parents:
+            raise ValueError("Additional scores must reference the same fixed-prediction source reports")
         if set(q_values) & set(additional["q_values"]):
             raise ValueError("Additional Q labels must extend the original grid")
         q_values.update(additional["q_values"])
