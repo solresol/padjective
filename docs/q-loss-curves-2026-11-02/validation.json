@@ -1,0 +1,20 @@
+{
+  "plotted_points_independently_checked": 48,
+  "fold_score_values": 240,
+  "legacy_q_score_cells_checked": 15,
+  "legacy_q_values": [
+    2,
+    3,
+    5,
+    10,
+    71
+  ],
+  "source_fold_means_sample_sds_and_log_coordinates_match": true,
+  "original_native_fits_only": true,
+  "unit_tests_passed": 350,
+  "unit_tests_skipped": 6,
+  "png_visually_inspected": true,
+  "exported_pdf_grayscale_render_visually_inspected": true,
+  "source_postgres_reports_match": true,
+  "postgres_chart_report_matches_export": true
+}
