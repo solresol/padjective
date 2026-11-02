@@ -57,6 +57,8 @@ def loss_units(residuals, *, kind: str, p: int = 71, precision: int = 7):
         output[different] = weight
         remaining &= ~different
         delta[remaining] //= p
+        if not np.any(remaining):
+            break
     assert not np.any(remaining)
     return output
 
@@ -66,7 +68,8 @@ def best_choice(values, *, kind: str, p: int = 71, precision: int | None = None,
     observations, counts = np.unique(np.asarray(values, dtype=np.int64), return_counts=True)
     if not len(observations):
         raise ValueError("Nonempty observations required")
-    options = observations if candidates is None else np.unique(np.asarray(candidates, dtype=np.int64))
+    observed_candidates = candidates is None
+    options = observations if observed_candidates else np.unique(np.asarray(candidates, dtype=np.int64))
     if not len(options):
         raise ValueError("Nonempty candidate set required")
     span = max(int(observations[-1]), int(options[-1])) - min(int(observations[0]), int(options[0]))
@@ -89,11 +92,18 @@ def best_choice(values, *, kind: str, p: int = 71, precision: int | None = None,
             totals = np.zeros(len(keys), dtype=np.int64)
             np.add.at(totals, inverse, counts)
             prefixes = options % modulus
-        positions = np.searchsorted(keys, prefixes)
-        safe = np.minimum(positions, len(keys) - 1)
-        matching = np.where((positions < len(keys)) & (keys[safe] == prefixes), totals[safe], 0)
+        if observed_candidates:
+            matching = counts if modulus > span else totals[inverse]
+        else:
+            positions = np.searchsorted(keys, prefixes)
+            safe = np.minimum(positions, len(keys) - 1)
+            matching = np.where((positions < len(keys)) & (keys[safe] == prefixes), totals[safe], 0)
         costs += (previous - matching) * weight
         previous = matching
+        # Once every observed candidate has its own prefix, later levels
+        # contribute zero for all candidates. This preserves exact costs/ties.
+        if observed_candidates and len(keys) == len(observations):
+            break
     best = int(np.argmin(costs))
     return int(options[best]), int(costs[best])
 

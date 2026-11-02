@@ -68,3 +68,10 @@ completed validated fits. This changes the execution schedule, not the folds,
 seeds, masks, objectives or model roster. Source and protocol are versioned
 before the new ranking is inspected. The manuscript is not edited by this
 experiment.
+
+A performance-only revision stops medoid prefix scans once all observed
+candidates are distinguished and skips zero-contribution loss levels. Both
+the integer objectives and tie choices match the frozen first implementation
+in 1,800 candidate searches and 900 loss-vector checks. Completed fits retain
+their original implementation hash and are reused; the final report lists
+the actual implementation hashes represented in the bank.

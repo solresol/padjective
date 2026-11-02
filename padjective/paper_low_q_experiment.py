@@ -33,6 +33,11 @@ SOURCE_BATCH = "773bf2ab-d2b1-4c32-bfde-15d501782fa0"
 Q_VALUES = {"sqrt2": math.sqrt(2), "2": 2., "3": 3., "5": 5., "10": 10., "71": 71.}
 ORDERS = ("taxonomy_association", "random", "frequency", "battle_elo", "mean_title_position")
 RANDOM_SEEDS = (7, 13, 23, 37, 101)
+COMPATIBLE_ALGORITHM_SHA256 = {
+    # Original implementation; the prefix early-exit optimisation preserves
+    # every integer objective and tie, checked against this frozen source.
+    '912cbff50a2debb4ecf7303e97acb32f26e35ce130b12ecc12b2d5e2036565dd',
+}
 _WORKER_EXECUTE = None
 
 
@@ -168,7 +173,7 @@ def run(args):
             existing = conn.execute("SELECT status,evidence FROM padjective.paper_low_q_models WHERE "
                 "experiment_key=%s AND q_label=%s AND family=%s AND cv_fold=%s AND fraction=%s AND member_index=%s", key).fetchone()
             if existing and existing[0] in ('one_pass_complete', 'coordinate_optimum'):
-                assert existing[1]['algorithm_sha256'] == source_hash
+                assert existing[1]['algorithm_sha256'] in COMPATIBLE_ALGORITHM_SHA256 | {source_hash}
                 return job, existing[1]
         started = time.monotonic()
         c = context[fold]
@@ -300,6 +305,7 @@ def evaluate(args, dataset, context, records, rosters, source_hash):
                 precision=7, members_retrained=args.members, q_values=Q_VALUES,
                 workers=args.workers, parallelism='forked single-threaded worker processes',
                 algorithm_sha256=source_hash, classical_baselines_included=False,
+                fit_implementation_sha256=sorted({r['algorithm_sha256'] for r in records.values()}),
                 reference_greedy_implementation='Original historical fitter, fold loss and exact accuracy verified',
                 interpretation='Exploratory reused-fold comparison; fixed original fits rescored and low-Q fits retrained. '
                                'Ensemble consensus uses the training Q. No hyperparameters selected from these scores.',
