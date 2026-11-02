@@ -6,11 +6,12 @@ only. The reference metric keeps its base-71 encoding; the depth weight varies.
 from __future__ import annotations
 
 import argparse
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from datetime import datetime, timezone
 import hashlib
 import json
 import math
+import multiprocessing
 from pathlib import Path
 from statistics import mean, stdev
 import time
@@ -32,6 +33,13 @@ SOURCE_BATCH = "773bf2ab-d2b1-4c32-bfde-15d501782fa0"
 Q_VALUES = {"sqrt2": math.sqrt(2), "2": 2., "3": 3., "5": 5., "10": 10., "71": 71.}
 ORDERS = ("taxonomy_association", "random", "frequency", "battle_elo", "mean_title_position")
 RANDOM_SEEDS = (7, 13, 23, 37, 101)
+_WORKER_EXECUTE = None
+
+
+def _execute_job(job):
+    # Linux fork preserves the read-only dataset and the local job closure.
+    # Each process opens its own PostgreSQL connections.
+    return _WORKER_EXECUTE(job)
 
 
 def fingerprint(value):
@@ -202,8 +210,11 @@ def run(args):
         return job, result
 
     records = {}
-    with ThreadPoolExecutor(max_workers=args.workers) as pool:
-        futures = [pool.submit(execute, job) for job in jobs]
+    global _WORKER_EXECUTE
+    _WORKER_EXECUTE = execute
+    with ProcessPoolExecutor(max_workers=args.workers,
+                             mp_context=multiprocessing.get_context('fork')) as pool:
+        futures = [pool.submit(_execute_job, job) for job in jobs]
         try:
             for number, future in enumerate(as_completed(futures), 1):
                 job, evidence = future.result()
@@ -287,6 +298,7 @@ def evaluate(args, dataset, context, records, rosters, source_hash):
     return dict(experiment_key=args.experiment_key, created_at=datetime.now(timezone.utc).isoformat(),
                 snapshot_id=PAPER_SNAPSHOT, snapshot_digest=SNAPSHOT_DIGEST, products=6693, prime=71,
                 precision=7, members_retrained=args.members, q_values=Q_VALUES,
+                workers=args.workers, parallelism='forked single-threaded worker processes',
                 algorithm_sha256=source_hash, classical_baselines_included=False,
                 reference_greedy_implementation='Original historical fitter, fold loss and exact accuracy verified',
                 interpretation='Exploratory reused-fold comparison; fixed original fits rescored and low-Q fits retrained. '
@@ -297,7 +309,7 @@ def evaluate(args, dataset, context, records, rosters, source_hash):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--members', type=int, choices=(15, 243), default=15)
-    parser.add_argument('--workers', type=int, choices=range(1, 5), default=4)
+    parser.add_argument('--workers', type=int, choices=range(1, 13), default=4)
     parser.add_argument('--experiment-key', default=EXPERIMENT)
     parser.add_argument('--output', type=Path, required=True)
     run(parser.parse_args())

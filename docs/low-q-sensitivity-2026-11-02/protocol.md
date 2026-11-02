@@ -61,6 +61,10 @@ classical prediction tables use different populations, so they are not pooled
 into this comparison. The primary question matches the earlier greedy/ensemble
 Q table. Training-Q and scoring-Q are separate fields in every result.
 
-Use at most four single-threaded workers on raksasa. Source and protocol are
-versioned before the new ranking is inspected. The manuscript is not edited
-by this experiment.
+Initially use four single-threaded workers on raksasa. The author subsequently
+authorised use of the full machine for roughly the next hour; extend to both
+243-member endpoints with 12 single-threaded worker processes, reusing the
+completed validated fits. This changes the execution schedule, not the folds,
+seeds, masks, objectives or model roster. Source and protocol are versioned
+before the new ranking is inspected. The manuscript is not edited by this
+experiment.
