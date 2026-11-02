@@ -18,15 +18,23 @@ EXPERIMENT = "q-loss-curves-2026-11-02"
 FOLD_SIZES = [1300, 1337, 1348, 1372, 1336]
 # The main comparison roster, retaining both 243-member feature fractions.
 STYLES = {
-    "dummy": ("Dummy control", "#666666", "X", ":"),
-    "taxonomy_association": ("p-adic greedy", "#0072B2", "P", "-"),
-    "ensemble_0.75_243": ("p-adic ensemble: 243, 75% features", "#0072B2", "^", "-."),
-    "ensemble_1_243": ("p-adic ensemble: 243, all features", "#0072B2", "v", "--"),
-    "unn": ("Neural network, width 2,000", "#D55E00", "o", "-"),
-    "ulr": ("L1 logistic regression", "#D55E00", "s", "--"),
-    "dt": ("Decision tree", "#D55E00", "D", "-."),
-    "levelwise": ("Level-wise logistic regression", "#D55E00", "h", ":"),
+    "dummy": ("Dummy control", "black", "X", ":"),
+    "taxonomy_association": ("p-adic greedy", "black", "P", "-"),
+    "ensemble_0.75_243": ("p-adic ensemble: 243, 75% features", "black", "^", "-."),
+    "ensemble_1_243": ("p-adic ensemble: 243, all features", "black", "v", "--"),
+    "unn": ("Neural network, width 2,000", "black", "o", "-"),
+    "ulr": ("L1 logistic regression", "black", "s", "--"),
+    "dt": ("Decision tree", "black", "D", "-."),
+    "levelwise": ("Level-wise logistic regression", "black", "h", ":"),
 }
+CAPTION = (
+    "Mean held-out $d_{71,Q}$ loss versus $Q$ on logarithmic axes. "
+    "Fixed predictions across five frozen paper folds (6,693 products). "
+    "Encoding base stays 71. Only the scoring weight $Q$ changes. "
+    "Markers show the calculated $Q$ values. "
+    r"Shading shows $\pm1$ sample fold SD, not a confidence interval. "
+    "Lines connect scored points; no power law is fitted"
+)
 
 
 def canonical_sha256(value):
@@ -89,8 +97,8 @@ def build_data(native, classical):
 def render(data, output):
     plt.rcParams.update({"font.family": "DejaVu Sans", "font.size": 11,
                          "pdf.fonttype": 42, "ps.fonttype": 42})
-    fig, ax = plt.subplots(figsize=(10.8, 8.2))
-    fig.subplots_adjust(left=.10, right=.97, top=.85, bottom=.34)
+    fig, ax = plt.subplots(figsize=(10.8, 7.1))
+    fig.subplots_adjust(left=.10, right=.97, top=.90, bottom=.29)
     for curve in data["curves"]:
         label, color, marker, line = STYLES[curve["configuration"]]
         ps = curve["points"]
@@ -98,9 +106,11 @@ def render(data, output):
         y = [p["mean_loss"] for p in ps]
         ax.fill_between(x, [p["mean_loss"] - p["sample_fold_sd"] for p in ps],
                         [p["mean_loss"] + p["sample_fold_sd"] for p in ps],
-                        color=color, alpha=.065, linewidth=0, zorder=1)
+                        color="0.90", alpha=.7, linewidth=0, zorder=1)
+        marker_face = "white" if curve["configuration"] in {"unn", "ulr", "dt", "levelwise"} else color
         ax.plot(x, y, color=color, marker=marker, linestyle=line, linewidth=1.5,
-                markersize=5, label=label, zorder=3)
+                markersize=5, markerfacecolor=marker_face, markeredgewidth=1.1,
+                label=label, zorder=3)
     ax.set_xscale("log")
     ax.set_yscale("log")
     grid = list(data["q_values"].values())
@@ -116,14 +126,9 @@ def render(data, output):
     ax.set_ylabel(r"Mean $d_{71,Q}$ loss (log scale)", labelpad=10)
     ax.grid(axis="y", which="major", color=".88", linewidth=.6)
     ax.spines[["top", "right"]].set_visible(False)
-    ax.legend(loc="upper center", bbox_to_anchor=(.5, -.22), ncol=2,
+    ax.legend(loc="upper center", bbox_to_anchor=(.5, -.21), ncol=2,
               frameon=False, fontsize=10, columnspacing=2.8, handlelength=3.2)
-    fig.suptitle("Loss sensitivity to the hierarchy depth weight", y=.96, fontsize=17)
-    fig.text(.5, .89, "Fixed predictions · five frozen paper folds · 6,693 products",
-             ha="center", fontsize=11)
-    fig.text(.035, .05, "Encoding base stays 71. Only the scoring weight Q changes. Markers show the calculated Q values.\n"
-             "Shading shows ±1 sample fold SD, not a confidence interval. Lines connect scored points; no power law is fitted.",
-             fontsize=9, linespacing=1.6)
+    fig.suptitle("Loss sensitivity to the hierarchy depth weight", y=.965, fontsize=17)
     for suffix in ("png", "pdf"):
         fig.savefig(output / f"q-loss-log-log.{suffix}", dpi=180)
     plt.close(fig)
@@ -140,6 +145,11 @@ def write_readme(data, output):
              "throughout. The separate native retraining experiments at sqrt(2) and 2 are not "
              "mixed into these curves. Markers identify scored values; connecting segments "
              "guide the eye rather than assert a power law. Bands show sample fold SD, not confidence intervals.", "",
+             "The figure uses black lines, distinct markers and dash patterns, and grey SD bands. "
+             "Experimental context and uncertainty details are in the separate caption, without "
+             "a subtitle or explanatory footer inside the figure.", "",
+             "## Caption", "", CAPTION, "",
+             "`caption.md` contains the caption text; `caption.tex` provides the LaTeX caption command.", "",
              "## Scores", "",
              "| Model | " + " | ".join(f"Q={'√2' if q == 'sqrt2' else q}" for q in data["q_values"]) + " |",
              "|---|" + "---:|" * len(data["q_values"])]
@@ -164,6 +174,8 @@ def write_readme(data, output):
               "  --classical docs/low-q-classical-2026-11-02/results.json \\",
               "  --output docs/q-loss-curves-2026-11-02", "```", ""]
     (output / "README.md").write_text("\n".join(lines))
+    (output / "caption.md").write_text(CAPTION + "\n")
+    (output / "caption.tex").write_text("\\caption{" + CAPTION.replace("6,693", "6{,}693") + "}\n")
 
 
 def main():

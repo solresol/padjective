@@ -6,6 +6,14 @@ The older appendix already reports Q = 2, 3, 5, 10 and 71 for greedy and ensembl
 
 The curves use the original Q=71 native fits and unchanged classical objectives throughout. The separate native retraining experiments at sqrt(2) and 2 are not mixed into these curves. Markers identify scored values; connecting segments guide the eye rather than assert a power law. Bands show sample fold SD, not confidence intervals.
 
+The figure uses black lines, distinct markers and dash patterns, and grey SD bands. Experimental context and uncertainty details are in the separate caption, without a subtitle or explanatory footer inside the figure.
+
+## Caption
+
+Mean held-out $d_{71,Q}$ loss versus $Q$ on logarithmic axes. Fixed predictions across five frozen paper folds (6,693 products). Encoding base stays 71. Only the scoring weight $Q$ changes. Markers show the calculated $Q$ values. Shading shows $\pm1$ sample fold SD, not a confidence interval. Lines connect scored points; no power law is fitted
+
+`caption.md` contains the caption text; `caption.tex` provides the LaTeX caption command.
+
 ## Scores
 
 | Model | Q=√2 | Q=2 | Q=3 | Q=5 | Q=10 | Q=71 |

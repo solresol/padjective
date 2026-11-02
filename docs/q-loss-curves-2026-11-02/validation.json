@@ -16,5 +16,12 @@
   "png_visually_inspected": true,
   "exported_pdf_grayscale_render_visually_inspected": true,
   "source_postgres_reports_match": true,
-  "postgres_chart_report_matches_export": true
+  "postgres_chart_report_matches_export": true,
+  "numerical_data_unchanged": true,
+  "png_and_pdf_render_have_only_neutral_pixels": true,
+  "figure_subtitle_and_footer_removed": true,
+  "separate_caption_files": [
+    "caption.md",
+    "caption.tex"
+  ]
 }
