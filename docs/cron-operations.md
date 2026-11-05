@@ -43,6 +43,10 @@ leave it unset when invoking the normal shell entry point.
 
 ## What is in PostgreSQL
 
+This revision uses the guarded **PG18/5433** profile documented in
+[`DATABASE_CONFIG.md`](../DATABASE_CONFIG.md). Activate it with the coordinated
+Shopify database cutover; the observations below describe the earlier baseline.
+
 Read-only checks on **31 October 2026** confirmed the real service account
 uses local **PG16/5432, database `shopifystores`, role `padjective`**. A
 `shopifystores` copy also exists on PG18/5433; its presence is not evidence of
