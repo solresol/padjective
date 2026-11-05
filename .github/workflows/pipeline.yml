@@ -10,17 +10,21 @@ jobs:
   build:
     runs-on: ubuntu-latest
     env:
-      SHOPIFY_DB_DSN: postgresql://postgres:postgres@localhost:5432/postgres
+      SHOPIFY_DB_DSN: postgresql://postgres:postgres@localhost:5433/postgres
+      PADJECTIVE_EXPECTED_DATABASE: postgres
+      PADJECTIVE_EXPECTED_PORT: "5433"
+      PADJECTIVE_EXPECTED_SERVER_MAJOR: "18"
+      PADJECTIVE_EXPECTED_USER: postgres
       PYTHONPATH: ${{ github.workspace }}
     services:
       postgres:
-        image: postgres:15
+        image: postgres:18
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
           POSTGRES_DB: postgres
         ports:
-          - 5432:5432
+          - 5433:5432
         options: >-
           --health-cmd "pg_isready -U postgres"
           --health-interval 10s
@@ -42,7 +46,7 @@ jobs:
       - name: Wait for Postgres
         run: |
           for i in {1..30}; do
-            if pg_isready --host=localhost --port=5432 --username=postgres; then
+            if pg_isready --host=localhost --port=5433 --username=postgres; then
               exit 0
             fi
             sleep 1
@@ -59,6 +63,7 @@ jobs:
           from pathlib import Path
 
           import psycopg
+          from padjective.db import verify_connection
 
           dsn = os.environ["SHOPIFY_DB_DSN"]
           csv_path = Path("products_point_one_percent_sample.csv")
@@ -67,6 +72,7 @@ jobs:
           run_name = "sample_run"
 
           with psycopg.connect(dsn, autocommit=True) as conn:
+            verify_connection(conn)
             with conn.cursor() as cur:
               cur.execute("DROP SCHEMA IF EXISTS cantbuymelove CASCADE")
               cur.execute("CREATE SCHEMA cantbuymelove AUTHORIZATION postgres")

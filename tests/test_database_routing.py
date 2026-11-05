@@ -52,3 +52,13 @@ def test_expected_role_and_isolated_rehearsal(monkeypatch):
         db.verify_connection(connection(user="postgres"))
     monkeypatch.setenv("PADJECTIVE_EXPECTED_DATABASE", "shopify_derived_verify_example")
     db.verify_connection(connection(database="shopify_derived_verify_example"))
+
+
+def test_ci_fixture_uses_its_explicit_pg18_identity(monkeypatch):
+    monkeypatch.setenv("PADJECTIVE_EXPECTED_DATABASE", "postgres")
+    monkeypatch.setenv("PADJECTIVE_EXPECTED_PORT", "5433")
+    monkeypatch.setenv("PADJECTIVE_EXPECTED_SERVER_MAJOR", "18")
+    monkeypatch.setenv("PADJECTIVE_EXPECTED_USER", "postgres")
+    db.verify_connection(connection(database="postgres", user="postgres"))
+    with pytest.raises(RuntimeError, match="identity mismatch"):
+        db.verify_connection(connection(database="postgres", user="postgres", major=15))

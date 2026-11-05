@@ -27,6 +27,11 @@ Recheck it at cutover. No `.env` or `.pgpass` was present for this account at th
 5 November check. The verified same-host service route uses peer authentication.
 Do not put passwords or DSN secrets into Git.
 
+GitHub Actions uses a separate disposable `postgres:18` service on its hosted
+runner, exposed at localhost:5433. Its fixture database/role are `postgres`,
+with explicit CI identity expectations. It does not connect to Raksasa. Fixture
+seeding verifies the connected identity before any destructive setup commands.
+
 Padjective reads Shopify public data and CantBuyMeLove products and writes the
 `padjective` schema. Migrate this dependency group together. Preserve generated
 product IDs, sequence values, real product JSON and research history. Keep the
