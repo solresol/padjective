@@ -12,6 +12,19 @@ from psycopg import sql
 DEFAULT_TABLESPACE = "pg_default"
 
 
+def verify_connection(conn: psycopg.Connection) -> None:
+    """Reject a stale or unexpected endpoint before application SQL runs."""
+    expected = (
+        os.getenv("PADJECTIVE_EXPECTED_DATABASE", "shopifystores"),
+        int(os.getenv("PADJECTIVE_EXPECTED_PORT", "5433")),
+        int(os.getenv("PADJECTIVE_EXPECTED_SERVER_MAJOR", "18")),
+    )
+    actual = (conn.info.dbname, conn.info.port, conn.info.server_version // 10000)
+    expected_user = os.getenv("PADJECTIVE_EXPECTED_USER")
+    if actual != expected or (expected_user and conn.info.user != expected_user):
+        raise RuntimeError("Padjective database identity mismatch; refusing application SQL")
+
+
 def get_connection(dsn: str | None = None) -> psycopg.Connection:
     """Return a psycopg connection using ``dsn`` or environment defaults.
 
@@ -24,8 +37,19 @@ def get_connection(dsn: str | None = None) -> psycopg.Connection:
 
     effective_dsn = dsn or os.getenv("SHOPIFY_DB_DSN") or os.getenv("DATABASE_URL")
     if effective_dsn:
-        return psycopg.connect(effective_dsn)
-    return psycopg.connect(dbname="shopifystores")
+        conn = psycopg.connect(effective_dsn)
+    else:
+        conn = psycopg.connect(
+            dbname=os.getenv("PGDATABASE", "shopifystores"),
+            host=os.getenv("PGHOST", "/var/run/postgresql"),
+            port=os.getenv("PGPORT", "5433"),
+        )
+    try:
+        verify_connection(conn)
+    except Exception:
+        conn.close()
+        raise
+    return conn
 
 
 def _split_qualified_name(name: str) -> Tuple[str, str]:
