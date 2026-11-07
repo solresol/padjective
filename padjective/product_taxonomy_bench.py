@@ -1,4 +1,4 @@
-"""Build reproducible, anonymized dataset snapshots for product-taxonomy-bench.
+"""Build reproducible, anonymized dataset snapshots for SHIMP.
 
 This module creates a deterministic, publishable snapshot of Shopify product tag
 data (as scraped into the Shopify stores Postgres database) while avoiding
@@ -760,7 +760,7 @@ def create_snapshot(
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Create anonymized, reproducible product-taxonomy-bench snapshots in Postgres."
+        description="Create anonymized, reproducible SHIMP snapshots in Postgres."
     )
     parser.add_argument(
         "--dsn",

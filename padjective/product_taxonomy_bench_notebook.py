@@ -1,4 +1,4 @@
-"""Generate the autonomous product-taxonomy-bench notebook."""
+"""Generate the autonomous SHIMP benchmark notebook."""
 
 from __future__ import annotations
 
@@ -8,6 +8,7 @@ import json
 from pathlib import Path
 
 from . import benchmark_runtime
+from .dataset_metadata import DEFAULT_HF_DATASET_ID
 
 
 NOTEBOOK_METADATA = {
@@ -41,12 +42,14 @@ def _code_cell(source: str) -> dict:
     }
 
 
-def render_notebook() -> dict:
+def render_notebook(*, dataset_id: str = DEFAULT_HF_DATASET_ID) -> dict:
     runtime_source = inspect.getsource(benchmark_runtime).strip()
     cells = [
         _markdown_cell(
             """
-# product-taxonomy-bench: reproducible baselines + UMLLR ablations
+# SHIMP: reproducible baselines + UMLLR ablations
+
+SHIMP stands for **Shopify Hierarchy Inference from Merchant Products**.
 
 This notebook loads an anonymised snapshot directly from Hugging Face and reruns:
 
@@ -70,10 +73,10 @@ the rolling benchmark release instead.
         ),
         _code_cell(runtime_source),
         _code_cell(
-            """
+            f"""
 import os
 
-DATASET_ID = os.getenv("PRODUCT_TAXONOMY_BENCH_DATASET_ID", "gregb/product-taxonomy-bench")
+DATASET_ID = os.getenv("PRODUCT_TAXONOMY_BENCH_DATASET_ID", {dataset_id!r})
 REVISION = os.getenv("PRODUCT_TAXONOMY_BENCH_REVISION", "main")
 SNAPSHOT = os.getenv("PRODUCT_TAXONOMY_BENCH_SNAPSHOT", "paper")
 HF_TOKEN = os.getenv("HF_TOKEN")
@@ -401,15 +404,23 @@ ablation_table.sort_values("mean_padic_loss", ascending=True).reset_index(drop=T
     }
 
 
-def write_notebook(path: str | Path) -> Path:
+def write_notebook(path: str | Path, *, dataset_id: str = DEFAULT_HF_DATASET_ID) -> Path:
     output_path = Path(path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(json.dumps(render_notebook(), indent=2) + "\n", encoding="utf-8")
+    output_path.write_text(
+        json.dumps(render_notebook(dataset_id=dataset_id), indent=2) + "\n",
+        encoding="utf-8",
+    )
     return output_path
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Generate product_taxonomy_bench.ipynb")
+    parser.add_argument(
+        "--dataset-id",
+        default=DEFAULT_HF_DATASET_ID,
+        help="Default Hugging Face dataset repo id embedded in the notebook.",
+    )
     parser.add_argument(
         "--output",
         type=Path,
@@ -417,7 +428,7 @@ def main() -> None:
         help="Where to write the generated notebook.",
     )
     args = parser.parse_args()
-    write_notebook(args.output)
+    write_notebook(args.output, dataset_id=args.dataset_id)
 
 
 if __name__ == "__main__":

@@ -260,6 +260,12 @@ uv run -m padjective.paper_revision_experiments \
 
 ### Shared Benchmark Bundles
 
+The Hugging Face dataset is named **SHIMP** (Shopify Hierarchy Inference from
+Merchant Products), with `gregb/shimp` as the new default publishing target.
+The existing `gregb/product-taxonomy-bench` release remains the legacy target.
+See [Hugging Face publishing](docs/huggingface_publishing.md) for publishing
+commands and compatible target overrides.
+
 The benchmark notebook, dedicated benchmark HTML pages, and generated TeX
 includes are all driven by the same `benchmark.json` bundle schema.
 

@@ -7,7 +7,7 @@ cd "$(dirname "$0")"
 git pull -q
 
 HF_OUTPUT_ROOT=${PADJECTIVE_HF_OUT_ROOT:-build/hf/product-taxonomy-bench}
-HF_REPO_ID=${PADJECTIVE_HF_REPO_ID:-gregb/product-taxonomy-bench}
+HF_REPO_ID=${PADJECTIVE_HF_REPO_ID:-gregb/shimp}
 PAPER_TEX=${PADJECTIVE_PAPER_TEX:-../papers/padjective/sigir-ecom/padjective-ecom.tex}
 PAPER_GENERATED_DIR=${PADJECTIVE_PAPER_GENERATED_DIR:-../papers/padjective/sigir-ecom/generated}
 TAGBATTLE_SCHEMA=${PADJECTIVE_TAGBATTLE_SCHEMA:-padjective}
