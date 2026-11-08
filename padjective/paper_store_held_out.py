@@ -33,7 +33,7 @@ _rows = None
 _threads = None
 
 
-def score(actual, predictions):
+def score(actual, predictions, *, prime=live.P):
     disagreements = Counter()
     exact = 0
     for target, prediction in zip(actual, predictions, strict=True):
@@ -42,9 +42,9 @@ def score(actual, predictions):
             exact += 1
             continue
         depth = 0
-        while delta % live.P == 0:
+        while delta % prime == 0:
             depth += 1
-            delta //= live.P
+            delta //= prime
         disagreements[depth] += 1
     n = len(actual)
     return dict(n=n, loss_q2=sum(count * 2.0**(-d) for d, count in disagreements.items()) / n,
