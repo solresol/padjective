@@ -53,19 +53,25 @@ def score(actual, predictions, *, prime=live.P):
                 exact_correct=exact, prediction_sha256=live.digest(predictions))
 
 
-def forest_predictions(x_train, y_train, x_test, seed, sizes=FOREST_SIZES):
-    """Stream the same sklearn tree seeds and probability sums as a full bank."""
+def forest_probabilities(x_train, y_train, x_test, seed, members):
+    """Stream trees in the same seed order as a single sklearn forest fit."""
     random = np.random.RandomState(seed)
     model = RandomForestClassifier(n_estimators=1, max_features="sqrt", bootstrap=True,
                                    n_jobs=1, random_state=random)
     labels = np.unique(y_train)
-    probability_sum = np.zeros((x_test.shape[0], len(labels)))
-    result = {}
-    for member in range(1, max(sizes) + 1):
+    for _ in range(members):
         model.fit(x_train, y_train)
         if not np.array_equal(model.classes_, labels):
             raise ValueError("Forest class columns differ across trees")
-        probability_sum += model.predict_proba(x_test)
+        yield labels, model.predict_proba(x_test)
+
+
+def forest_predictions(x_train, y_train, x_test, seed, sizes=FOREST_SIZES):
+    probability_sum = np.zeros((x_test.shape[0], len(np.unique(y_train))))
+    result = {}
+    trees = forest_probabilities(x_train, y_train, x_test, seed, max(sizes))
+    for member, (labels, probabilities) in enumerate(trees, start=1):
+        probability_sum += probabilities
         if member in sizes:
             result[member] = labels[probability_sum.argmax(axis=1)]
     return result
