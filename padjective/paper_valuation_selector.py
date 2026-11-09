@@ -30,8 +30,9 @@ def select(active, prime):
     return selected, len(tied)
 
 
-def fold_report(dataset, fold, reference_scores, score_predictions):
-    default, original_scores, rows = oracle.term_rows(dataset, fold, reference_scores, score_predictions)
+def fold_report(dataset, fold, reference_scores, score_predictions, *, strategy=oracle.ORDER, seed=None, battles=()):
+    default, original_scores, rows = oracle.term_rows(
+        dataset, fold, reference_scores, score_predictions, strategy=strategy, seed=seed, battles=battles)
     targets, selected = [], []
     multi_selected_losses, multi_original_losses = [], []
     tied_valuation = oracle_matches = 0

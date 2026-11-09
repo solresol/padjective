@@ -36,8 +36,9 @@ def compare_losses(sum_losses, best_losses, products):
                 full_fold_loss_difference=(sum_total - best_total) / products)
 
 
-def term_rows(dataset, fold, reference_scores, score_predictions):
-    fit = runtime.umllr_run_fold(fold, dataset.records, [], matched.PRIME, tag_order_strategy=ORDER)
+def term_rows(dataset, fold, reference_scores, score_predictions, *, strategy=ORDER, seed=None, battles=()):
+    fit = runtime.umllr_run_fold(fold, dataset.records, battles, matched.PRIME,
+                                 tag_order_strategy=strategy, tag_order_seed=seed)
     held_out = [r for r in dataset.records if r.cv_fold == fold]
     predicted = [p.predicted_value for p in fit.predictions]
     scores = score_predictions([r.encoded_path for r in held_out], predicted)
