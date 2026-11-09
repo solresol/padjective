@@ -980,18 +980,15 @@ def _select_default_prediction(
     return int(best_value)
 
 
-def umllr_run_fold(
+def fit_one_pass(
     fold: int,
-    records: Sequence[ProductRecord],
+    training: Sequence[ProductRecord],
     battles: Sequence[BattleRecord],
     base: int,
     *,
     tag_order_strategy: str,
     tag_order_seed: int | None = None,
-) -> UMLLRFoldResult:
-    training = [record for record in records if record.cv_fold != fold]
-    testing = [record for record in records if record.cv_fold == fold]
-
+) -> tuple[list[TagCoefficient], int]:
     product_residuals: Dict[int, int] = {record.product_id: record.encoded_path for record in training}
     tag_to_products: Dict[str, List[int]] = {}
     for record in training:
@@ -1023,6 +1020,23 @@ def umllr_run_fold(
     ]
     all_training_values = [record.encoded_path for record in training]
     default_prediction = _select_default_prediction(no_tag_training_values, all_training_values, base)
+    return coefficients, default_prediction
+
+
+def umllr_run_fold(
+    fold: int,
+    records: Sequence[ProductRecord],
+    battles: Sequence[BattleRecord],
+    base: int,
+    *,
+    tag_order_strategy: str,
+    tag_order_seed: int | None = None,
+) -> UMLLRFoldResult:
+    training = [record for record in records if record.cv_fold != fold]
+    testing = [record for record in records if record.cv_fold == fold]
+    coefficients, default_prediction = fit_one_pass(
+        fold, training, battles, base, tag_order_strategy=tag_order_strategy, tag_order_seed=tag_order_seed)
+    coefficient_lookup = {entry.tag: entry.coefficient for entry in coefficients}
 
     predictions: list[Prediction] = []
     scoring_ops: list[float] = []
