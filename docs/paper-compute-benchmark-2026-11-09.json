@@ -1,0 +1,3154 @@
+{
+  "experiment_key": "paper-compute-2026-11-09",
+  "status": "validated",
+  "manifest": {
+    "source_commit": "9bc18adf02d1de6499f81579d7386416a55840da",
+    "machine": "raksasa",
+    "cpu_model": "Intel(R) Core(TM) i7-8700 CPU @ 3.20GHz",
+    "cpu": 1,
+    "core_siblings": [
+      1,
+      7
+    ],
+    "system": "Linux-7.0.0-38-generic-x86_64-with-glibc2.43",
+    "python": "3.11.11",
+    "packages": {
+      "numpy": "2.2.5",
+      "scipy": "1.15.3",
+      "scikit-learn": "1.6.1",
+      "threadpoolctl": "3.6.0"
+    },
+    "snapshot_id": "244ddbe3-0a2c-4c04-9436-0a0253108a09",
+    "snapshot_digest": "039175941ed2a2ec888bc6c7314c3c5f8afac1201ff604413dedb55641706222",
+    "numerical_threads": 1,
+    "evaluation_q": 2,
+    "fitting_q": 71,
+    "consensus_q": 71,
+    "sample_seconds": 2,
+    "repeats": 3,
+    "idle_gate": {
+      "sample_seconds": 10,
+      "max_background_busy": 0.08,
+      "max_iowait": 0.03,
+      "min_worker_cpu_share": 0.9
+    }
+  },
+  "models": [
+    {
+      "model": "one-pass",
+      "folds": [
+        {
+          "model": "one-pass",
+          "fold": 0,
+          "train_products": 5393,
+          "test_products": 1300,
+          "fit_seconds": 0.1867638579569757,
+          "fit_cpu_seconds": 0.18675424799999996,
+          "fit_peak_rss_mib": 209.5078125,
+          "peak_rss_mib": 209.5078125,
+          "predictions_per_second": 86757242.12442909,
+          "timing_samples": [
+            {
+              "seconds": 2.0000047921203077,
+              "cpu_seconds": 1.999752598,
+              "batches": 133473,
+              "predictions_per_second": 86757242.12442909
+            },
+            {
+              "seconds": 2.0000089909881353,
+              "cpu_seconds": 1.9996953039999998,
+              "batches": 136430,
+              "predictions_per_second": 88679101.34362598
+            },
+            {
+              "seconds": 2.0000037257559597,
+              "cpu_seconds": 1.9996870050000002,
+              "batches": 129821,
+              "predictions_per_second": 84383492.80384938
+            }
+          ],
+          "scores": {
+            "n": 1300,
+            "loss_q2": 0.3372596153846154,
+            "root_accuracy": 0.7338461538461538,
+            "exact_accuracy": 0.48846153846153845,
+            "first_disagreement_counts": {
+              "0": 346,
+              "1": 105,
+              "2": 112,
+              "3": 89,
+              "4": 13
+            },
+            "exact_correct": 635,
+            "prediction_sha256": "af22d7d071ccb08941f756f5bdcb4284f4d5b10ca1a066be4a4526b62479d2db"
+          },
+          "reference_loss_q2": 0.3372596153846154,
+          "reference_prediction_match": true,
+          "numerical_libraries": [
+            {
+              "user_api": "blas",
+              "internal_api": "openblas",
+              "num_threads": 1,
+              "prefix": "libscipy_openblas",
+              "version": "0.3.28",
+              "threading_layer": "pthreads",
+              "architecture": "Haswell"
+            },
+            {
+              "user_api": "blas",
+              "internal_api": "openblas",
+              "num_threads": 1,
+              "prefix": "libscipy_openblas",
+              "version": "0.3.28",
+              "threading_layer": "pthreads",
+              "architecture": "Haswell"
+            },
+            {
+              "user_api": "openmp",
+              "internal_api": "openmp",
+              "num_threads": 1,
+              "prefix": "libgomp",
+              "version": null
+            }
+          ],
+          "fit_host": {
+            "busy": 0.08888888888888889,
+            "iowait": 0.0,
+            "cpus": 12
+          },
+          "predict_host": {
+            "busy": 0.10141903171953255,
+            "iowait": 0.014468558708959377,
+            "cpus": 12
+          },
+          "warnings": [],
+          "members": 1,
+          "manifest_sha256": "4c618846ec4c7ad4ba39da2ff9e6938ce41a2718aa709cb5f3bc82ac6c2b1bc4",
+          "idle_before_fit": {
+            "host": {
+              "busy": 0.020093770931011386,
+              "iowait": 0.0020931011386470196,
+              "cpus": 12
+            },
+            "core": [
+              {
+                "busy": 0.04513540621865597,
+                "iowait": 0.0,
+                "cpus": 1
+              },
+              {
+                "busy": 0.013052208835341365,
+                "iowait": 0.0,
+                "cpus": 1
+              }
+            ],
+            "sample_seconds": 10,
+            "consecutive_windows": 2
+          },
+          "timed_competing_load": {
+            "fit": {
+              "cpu_share": 0.9999485448786458,
+              "background_busy": 0.0055598434823350695,
+              "iowait": 0.0
+            },
+            "predict": {
+              "cpu_share": 0.9998529001185249,
+              "background_busy": 0.01809795670965547,
+              "iowait": 0.014468558708959377
+            }
+          }
+        },
+        {
+          "model": "one-pass",
+          "fold": 1,
+          "train_products": 5356,
+          "test_products": 1337,
+          "fit_seconds": 0.19610050227493048,
+          "fit_cpu_seconds": 0.19601359100000004,
+          "fit_peak_rss_mib": 210.8125,
+          "peak_rss_mib": 210.8125,
+          "predictions_per_second": 92235897.72251666,
+          "timing_samples": [
+            {
+              "seconds": 2.0000084517523646,
+              "cpu_seconds": 1.9997409130000001,
+              "batches": 137975,
+              "predictions_per_second": 92235897.72251666
+            },
+            {
+              "seconds": 2.000010902993381,
+              "cpu_seconds": 1.9996926030000002,
+              "batches": 137429,
+              "predictions_per_second": 91870785.66671598
+            },
+            {
+              "seconds": 2.0000091758556664,
+              "cpu_seconds": 1.999674528,
+              "batches": 138597,
+              "predictions_per_second": 92651669.42082708
+            }
+          ],
+          "scores": {
+            "n": 1337,
+            "loss_q2": 0.33610695587135375,
+            "root_accuracy": 0.731488406881077,
+            "exact_accuracy": 0.48541510845175767,
+            "first_disagreement_counts": {
+              "0": 359,
+              "1": 93,
+              "2": 127,
+              "3": 85,
+              "4": 24
+            },
+            "exact_correct": 649,
+            "prediction_sha256": "1a0b8f6412807eecc7d9678ccf4e77680d489cc0ab1e0a0a3d5e79916623daf6"
+          },
+          "reference_loss_q2": 0.33610695587135375,
+          "reference_prediction_match": true,
+          "numerical_libraries": [
+            {
+              "user_api": "blas",
+              "internal_api": "openblas",
+              "num_threads": 1,
+              "prefix": "libscipy_openblas",
+              "version": "0.3.28",
+              "threading_layer": "pthreads",
+              "architecture": "Haswell"
+            },
+            {
+              "user_api": "blas",
+              "internal_api": "openblas",
+              "num_threads": 1,
+              "prefix": "libscipy_openblas",
+              "version": "0.3.28",
+              "threading_layer": "pthreads",
+              "architecture": "Haswell"
+            },
+            {
+              "user_api": "openmp",
+              "internal_api": "openmp",
+              "num_threads": 1,
+              "prefix": "libgomp",
+              "version": null
+            }
+          ],
+          "fit_host": {
+            "busy": 0.09361702127659574,
+            "iowait": 0.00851063829787234,
+            "cpus": 12
+          },
+          "predict_host": {
+            "busy": 0.1014331431751774,
+            "iowait": 0.008765827187978295,
+            "cpus": 12
+          },
+          "warnings": [],
+          "members": 1,
+          "manifest_sha256": "4c618846ec4c7ad4ba39da2ff9e6938ce41a2718aa709cb5f3bc82ac6c2b1bc4",
+          "idle_before_fit": {
+            "host": {
+              "busy": 0.021527894119618026,
+              "iowait": 0.00041883062489529233,
+              "cpus": 12
+            },
+            "core": [
+              {
+                "busy": 0.009072580645161291,
+                "iowait": 0.0020161290322580645,
+                "cpus": 1
+              },
+              {
+                "busy": 0.015105740181268883,
+                "iowait": 0.002014098690835851,
+                "cpus": 1
+              }
+            ],
+            "sample_seconds": 10,
+            "consecutive_windows": 2
+          },
+          "timed_competing_load": {
+            "fit": {
+              "cpu_share": 0.9995568023848884,
+              "background_busy": 0.010320621077855044,
+              "iowait": 0.00851063829787234
+            },
+            "predict": {
+              "cpu_share": 0.9998465862959288,
+              "background_busy": 0.01811259431718333,
+              "iowait": 0.008765827187978295
+            }
+          }
+        },
+        {
+          "model": "one-pass",
+          "fold": 2,
+          "train_products": 5345,
+          "test_products": 1348,
+          "fit_seconds": 0.19406577292829752,
+          "fit_cpu_seconds": 0.19402329500000004,
+          "fit_peak_rss_mib": 210.85546875,
+          "peak_rss_mib": 210.85546875,
+          "predictions_per_second": 92787676.91158925,
+          "timing_samples": [
+            {
+              "seconds": 2.0000066813081503,
+              "cpu_seconds": 1.999688135,
+              "batches": 137966,
+              "predictions_per_second": 92988773.35667534
+            },
+            {
+              "seconds": 2.0000129509717226,
+              "cpu_seconds": 1.9997351690000005,
+              "batches": 136006,
+              "predictions_per_second": 91667450.40872094
+            },
+            {
+              "seconds": 2.000011964701116,
+              "cpu_seconds": 1.999716985,
+              "batches": 137668,
+              "predictions_per_second": 92787676.91158925
+            }
+          ],
+          "scores": {
+            "n": 1348,
+            "loss_q2": 0.31889836795252224,
+            "root_accuracy": 0.7433234421364985,
+            "exact_accuracy": 0.5192878338278932,
+            "first_disagreement_counts": {
+              "0": 346,
+              "1": 91,
+              "2": 106,
+              "3": 85,
+              "4": 20
+            },
+            "exact_correct": 700,
+            "prediction_sha256": "4eb8a1254f7c2ce2ae7825b5180fc592876ff6f1a5399d573b99e43d86f3280f"
+          },
+          "reference_loss_q2": 0.31889836795252224,
+          "reference_prediction_match": true,
+          "numerical_libraries": [
+            {
+              "user_api": "blas",
+              "internal_api": "openblas",
+              "num_threads": 1,
+              "prefix": "libscipy_openblas",
+              "version": "0.3.28",
+              "threading_layer": "pthreads",
+              "architecture": "Haswell"
+            },
+            {
+              "user_api": "blas",
+              "internal_api": "openblas",
+              "num_threads": 1,
+              "prefix": "libscipy_openblas",
+              "version": "0.3.28",
+              "threading_layer": "pthreads",
+              "architecture": "Haswell"
+            },
+            {
+              "user_api": "openmp",
+              "internal_api": "openmp",
+              "num_threads": 1,
+              "prefix": "libgomp",
+              "version": null
+            }
+          ],
+          "fit_host": {
+            "busy": 0.10300429184549356,
+            "iowait": 0.0,
+            "cpus": 12
+          },
+          "predict_host": {
+            "busy": 0.0948671581582974,
+            "iowait": 0.0027820280984837947,
+            "cpus": 12
+          },
+          "warnings": [],
+          "members": 1,
+          "manifest_sha256": "4c618846ec4c7ad4ba39da2ff9e6938ce41a2718aa709cb5f3bc82ac6c2b1bc4",
+          "idle_before_fit": {
+            "host": {
+              "busy": 0.023370748869157312,
+              "iowait": 0.0008376612497905847,
+              "cpus": 12
+            },
+            "core": [
+              {
+                "busy": 0.016080402010050253,
+                "iowait": 0.0,
+                "cpus": 1
+              },
+              {
+                "busy": 0.02905811623246493,
+                "iowait": 0.0,
+                "cpus": 1
+              }
+            ],
+            "sample_seconds": 10,
+            "consecutive_windows": 2
+          },
+          "timed_competing_load": {
+            "fit": {
+              "cpu_share": 0.9997811158162693,
+              "background_busy": 0.01968919886080446,
+              "iowait": 0.0
+            },
+            "predict": {
+              "cpu_share": 0.9998514494521268,
+              "background_busy": 0.01154620403728683,
+              "iowait": 0.0027820280984837947
+            }
+          }
+        },
+        {
+          "model": "one-pass",
+          "fold": 3,
+          "train_products": 5321,
+          "test_products": 1372,
+          "fit_seconds": 0.17461242387071252,
+          "fit_cpu_seconds": 0.17458053000000007,
+          "fit_peak_rss_mib": 210.671875,
+          "peak_rss_mib": 210.671875,
+          "predictions_per_second": 91797637.56511621,
+          "timing_samples": [
+            {
+              "seconds": 2.0000203419476748,
+              "cpu_seconds": 1.9997531340000003,
+              "batches": 133928,
+              "predictions_per_second": 91873673.55526993
+            },
+            {
+              "seconds": 2.0000070850364864,
+              "cpu_seconds": 1.9996606339999996,
+              "batches": 124896,
+              "predictions_per_second": 85678352.48287328
+            },
+            {
+              "seconds": 2.000003016088158,
+              "cpu_seconds": 1.9997123399999994,
+              "batches": 133816,
+              "predictions_per_second": 91797637.56511621
+            }
+          ],
+          "scores": {
+            "n": 1372,
+            "loss_q2": 0.32206632653061223,
+            "root_accuracy": 0.7412536443148687,
+            "exact_accuracy": 0.5058309037900874,
+            "first_disagreement_counts": {
+              "0": 355,
+              "1": 80,
+              "2": 143,
+              "3": 78,
+              "4": 22
+            },
+            "exact_correct": 694,
+            "prediction_sha256": "38f4452d189d3611ef3f063c1f86cf6ac814d5081e547ad97995f7b4bec9bcca"
+          },
+          "reference_loss_q2": 0.32206632653061223,
+          "reference_prediction_match": true,
+          "numerical_libraries": [
+            {
+              "user_api": "blas",
+              "internal_api": "openblas",
+              "num_threads": 1,
+              "prefix": "libscipy_openblas",
+              "version": "0.3.28",
+              "threading_layer": "pthreads",
+              "architecture": "Haswell"
+            },
+            {
+              "user_api": "blas",
+              "internal_api": "openblas",
+              "num_threads": 1,
+              "prefix": "libscipy_openblas",
+              "version": "0.3.28",
+              "threading_layer": "pthreads",
+              "architecture": "Haswell"
+            },
+            {
+              "user_api": "openmp",
+              "internal_api": "openmp",
+              "num_threads": 1,
+              "prefix": "libgomp",
+              "version": null
+            }
+          ],
+          "fit_host": {
+            "busy": 0.0861244019138756,
+            "iowait": 0.0,
+            "cpus": 12
+          },
+          "predict_host": {
+            "busy": 0.1116214335421016,
+            "iowait": 0.0008350730688935282,
+            "cpus": 12
+          },
+          "warnings": [],
+          "members": 1,
+          "manifest_sha256": "4c618846ec4c7ad4ba39da2ff9e6938ce41a2718aa709cb5f3bc82ac6c2b1bc4",
+          "idle_before_fit": {
+            "host": {
+              "busy": 0.030402010050251255,
+              "iowait": 0.007872696817420435,
+              "cpus": 12
+            },
+            "core": [
+              {
+                "busy": 0.02710843373493976,
+                "iowait": 0.0,
+                "cpus": 1
+              },
+              {
+                "busy": 0.04124748490945674,
+                "iowait": 0.06438631790744467,
+                "cpus": 1
+              }
+            ],
+            "sample_seconds": 10,
+            "consecutive_windows": 2
+          },
+          "timed_competing_load": {
+            "fit": {
+              "cpu_share": 0.9998173447799106,
+              "background_busy": 0.0028062898488830507,
+              "iowait": 0.0
+            },
+            "predict": {
+              "cpu_share": 0.9998492782526855,
+              "background_busy": 0.02830066035437781,
+              "iowait": 0.0008350730688935282
+            }
+          }
+        },
+        {
+          "model": "one-pass",
+          "fold": 4,
+          "train_products": 5357,
+          "test_products": 1336,
+          "fit_seconds": 0.17904438404366374,
+          "fit_cpu_seconds": 0.17899495799999987,
+          "fit_peak_rss_mib": 211.10546875,
+          "peak_rss_mib": 211.10546875,
+          "predictions_per_second": 91450112.004669,
+          "timing_samples": [
+            {
+              "seconds": 2.000009272713214,
+              "cpu_seconds": 1.9997130039999997,
+              "batches": 136902,
+              "predictions_per_second": 91450112.004669
+            },
+            {
+              "seconds": 2.0000036377459764,
+              "cpu_seconds": 1.9997577389999996,
+              "batches": 136193,
+              "predictions_per_second": 90976758.52483137
+            },
+            {
+              "seconds": 2.00000237300992,
+              "cpu_seconds": 1.999681657,
+              "batches": 137408,
+              "predictions_per_second": 91788435.09256649
+            }
+          ],
+          "scores": {
+            "n": 1336,
+            "loss_q2": 0.32709580838323354,
+            "root_accuracy": 0.7387724550898204,
+            "exact_accuracy": 0.49176646706586824,
+            "first_disagreement_counts": {
+              "0": 349,
+              "1": 84,
+              "2": 131,
+              "3": 97,
+              "4": 18
+            },
+            "exact_correct": 657,
+            "prediction_sha256": "699b2ea259849ba3f5f4f43414df8f133530110e03d5b6783a4098254a54fe3d"
+          },
+          "reference_loss_q2": 0.32709580838323354,
+          "reference_prediction_match": true,
+          "numerical_libraries": [
+            {
+              "user_api": "blas",
+              "internal_api": "openblas",
+              "num_threads": 1,
+              "prefix": "libscipy_openblas",
+              "version": "0.3.28",
+              "threading_layer": "pthreads",
+              "architecture": "Haswell"
+            },
+            {
+              "user_api": "blas",
+              "internal_api": "openblas",
+              "num_threads": 1,
+              "prefix": "libscipy_openblas",
+              "version": "0.3.28",
+              "threading_layer": "pthreads",
+              "architecture": "Haswell"
+            },
+            {
+              "user_api": "openmp",
+              "internal_api": "openmp",
+              "num_threads": 1,
+              "prefix": "libgomp",
+              "version": null
+            }
+          ],
+          "fit_host": {
+            "busy": 0.08372093023255814,
+            "iowait": 0.0,
+            "cpus": 12
+          },
+          "predict_host": {
+            "busy": 0.09557595993322204,
+            "iowait": 0.0022259321090706734,
+            "cpus": 12
+          },
+          "warnings": [],
+          "members": 1,
+          "manifest_sha256": "4c618846ec4c7ad4ba39da2ff9e6938ce41a2718aa709cb5f3bc82ac6c2b1bc4",
+          "idle_before_fit": {
+            "host": {
+              "busy": 0.030450465564969383,
+              "iowait": 0.0035231943628890195,
+              "cpus": 12
+            },
+            "core": [
+              {
+                "busy": 0.0371859296482412,
+                "iowait": 0.016080402010050253,
+                "cpus": 1
+              },
+              {
+                "busy": 0.02112676056338028,
+                "iowait": 0.001006036217303823,
+                "cpus": 1
+              }
+            ],
+            "sample_seconds": 10,
+            "consecutive_windows": 2
+          },
+          "timed_competing_load": {
+            "fit": {
+              "cpu_share": 0.999723945300335,
+              "background_busy": 0.0004106014575302186,
+              "iowait": 0.0
+            },
+            "predict": {
+              "cpu_share": 0.9998561864548098,
+              "background_busy": 0.0122546110619879,
+              "iowait": 0.0022259321090706734
+            }
+          }
+        }
+      ],
+      "mean_fit_seconds": 0.186117388214916,
+      "median_predictions_per_second": 91797637.56511621,
+      "max_peak_rss_mib": 211.10546875,
+      "max_fit_peak_rss_mib": 211.10546875
+    },
+    {
+      "model": "medoid-15",
+      "folds": [
+        {
+          "model": "medoid-15",
+          "fold": 0,
+          "train_products": 5393,
+          "test_products": 1300,
+          "fit_seconds": 3.565287148114294,
+          "fit_cpu_seconds": 3.562568559,
+          "fit_peak_rss_mib": 209.0625,
+          "peak_rss_mib": 209.0625,
+          "predictions_per_second": 5125.422628312677,
+          "timing_samples": [
+            {
+              "seconds": 2.0814378578215837,
+              "cpu_seconds": 2.081035333,
+              "batches": 8,
+              "predictions_per_second": 4996.545998680238
+            },
+            {
+              "seconds": 2.0048049869947135,
+              "cpu_seconds": 2.004414119999999,
+              "batches": 8,
+              "predictions_per_second": 5187.536976147508
+            },
+            {
+              "seconds": 2.0291009647771716,
+              "cpu_seconds": 2.028771195999999,
+              "batches": 8,
+              "predictions_per_second": 5125.422628312677
+            }
+          ],
+          "scores": {
+            "n": 1300,
+            "loss_q2": 0.21855769230769231,
+            "root_accuracy": 0.8669230769230769,
+            "exact_accuracy": 0.57,
+            "first_disagreement_counts": {
+              "0": 173,
+              "1": 123,
+              "2": 142,
+              "3": 105,
+              "4": 16
+            },
+            "exact_correct": 741,
+            "prediction_sha256": "50279f955eef8a72a8d3e5b81ad5fa6121578f57bda8151764bff320c45f996b"
+          },
+          "reference_loss_q2": 0.21855769230769231,
+          "reference_prediction_match": true,
+          "numerical_libraries": [
+            {
+              "user_api": "blas",
+              "internal_api": "openblas",
+              "num_threads": 1,
+              "prefix": "libscipy_openblas",
+              "version": "0.3.28",
+              "threading_layer": "pthreads",
+              "architecture": "Haswell"
+            },
+            {
+              "user_api": "blas",
+              "internal_api": "openblas",
+              "num_threads": 1,
+              "prefix": "libscipy_openblas",
+              "version": "0.3.28",
+              "threading_layer": "pthreads",
+              "architecture": "Haswell"
+            },
+            {
+              "user_api": "openmp",
+              "internal_api": "openmp",
+              "num_threads": 1,
+              "prefix": "libgomp",
+              "version": null
+            }
+          ],
+          "fit_host": {
+            "busy": 0.09697821503865074,
+            "iowait": 0.0009369875849144999,
+            "cpus": 12
+          },
+          "predict_host": {
+            "busy": 0.10302791977978765,
+            "iowait": 0.006291781360597719,
+            "cpus": 12
+          },
+          "warnings": [],
+          "members": 15,
+          "feature_fraction": 0.75,
+          "manifest_sha256": "4c618846ec4c7ad4ba39da2ff9e6938ce41a2718aa709cb5f3bc82ac6c2b1bc4",
+          "idle_before_fit": {
+            "host": {
+              "busy": 0.023725687458081825,
+              "iowait": 0.0010898725687458082,
+              "cpus": 12
+            },
+            "core": [
+              {
+                "busy": 0.01306532663316583,
+                "iowait": 0.0,
+                "cpus": 1
+              },
+              {
+                "busy": 0.019095477386934675,
+                "iowait": 0.0010050251256281408,
+                "cpus": 1
+              }
+            ],
+            "sample_seconds": 10,
+            "consecutive_windows": 2
+          },
+          "timed_competing_load": {
+            "fit": {
+              "cpu_share": 0.9992374838263078,
+              "background_busy": 0.01370842471979175,
+              "iowait": 0.0009369875849144999
+            },
+            "predict": {
+              "cpu_share": 0.9998163372937906,
+              "background_busy": 0.019709891671971763,
+              "iowait": 0.006291781360597719
+            }
+          }
+        },
+        {
+          "model": "medoid-15",
+          "fold": 1,
+          "train_products": 5356,
+          "test_products": 1337,
+          "fit_seconds": 3.4317893660627306,
+          "fit_cpu_seconds": 3.4312356479999995,
+          "fit_peak_rss_mib": 210.8671875,
+          "peak_rss_mib": 210.8671875,
+          "predictions_per_second": 5130.963719013876,
+          "timing_samples": [
+            {
+              "seconds": 2.1420192029327154,
+              "cpu_seconds": 2.1416346930000003,
+              "batches": 8,
+              "predictions_per_second": 4993.419286510468
+            },
+            {
+              "seconds": 2.0845986418426037,
+              "cpu_seconds": 2.0840582350000005,
+              "batches": 8,
+              "predictions_per_second": 5130.963719013876
+            },
+            {
+              "seconds": 2.0776018891483545,
+              "cpu_seconds": 2.077231147000001,
+              "batches": 8,
+              "predictions_per_second": 5148.243297172048
+            }
+          ],
+          "scores": {
+            "n": 1337,
+            "loss_q2": 0.2044689603590127,
+            "root_accuracy": 0.8788332086761406,
+            "exact_accuracy": 0.5759162303664922,
+            "first_disagreement_counts": {
+              "0": 162,
+              "1": 106,
+              "2": 180,
+              "3": 95,
+              "4": 24
+            },
+            "exact_correct": 770,
+            "prediction_sha256": "2149480cf32c3e63be602624843a02cbfae59f152db0e41edc7905132f7f934e"
+          },
+          "reference_loss_q2": 0.2044689603590127,
+          "reference_prediction_match": true,
+          "numerical_libraries": [
+            {
+              "user_api": "blas",
+              "internal_api": "openblas",
+              "num_threads": 1,
+              "prefix": "libscipy_openblas",
+              "version": "0.3.28",
+              "threading_layer": "pthreads",
+              "architecture": "Haswell"
+            },
+            {
+              "user_api": "blas",
+              "internal_api": "openblas",
+              "num_threads": 1,
+              "prefix": "libscipy_openblas",
+              "version": "0.3.28",
+              "threading_layer": "pthreads",
+              "architecture": "Haswell"
+            },
+            {
+              "user_api": "openmp",
+              "internal_api": "openmp",
+              "num_threads": 1,
+              "prefix": "libgomp",
+              "version": null
+            }
+          ],
+          "fit_host": {
+            "busy": 0.09117432530999271,
+            "iowait": 0.002188183807439825,
+            "cpus": 12
+          },
+          "predict_host": {
+            "busy": 0.09960614915512642,
+            "iowait": 0.0003811459789099225,
+            "cpus": 12
+          },
+          "warnings": [],
+          "members": 15,
+          "feature_fraction": 0.75,
+          "manifest_sha256": "4c618846ec4c7ad4ba39da2ff9e6938ce41a2718aa709cb5f3bc82ac6c2b1bc4",
+          "idle_before_fit": {
+            "host": {
+              "busy": 0.016323455549974886,
+              "iowait": 0.0013393604553825547,
+              "cpus": 12
+            },
+            "core": [
+              {
+                "busy": 0.024072216649949848,
+                "iowait": 0.0,
+                "cpus": 1
+              },
+              {
+                "busy": 0.00802407221664995,
+                "iowait": 0.0,
+                "cpus": 1
+              }
+            ],
+            "sample_seconds": 10,
+            "consecutive_windows": 2
+          },
+          "timed_competing_load": {
+            "fit": {
+              "cpu_share": 0.9998386503355343,
+              "background_busy": 0.007854437782031515,
+              "iowait": 0.002188183807439825
+            },
+            "predict": {
+              "cpu_share": 0.9997944775121496,
+              "background_busy": 0.016289942695780615,
+              "iowait": 0.0003811459789099225
+            }
+          }
+        },
+        {
+          "model": "medoid-15",
+          "fold": 2,
+          "train_products": 5345,
+          "test_products": 1348,
+          "fit_seconds": 3.4737024158239365,
+          "fit_cpu_seconds": 3.473116272,
+          "fit_peak_rss_mib": 210.96484375,
+          "peak_rss_mib": 210.96484375,
+          "predictions_per_second": 5143.621654797397,
+          "timing_samples": [
+            {
+              "seconds": 2.096577221993357,
+              "cpu_seconds": 2.096247591,
+              "batches": 8,
+              "predictions_per_second": 5143.621654797397
+            },
+            {
+              "seconds": 2.1516908379271626,
+              "cpu_seconds": 2.1513322639999997,
+              "batches": 8,
+              "predictions_per_second": 5011.872435348935
+            },
+            {
+              "seconds": 2.072943405713886,
+              "cpu_seconds": 2.0726164049999998,
+              "batches": 8,
+              "predictions_per_second": 5202.264553038377
+            }
+          ],
+          "scores": {
+            "n": 1348,
+            "loss_q2": 0.20822514836795253,
+            "root_accuracy": 0.8664688427299703,
+            "exact_accuracy": 0.5934718100890207,
+            "first_disagreement_counts": {
+              "0": 180,
+              "1": 104,
+              "2": 134,
+              "3": 113,
+              "4": 17
+            },
+            "exact_correct": 800,
+            "prediction_sha256": "6aa8aebdee949393db1048c7848ec0c35780a5af6f36bf0dbd8b5a91d4b72a70"
+          },
+          "reference_loss_q2": 0.20822514836795253,
+          "reference_prediction_match": true,
+          "numerical_libraries": [
+            {
+              "user_api": "blas",
+              "internal_api": "openblas",
+              "num_threads": 1,
+              "prefix": "libscipy_openblas",
+              "version": "0.3.28",
+              "threading_layer": "pthreads",
+              "architecture": "Haswell"
+            },
+            {
+              "user_api": "blas",
+              "internal_api": "openblas",
+              "num_threads": 1,
+              "prefix": "libscipy_openblas",
+              "version": "0.3.28",
+              "threading_layer": "pthreads",
+              "architecture": "Haswell"
+            },
+            {
+              "user_api": "openmp",
+              "internal_api": "openmp",
+              "num_threads": 1,
+              "prefix": "libgomp",
+              "version": null
+            }
+          ],
+          "fit_host": {
+            "busy": 0.09536392024981984,
+            "iowait": 0.002161902474177276,
+            "cpus": 12
+          },
+          "predict_host": {
+            "busy": 0.09994926433282597,
+            "iowait": 0.004058853373921867,
+            "cpus": 12
+          },
+          "warnings": [],
+          "members": 15,
+          "feature_fraction": 0.75,
+          "manifest_sha256": "4c618846ec4c7ad4ba39da2ff9e6938ce41a2718aa709cb5f3bc82ac6c2b1bc4",
+          "idle_before_fit": {
+            "host": {
+              "busy": 0.027228552278820376,
+              "iowait": 0.004775469168900804,
+              "cpus": 12
+            },
+            "core": [
+              {
+                "busy": 0.022132796780684104,
+                "iowait": 0.002012072434607646,
+                "cpus": 1
+              },
+              {
+                "busy": 0.023138832997987926,
+                "iowait": 0.009054325955734407,
+                "cpus": 1
+              }
+            ],
+            "sample_seconds": 10,
+            "consecutive_windows": 2
+          },
+          "timed_competing_load": {
+            "fit": {
+              "cpu_share": 0.999831262510782,
+              "background_busy": 0.01204464837392133,
+              "iowait": 0.002161902474177276
+            },
+            "predict": {
+              "cpu_share": 0.9998393969826946,
+              "background_busy": 0.016629314584268085,
+              "iowait": 0.004058853373921867
+            }
+          }
+        },
+        {
+          "model": "medoid-15",
+          "fold": 3,
+          "train_products": 5321,
+          "test_products": 1372,
+          "fit_seconds": 3.3990853573195636,
+          "fit_cpu_seconds": 3.3984842840000002,
+          "fit_peak_rss_mib": 210.58203125,
+          "peak_rss_mib": 210.58203125,
+          "predictions_per_second": 5240.614473268689,
+          "timing_samples": [
+            {
+              "seconds": 2.1437748507596552,
+              "cpu_seconds": 2.1433888679999997,
+              "batches": 8,
+              "predictions_per_second": 5119.940648669617
+            },
+            {
+              "seconds": 2.09441088559106,
+              "cpu_seconds": 2.094139095,
+              "batches": 8,
+              "predictions_per_second": 5240.614473268689
+            },
+            {
+              "seconds": 2.0755222169682384,
+              "cpu_seconds": 2.0751938930000016,
+              "batches": 8,
+              "predictions_per_second": 5288.307641453672
+            }
+          ],
+          "scores": {
+            "n": 1372,
+            "loss_q2": 0.20244169096209913,
+            "root_accuracy": 0.879737609329446,
+            "exact_accuracy": 0.5816326530612245,
+            "first_disagreement_counts": {
+              "0": 165,
+              "1": 108,
+              "2": 181,
+              "3": 96,
+              "4": 24
+            },
+            "exact_correct": 798,
+            "prediction_sha256": "ad446dada79f3f7b402c42a43e38b339509c30b7fdab6f277e049dd3feccd9b6"
+          },
+          "reference_loss_q2": 0.20244169096209913,
+          "reference_prediction_match": true,
+          "numerical_libraries": [
+            {
+              "user_api": "blas",
+              "internal_api": "openblas",
+              "num_threads": 1,
+              "prefix": "libscipy_openblas",
+              "version": "0.3.28",
+              "threading_layer": "pthreads",
+              "architecture": "Haswell"
+            },
+            {
+              "user_api": "blas",
+              "internal_api": "openblas",
+              "num_threads": 1,
+              "prefix": "libscipy_openblas",
+              "version": "0.3.28",
+              "threading_layer": "pthreads",
+              "architecture": "Haswell"
+            },
+            {
+              "user_api": "openmp",
+              "internal_api": "openmp",
+              "num_threads": 1,
+              "prefix": "libgomp",
+              "version": null
+            }
+          ],
+          "fit_host": {
+            "busy": 0.09135559921414538,
+            "iowait": 0.0004911591355599214,
+            "cpus": 12
+          },
+          "predict_host": {
+            "busy": 0.09695044472681068,
+            "iowait": 0.0005082592121982211,
+            "cpus": 12
+          },
+          "warnings": [],
+          "members": 15,
+          "feature_fraction": 0.75,
+          "manifest_sha256": "4c618846ec4c7ad4ba39da2ff9e6938ce41a2718aa709cb5f3bc82ac6c2b1bc4",
+          "idle_before_fit": {
+            "host": {
+              "busy": 0.027332942064224028,
+              "iowait": 0.001509180850171879,
+              "cpus": 12
+            },
+            "core": [
+              {
+                "busy": 0.025100401606425703,
+                "iowait": 0.0,
+                "cpus": 1
+              },
+              {
+                "busy": 0.025075225677031094,
+                "iowait": 0.0,
+                "cpus": 1
+              }
+            ],
+            "sample_seconds": 10,
+            "consecutive_windows": 2
+          },
+          "timed_competing_load": {
+            "fit": {
+              "cpu_share": 0.9998231661590171,
+              "background_busy": 0.008037002034227289,
+              "iowait": 0.0004911591355599214
+            },
+            "predict": {
+              "cpu_share": 0.9998438164504531,
+              "background_busy": 0.013630126689272923,
+              "iowait": 0.0005082592121982211
+            }
+          }
+        },
+        {
+          "model": "medoid-15",
+          "fold": 4,
+          "train_products": 5357,
+          "test_products": 1336,
+          "fit_seconds": 3.3330446649342775,
+          "fit_cpu_seconds": 3.3325050329999995,
+          "fit_peak_rss_mib": 210.640625,
+          "peak_rss_mib": 210.640625,
+          "predictions_per_second": 5180.642411516994,
+          "timing_samples": [
+            {
+              "seconds": 2.077329429797828,
+              "cpu_seconds": 2.077061971,
+              "batches": 8,
+              "predictions_per_second": 5145.067434509021
+            },
+            {
+              "seconds": 2.0444657830521464,
+              "cpu_seconds": 2.044132436000001,
+              "batches": 8,
+              "predictions_per_second": 5227.771522810265
+            },
+            {
+              "seconds": 2.06306460686028,
+              "cpu_seconds": 2.062796359,
+              "batches": 8,
+              "predictions_per_second": 5180.642411516994
+            }
+          ],
+          "scores": {
+            "n": 1336,
+            "loss_q2": 0.21056324850299402,
+            "root_accuracy": 0.874251497005988,
+            "exact_accuracy": 0.561377245508982,
+            "first_disagreement_counts": {
+              "0": 168,
+              "1": 114,
+              "2": 159,
+              "3": 120,
+              "4": 25
+            },
+            "exact_correct": 750,
+            "prediction_sha256": "6600bd749403ab22543c7cea0c90b3f5abc695483d846dbb7ec9c37db4963cc8"
+          },
+          "reference_loss_q2": 0.21056324850299402,
+          "reference_prediction_match": true,
+          "numerical_libraries": [
+            {
+              "user_api": "blas",
+              "internal_api": "openblas",
+              "num_threads": 1,
+              "prefix": "libscipy_openblas",
+              "version": "0.3.28",
+              "threading_layer": "pthreads",
+              "architecture": "Haswell"
+            },
+            {
+              "user_api": "blas",
+              "internal_api": "openblas",
+              "num_threads": 1,
+              "prefix": "libscipy_openblas",
+              "version": "0.3.28",
+              "threading_layer": "pthreads",
+              "architecture": "Haswell"
+            },
+            {
+              "user_api": "openmp",
+              "internal_api": "openmp",
+              "num_threads": 1,
+              "prefix": "libgomp",
+              "version": null
+            }
+          ],
+          "fit_host": {
+            "busy": 0.09163745618427642,
+            "iowait": 0.003755633450175263,
+            "cpus": 12
+          },
+          "predict_host": {
+            "busy": 0.09651057205863277,
+            "iowait": 0.00038915553249448695,
+            "cpus": 12
+          },
+          "warnings": [],
+          "members": 15,
+          "feature_fraction": 0.75,
+          "manifest_sha256": "4c618846ec4c7ad4ba39da2ff9e6938ce41a2718aa709cb5f3bc82ac6c2b1bc4",
+          "idle_before_fit": {
+            "host": {
+              "busy": 0.022523654023277235,
+              "iowait": 0.0005861173909402997,
+              "cpus": 12
+            },
+            "core": [
+              {
+                "busy": 0.01706827309236948,
+                "iowait": 0.0,
+                "cpus": 1
+              },
+              {
+                "busy": 0.018108651911468814,
+                "iowait": 0.0,
+                "cpus": 1
+              }
+            ],
+            "sample_seconds": 10,
+            "consecutive_windows": 2
+          },
+          "timed_competing_load": {
+            "fit": {
+              "cpu_share": 0.9998380963987805,
+              "background_busy": 0.008317614817711372,
+              "iowait": 0.003755633450175263
+            },
+            "predict": {
+              "cpu_share": 0.9998594869187682,
+              "background_busy": 0.013188948148735419,
+              "iowait": 0.00038915553249448695
+            }
+          }
+        }
+      ],
+      "mean_fit_seconds": 3.4405817904509606,
+      "median_predictions_per_second": 5143.621654797397,
+      "max_peak_rss_mib": 210.96484375,
+      "max_fit_peak_rss_mib": 210.96484375
+    },
+    {
+      "model": "ulr",
+      "folds": [
+        {
+          "model": "ulr",
+          "fold": 0,
+          "train_products": 5393,
+          "test_products": 1300,
+          "fit_seconds": 19.23381577525288,
+          "fit_cpu_seconds": 19.227168175000003,
+          "fit_peak_rss_mib": 228.85546875,
+          "peak_rss_mib": 228.85546875,
+          "predictions_per_second": 580334.747749246,
+          "timing_samples": [
+            {
+              "seconds": 2.0016242102719843,
+              "cpu_seconds": 2.0009570970000006,
+              "batches": 886,
+              "predictions_per_second": 575432.6881585286
+            },
+            {
+              "seconds": 2.0010234941728413,
+              "cpu_seconds": 2.0005362899999994,
+              "batches": 909,
+              "predictions_per_second": 590547.7888896436
+            },
+            {
+              "seconds": 2.000397192314267,
+              "cpu_seconds": 1.9999782280000034,
+              "batches": 893,
+              "predictions_per_second": 580334.747749246
+            }
+          ],
+          "scores": {
+            "n": 1300,
+            "loss_q2": 0.16033653846153847,
+            "root_accuracy": 0.9053846153846153,
+            "exact_accuracy": 0.6615384615384615,
+            "first_disagreement_counts": {
+              "0": 123,
+              "1": 79,
+              "2": 138,
+              "3": 83,
+              "4": 17
+            },
+            "exact_correct": 860,
+            "prediction_sha256": "c8b31443eb734ffe17b1c60d323f81cbd63737e6faa6ced3e5fe204ad39de90b"
+          },
+          "reference_loss_q2": 0.16033653846153847,
+          "reference_prediction_match": true,
+          "numerical_libraries": [
+            {
+              "user_api": "blas",
+              "internal_api": "openblas",
+              "num_threads": 1,
+              "prefix": "libscipy_openblas",
+              "version": "0.3.28",
+              "threading_layer": "pthreads",
+              "architecture": "Haswell"
+            },
+            {
+              "user_api": "blas",
+              "internal_api": "openblas",
+              "num_threads": 1,
+              "prefix": "libscipy_openblas",
+              "version": "0.3.28",
+              "threading_layer": "pthreads",
+              "architecture": "Haswell"
+            },
+            {
+              "user_api": "openmp",
+              "internal_api": "openmp",
+              "num_threads": 1,
+              "prefix": "libgomp",
+              "version": null
+            }
+          ],
+          "fit_host": {
+            "busy": 0.09758957654723127,
+            "iowait": 0.002301845819761129,
+            "cpus": 12
+          },
+          "predict_host": {
+            "busy": 0.09380211228460256,
+            "iowait": 0.0004168982768204558,
+            "cpus": 12
+          },
+          "warnings": [
+            {
+              "category": "ConvergenceWarning",
+              "message": "The max_iter was reached which means the coef_ did not converge"
+            }
+          ],
+          "iterations": [
+            200
+          ],
+          "manifest_sha256": "4c618846ec4c7ad4ba39da2ff9e6938ce41a2718aa709cb5f3bc82ac6c2b1bc4",
+          "idle_before_fit": {
+            "host": {
+              "busy": 0.024375942368906015,
+              "iowait": 0.0032668788741832804,
+              "cpus": 12
+            },
+            "core": [
+              {
+                "busy": 0.034102306920762285,
+                "iowait": 0.0,
+                "cpus": 1
+              },
+              {
+                "busy": 0.023092369477911646,
+                "iowait": 0.0,
+                "cpus": 1
+              }
+            ],
+            "sample_seconds": 10,
+            "consecutive_windows": 2
+          },
+          "timed_competing_load": {
+            "fit": {
+              "cpu_share": 0.9996543795401519,
+              "background_busy": 0.014285044918885284,
+              "iowait": 0.002301845819761129
+            },
+            "predict": {
+              "cpu_share": 0.9997379193748928,
+              "background_busy": 0.010490619003361498,
+              "iowait": 0.0004168982768204558
+            }
+          }
+        },
+        {
+          "model": "ulr",
+          "fold": 1,
+          "train_products": 5356,
+          "test_products": 1337,
+          "fit_seconds": 19.62998714018613,
+          "fit_cpu_seconds": 19.626518394,
+          "fit_peak_rss_mib": 228.96484375,
+          "peak_rss_mib": 228.96484375,
+          "predictions_per_second": 577161.1574971686,
+          "timing_samples": [
+            {
+              "seconds": 2.0014652493409812,
+              "cpu_seconds": 2.000997533000003,
+              "batches": 864,
+              "predictions_per_second": 577161.1574971686
+            },
+            {
+              "seconds": 2.0019370270892978,
+              "cpu_seconds": 2.0015546630000003,
+              "batches": 894,
+              "predictions_per_second": 597060.7385876997
+            },
+            {
+              "seconds": 2.0002131299115717,
+              "cpu_seconds": 1.999784995999999,
+              "batches": 847,
+              "predictions_per_second": 566159.1672733717
+            }
+          ],
+          "scores": {
+            "n": 1337,
+            "loss_q2": 0.15758227374719522,
+            "root_accuracy": 0.9147344801795063,
+            "exact_accuracy": 0.6462228870605834,
+            "first_disagreement_counts": {
+              "0": 114,
+              "1": 89,
+              "2": 160,
+              "3": 85,
+              "4": 25
+            },
+            "exact_correct": 864,
+            "prediction_sha256": "bcc31581ccaa9e8b455e2503f87350f14d3415f04e139afe7ecb2a381e689288"
+          },
+          "reference_loss_q2": 0.15758227374719522,
+          "reference_prediction_match": true,
+          "numerical_libraries": [
+            {
+              "user_api": "blas",
+              "internal_api": "openblas",
+              "num_threads": 1,
+              "prefix": "libscipy_openblas",
+              "version": "0.3.28",
+              "threading_layer": "pthreads",
+              "architecture": "Haswell"
+            },
+            {
+              "user_api": "blas",
+              "internal_api": "openblas",
+              "num_threads": 1,
+              "prefix": "libscipy_openblas",
+              "version": "0.3.28",
+              "threading_layer": "pthreads",
+              "architecture": "Haswell"
+            },
+            {
+              "user_api": "openmp",
+              "internal_api": "openmp",
+              "num_threads": 1,
+              "prefix": "libgomp",
+              "version": null
+            }
+          ],
+          "fit_host": {
+            "busy": 0.09934479237576582,
+            "iowait": 0.0017018379850238256,
+            "cpus": 12
+          },
+          "predict_host": {
+            "busy": 0.09582753824756607,
+            "iowait": 0.0019471488178025036,
+            "cpus": 12
+          },
+          "warnings": [
+            {
+              "category": "ConvergenceWarning",
+              "message": "The max_iter was reached which means the coef_ did not converge"
+            }
+          ],
+          "iterations": [
+            200
+          ],
+          "manifest_sha256": "4c618846ec4c7ad4ba39da2ff9e6938ce41a2718aa709cb5f3bc82ac6c2b1bc4",
+          "idle_before_fit": {
+            "host": {
+              "busy": 0.024122623335287714,
+              "iowait": 0.0008375910880308234,
+              "cpus": 12
+            },
+            "core": [
+              {
+                "busy": 0.012024048096192385,
+                "iowait": 0.0,
+                "cpus": 1
+              },
+              {
+                "busy": 0.024096385542168676,
+                "iowait": 0.0,
+                "cpus": 1
+              }
+            ],
+            "sample_seconds": 10,
+            "consecutive_windows": 2
+          },
+          "timed_competing_load": {
+            "fit": {
+              "cpu_share": 0.9998232935069515,
+              "background_busy": 0.016026184583519856,
+              "iowait": 0.0017018379850238256
+            },
+            "predict": {
+              "cpu_share": 0.9997870925675055,
+              "background_busy": 0.012511947200273946,
+              "iowait": 0.0019471488178025036
+            }
+          }
+        },
+        {
+          "model": "ulr",
+          "fold": 2,
+          "train_products": 5345,
+          "test_products": 1348,
+          "fit_seconds": 19.420820919796824,
+          "fit_cpu_seconds": 19.417538606,
+          "fit_peak_rss_mib": 228.984375,
+          "peak_rss_mib": 228.984375,
+          "predictions_per_second": 576194.4162666826,
+          "timing_samples": [
+            {
+              "seconds": 2.000262354966253,
+              "cpu_seconds": 1.9998506969999994,
+              "batches": 855,
+              "predictions_per_second": 576194.4162666826
+            },
+            {
+              "seconds": 2.001376233063638,
+              "cpu_seconds": 2.000790161000001,
+              "batches": 858,
+              "predictions_per_second": 577894.3413500723
+            },
+            {
+              "seconds": 2.000576623249799,
+              "cpu_seconds": 2.000134268,
+              "batches": 848,
+              "predictions_per_second": 571387.2624099277
+            }
+          ],
+          "scores": {
+            "n": 1348,
+            "loss_q2": 0.14192321958456974,
+            "root_accuracy": 0.9235905044510386,
+            "exact_accuracy": 0.6765578635014837,
+            "first_disagreement_counts": {
+              "0": 103,
+              "1": 78,
+              "2": 149,
+              "3": 87,
+              "4": 19
+            },
+            "exact_correct": 912,
+            "prediction_sha256": "1e1c2477b7649c4ed315d781b603a5c4030b4d83127fdbcee5f14d6a9a3ff835"
+          },
+          "reference_loss_q2": 0.14192321958456974,
+          "reference_prediction_match": true,
+          "numerical_libraries": [
+            {
+              "user_api": "blas",
+              "internal_api": "openblas",
+              "num_threads": 1,
+              "prefix": "libscipy_openblas",
+              "version": "0.3.28",
+              "threading_layer": "pthreads",
+              "architecture": "Haswell"
+            },
+            {
+              "user_api": "blas",
+              "internal_api": "openblas",
+              "num_threads": 1,
+              "prefix": "libscipy_openblas",
+              "version": "0.3.28",
+              "threading_layer": "pthreads",
+              "architecture": "Haswell"
+            },
+            {
+              "user_api": "openmp",
+              "internal_api": "openmp",
+              "num_threads": 1,
+              "prefix": "libgomp",
+              "version": null
+            }
+          ],
+          "fit_host": {
+            "busy": 0.09656477062642418,
+            "iowait": 0.0019347349413130401,
+            "cpus": 12
+          },
+          "predict_host": {
+            "busy": 0.09919309961046188,
+            "iowait": 0.0022259321090706734,
+            "cpus": 12
+          },
+          "warnings": [
+            {
+              "category": "ConvergenceWarning",
+              "message": "The max_iter was reached which means the coef_ did not converge"
+            }
+          ],
+          "iterations": [
+            200
+          ],
+          "manifest_sha256": "4c618846ec4c7ad4ba39da2ff9e6938ce41a2718aa709cb5f3bc82ac6c2b1bc4",
+          "idle_before_fit": {
+            "host": {
+              "busy": 0.025883732618529068,
+              "iowait": 0.0035181772491204555,
+              "cpus": 12
+            },
+            "core": [
+              {
+                "busy": 0.01104417670682731,
+                "iowait": 0.0,
+                "cpus": 1
+              },
+              {
+                "busy": 0.01905717151454363,
+                "iowait": 0.0,
+                "cpus": 1
+              }
+            ],
+            "sample_seconds": 10,
+            "consecutive_windows": 2
+          },
+          "timed_competing_load": {
+            "fit": {
+              "cpu_share": 0.9998309899560693,
+              "background_busy": 0.013245521463418411,
+              "iowait": 0.0019347349413130401
+            },
+            "predict": {
+              "cpu_share": 0.9997600743677129,
+              "background_busy": 0.015879760079819144,
+              "iowait": 0.0022259321090706734
+            }
+          }
+        },
+        {
+          "model": "ulr",
+          "fold": 3,
+          "train_products": 5321,
+          "test_products": 1372,
+          "fit_seconds": 18.94004334229976,
+          "fit_cpu_seconds": 18.937059731,
+          "fit_peak_rss_mib": 228.6640625,
+          "peak_rss_mib": 228.6640625,
+          "predictions_per_second": 581019.0442294764,
+          "timing_samples": [
+            {
+              "seconds": 2.000079018995166,
+              "cpu_seconds": 1.999673457,
+              "batches": 847,
+              "predictions_per_second": 581019.0442294764
+            },
+            {
+              "seconds": 2.0007685837335885,
+              "cpu_seconds": 2.000396936999998,
+              "batches": 868,
+              "predictions_per_second": 595219.2620786239
+            },
+            {
+              "seconds": 2.0012179226614535,
+              "cpu_seconds": 2.000832324000001,
+              "batches": 834,
+              "predictions_per_second": 571775.8106414744
+            }
+          ],
+          "scores": {
+            "n": 1372,
+            "loss_q2": 0.1524234693877551,
+            "root_accuracy": 0.9161807580174928,
+            "exact_accuracy": 0.6559766763848397,
+            "first_disagreement_counts": {
+              "0": 115,
+              "1": 81,
+              "2": 166,
+              "3": 84,
+              "4": 26
+            },
+            "exact_correct": 900,
+            "prediction_sha256": "d2ab055b97ec2032e70bba62aeb0e253c815c5b7f6750a85726b47af63130881"
+          },
+          "reference_loss_q2": 0.1524234693877551,
+          "reference_prediction_match": true,
+          "numerical_libraries": [
+            {
+              "user_api": "blas",
+              "internal_api": "openblas",
+              "num_threads": 1,
+              "prefix": "libscipy_openblas",
+              "version": "0.3.28",
+              "threading_layer": "pthreads",
+              "architecture": "Haswell"
+            },
+            {
+              "user_api": "blas",
+              "internal_api": "openblas",
+              "num_threads": 1,
+              "prefix": "libscipy_openblas",
+              "version": "0.3.28",
+              "threading_layer": "pthreads",
+              "architecture": "Haswell"
+            },
+            {
+              "user_api": "openmp",
+              "internal_api": "openmp",
+              "num_threads": 1,
+              "prefix": "libgomp",
+              "version": null
+            }
+          ],
+          "fit_host": {
+            "busy": 0.09487925260003525,
+            "iowait": 0.0012339150361360832,
+            "cpus": 12
+          },
+          "predict_host": {
+            "busy": 0.09382819015846539,
+            "iowait": 0.0022240756185710315,
+            "cpus": 12
+          },
+          "warnings": [
+            {
+              "category": "ConvergenceWarning",
+              "message": "The max_iter was reached which means the coef_ did not converge"
+            }
+          ],
+          "iterations": [
+            200
+          ],
+          "manifest_sha256": "4c618846ec4c7ad4ba39da2ff9e6938ce41a2718aa709cb5f3bc82ac6c2b1bc4",
+          "idle_before_fit": {
+            "host": {
+              "busy": 0.027759141227775914,
+              "iowait": 0.005283461925528346,
+              "cpus": 12
+            },
+            "core": [
+              {
+                "busy": 0.018090452261306532,
+                "iowait": 0.0,
+                "cpus": 1
+              },
+              {
+                "busy": 0.02613065326633166,
+                "iowait": 0.0,
+                "cpus": 1
+              }
+            ],
+            "sample_seconds": 10,
+            "consecutive_windows": 2
+          },
+          "timed_competing_load": {
+            "fit": {
+              "cpu_share": 0.9998424707248111,
+              "background_busy": 0.011559046706300993,
+              "iowait": 0.0012339150361360832
+            },
+            "predict": {
+              "cpu_share": 0.999806265462233,
+              "background_busy": 0.010511001369945969,
+              "iowait": 0.0022240756185710315
+            }
+          }
+        },
+        {
+          "model": "ulr",
+          "fold": 4,
+          "train_products": 5357,
+          "test_products": 1336,
+          "fit_seconds": 19.21376165933907,
+          "fit_cpu_seconds": 19.210492102,
+          "fit_peak_rss_mib": 228.83984375,
+          "peak_rss_mib": 228.83984375,
+          "predictions_per_second": 578464.5464848068,
+          "timing_samples": [
+            {
+              "seconds": 2.000081088859588,
+              "cpu_seconds": 1.9996612790000015,
+              "batches": 866,
+              "predictions_per_second": 578464.5464848068
+            },
+            {
+              "seconds": 2.0000028680078685,
+              "cpu_seconds": 1.9995067399999975,
+              "batches": 872,
+              "predictions_per_second": 582495.1646996421
+            },
+            {
+              "seconds": 2.000210562720895,
+              "cpu_seconds": 1.9997474350000033,
+              "batches": 846,
+              "predictions_per_second": 565068.5088186456
+            }
+          ],
+          "scores": {
+            "n": 1336,
+            "loss_q2": 0.15540793413173654,
+            "root_accuracy": 0.9154191616766467,
+            "exact_accuracy": 0.6534431137724551,
+            "first_disagreement_counts": {
+              "0": 113,
+              "1": 90,
+              "2": 149,
+              "3": 87,
+              "4": 24
+            },
+            "exact_correct": 873,
+            "prediction_sha256": "6ad82252aae0ae59386c04749e662ebda132dc0cdd4f90a5e00ca7f55f864cc5"
+          },
+          "reference_loss_q2": 0.15540793413173654,
+          "reference_prediction_match": true,
+          "numerical_libraries": [
+            {
+              "user_api": "blas",
+              "internal_api": "openblas",
+              "num_threads": 1,
+              "prefix": "libscipy_openblas",
+              "version": "0.3.28",
+              "threading_layer": "pthreads",
+              "architecture": "Haswell"
+            },
+            {
+              "user_api": "blas",
+              "internal_api": "openblas",
+              "num_threads": 1,
+              "prefix": "libscipy_openblas",
+              "version": "0.3.28",
+              "threading_layer": "pthreads",
+              "architecture": "Haswell"
+            },
+            {
+              "user_api": "openmp",
+              "internal_api": "openmp",
+              "num_threads": 1,
+              "prefix": "libgomp",
+              "version": null
+            }
+          ],
+          "fit_host": {
+            "busy": 0.09446013469476429,
+            "iowait": 0.000651748859439496,
+            "cpus": 12
+          },
+          "predict_host": {
+            "busy": 0.09652294853963839,
+            "iowait": 0.002086230876216968,
+            "cpus": 12
+          },
+          "warnings": [
+            {
+              "category": "ConvergenceWarning",
+              "message": "The max_iter was reached which means the coef_ did not converge"
+            }
+          ],
+          "iterations": [
+            200
+          ],
+          "manifest_sha256": "4c618846ec4c7ad4ba39da2ff9e6938ce41a2718aa709cb5f3bc82ac6c2b1bc4",
+          "idle_before_fit": {
+            "host": {
+              "busy": 0.02899522333026062,
+              "iowait": 0.0018436269169529876,
+              "cpus": 12
+            },
+            "core": [
+              {
+                "busy": 0.040160642570281124,
+                "iowait": 0.0,
+                "cpus": 1
+              },
+              {
+                "busy": 0.01609657947686117,
+                "iowait": 0.0,
+                "cpus": 1
+              }
+            ],
+            "sample_seconds": 10,
+            "consecutive_windows": 2
+          },
+          "timed_competing_load": {
+            "fit": {
+              "cpu_share": 0.9998298325233216,
+              "background_busy": 0.011140981984487486,
+              "iowait": 0.000651748859439496
+            },
+            "predict": {
+              "cpu_share": 0.9997701670169944,
+              "background_busy": 0.013208767954888859,
+              "iowait": 0.002086230876216968
+            }
+          }
+        }
+      ],
+      "mean_fit_seconds": 19.28768576737493,
+      "median_predictions_per_second": 578464.5464848068,
+      "max_peak_rss_mib": 228.984375,
+      "max_fit_peak_rss_mib": 228.984375
+    },
+    {
+      "model": "repeated-243",
+      "folds": [
+        {
+          "model": "repeated-243",
+          "fold": 0,
+          "train_products": 5393,
+          "test_products": 1300,
+          "fit_seconds": 494.04881171602756,
+          "fit_cpu_seconds": 493.960614859,
+          "fit_peak_rss_mib": 212.359375,
+          "peak_rss_mib": 215.125,
+          "predictions_per_second": 4903.839510009473,
+          "timing_samples": [
+            {
+              "seconds": 2.1319444309920073,
+              "cpu_seconds": 2.1315926800000398,
+              "batches": 8,
+              "predictions_per_second": 4878.17592654646
+            },
+            {
+              "seconds": 2.120787187013775,
+              "cpu_seconds": 2.1203834320000396,
+              "batches": 8,
+              "predictions_per_second": 4903.839510009473
+            },
+            {
+              "seconds": 2.119192868936807,
+              "cpu_seconds": 2.118898870999999,
+              "batches": 8,
+              "predictions_per_second": 4907.528782511264
+            }
+          ],
+          "scores": {
+            "n": 1300,
+            "loss_q2": 0.219375,
+            "root_accuracy": 0.8607692307692307,
+            "exact_accuracy": 0.573076923076923,
+            "first_disagreement_counts": {
+              "0": 181,
+              "1": 103,
+              "2": 158,
+              "3": 98,
+              "4": 15
+            },
+            "exact_correct": 745,
+            "prediction_sha256": "099ab7e74b8937a9f77cae44efaba615fb729477cdf42e0c55724adee3848cff"
+          },
+          "reference_loss_q2": 0.219375,
+          "reference_prediction_match": true,
+          "numerical_libraries": [
+            {
+              "user_api": "blas",
+              "internal_api": "openblas",
+              "num_threads": 1,
+              "prefix": "libscipy_openblas",
+              "version": "0.3.28",
+              "threading_layer": "pthreads",
+              "architecture": "Haswell"
+            },
+            {
+              "user_api": "blas",
+              "internal_api": "openblas",
+              "num_threads": 1,
+              "prefix": "libscipy_openblas",
+              "version": "0.3.28",
+              "threading_layer": "pthreads",
+              "architecture": "Haswell"
+            },
+            {
+              "user_api": "openmp",
+              "internal_api": "openmp",
+              "num_threads": 1,
+              "prefix": "libgomp",
+              "version": null
+            }
+          ],
+          "fit_host": {
+            "busy": 0.11459713845238417,
+            "iowait": 0.004564141400481433,
+            "cpus": 12
+          },
+          "predict_host": {
+            "busy": 0.10440251572327044,
+            "iowait": 0.009056603773584906,
+            "cpus": 12
+          },
+          "warnings": [],
+          "members": 243,
+          "feature_fraction": 0.75,
+          "manifest_sha256": "4c618846ec4c7ad4ba39da2ff9e6938ce41a2718aa709cb5f3bc82ac6c2b1bc4",
+          "idle_before_fit": {
+            "host": {
+              "busy": 0.020170739872782055,
+              "iowait": 0.003096752594576498,
+              "cpus": 12
+            },
+            "core": [
+              {
+                "busy": 0.011033099297893681,
+                "iowait": 0.0,
+                "cpus": 1
+              },
+              {
+                "busy": 0.024193548387096774,
+                "iowait": 0.0030241935483870967,
+                "cpus": 1
+              }
+            ],
+            "sample_seconds": 10,
+            "consecutive_windows": 2
+          },
+          "timed_competing_load": {
+            "fit": {
+              "cpu_share": 0.9998214814914315,
+              "background_busy": 0.03127868166143155,
+              "iowait": 0.004564141400481433
+            },
+            "predict": {
+              "cpu_share": 0.9998352924701694,
+              "background_busy": 0.02108290801742299,
+              "iowait": 0.009056603773584906
+            }
+          }
+        },
+        {
+          "model": "repeated-243",
+          "fold": 1,
+          "train_products": 5356,
+          "test_products": 1337,
+          "fit_seconds": 491.2610210268758,
+          "fit_cpu_seconds": 491.182154196,
+          "fit_peak_rss_mib": 212.375,
+          "peak_rss_mib": 215.015625,
+          "predictions_per_second": 4828.193722075236,
+          "timing_samples": [
+            {
+              "seconds": 2.225046457722783,
+              "cpu_seconds": 2.2246789499999977,
+              "batches": 8,
+              "predictions_per_second": 4807.090639782321
+            },
+            {
+              "seconds": 2.2153212185949087,
+              "cpu_seconds": 2.214883775999965,
+              "batches": 8,
+              "predictions_per_second": 4828.193722075236
+            },
+            {
+              "seconds": 2.1659209630452096,
+              "cpu_seconds": 2.1655556189999743,
+              "batches": 8,
+              "predictions_per_second": 4938.315008947416
+            }
+          ],
+          "scores": {
+            "n": 1337,
+            "loss_q2": 0.21031226626776364,
+            "root_accuracy": 0.8735976065818998,
+            "exact_accuracy": 0.5676888556469708,
+            "first_disagreement_counts": {
+              "0": 169,
+              "1": 110,
+              "2": 172,
+              "3": 100,
+              "4": 27
+            },
+            "exact_correct": 759,
+            "prediction_sha256": "08b6c9790cf7db3615086964eeb292070b3324fae6b92c2a9ab7045ee5538752"
+          },
+          "reference_loss_q2": 0.21031226626776364,
+          "reference_prediction_match": true,
+          "numerical_libraries": [
+            {
+              "user_api": "blas",
+              "internal_api": "openblas",
+              "num_threads": 1,
+              "prefix": "libscipy_openblas",
+              "version": "0.3.28",
+              "threading_layer": "pthreads",
+              "architecture": "Haswell"
+            },
+            {
+              "user_api": "blas",
+              "internal_api": "openblas",
+              "num_threads": 1,
+              "prefix": "libscipy_openblas",
+              "version": "0.3.28",
+              "threading_layer": "pthreads",
+              "architecture": "Haswell"
+            },
+            {
+              "user_api": "openmp",
+              "internal_api": "openmp",
+              "num_threads": 1,
+              "prefix": "libgomp",
+              "version": null
+            }
+          ],
+          "fit_host": {
+            "busy": 0.0994255120251551,
+            "iowait": 0.002925129599728053,
+            "cpus": 12
+          },
+          "predict_host": {
+            "busy": 0.11524434719183078,
+            "iowait": 0.0007293946024799417,
+            "cpus": 12
+          },
+          "warnings": [],
+          "members": 243,
+          "feature_fraction": 0.75,
+          "manifest_sha256": "4c618846ec4c7ad4ba39da2ff9e6938ce41a2718aa709cb5f3bc82ac6c2b1bc4",
+          "idle_before_fit": {
+            "host": {
+              "busy": 0.02068157079460772,
+              "iowait": 0.000669848446788914,
+              "cpus": 12
+            },
+            "core": [
+              {
+                "busy": 0.016177957532861477,
+                "iowait": 0.0010111223458038423,
+                "cpus": 1
+              },
+              {
+                "busy": 0.01104417670682731,
+                "iowait": 0.001004016064257028,
+                "cpus": 1
+              }
+            ],
+            "sample_seconds": 10,
+            "consecutive_windows": 2
+          },
+          "timed_competing_load": {
+            "fit": {
+              "cpu_share": 0.9998394604344734,
+              "background_busy": 0.016105556988948985,
+              "iowait": 0.002925129599728053
+            },
+            "predict": {
+              "cpu_share": 0.999822851463681,
+              "background_busy": 0.03192577623652404,
+              "iowait": 0.0007293946024799417
+            }
+          }
+        },
+        {
+          "model": "repeated-243",
+          "fold": 2,
+          "train_products": 5345,
+          "test_products": 1348,
+          "fit_seconds": 488.17525170976296,
+          "fit_cpu_seconds": 488.094552921,
+          "fit_peak_rss_mib": 212.40234375,
+          "peak_rss_mib": 215.23828125,
+          "predictions_per_second": 5029.746080329897,
+          "timing_samples": [
+            {
+              "seconds": 2.144044615328312,
+              "cpu_seconds": 2.1437095969999973,
+              "batches": 8,
+              "predictions_per_second": 5029.746080329897
+            },
+            {
+              "seconds": 2.1433969121426344,
+              "cpu_seconds": 2.1430011059999856,
+              "batches": 8,
+              "predictions_per_second": 5031.265996002503
+            },
+            {
+              "seconds": 2.240419798064977,
+              "cpu_seconds": 2.240121587000033,
+              "batches": 8,
+              "predictions_per_second": 4813.383638777879
+            }
+          ],
+          "scores": {
+            "n": 1348,
+            "loss_q2": 0.2001576409495549,
+            "root_accuracy": 0.8746290801186943,
+            "exact_accuracy": 0.6031157270029673,
+            "first_disagreement_counts": {
+              "0": 169,
+              "1": 103,
+              "2": 142,
+              "3": 100,
+              "4": 21
+            },
+            "exact_correct": 813,
+            "prediction_sha256": "941894a59dfd94a93c3bc5cbdec6279425d4a94484ee116ceaecec31fc904f2e"
+          },
+          "reference_loss_q2": 0.2001576409495549,
+          "reference_prediction_match": true,
+          "numerical_libraries": [
+            {
+              "user_api": "blas",
+              "internal_api": "openblas",
+              "num_threads": 1,
+              "prefix": "libscipy_openblas",
+              "version": "0.3.28",
+              "threading_layer": "pthreads",
+              "architecture": "Haswell"
+            },
+            {
+              "user_api": "blas",
+              "internal_api": "openblas",
+              "num_threads": 1,
+              "prefix": "libscipy_openblas",
+              "version": "0.3.28",
+              "threading_layer": "pthreads",
+              "architecture": "Haswell"
+            },
+            {
+              "user_api": "openmp",
+              "internal_api": "openmp",
+              "num_threads": 1,
+              "prefix": "libgomp",
+              "version": null
+            }
+          ],
+          "fit_host": {
+            "busy": 0.09858533482005431,
+            "iowait": 0.0031450305439072943,
+            "cpus": 12
+          },
+          "predict_host": {
+            "busy": 0.09760589318600368,
+            "iowait": 0.00024554941682013506,
+            "cpus": 12
+          },
+          "warnings": [],
+          "members": 243,
+          "feature_fraction": 0.75,
+          "manifest_sha256": "4c618846ec4c7ad4ba39da2ff9e6938ce41a2718aa709cb5f3bc82ac6c2b1bc4",
+          "idle_before_fit": {
+            "host": {
+              "busy": 0.02422058330539725,
+              "iowait": 0.0011733154542406972,
+              "cpus": 12
+            },
+            "core": [
+              {
+                "busy": 0.021105527638190954,
+                "iowait": 0.0,
+                "cpus": 1
+              },
+              {
+                "busy": 0.022110552763819097,
+                "iowait": 0.003015075376884422,
+                "cpus": 1
+              }
+            ],
+            "sample_seconds": 10,
+            "consecutive_windows": 2
+          },
+          "timed_competing_load": {
+            "fit": {
+              "cpu_share": 0.9998346929950253,
+              "background_busy": 0.015265777070468875,
+              "iowait": 0.0031450305439072943
+            },
+            "predict": {
+              "cpu_share": 0.9998423625312195,
+              "background_busy": 0.014285696308402054,
+              "iowait": 0.00024554941682013506
+            }
+          }
+        },
+        {
+          "model": "repeated-243",
+          "fold": 3,
+          "train_products": 5321,
+          "test_products": 1372,
+          "fit_seconds": 481.8491555112414,
+          "fit_cpu_seconds": 481.77426356499996,
+          "fit_peak_rss_mib": 212.72265625,
+          "peak_rss_mib": 215.515625,
+          "predictions_per_second": 5064.541416452281,
+          "timing_samples": [
+            {
+              "seconds": 2.1672248477116227,
+              "cpu_seconds": 2.1667975350000006,
+              "batches": 8,
+              "predictions_per_second": 5064.541416452281
+            },
+            {
+              "seconds": 2.1651536799035966,
+              "cpu_seconds": 2.164820308000003,
+              "batches": 8,
+              "predictions_per_second": 5069.386114194308
+            },
+            {
+              "seconds": 2.2139286249876022,
+              "cpu_seconds": 2.213619729999948,
+              "batches": 8,
+              "predictions_per_second": 4957.702735363235
+            }
+          ],
+          "scores": {
+            "n": 1372,
+            "loss_q2": 0.21223578717201166,
+            "root_accuracy": 0.8724489795918368,
+            "exact_accuracy": 0.5692419825072886,
+            "first_disagreement_counts": {
+              "0": 175,
+              "1": 116,
+              "2": 179,
+              "3": 94,
+              "4": 27
+            },
+            "exact_correct": 781,
+            "prediction_sha256": "bb14e89f762d8b59b03be9dc5f7c3de561d19a36b453ffd8c9af7aa6eb72e38f"
+          },
+          "reference_loss_q2": 0.21223578717201166,
+          "reference_prediction_match": true,
+          "numerical_libraries": [
+            {
+              "user_api": "blas",
+              "internal_api": "openblas",
+              "num_threads": 1,
+              "prefix": "libscipy_openblas",
+              "version": "0.3.28",
+              "threading_layer": "pthreads",
+              "architecture": "Haswell"
+            },
+            {
+              "user_api": "blas",
+              "internal_api": "openblas",
+              "num_threads": 1,
+              "prefix": "libscipy_openblas",
+              "version": "0.3.28",
+              "threading_layer": "pthreads",
+              "architecture": "Haswell"
+            },
+            {
+              "user_api": "openmp",
+              "internal_api": "openmp",
+              "num_threads": 1,
+              "prefix": "libgomp",
+              "version": null
+            }
+          ],
+          "fit_host": {
+            "busy": 0.09834758999717581,
+            "iowait": 0.002198708496994752,
+            "cpus": 12
+          },
+          "predict_host": {
+            "busy": 0.09563409563409564,
+            "iowait": 0.0006114711997064938,
+            "cpus": 12
+          },
+          "warnings": [],
+          "members": 243,
+          "feature_fraction": 0.75,
+          "manifest_sha256": "4c618846ec4c7ad4ba39da2ff9e6938ce41a2718aa709cb5f3bc82ac6c2b1bc4",
+          "idle_before_fit": {
+            "host": {
+              "busy": 0.021689975713926807,
+              "iowait": 0.0014236663596013735,
+              "cpus": 12
+            },
+            "core": [
+              {
+                "busy": 0.020100502512562814,
+                "iowait": 0.0,
+                "cpus": 1
+              },
+              {
+                "busy": 0.016016016016016016,
+                "iowait": 0.001001001001001001,
+                "cpus": 1
+              }
+            ],
+            "sample_seconds": 10,
+            "consecutive_windows": 2
+          },
+          "timed_competing_load": {
+            "fit": {
+              "cpu_share": 0.9998445738767312,
+              "background_busy": 0.015027208840781542,
+              "iowait": 0.002198708496994752
+            },
+            "predict": {
+              "cpu_share": 0.9998366132877764,
+              "background_busy": 0.012314377860114273,
+              "iowait": 0.0006114711997064938
+            }
+          }
+        },
+        {
+          "model": "repeated-243",
+          "fold": 4,
+          "train_products": 5357,
+          "test_products": 1336,
+          "fit_seconds": 464.8601500429213,
+          "fit_cpu_seconds": 464.78790617,
+          "fit_peak_rss_mib": 213.4765625,
+          "peak_rss_mib": 216.2265625,
+          "predictions_per_second": 5068.509916809574,
+          "timing_samples": [
+            {
+              "seconds": 2.1074129710905254,
+              "cpu_seconds": 2.1070498820000125,
+              "batches": 8,
+              "predictions_per_second": 5071.62105701061
+            },
+            {
+              "seconds": 2.1087065380997956,
+              "cpu_seconds": 2.1083649379999656,
+              "batches": 8,
+              "predictions_per_second": 5068.509916809574
+            },
+            {
+              "seconds": 2.1159127866849303,
+              "cpu_seconds": 2.1155721760000006,
+              "batches": 8,
+              "predictions_per_second": 5051.247890394026
+            }
+          ],
+          "scores": {
+            "n": 1336,
+            "loss_q2": 0.22885479041916168,
+            "root_accuracy": 0.8510479041916168,
+            "exact_accuracy": 0.5561377245508982,
+            "first_disagreement_counts": {
+              "0": 199,
+              "1": 105,
+              "2": 157,
+              "3": 108,
+              "4": 24
+            },
+            "exact_correct": 743,
+            "prediction_sha256": "2f5183cfa203d91a54050be19597e54c28df62f2bde66f97555fb6028c000be7"
+          },
+          "reference_loss_q2": 0.22885479041916168,
+          "reference_prediction_match": true,
+          "numerical_libraries": [
+            {
+              "user_api": "blas",
+              "internal_api": "openblas",
+              "num_threads": 1,
+              "prefix": "libscipy_openblas",
+              "version": "0.3.28",
+              "threading_layer": "pthreads",
+              "architecture": "Haswell"
+            },
+            {
+              "user_api": "blas",
+              "internal_api": "openblas",
+              "num_threads": 1,
+              "prefix": "libscipy_openblas",
+              "version": "0.3.28",
+              "threading_layer": "pthreads",
+              "architecture": "Haswell"
+            },
+            {
+              "user_api": "openmp",
+              "internal_api": "openmp",
+              "num_threads": 1,
+              "prefix": "libgomp",
+              "version": null
+            }
+          ],
+          "fit_host": {
+            "busy": 0.09733933173495685,
+            "iowait": 0.001910868062103212,
+            "cpus": 12
+          },
+          "predict_host": {
+            "busy": 0.09526821862348178,
+            "iowait": 0.00012651821862348178,
+            "cpus": 12
+          },
+          "warnings": [],
+          "members": 243,
+          "feature_fraction": 0.75,
+          "manifest_sha256": "4c618846ec4c7ad4ba39da2ff9e6938ce41a2718aa709cb5f3bc82ac6c2b1bc4",
+          "idle_before_fit": {
+            "host": {
+              "busy": 0.03200670297444491,
+              "iowait": 0.0011730205278592375,
+              "cpus": 12
+            },
+            "core": [
+              {
+                "busy": 0.023092369477911646,
+                "iowait": 0.0,
+                "cpus": 1
+              },
+              {
+                "busy": 0.03219315895372234,
+                "iowait": 0.0,
+                "cpus": 1
+              }
+            ],
+            "sample_seconds": 10,
+            "consecutive_windows": 2
+          },
+          "timed_competing_load": {
+            "fit": {
+              "cpu_share": 0.9998445900924942,
+              "background_busy": 0.014018949227249,
+              "iowait": 0.001910868062103212
+            },
+            "predict": {
+              "cpu_share": 0.99983491873913,
+              "background_busy": 0.011948642061887615,
+              "iowait": 0.00012651821862348178
+            }
+          }
+        }
+      ],
+      "mean_fit_seconds": 484.0388780013658,
+      "median_predictions_per_second": 5029.746080329897,
+      "max_peak_rss_mib": 216.2265625,
+      "max_fit_peak_rss_mib": 213.4765625
+    },
+    {
+      "model": "unn",
+      "folds": [
+        {
+          "model": "unn",
+          "fold": 0,
+          "train_products": 5393,
+          "test_products": 1300,
+          "fit_seconds": 102.71429563499987,
+          "fit_cpu_seconds": 102.67972736899999,
+          "fit_peak_rss_mib": 429.2734375,
+          "peak_rss_mib": 429.2734375,
+          "predictions_per_second": 56360.10181883919,
+          "timing_samples": [
+            {
+              "seconds": 2.0067387451417744,
+              "cpu_seconds": 2.0059580409999995,
+              "batches": 87,
+              "predictions_per_second": 56360.10181883919
+            },
+            {
+              "seconds": 2.0039930469356477,
+              "cpu_seconds": 2.003612375000003,
+              "batches": 87,
+              "predictions_per_second": 56437.32156303827
+            },
+            {
+              "seconds": 2.0017974651418626,
+              "cpu_seconds": 2.0013979929999977,
+              "batches": 86,
+              "predictions_per_second": 55849.80596030328
+            }
+          ],
+          "scores": {
+            "n": 1300,
+            "loss_q2": 0.14442307692307693,
+            "root_accuracy": 0.9261538461538461,
+            "exact_accuracy": 0.6630769230769231,
+            "first_disagreement_counts": {
+              "0": 96,
+              "1": 82,
+              "2": 155,
+              "3": 87,
+              "4": 18
+            },
+            "exact_correct": 862,
+            "prediction_sha256": "028956aed1aee8cb89df4dd62a65f4479472ee3e62986bc55643d3915c31e31e"
+          },
+          "reference_loss_q2": 0.14403846153846153,
+          "reference_prediction_match": false,
+          "numerical_libraries": [
+            {
+              "user_api": "blas",
+              "internal_api": "openblas",
+              "num_threads": 1,
+              "prefix": "libscipy_openblas",
+              "version": "0.3.28",
+              "threading_layer": "pthreads",
+              "architecture": "Haswell"
+            },
+            {
+              "user_api": "blas",
+              "internal_api": "openblas",
+              "num_threads": 1,
+              "prefix": "libscipy_openblas",
+              "version": "0.3.28",
+              "threading_layer": "pthreads",
+              "architecture": "Haswell"
+            },
+            {
+              "user_api": "openmp",
+              "internal_api": "openmp",
+              "num_threads": 1,
+              "prefix": "libgomp",
+              "version": null
+            }
+          ],
+          "fit_host": {
+            "busy": 0.10393171573174502,
+            "iowait": 0.003010626698563036,
+            "cpus": 12
+          },
+          "predict_host": {
+            "busy": 0.09209070796460177,
+            "iowait": 0.0005530973451327434,
+            "cpus": 12
+          },
+          "warnings": [],
+          "iterations": 62,
+          "manifest_sha256": "4c618846ec4c7ad4ba39da2ff9e6938ce41a2718aa709cb5f3bc82ac6c2b1bc4",
+          "idle_before_fit": {
+            "host": {
+              "busy": 0.022548197820620286,
+              "iowait": 0.0010896898575020956,
+              "cpus": 12
+            },
+            "core": [
+              {
+                "busy": 0.03420523138832998,
+                "iowait": 0.0,
+                "cpus": 1
+              },
+              {
+                "busy": 0.020060180541624874,
+                "iowait": 0.007021063189568706,
+                "cpus": 1
+              }
+            ],
+            "sample_seconds": 10,
+            "consecutive_windows": 2
+          },
+          "timed_competing_load": {
+            "fit": {
+              "cpu_share": 0.9996634522411298,
+              "background_busy": 0.0206264280449842,
+              "iowait": 0.003010626698563036
+            },
+            "predict": {
+              "cpu_share": 0.9997404007277951,
+              "background_busy": 0.008779007903952168,
+              "iowait": 0.0005530973451327434
+            }
+          }
+        },
+        {
+          "model": "unn",
+          "fold": 1,
+          "train_products": 5356,
+          "test_products": 1337,
+          "fit_seconds": 219.25221651699394,
+          "fit_cpu_seconds": 219.206156104,
+          "fit_peak_rss_mib": 424.5859375,
+          "peak_rss_mib": 424.5859375,
+          "predictions_per_second": 48540.20909739587,
+          "timing_samples": [
+            {
+              "seconds": 2.0152036459185183,
+              "cpu_seconds": 2.014832499999983,
+              "batches": 73,
+              "predictions_per_second": 48432.32603199962
+            },
+            {
+              "seconds": 2.0080285407602787,
+              "cpu_seconds": 2.007637447999997,
+              "batches": 73,
+              "predictions_per_second": 48605.38484330823
+            },
+            {
+              "seconds": 2.0107247540727258,
+              "cpu_seconds": 2.010126566999986,
+              "batches": 73,
+              "predictions_per_second": 48540.20909739587
+            }
+          ],
+          "scores": {
+            "n": 1337,
+            "loss_q2": 0.14729805534779356,
+            "root_accuracy": 0.9222139117427075,
+            "exact_accuracy": 0.6619296933433059,
+            "first_disagreement_counts": {
+              "0": 104,
+              "1": 86,
+              "2": 151,
+              "3": 84,
+              "4": 27
+            },
+            "exact_correct": 885,
+            "prediction_sha256": "8c5ada980b1198b57866d8e6871ad7259622268f8bd38d3c26beef63f353d159"
+          },
+          "reference_loss_q2": 0.14729805534779356,
+          "reference_prediction_match": true,
+          "numerical_libraries": [
+            {
+              "user_api": "blas",
+              "internal_api": "openblas",
+              "num_threads": 1,
+              "prefix": "libscipy_openblas",
+              "version": "0.3.28",
+              "threading_layer": "pthreads",
+              "architecture": "Haswell"
+            },
+            {
+              "user_api": "blas",
+              "internal_api": "openblas",
+              "num_threads": 1,
+              "prefix": "libscipy_openblas",
+              "version": "0.3.28",
+              "threading_layer": "pthreads",
+              "architecture": "Haswell"
+            },
+            {
+              "user_api": "openmp",
+              "internal_api": "openmp",
+              "num_threads": 1,
+              "prefix": "libgomp",
+              "version": null
+            }
+          ],
+          "fit_host": {
+            "busy": 0.10099836146781999,
+            "iowait": 0.0017985748580573867,
+            "cpus": 12
+          },
+          "predict_host": {
+            "busy": 0.09521840981121675,
+            "iowait": 0.00041339396444811904,
+            "cpus": 12
+          },
+          "warnings": [],
+          "iterations": 135,
+          "manifest_sha256": "4c618846ec4c7ad4ba39da2ff9e6938ce41a2718aa709cb5f3bc82ac6c2b1bc4",
+          "idle_before_fit": {
+            "host": {
+              "busy": 0.025222054633819338,
+              "iowait": 0.0036869448634154517,
+              "cpus": 12
+            },
+            "core": [
+              {
+                "busy": 0.016129032258064516,
+                "iowait": 0.0,
+                "cpus": 1
+              },
+              {
+                "busy": 0.0160481444332999,
+                "iowait": 0.0010030090270812437,
+                "cpus": 1
+              }
+            ],
+            "sample_seconds": 10,
+            "consecutive_windows": 2
+          },
+          "timed_competing_load": {
+            "fit": {
+              "cpu_share": 0.9997899204225816,
+              "background_busy": 0.017682534765938188,
+              "iowait": 0.0017985748580573867
+            },
+            "predict": {
+              "cpu_share": 0.9997745383725944,
+              "background_busy": 0.011903864946833875,
+              "iowait": 0.00041339396444811904
+            }
+          }
+        },
+        {
+          "model": "unn",
+          "fold": 2,
+          "train_products": 5345,
+          "test_products": 1348,
+          "fit_seconds": 164.14290103735402,
+          "fit_cpu_seconds": 164.10674675500002,
+          "fit_peak_rss_mib": 426.91015625,
+          "peak_rss_mib": 426.91015625,
+          "predictions_per_second": 48234.7165957151,
+          "timing_samples": [
+            {
+              "seconds": 2.012160676997155,
+              "cpu_seconds": 2.011768012999994,
+              "batches": 72,
+              "predictions_per_second": 48234.7165957151
+            },
+            {
+              "seconds": 2.025129553861916,
+              "cpu_seconds": 2.0245713050000234,
+              "batches": 73,
+              "predictions_per_second": 48591.45915496807
+            },
+            {
+              "seconds": 2.022205774206668,
+              "cpu_seconds": 2.021819801000021,
+              "batches": 72,
+              "predictions_per_second": 47995.11564943288
+            }
+          ],
+          "scores": {
+            "n": 1348,
+            "loss_q2": 0.13260385756676557,
+            "root_accuracy": 0.93026706231454,
+            "exact_accuracy": 0.6891691394658753,
+            "first_disagreement_counts": {
+              "0": 94,
+              "1": 75,
+              "2": 138,
+              "3": 92,
+              "4": 20
+            },
+            "exact_correct": 929,
+            "prediction_sha256": "855a7174ae5c7881ed9fce14892e4aaebc85274f605107ab5f4ef33accb606e8"
+          },
+          "reference_loss_q2": 0.13260385756676557,
+          "reference_prediction_match": true,
+          "numerical_libraries": [
+            {
+              "user_api": "blas",
+              "internal_api": "openblas",
+              "num_threads": 1,
+              "prefix": "libscipy_openblas",
+              "version": "0.3.28",
+              "threading_layer": "pthreads",
+              "architecture": "Haswell"
+            },
+            {
+              "user_api": "blas",
+              "internal_api": "openblas",
+              "num_threads": 1,
+              "prefix": "libscipy_openblas",
+              "version": "0.3.28",
+              "threading_layer": "pthreads",
+              "architecture": "Haswell"
+            },
+            {
+              "user_api": "openmp",
+              "internal_api": "openmp",
+              "num_threads": 1,
+              "prefix": "libgomp",
+              "version": null
+            }
+          ],
+          "fit_host": {
+            "busy": 0.10105251371626918,
+            "iowait": 0.0015268574220539287,
+            "cpus": 12
+          },
+          "predict_host": {
+            "busy": 0.09515974221856575,
+            "iowait": 0.0016454134101192926,
+            "cpus": 12
+          },
+          "warnings": [],
+          "iterations": 103,
+          "manifest_sha256": "4c618846ec4c7ad4ba39da2ff9e6938ce41a2718aa709cb5f3bc82ac6c2b1bc4",
+          "idle_before_fit": {
+            "host": {
+              "busy": 0.01934511347458337,
+              "iowait": 0.0016749015995310276,
+              "cpus": 12
+            },
+            "core": [
+              {
+                "busy": 0.01606425702811245,
+                "iowait": 0.0,
+                "cpus": 1
+              },
+              {
+                "busy": 0.011066398390342052,
+                "iowait": 0.001006036217303823,
+                "cpus": 1
+              }
+            ],
+            "sample_seconds": 10,
+            "consecutive_windows": 2
+          },
+          "timed_competing_load": {
+            "fit": {
+              "cpu_share": 0.9997797389827674,
+              "background_busy": 0.017737535467705234,
+              "iowait": 0.0015268574220539287
+            },
+            "predict": {
+              "cpu_share": 0.9997793733893737,
+              "background_busy": 0.01184479443611794,
+              "iowait": 0.0016454134101192926
+            }
+          }
+        },
+        {
+          "model": "unn",
+          "fold": 3,
+          "train_products": 5321,
+          "test_products": 1372,
+          "fit_seconds": 139.25967952329665,
+          "fit_cpu_seconds": 139.230488844,
+          "fit_peak_rss_mib": 427.390625,
+          "peak_rss_mib": 427.390625,
+          "predictions_per_second": 53846.794603701994,
+          "timing_samples": [
+            {
+              "seconds": 2.012115822173655,
+              "cpu_seconds": 2.011536339999992,
+              "batches": 78,
+              "predictions_per_second": 53185.80512149266
+            },
+            {
+              "seconds": 2.012896046973765,
+              "cpu_seconds": 2.0122225719999847,
+              "batches": 79,
+              "predictions_per_second": 53846.794603701994
+            },
+            {
+              "seconds": 2.004027657210827,
+              "cpu_seconds": 2.003688363000009,
+              "batches": 79,
+              "predictions_per_second": 54085.081914913615
+            }
+          ],
+          "scores": {
+            "n": 1372,
+            "loss_q2": 0.14285714285714285,
+            "root_accuracy": 0.923469387755102,
+            "exact_accuracy": 0.6647230320699709,
+            "first_disagreement_counts": {
+              "0": 105,
+              "1": 78,
+              "2": 153,
+              "3": 96,
+              "4": 28
+            },
+            "exact_correct": 912,
+            "prediction_sha256": "aa2a488310d588f538d2d25a788accb91804e87175fd1935968e0142da264233"
+          },
+          "reference_loss_q2": 0.14285714285714285,
+          "reference_prediction_match": true,
+          "numerical_libraries": [
+            {
+              "user_api": "blas",
+              "internal_api": "openblas",
+              "num_threads": 1,
+              "prefix": "libscipy_openblas",
+              "version": "0.3.28",
+              "threading_layer": "pthreads",
+              "architecture": "Haswell"
+            },
+            {
+              "user_api": "blas",
+              "internal_api": "openblas",
+              "num_threads": 1,
+              "prefix": "libscipy_openblas",
+              "version": "0.3.28",
+              "threading_layer": "pthreads",
+              "architecture": "Haswell"
+            },
+            {
+              "user_api": "openmp",
+              "internal_api": "openmp",
+              "num_threads": 1,
+              "prefix": "libgomp",
+              "version": null
+            }
+          ],
+          "fit_host": {
+            "busy": 0.09929154594153604,
+            "iowait": 0.0012897343147311655,
+            "cpus": 12
+          },
+          "predict_host": {
+            "busy": 0.09529720038615364,
+            "iowait": 0.002068680182043856,
+            "cpus": 12
+          },
+          "warnings": [],
+          "iterations": 89,
+          "manifest_sha256": "4c618846ec4c7ad4ba39da2ff9e6938ce41a2718aa709cb5f3bc82ac6c2b1bc4",
+          "idle_before_fit": {
+            "host": {
+              "busy": 0.02823154896540169,
+              "iowait": 0.0012565971349585323,
+              "cpus": 12
+            },
+            "core": [
+              {
+                "busy": 0.018072289156626505,
+                "iowait": 0.0,
+                "cpus": 1
+              },
+              {
+                "busy": 0.029087261785356068,
+                "iowait": 0.0,
+                "cpus": 1
+              }
+            ],
+            "sample_seconds": 10,
+            "consecutive_windows": 2
+          },
+          "timed_competing_load": {
+            "fit": {
+              "cpu_share": 0.999790386712101,
+              "background_busy": 0.015975680382194296,
+              "iowait": 0.0012897343147311655
+            },
+            "predict": {
+              "cpu_share": 0.9997359029823407,
+              "background_busy": 0.011985875137625238,
+              "iowait": 0.002068680182043856
+            }
+          }
+        },
+        {
+          "model": "unn",
+          "fold": 4,
+          "train_products": 5357,
+          "test_products": 1336,
+          "fit_seconds": 179.23192028375342,
+          "fit_cpu_seconds": 179.191745482,
+          "fit_peak_rss_mib": 426.296875,
+          "peak_rss_mib": 426.296875,
+          "predictions_per_second": 49870.594840632155,
+          "timing_samples": [
+            {
+              "seconds": 2.002337778918445,
+              "cpu_seconds": 2.0019455540000024,
+              "batches": 75,
+              "predictions_per_second": 50041.50700993248
+            },
+            {
+              "seconds": 2.0092000169679523,
+              "cpu_seconds": 2.0087972039999897,
+              "batches": 75,
+              "predictions_per_second": 49870.594840632155
+            },
+            {
+              "seconds": 2.0100347227416933,
+              "cpu_seconds": 2.0092578960000083,
+              "batches": 75,
+              "predictions_per_second": 49849.88511209742
+            }
+          ],
+          "scores": {
+            "n": 1336,
+            "loss_q2": 0.1423559131736527,
+            "root_accuracy": 0.9236526946107785,
+            "exact_accuracy": 0.6639221556886228,
+            "first_disagreement_counts": {
+              "0": 102,
+              "1": 77,
+              "2": 144,
+              "3": 93,
+              "4": 33
+            },
+            "exact_correct": 887,
+            "prediction_sha256": "17d53d56ee7c0a3b02f7e1f0956b807b2b93b861bd0a175b8b30230db437b0fb"
+          },
+          "reference_loss_q2": 0.14198166167664672,
+          "reference_prediction_match": false,
+          "numerical_libraries": [
+            {
+              "user_api": "blas",
+              "internal_api": "openblas",
+              "num_threads": 1,
+              "prefix": "libscipy_openblas",
+              "version": "0.3.28",
+              "threading_layer": "pthreads",
+              "architecture": "Haswell"
+            },
+            {
+              "user_api": "blas",
+              "internal_api": "openblas",
+              "num_threads": 1,
+              "prefix": "libscipy_openblas",
+              "version": "0.3.28",
+              "threading_layer": "pthreads",
+              "architecture": "Haswell"
+            },
+            {
+              "user_api": "openmp",
+              "internal_api": "openmp",
+              "num_threads": 1,
+              "prefix": "libgomp",
+              "version": null
+            }
+          ],
+          "fit_host": {
+            "busy": 0.1036967973521048,
+            "iowait": 0.002386835112582164,
+            "cpus": 12
+          },
+          "predict_host": {
+            "busy": 0.09358178053830228,
+            "iowait": 0.0033126293995859213,
+            "cpus": 12
+          },
+          "warnings": [],
+          "iterations": 109,
+          "manifest_sha256": "4c618846ec4c7ad4ba39da2ff9e6938ce41a2718aa709cb5f3bc82ac6c2b1bc4",
+          "idle_before_fit": {
+            "host": {
+              "busy": 0.02261495937683223,
+              "iowait": 0.001005109305636988,
+              "cpus": 12
+            },
+            "core": [
+              {
+                "busy": 0.02208835341365462,
+                "iowait": 0.0,
+                "cpus": 1
+              },
+              {
+                "busy": 0.02108433734939759,
+                "iowait": 0.0,
+                "cpus": 1
+              }
+            ],
+            "sample_seconds": 10,
+            "consecutive_windows": 2
+          },
+          "timed_competing_load": {
+            "fit": {
+              "cpu_share": 0.9997758501851131,
+              "background_busy": 0.020382143170012038,
+              "iowait": 0.002386835112582164
+            },
+            "predict": {
+              "cpu_share": 0.9997389611063842,
+              "background_busy": 0.010270200446103606,
+              "iowait": 0.0033126293995859213
+            }
+          }
+        }
+      ],
+      "mean_fit_seconds": 160.92020259927958,
+      "median_predictions_per_second": 49870.594840632155,
+      "max_peak_rss_mib": 429.2734375,
+      "max_fit_peak_rss_mib": 429.2734375
+    }
+  ],
+  "protocol": "One process and one pinned logical CPU per model and fold. Fit wall time includes masking and default fitting. Timing starts from resident sparse features, excludes database I/O and scoring, and includes fresh predictions, defaults and consensus. Three repeated full-fold batch timings follow one warmup. Peak RSS is the process high-water mark through fit and prediction, including the interpreter and input data."
+}
