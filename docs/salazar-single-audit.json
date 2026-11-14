@@ -1,0 +1,10 @@
+{
+  "run_id": "b5bff126-fb4a-492d-969b-b960ccc2220f",
+  "status": "passed",
+  "snapshot_digest": "039175941ed2a2ec888bc6c7314c3c5f8afac1201ff604413dedb55641706222",
+  "independently_reconstructed_predictions": 26772,
+  "metric_sets": 16,
+  "all_warm_coefficients_identical": true,
+  "tablespace": "pg_default",
+  "method": "Python integer sums and Fraction metric numerators from stored coefficients and frozen Postgres rows"
+}

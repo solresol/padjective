@@ -1,0 +1,12 @@
+.......................ssssss........................................... [ 23%]
+........................................................................ [ 46%]
+........................................................................ [ 69%]
+........................................................................ [ 92%]
+......................                                                   [100%]
+=============================== warnings summary ===============================
+tests/test_benchmark_bundle.py: 12 warnings
+  /home/gregb/experiments/padjective-salazar-single-20261002/.venv/lib/python3.11/site-packages/sklearn/neural_network/_multilayer_perceptron.py:609: UserWarning: Got `batch_size` less than 1 or larger than sample size. It is going to be clipped
+    warnings.warn(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+304 passed, 6 skipped, 12 warnings in 30.25s
