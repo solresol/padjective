@@ -24,7 +24,7 @@ else
 fi
 
 uv run -m padjective.product_taxonomy_bench_publish \
-    "${TAGBATTLE_DSN_ARGS[@]}" \
+    ${TAGBATTLE_DSN_ARGS[@]+"${TAGBATTLE_DSN_ARGS[@]}"} \
     --schema "$TAGBATTLE_SCHEMA" \
     --product-table "$TAGBATTLE_PRODUCT_TABLE" \
     --paper-tex "$PAPER_TEX" \

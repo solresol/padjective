@@ -1,4 +1,4 @@
-"""Generate the autonomous product-taxonomy-bench notebook."""
+"""Generate the autonomous SHIMP benchmark notebook."""
 
 from __future__ import annotations
 
@@ -8,6 +8,7 @@ import json
 from pathlib import Path
 
 from . import benchmark_runtime
+from .dataset_metadata import DEFAULT_HF_DATASET_ID
 
 
 NOTEBOOK_METADATA = {
@@ -41,12 +42,14 @@ def _code_cell(source: str) -> dict:
     }
 
 
-def render_notebook() -> dict:
+def render_notebook(*, dataset_id: str = DEFAULT_HF_DATASET_ID) -> dict:
     runtime_source = inspect.getsource(benchmark_runtime).strip()
     cells = [
         _markdown_cell(
             """
-# product-taxonomy-bench: reproducible baselines + UMLLR ablations
+# SHIMP: reproducible baselines + UMLLR ablations
+
+SHIMP stands for **Shopify Hierarchical Inference for Merchant Products**.
 
 This notebook loads an anonymised snapshot directly from Hugging Face and reruns:
 
@@ -77,7 +80,7 @@ below, or explicitly choose an exploratory (non-paper) run.
         ),
         _code_cell(runtime_source),
         _code_cell(
-            """
+            f"""
 import os
 import platform
 import importlib.metadata
@@ -91,7 +94,7 @@ numerical_drift = not blas_libraries or any(
     or entry.get("architecture") != "Haswell" for entry in blas_libraries
 )
 
-paper_versions = {"numpy": "2.2.5", "pandas": "2.2.3", "scipy": "1.15.3", "scikit-learn": "1.6.1"}
+paper_versions = {{"numpy": "2.2.5", "pandas": "2.2.3", "scipy": "1.15.3", "scikit-learn": "1.6.1"}}
 environment_drift = numerical_drift or platform.python_version() != "3.11.11" or any(
     importlib.metadata.version(name) != expected for name, expected in paper_versions.items()
 )
@@ -100,8 +103,9 @@ if environment_drift and not os.getenv("PRODUCT_TAXONOMY_BENCH_ALLOW_ENVIRONMENT
 if environment_drift:
     print("Exploratory run: interpreter or scientific dependencies differ from the frozen paper environment.")
 
-DATASET_ID = os.getenv("PRODUCT_TAXONOMY_BENCH_DATASET_ID", "gregb/product-taxonomy-bench")
-REVISION = os.getenv("PRODUCT_TAXONOMY_BENCH_REVISION", "paper-submission-2026-09-06")
+DATASET_ID = os.getenv("PRODUCT_TAXONOMY_BENCH_DATASET_ID", {dataset_id!r})
+DEFAULT_REVISION = "paper-submission-2026-09-06" if DATASET_ID == {DEFAULT_HF_DATASET_ID!r} else "main"
+REVISION = os.getenv("PRODUCT_TAXONOMY_BENCH_REVISION", DEFAULT_REVISION)
 SNAPSHOT = os.getenv("PRODUCT_TAXONOMY_BENCH_SNAPSHOT", "paper")
 HF_TOKEN = os.getenv("HF_TOKEN")
 MAX_PRODUCTS = int(os.getenv("PRODUCT_TAXONOMY_BENCH_MAX_PRODUCTS", "0")) or None
@@ -460,15 +464,23 @@ See the release README and manifest for settings, provenance and checksums.
     }
 
 
-def write_notebook(path: str | Path) -> Path:
+def write_notebook(path: str | Path, *, dataset_id: str = DEFAULT_HF_DATASET_ID) -> Path:
     output_path = Path(path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(json.dumps(render_notebook(), indent=2) + "\n", encoding="utf-8")
+    output_path.write_text(
+        json.dumps(render_notebook(dataset_id=dataset_id), indent=2) + "\n",
+        encoding="utf-8",
+    )
     return output_path
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Generate product_taxonomy_bench.ipynb")
+    parser.add_argument(
+        "--dataset-id",
+        default=DEFAULT_HF_DATASET_ID,
+        help="Default Hugging Face dataset repo id embedded in the notebook.",
+    )
     parser.add_argument(
         "--output",
         type=Path,
@@ -476,7 +488,7 @@ def main() -> None:
         help="Where to write the generated notebook.",
     )
     args = parser.parse_args()
-    write_notebook(args.output)
+    write_notebook(args.output, dataset_id=args.dataset_id)
 
 
 if __name__ == "__main__":

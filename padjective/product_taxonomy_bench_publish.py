@@ -1,4 +1,4 @@
-"""Create and export the `paper` + `latest` product-taxonomy-bench datasets.
+"""Create and export the `paper` + `latest` SHIMP datasets.
 
 This is a convenience wrapper for publication:
 
@@ -23,11 +23,13 @@ from psycopg import sql
 from .benchmark_bundle import write_bundle_outputs, write_paper_tex_outputs
 from .benchmark_runtime import build_snapshot_benchmark_bundle, load_snapshot_tables
 from . import db
+from .dataset_metadata import (
+    DEFAULT_HF_DATASET_ID, DEFAULT_HF_PRETTY_NAME, resolve_hf_repo_id,
+)
 from .hf_sync import UploadOptions, upload_export_root
 from .product_taxonomy_bench import create_snapshot, parse_as_of
 from .release_licensing import stage_release_licenses
 from .product_taxonomy_bench_export import (
-    DEFAULT_DATASET_PRETTY_NAME,
     SnapshotMetadata,
     export_snapshot,
     render_hf_dataset_card,
@@ -227,16 +229,18 @@ def publish(
     finally:
         conn.close()
 
+    repo_id = resolve_hf_repo_id(dataset_id, hf_repo_id)
     readme = render_hf_dataset_card(
         dataset_id=dataset_id,
         pretty_name=pretty_name,
         paper=paper_meta,
         latest=latest_meta,
         first1000=first1000_meta,
+        hf_repo_id=repo_id,
     )
     out_root.mkdir(parents=True, exist_ok=True)
     (out_root / "README.md").write_text(readme, encoding="utf-8")
-    stage_hf_notebook(out_root)
+    stage_hf_notebook(out_root, dataset_id=repo_id)
     stage_release_licenses(out_root)
 
     reports_root = out_root / "reports"
@@ -267,7 +271,7 @@ def publish(
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Create `paper` and `latest` snapshots and export them for Hugging Face publication."
+        description="Create SHIMP snapshots and export them for Hugging Face publication."
     )
     parser.add_argument(
         "--dsn",
@@ -329,17 +333,16 @@ def main() -> None:
     )
     parser.add_argument(
         "--dataset-id",
-        default="product-taxonomy-bench",
-        help="HF dataset repo id/name used in the dataset card template.",
+        help=f"HF dataset repo id/name used in the dataset card (default: --hf-repo-id or {DEFAULT_HF_DATASET_ID}).",
     )
     parser.add_argument(
         "--pretty-name",
-        default=DEFAULT_DATASET_PRETTY_NAME,
+        default=DEFAULT_HF_PRETTY_NAME,
         help="HF dataset pretty_name used in the dataset card template.",
     )
     parser.add_argument(
         "--hf-repo-id",
-        help="Optional Hugging Face dataset repo id (e.g. username/product-taxonomy-bench). Uploads exports when set.",
+        help="Optional Hugging Face dataset repo id (e.g. gregb/product-taxonomy-bench). Uploads exports when set.",
     )
     parser.add_argument(
         "--hf-token",
@@ -386,7 +389,7 @@ def main() -> None:
         formats=formats,
         gzip_jsonl=not args.no_gzip,
         rows_per_shard=args.rows_per_shard,
-        dataset_id=args.dataset_id,
+        dataset_id=args.dataset_id or args.hf_repo_id or DEFAULT_HF_DATASET_ID,
         pretty_name=args.pretty_name,
         hf_repo_id=args.hf_repo_id,
         hf_token=args.hf_token,

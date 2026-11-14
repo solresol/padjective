@@ -46,24 +46,24 @@ fi
 
 echo "Reconciling numeric taxonomy paths and recording the benchmark funnel..."
 uv run -m padjective.taxonomy_path_audit \
-    "${TAGBATTLE_DSN_ARGS[@]}" \
+    ${TAGBATTLE_DSN_ARGS[@]+"${TAGBATTLE_DSN_ARGS[@]}"} \
     --schema "$TAGBATTLE_SCHEMA" \
     --product-table "$TAGBATTLE_PRODUCT_TABLE"
 
 uv run padjective/tagbattle.py \
-    "${TAGBATTLE_DSN_ARGS[@]}" \
+    ${TAGBATTLE_DSN_ARGS[@]+"${TAGBATTLE_DSN_ARGS[@]}"} \
     --schema "$TAGBATTLE_SCHEMA" \
     --product-table "$TAGBATTLE_PRODUCT_TABLE" \
     --batch-size "$TAGBATTLE_BATCH_SIZE"
 
 uv run -m padjective.umllr \
-    "${TAGBATTLE_DSN_ARGS[@]}" \
+    ${TAGBATTLE_DSN_ARGS[@]+"${TAGBATTLE_DSN_ARGS[@]}"} \
     --schema "$TAGBATTLE_SCHEMA" \
     --product-table "$TAGBATTLE_PRODUCT_TABLE"
 
 echo "Refreshing UMLLR tag-order ablations for the live nightly benchmark..."
 uv run -m padjective.umllr \
-    "${TAGBATTLE_DSN_ARGS[@]}" \
+    ${TAGBATTLE_DSN_ARGS[@]+"${TAGBATTLE_DSN_ARGS[@]}"} \
     --schema "$TAGBATTLE_SCHEMA" \
     --product-table "$TAGBATTLE_PRODUCT_TABLE" \
     --tag-order-strategy all \
@@ -71,7 +71,7 @@ uv run -m padjective.umllr \
 
 echo "Refreshing UMLLR tag-order ablations for the fixed paper snapshot..."
 uv run -m padjective.umllr \
-    "${TAGBATTLE_DSN_ARGS[@]}" \
+    ${TAGBATTLE_DSN_ARGS[@]+"${TAGBATTLE_DSN_ARGS[@]}"} \
     --schema "$TAGBATTLE_SCHEMA" \
     --product-table "$TAGBATTLE_PRODUCT_TABLE" \
     --snapshot-ref paper \
@@ -80,7 +80,7 @@ uv run -m padjective.umllr \
 
 # Ensure taxonomy classifier schema exists
 uv run -m padjective.taxonomy_classifier_schema \
-    "${TAGBATTLE_DSN_ARGS[@]}" \
+    ${TAGBATTLE_DSN_ARGS[@]+"${TAGBATTLE_DSN_ARGS[@]}"} \
     --schema "$TAXONOMY_RESULTS_SCHEMA"
 
 # Train taxonomy classifiers (once per fold)
@@ -88,7 +88,7 @@ uv run -m padjective.taxonomy_classifier_schema \
 for fold in 0 1 2 3 4; do
     echo "Training taxonomy classifier for fold $fold..."
     uv run -m padjective.taxonomy_classifier \
-        "${TAGBATTLE_DSN_ARGS[@]}" \
+        ${TAGBATTLE_DSN_ARGS[@]+"${TAGBATTLE_DSN_ARGS[@]}"} \
         --product-table "$TAGBATTLE_PRODUCT_TABLE" \
         --results-schema "$TAXONOMY_RESULTS_SCHEMA" \
         --output-dir "$TAXONOMY_CLASSIFIER_REPORT_DIR" \
@@ -99,7 +99,7 @@ done
 # Train full taxonomy classifier (populates taxonomy_pclr_models summary table for index card)
 echo "Training full taxonomy classifier..."
 uv run -m padjective.taxonomy_classifier \
-    "${TAGBATTLE_DSN_ARGS[@]}" \
+    ${TAGBATTLE_DSN_ARGS[@]+"${TAGBATTLE_DSN_ARGS[@]}"} \
     --product-table "$TAGBATTLE_PRODUCT_TABLE" \
     --results-schema "$TAXONOMY_RESULTS_SCHEMA" \
     --output-dir "$TAXONOMY_CLASSIFIER_REPORT_DIR" \
@@ -113,7 +113,7 @@ uv run -m padjective.taxonomy_classifier \
 for fold in 0 1 2 3 4; do
     echo "Training parameter constrained neural network classifier for fold $fold..."
     uv run -m padjective.taxonomy_pcnn_classifier \
-        "${TAGBATTLE_DSN_ARGS[@]}" \
+        ${TAGBATTLE_DSN_ARGS[@]+"${TAGBATTLE_DSN_ARGS[@]}"} \
         --product-table "$TAGBATTLE_PRODUCT_TABLE" \
         --model-database "$TAXONOMY_PCNN_CLASSIFIER_DB" \
         --output-dir "$TAXONOMY_PCNN_CLASSIFIER_REPORT_DIR" \
@@ -127,7 +127,7 @@ done
 for fold in 0 1 2 3 4; do
     echo "Training unconstrained L1-regularized logistic regression classifier for fold $fold..."
     uv run -m padjective.taxonomy_ulr_classifier \
-        "${TAGBATTLE_DSN_ARGS[@]}" \
+        ${TAGBATTLE_DSN_ARGS[@]+"${TAGBATTLE_DSN_ARGS[@]}"} \
         --product-table "$TAGBATTLE_PRODUCT_TABLE" \
         --results-schema "$TAXONOMY_RESULTS_SCHEMA" \
         --output-dir "$TAXONOMY_ULR_CLASSIFIER_REPORT_DIR" \
@@ -139,7 +139,7 @@ done
 for fold in 0 1 2 3 4; do
     echo "Training unconstrained neural network classifier for fold $fold..."
     uv run -m padjective.taxonomy_unn_classifier \
-        "${TAGBATTLE_DSN_ARGS[@]}" \
+        ${TAGBATTLE_DSN_ARGS[@]+"${TAGBATTLE_DSN_ARGS[@]}"} \
         --product-table "$TAGBATTLE_PRODUCT_TABLE" \
         --results-schema "$TAXONOMY_RESULTS_SCHEMA" \
         --fold "$fold"
@@ -150,7 +150,7 @@ done
 for fold in 0 1 2 3 4; do
     echo "Training decision tree classifier for fold $fold..."
     uv run -m padjective.taxonomy_dt_classifier \
-        "${TAGBATTLE_DSN_ARGS[@]}" \
+        ${TAGBATTLE_DSN_ARGS[@]+"${TAGBATTLE_DSN_ARGS[@]}"} \
         --product-table "$TAGBATTLE_PRODUCT_TABLE" \
         --results-schema "$TAXONOMY_RESULTS_SCHEMA" \
         --fold "$fold"
@@ -161,7 +161,7 @@ done
 # Train with UMLLR initialization
 echo "Training Zubarev p-adic polynomial regression (UMLLR initialization)..."
 uv run -m padjective.zubarev \
-    "${TAGBATTLE_DSN_ARGS[@]}" \
+    ${TAGBATTLE_DSN_ARGS[@]+"${TAGBATTLE_DSN_ARGS[@]}"} \
     --schema "$TAGBATTLE_SCHEMA" \
     --product-table "$TAGBATTLE_PRODUCT_TABLE" \
     --max-iterations 10000 \
@@ -170,7 +170,7 @@ uv run -m padjective.zubarev \
 # Train with zeros initialization
 echo "Training Zubarev p-adic polynomial regression (zeros initialization)..."
 uv run -m padjective.zubarev \
-    "${TAGBATTLE_DSN_ARGS[@]}" \
+    ${TAGBATTLE_DSN_ARGS[@]+"${TAGBATTLE_DSN_ARGS[@]}"} \
     --schema "$TAGBATTLE_SCHEMA" \
     --product-table "$TAGBATTLE_PRODUCT_TABLE" \
     --max-iterations 50000 \
@@ -179,7 +179,7 @@ uv run -m padjective.zubarev \
 # Train with UMLLR initialization and Mahler degree 1
 echo "Training Zubarev p-adic polynomial regression (UMLLR initialization, Mahler degree 1)..."
 uv run -m padjective.zubarev \
-    "${TAGBATTLE_DSN_ARGS[@]}" \
+    ${TAGBATTLE_DSN_ARGS[@]+"${TAGBATTLE_DSN_ARGS[@]}"} \
     --schema "$TAGBATTLE_SCHEMA" \
     --product-table "$TAGBATTLE_PRODUCT_TABLE" \
     --max-iterations 10000 \
@@ -189,7 +189,7 @@ uv run -m padjective.zubarev \
 # Train with UMLLR initialization and Mahler degree 2
 echo "Training Zubarev p-adic polynomial regression (UMLLR initialization, Mahler degree 2)..."
 uv run -m padjective.zubarev \
-    "${TAGBATTLE_DSN_ARGS[@]}" \
+    ${TAGBATTLE_DSN_ARGS[@]+"${TAGBATTLE_DSN_ARGS[@]}"} \
     --schema "$TAGBATTLE_SCHEMA" \
     --product-table "$TAGBATTLE_PRODUCT_TABLE" \
     --max-iterations 10000 \
@@ -198,13 +198,13 @@ uv run -m padjective.zubarev \
 
 # Snapshot current metrics for historical tracking
 uv run -m padjective.snapshot_metrics \
-    "${TAGBATTLE_DSN_ARGS[@]}" \
+    ${TAGBATTLE_DSN_ARGS[@]+"${TAGBATTLE_DSN_ARGS[@]}"} \
     --product-table "$TAGBATTLE_PRODUCT_TABLE" \
     --schema "$TAGBATTLE_SCHEMA"
 
 echo "Exporting paper/latest benchmark snapshots and building exact benchmark bundles..."
 uv run -m padjective.product_taxonomy_bench_publish \
-    "${TAGBATTLE_DSN_ARGS[@]}" \
+    ${TAGBATTLE_DSN_ARGS[@]+"${TAGBATTLE_DSN_ARGS[@]}"} \
     --schema "$TAGBATTLE_SCHEMA" \
     --product-table "$TAGBATTLE_PRODUCT_TABLE" \
     --paper-as-of "$PAPER_AS_OF" \
@@ -219,7 +219,7 @@ fi
 
 uv run -m padjective.build_site \
     --output "$OUTPUT_DIR" \
-    "${TAGBATTLE_DSN_ARGS[@]}" \
+    ${TAGBATTLE_DSN_ARGS[@]+"${TAGBATTLE_DSN_ARGS[@]}"} \
     --schema "$TAGBATTLE_SCHEMA" \
     --ablation-snapshot-ref paper \
     --benchmark-report-root "$BENCHMARK_REPORT_ROOT" \
