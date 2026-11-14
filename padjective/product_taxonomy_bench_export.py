@@ -28,9 +28,11 @@ if __package__ in {None, ""}:
         sys.path.append(str(project_root))
     from padjective import db
     from padjective.product_taxonomy_bench_notebook import write_notebook
+    from padjective.release_licensing import stage_release_licenses
 else:  # pragma: no cover
     from . import db
     from .product_taxonomy_bench_notebook import write_notebook
+    from .release_licensing import stage_release_licenses
 
 try:  # Optional dependency; used only for Parquet exports.
     import pyarrow as pa  # type: ignore[import-not-found]
@@ -45,12 +47,14 @@ DEFAULT_HF_NOTEBOOK_SOURCE = (
     Path(__file__).resolve().parent.parent / "docs" / "product_taxonomy_bench.ipynb"
 )
 DEFAULT_HF_NOTEBOOK_DEST = Path("notebooks/product_taxonomy_bench.ipynb")
+DEFAULT_DATASET_PRETTY_NAME = "SHIMP (Shopify Hierarchical Inference for Merchant Products)"
 DEFAULT_DATASET_CITATION_BIBTEX = """@misc{baker2026producttaxonomybench,
   author={Gregory D. Baker},
-  title={product-taxonomy-bench: An anonymized benchmark for Shopify product taxonomy prediction from tags},
+  title={{SHIMP: Shopify Hierarchical Inference for Merchant Products}},
   year={2026},
-  howpublished={\\url{https://huggingface.co/datasets/gregb/product-taxonomy-bench}},
-  note={Hugging Face dataset}
+  doi={10.57967/hf/8413},
+  howpublished={Dataset and code package},
+  url={https://huggingface.co/datasets/gregb/product-taxonomy-bench}
 }"""
 
 
@@ -569,7 +573,7 @@ def render_hf_dataset_card(
             "- benchmarking",
             "- p-adic",
             "- ultrametric",
-            "license: other",
+            "license: cc-by-4.0",
             "configs:",
         ]
         + [
@@ -612,9 +616,9 @@ def render_hf_dataset_card(
 
     body = "\n".join(
         [
-            "# Dataset Summary",
+            "# SHIMP",
             "",
-            f"`{dataset_id}` is an anonymised benchmark dataset for predicting Shopify Product Taxonomy categories from Shopify product tags.",
+            f"{DEFAULT_DATASET_PRETTY_NAME}, hosted at `{dataset_id}`, is an anonymised benchmark dataset for predicting Shopify Product Taxonomy categories from Shopify product tags.",
             "",
             "This dataset does **not** include raw product titles, raw tags, or product URLs. Tags are anonymised as `tagNNNNNN`.",
             "",
@@ -642,7 +646,13 @@ def render_hf_dataset_card(
             "",
             "Products were collected by fetching public Shopify product `.json` endpoints, then joined to the taxonomy label used by the cantbuymelove site. Tags are uppercased and substring-nested tags are filtered before anonymisation. Title overlap positions are computed by case-insensitive substring search and splitting titles on `\" - \"` to match the paper’s tag-battle logic. The paper snapshot is generated with a fixed `as_of` cutoff timestamp.",
             "",
+            "# Licence",
+            "",
+            "The released anonymised benchmark is licensed under **CC BY 4.0**; original export, analysis and replication code is licensed under **MIT**. See [LICENSE](./LICENSE) for scope, [LICENSE-DATA](./LICENSE-DATA) and [LICENSE-CODE](./LICENSE-CODE) for the full terms, and [THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md) for retained third-party notices. The grants cover only rights held by Gregory D. Baker. The private source catalogue and manuscript text and figures are outside these grants.",
+            "",
             "# Citation",
+            "",
+            "The frozen `paper-submission-2026-09-06` revision includes a standalone replication package in `submission/2026-09-06/`, with the width-2,000 paper configuration and the separate bounded digitwise matrix. See that package's README and manifest for settings and provenance.",
             "",
             "If you use this dataset, please cite the dataset release:",
             "",
@@ -782,7 +792,7 @@ def main() -> None:
     )
     parser.add_argument(
         "--pretty-name",
-        default="Product Taxonomy Bench (Anonymized)",
+        default=DEFAULT_DATASET_PRETTY_NAME,
         help="HF dataset pretty_name used in the dataset card template.",
     )
     args = parser.parse_args()
@@ -838,6 +848,7 @@ def main() -> None:
             args.out_root.mkdir(parents=True, exist_ok=True)
             (args.out_root / "README.md").write_text(readme, encoding="utf-8")
             stage_hf_notebook(args.out_root)
+            stage_release_licenses(args.out_root)
     finally:
         conn.close()
 

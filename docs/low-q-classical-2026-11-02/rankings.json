@@ -1,0 +1,1535 @@
+{
+  "native_experiment": "low-q-2026-11-02-v2",
+  "classical_experiment": "classical-q-2026-11-02",
+  "snapshot_id": "244ddbe3-0a2c-4c04-9436-0a0253108a09",
+  "snapshot_digest": "039175941ed2a2ec888bc6c7314c3c5f8afac1201ff604413dedb55641706222",
+  "products": 6693,
+  "prime": 71,
+  "comparisons": {
+    "original": [
+      {
+        "rank": 1,
+        "configuration": "unn",
+        "label": "Neural network (width 2,000)",
+        "training_q": "classification_objective_unchanged",
+        "scoring_q": "71",
+        "mean_loss": 0.0755591194166452,
+        "fold_sd": 0.00315586172945198,
+        "fold_losses": [
+          0.07474756671033415,
+          0.07871462807590646,
+          0.07053707075896265,
+          0.07735365305762855,
+          0.07644267848039417
+        ],
+        "exact_accuracy": 0.6687180348827857,
+        "root_accuracy": 0.9253010811141972
+      },
+      {
+        "rank": 2,
+        "configuration": "ulr",
+        "label": "L1 logistic regression",
+        "training_q": "classification_objective_unchanged",
+        "scoring_q": "71",
+        "mean_loss": 0.08583859907596857,
+        "fold_sd": 0.006492460977155431,
+        "fold_losses": [
+          0.09549252626713736,
+          0.08622700024977414,
+          0.07724658234542127,
+          0.08467493495845703,
+          0.08555195155905301
+        ],
+        "exact_accuracy": 0.6587478004515647,
+        "root_accuracy": 0.9150619039418599
+      },
+      {
+        "rank": 3,
+        "configuration": "dt",
+        "label": "Decision tree",
+        "training_q": "classification_objective_unchanged",
+        "scoring_q": "71",
+        "mean_loss": 0.11031437548196414,
+        "fold_sd": 0.006803663515308535,
+        "fold_losses": [
+          0.11646119626881585,
+          0.11322715876382332,
+          0.09894065356831354,
+          0.10962041903223671,
+          0.11332244977663128
+        ],
+        "exact_accuracy": 0.6092829332977422,
+        "root_accuracy": 0.8907250060621006
+      },
+      {
+        "rank": 4,
+        "configuration": "levelwise",
+        "label": "Level-wise logistic regression",
+        "training_q": "classification_objective_unchanged",
+        "scoring_q": "71",
+        "mean_loss": 0.12044968022369756,
+        "fold_sd": 0.0097398145075537,
+        "fold_losses": [
+          0.13174182152990677,
+          0.1200503993324041,
+          0.10514153031394935,
+          0.12069553729965787,
+          0.1246191126425697
+        ],
+        "exact_accuracy": 0.5381226473299956,
+        "root_accuracy": 0.8806827437803045
+      },
+      {
+        "rank": 5,
+        "configuration": "ensemble_0.75_243",
+        "label": "243 members: 75% features",
+        "training_q": "71",
+        "scoring_q": "71",
+        "mean_loss": 0.13465532540420427,
+        "fold_sd": 0.010275238453423282,
+        "fold_losses": [
+          0.14037101662632417,
+          0.12758690833991254,
+          0.12646821473657027,
+          0.12876791205695542,
+          0.15008257526125898
+        ],
+        "exact_accuracy": 0.5738522425570096,
+        "root_accuracy": 0.8664985602506556
+      },
+      {
+        "rank": 6,
+        "configuration": "ensemble_1_243",
+        "label": "243 members: all features",
+        "training_q": "71",
+        "scoring_q": "71",
+        "mean_loss": 0.14459648496480462,
+        "fold_sd": 0.012223109520319483,
+        "fold_losses": [
+          0.1511171798694285,
+          0.1350440736277967,
+          0.13015562542594192,
+          0.14616807751950917,
+          0.1604974683813468
+        ],
+        "exact_accuracy": 0.5752432496219341,
+        "root_accuracy": 0.856512637364272
+      },
+      {
+        "rank": 7,
+        "configuration": "ensemble_0.75_15",
+        "label": "15 members: 75% features",
+        "training_q": "71",
+        "scoring_q": "71",
+        "mean_loss": 0.1473708669442316,
+        "fold_sd": 0.008424202218980527,
+        "fold_losses": [
+          0.15265748964937695,
+          0.1447585994619279,
+          0.13842167375365472,
+          0.14186763906121153,
+          0.15914893279498693
+        ],
+        "exact_accuracy": 0.5605752231697836,
+        "root_accuracy": 0.8538022821385205
+      },
+      {
+        "rank": 8,
+        "configuration": "ensemble_1_15",
+        "label": "15 members: all features",
+        "training_q": "71",
+        "scoring_q": "71",
+        "mean_loss": 0.15928235720645992,
+        "fold_sd": 0.011216343211057488,
+        "fold_losses": [
+          0.16811898709101536,
+          0.15227924282186783,
+          0.14499419691801382,
+          0.15863999370974982,
+          0.17237936549165273
+        ],
+        "exact_accuracy": 0.5580991740982597,
+        "root_accuracy": 0.8418467807185135
+      },
+      {
+        "rank": 9,
+        "configuration": "taxonomy_association",
+        "label": "Greedy: taxonomy association",
+        "training_q": "71",
+        "scoring_q": "71",
+        "mean_loss": 0.26323667562627723,
+        "fold_sd": 0.005043708138778385,
+        "fold_losses": [
+          0.26730872325393007,
+          0.26951031488600635,
+          0.2576431424265482,
+          0.2595884451514726,
+          0.2621327524134289
+        ],
+        "exact_accuracy": 0.498152370319429,
+        "root_accuracy": 0.7377368204536837
+      },
+      {
+        "rank": 10,
+        "configuration": "ensemble_1_1",
+        "label": "1 member: all features",
+        "training_q": "71",
+        "scoring_q": "71",
+        "mean_loss": 0.2770636451344009,
+        "fold_sd": 0.023198334240430406,
+        "fold_losses": [
+          0.3018736998881008,
+          0.2651630052168009,
+          0.2494961619263377,
+          0.30064215906847785,
+          0.2681431995722872
+        ],
+        "exact_accuracy": 0.4725643163264409,
+        "root_accuracy": 0.7239824526993941
+      },
+      {
+        "rank": 11,
+        "configuration": "ensemble_0.75_1",
+        "label": "1 member: 75% features",
+        "training_q": "71",
+        "scoring_q": "71",
+        "mean_loss": 0.2889186223338883,
+        "fold_sd": 0.019455200919822387,
+        "fold_losses": [
+          0.2834590511590077,
+          0.2598659876888812,
+          0.2913732321019125,
+          0.29719219526098284,
+          0.3127026454586573
+        ],
+        "exact_accuracy": 0.4441559901162344,
+        "root_accuracy": 0.7123098031137233
+      },
+      {
+        "rank": 12,
+        "configuration": "random",
+        "label": "Greedy: random order",
+        "training_q": "71",
+        "scoring_q": "71",
+        "mean_loss": 0.31285626345507916,
+        "fold_sd": 0.009310005608180969,
+        "fold_losses": [
+          0.32431404797962493,
+          0.3112965347941314,
+          0.2999997003118906,
+          0.3096812910864896,
+          0.31898974310325934
+        ],
+        "exact_accuracy": 0.43730430778262463,
+        "root_accuracy": 0.6881992660497269
+      },
+      {
+        "rank": 13,
+        "configuration": "frequency",
+        "label": "Greedy: frequency",
+        "training_q": "71",
+        "scoring_q": "71",
+        "mean_loss": 0.3196712291021693,
+        "fold_sd": 0.019151366915343356,
+        "fold_losses": [
+          0.330323834690281,
+          0.28737251048827045,
+          0.32199779721923877,
+          0.3216375347812244,
+          0.33702446833183186
+        ],
+        "exact_accuracy": 0.42877433078933835,
+        "root_accuracy": 0.681262566384351
+      },
+      {
+        "rank": 14,
+        "configuration": "battle_elo",
+        "label": "Greedy: Battle Elo",
+        "training_q": "71",
+        "scoring_q": "71",
+        "mean_loss": 0.3249248167527239,
+        "fold_sd": 0.018659254040981954,
+        "fold_losses": [
+          0.3471924028832373,
+          0.3143791575760074,
+          0.30000087641650375,
+          0.3253103047465941,
+          0.337741342141277
+        ],
+        "exact_accuracy": 0.43630443561994114,
+        "root_accuracy": 0.676065235277335
+      },
+      {
+        "rank": 15,
+        "configuration": "mean_title_position",
+        "label": "Greedy: title position",
+        "training_q": "71",
+        "scoring_q": "71",
+        "mean_loss": 0.34200620809511134,
+        "fold_sd": 0.02026792637463081,
+        "fold_losses": [
+          0.36083166408029804,
+          0.30836372915579596,
+          0.3443558102275878,
+          0.3543104314465512,
+          0.34216940556532366
+        ],
+        "exact_accuracy": 0.4228395489353881,
+        "root_accuracy": 0.6588615290239793
+      },
+      {
+        "rank": 16,
+        "configuration": "dummy",
+        "label": "Dummy control",
+        "training_q": "classification_objective_unchanged",
+        "scoring_q": "71",
+        "mean_loss": 0.5604415862411984,
+        "fold_sd": 0.011364075406004657,
+        "fold_losses": [
+          0.5450420785743254,
+          0.5620268930819196,
+          0.5737694790377201,
+          0.567726040953566,
+          0.5536434395584612
+        ],
+        "exact_accuracy": 0.05316638762327219,
+        "root_accuracy": 0.44224944025932766
+      }
+    ],
+    "fixed_sqrt2": [
+      {
+        "rank": 1,
+        "configuration": "unn",
+        "label": "Neural network (width 2,000)",
+        "training_q": "classification_objective_unchanged",
+        "scoring_q": "sqrt2",
+        "mean_loss": 0.2007266006919453,
+        "fold_sd": 0.007371678376535051,
+        "fold_losses": [
+          0.20464214942901934,
+          0.20700049961995368,
+          0.18810083124894084,
+          0.20232904841800653,
+          0.20156047474380623
+        ],
+        "exact_accuracy": 0.6687180348827857,
+        "root_accuracy": 0.9253010811141972
+      },
+      {
+        "rank": 2,
+        "configuration": "ulr",
+        "label": "L1 logistic regression",
+        "training_q": "classification_objective_unchanged",
+        "scoring_q": "sqrt2",
+        "mean_loss": 0.21253995575094337,
+        "fold_sd": 0.007993285389784426,
+        "fold_losses": [
+          0.21650489779459917,
+          0.21932276868065143,
+          0.1989343278294996,
+          0.212444704144275,
+          0.21549308030569167
+        ],
+        "exact_accuracy": 0.6587478004515647,
+        "root_accuracy": 0.9150619039418599
+      },
+      {
+        "rank": 3,
+        "configuration": "dt",
+        "label": "Decision tree",
+        "training_q": "classification_objective_unchanged",
+        "scoring_q": "sqrt2",
+        "mean_loss": 0.2506143619444112,
+        "fold_sd": 0.0077297530692848355,
+        "fold_losses": [
+          0.25717748907980276,
+          0.2540136647043203,
+          0.2374936171925247,
+          0.2502928597781407,
+          0.2540941789672676
+        ],
+        "exact_accuracy": 0.6092829332977422,
+        "root_accuracy": 0.8907250060621006
+      },
+      {
+        "rank": 4,
+        "configuration": "ensemble_0.75_243",
+        "label": "243 members: 75% features",
+        "training_q": "71",
+        "scoring_q": "sqrt2",
+        "mean_loss": 0.28124325118663984,
+        "fold_sd": 0.012357451343390386,
+        "fold_losses": [
+          0.2855617159541194,
+          0.28039422961095556,
+          0.2621938705649419,
+          0.2817116656949032,
+          0.2963547741082792
+        ],
+        "exact_accuracy": 0.5738522425570096,
+        "root_accuracy": 0.8664985602506556
+      },
+      {
+        "rank": 5,
+        "configuration": "ensemble_1_243",
+        "label": "243 members: all features",
+        "training_q": "71",
+        "scoring_q": "sqrt2",
+        "mean_loss": 0.2853961787836049,
+        "fold_sd": 0.014869108594437828,
+        "fold_losses": [
+          0.2890949049929714,
+          0.2823149622098041,
+          0.2617647703240323,
+          0.29254859865142996,
+          0.3012576577397868
+        ],
+        "exact_accuracy": 0.5752432496219341,
+        "root_accuracy": 0.856512637364272
+      },
+      {
+        "rank": 6,
+        "configuration": "levelwise",
+        "label": "Level-wise logistic regression",
+        "training_q": "classification_objective_unchanged",
+        "scoring_q": "sqrt2",
+        "mean_loss": 0.28914308234974473,
+        "fold_sd": 0.005739174363924795,
+        "fold_losses": [
+          0.28833934111063786,
+          0.28958311061763675,
+          0.2799520880499192,
+          0.29454982971143306,
+          0.29329104225909686
+        ],
+        "exact_accuracy": 0.5381226473299956,
+        "root_accuracy": 0.8806827437803045
+      },
+      {
+        "rank": 7,
+        "configuration": "ensemble_0.75_15",
+        "label": "15 members: 75% features",
+        "training_q": "71",
+        "scoring_q": "sqrt2",
+        "mean_loss": 0.29509734703644314,
+        "fold_sd": 0.010469125168828827,
+        "fold_losses": [
+          0.2968475412427762,
+          0.29800297547394244,
+          0.2784002459935121,
+          0.29496920201284793,
+          0.30726677045913714
+        ],
+        "exact_accuracy": 0.5605752231697836,
+        "root_accuracy": 0.8538022821385205
+      },
+      {
+        "rank": 8,
+        "configuration": "ensemble_1_15",
+        "label": "15 members: all features",
+        "training_q": "71",
+        "scoring_q": "sqrt2",
+        "mean_loss": 0.30237051059120984,
+        "fold_sd": 0.012694698452404443,
+        "fold_losses": [
+          0.3156607003052273,
+          0.30029767965095105,
+          0.28199308408736046,
+          0.30514738429715355,
+          0.3087537046153567
+        ],
+        "exact_accuracy": 0.5580991740982597,
+        "root_accuracy": 0.8418467807185135
+      },
+      {
+        "rank": 9,
+        "configuration": "taxonomy_association",
+        "label": "Greedy: taxonomy association",
+        "training_q": "71",
+        "scoring_q": "sqrt2",
+        "mean_loss": 0.38297741779604333,
+        "fold_sd": 0.010095161941308788,
+        "fold_losses": [
+          0.3930480490672221,
+          0.39215629682182285,
+          0.36973201430890507,
+          0.3761994948696787,
+          0.383751233912588
+        ],
+        "exact_accuracy": 0.498152370319429,
+        "root_accuracy": 0.7377368204536837
+      },
+      {
+        "rank": 10,
+        "configuration": "ensemble_1_1",
+        "label": "1 member: all features",
+        "training_q": "71",
+        "scoring_q": "sqrt2",
+        "mean_loss": 0.4046227278861317,
+        "fold_sd": 0.024448144827370736,
+        "fold_losses": [
+          0.4274551142363212,
+          0.40070126406375156,
+          0.37034657449046754,
+          0.42905723195435164,
+          0.39555345468576636
+        ],
+        "exact_accuracy": 0.4725643163264409,
+        "root_accuracy": 0.7239824526993941
+      },
+      {
+        "rank": 11,
+        "configuration": "ensemble_0.75_1",
+        "label": "1 member: 75% features",
+        "training_q": "71",
+        "scoring_q": "sqrt2",
+        "mean_loss": 0.4271289321007625,
+        "fold_sd": 0.018606808042680625,
+        "fold_losses": [
+          0.42622395649525324,
+          0.3988501991915355,
+          0.42580361948632056,
+          0.4347286772315068,
+          0.4500382080991965
+        ],
+        "exact_accuracy": 0.4441559901162344,
+        "root_accuracy": 0.7123098031137233
+      },
+      {
+        "rank": 12,
+        "configuration": "random",
+        "label": "Greedy: random order",
+        "training_q": "71",
+        "scoring_q": "sqrt2",
+        "mean_loss": 0.4404632378590458,
+        "fold_sd": 0.012107850881784612,
+        "fold_losses": [
+          0.45326987447417016,
+          0.43971906522588966,
+          0.42076885847825873,
+          0.44272278428880124,
+          0.44583560682810924
+        ],
+        "exact_accuracy": 0.43730430778262463,
+        "root_accuracy": 0.6881992660497269
+      },
+      {
+        "rank": 13,
+        "configuration": "frequency",
+        "label": "Greedy: frequency",
+        "training_q": "71",
+        "scoring_q": "sqrt2",
+        "mean_loss": 0.44508203369937005,
+        "fold_sd": 0.01752776105095682,
+        "fold_losses": [
+          0.4597708124210025,
+          0.42010564013996404,
+          0.43349615262788255,
+          0.45320349992551806,
+          0.45883406338248306
+        ],
+        "exact_accuracy": 0.42877433078933835,
+        "root_accuracy": 0.681262566384351
+      },
+      {
+        "rank": 14,
+        "configuration": "battle_elo",
+        "label": "Greedy: Battle Elo",
+        "training_q": "71",
+        "scoring_q": "sqrt2",
+        "mean_loss": 0.44609365650699284,
+        "fold_sd": 0.01924534666677219,
+        "fold_losses": [
+          0.4683563241403626,
+          0.43964290292497493,
+          0.4172756602768812,
+          0.44877315945558643,
+          0.456420235737159
+        ],
+        "exact_accuracy": 0.43630443561994114,
+        "root_accuracy": 0.676065235277335
+      },
+      {
+        "rank": 15,
+        "configuration": "mean_title_position",
+        "label": "Greedy: title position",
+        "training_q": "71",
+        "scoring_q": "sqrt2",
+        "mean_loss": 0.45850741264764305,
+        "fold_sd": 0.016684549510692974,
+        "fold_losses": [
+          0.4737852563284971,
+          0.43400124756311,
+          0.4513321268258154,
+          0.4735469148199555,
+          0.4598715177008372
+        ],
+        "exact_accuracy": 0.4228395489353881,
+        "root_accuracy": 0.6588615290239793
+      },
+      {
+        "rank": 16,
+        "configuration": "dummy",
+        "label": "Dummy control",
+        "training_q": "classification_objective_unchanged",
+        "scoring_q": "sqrt2",
+        "mean_loss": 0.7806843959915821,
+        "fold_sd": 0.009041140043880689,
+        "fold_losses": [
+          0.767109959276491,
+          0.7799312440727638,
+          0.7846944164134164,
+          0.7918776607106666,
+          0.779808699484573
+        ],
+        "exact_accuracy": 0.05316638762327219,
+        "root_accuracy": 0.44224944025932766
+      }
+    ],
+    "retrained_sqrt2": [
+      {
+        "rank": 1,
+        "configuration": "unn",
+        "label": "Neural network (width 2,000)",
+        "training_q": "classification_objective_unchanged",
+        "scoring_q": "sqrt2",
+        "mean_loss": 0.2007266006919453,
+        "fold_sd": 0.007371678376535051,
+        "fold_losses": [
+          0.20464214942901934,
+          0.20700049961995368,
+          0.18810083124894084,
+          0.20232904841800653,
+          0.20156047474380623
+        ],
+        "exact_accuracy": 0.6687180348827857,
+        "root_accuracy": 0.9253010811141972
+      },
+      {
+        "rank": 2,
+        "configuration": "ulr",
+        "label": "L1 logistic regression",
+        "training_q": "classification_objective_unchanged",
+        "scoring_q": "sqrt2",
+        "mean_loss": 0.21253995575094337,
+        "fold_sd": 0.007993285389784426,
+        "fold_losses": [
+          0.21650489779459917,
+          0.21932276868065143,
+          0.1989343278294996,
+          0.212444704144275,
+          0.21549308030569167
+        ],
+        "exact_accuracy": 0.6587478004515647,
+        "root_accuracy": 0.9150619039418599
+      },
+      {
+        "rank": 3,
+        "configuration": "dt",
+        "label": "Decision tree",
+        "training_q": "classification_objective_unchanged",
+        "scoring_q": "sqrt2",
+        "mean_loss": 0.2506143619444112,
+        "fold_sd": 0.0077297530692848355,
+        "fold_losses": [
+          0.25717748907980276,
+          0.2540136647043203,
+          0.2374936171925247,
+          0.2502928597781407,
+          0.2540941789672676
+        ],
+        "exact_accuracy": 0.6092829332977422,
+        "root_accuracy": 0.8907250060621006
+      },
+      {
+        "rank": 4,
+        "configuration": "ensemble_0.75_243",
+        "label": "243 members: 75% features",
+        "training_q": "sqrt2",
+        "scoring_q": "sqrt2",
+        "mean_loss": 0.27370395359464805,
+        "fold_sd": 0.01025548298798448,
+        "fold_losses": [
+          0.2813389526003391,
+          0.2734115920360663,
+          0.2603338117274933,
+          0.26762389082263927,
+          0.2858115207867022
+        ],
+        "exact_accuracy": 0.5808201484167941,
+        "root_accuracy": 0.8764967588560777
+      },
+      {
+        "rank": 5,
+        "configuration": "ensemble_1_243",
+        "label": "243 members: all features",
+        "training_q": "sqrt2",
+        "scoring_q": "sqrt2",
+        "mean_loss": 0.27434639556841306,
+        "fold_sd": 0.012223491618371857,
+        "fold_losses": [
+          0.27554804906722213,
+          0.269722750962514,
+          0.25721281263165763,
+          0.2787077878934749,
+          0.2905405772871966
+        ],
+        "exact_accuracy": 0.583469050552099,
+        "root_accuracy": 0.8716018661638137
+      },
+      {
+        "rank": 6,
+        "configuration": "ensemble_0.75_15",
+        "label": "15 members: 75% features",
+        "training_q": "sqrt2",
+        "scoring_q": "sqrt2",
+        "mean_loss": 0.28709144528094627,
+        "fold_sd": 0.008619861047952383,
+        "fold_losses": [
+          0.2920091990184619,
+          0.28698960693680486,
+          0.2725423479153172,
+          0.2893151500355296,
+          0.29460092249861786
+        ],
+        "exact_accuracy": 0.5648830923371683,
+        "root_accuracy": 0.8665286293180018
+      },
+      {
+        "rank": 7,
+        "configuration": "levelwise",
+        "label": "Level-wise logistic regression",
+        "training_q": "classification_objective_unchanged",
+        "scoring_q": "sqrt2",
+        "mean_loss": 0.28914308234974473,
+        "fold_sd": 0.005739174363924795,
+        "fold_losses": [
+          0.28833934111063786,
+          0.28958311061763675,
+          0.2799520880499192,
+          0.29454982971143306,
+          0.29329104225909686
+        ],
+        "exact_accuracy": 0.5381226473299956,
+        "root_accuracy": 0.8806827437803045
+      },
+      {
+        "rank": 8,
+        "configuration": "ensemble_1_15",
+        "label": "15 members: all features",
+        "training_q": "sqrt2",
+        "scoring_q": "sqrt2",
+        "mean_loss": 0.2900005086897647,
+        "fold_sd": 0.011413378741597228,
+        "fold_losses": [
+          0.29780341869440635,
+          0.2882398484291413,
+          0.2708732084494418,
+          0.29486782643228965,
+          0.2982182414435444
+        ],
+        "exact_accuracy": 0.567696614425006,
+        "root_accuracy": 0.8580300398049967
+      },
+      {
+        "rank": 9,
+        "configuration": "taxonomy_association",
+        "label": "Greedy: taxonomy association",
+        "training_q": "sqrt2",
+        "scoring_q": "sqrt2",
+        "mean_loss": 0.37588807759262877,
+        "fold_sd": 0.015864268155037692,
+        "fold_losses": [
+          0.39852598779303733,
+          0.38357374354272566,
+          0.35954489780517096,
+          0.3629678579000814,
+          0.37482790092212853
+        ],
+        "exact_accuracy": 0.5053942665276392,
+        "root_accuracy": 0.7461256138170649
+      },
+      {
+        "rank": 10,
+        "configuration": "ensemble_1_1",
+        "label": "1 member: all features",
+        "training_q": "sqrt2",
+        "scoring_q": "sqrt2",
+        "mean_loss": 0.4031305594105531,
+        "fold_sd": 0.02366209507039546,
+        "fold_losses": [
+          0.4277134114960342,
+          0.4022801067739042,
+          0.3661655366793985,
+          0.4192488450875976,
+          0.400244897015831
+        ],
+        "exact_accuracy": 0.47490976021478143,
+        "root_accuracy": 0.7251036146286743
+      },
+      {
+        "rank": 11,
+        "configuration": "ensemble_0.75_1",
+        "label": "1 member: 75% features",
+        "training_q": "sqrt2",
+        "scoring_q": "sqrt2",
+        "mean_loss": 0.4216145212233805,
+        "fold_sd": 0.017257743001969875,
+        "fold_losses": [
+          0.4226577726726985,
+          0.3930160536928862,
+          0.422004420418398,
+          0.4364677726901957,
+          0.43392658664272415
+        ],
+        "exact_accuracy": 0.4492636782876794,
+        "root_accuracy": 0.7196799767988811
+      },
+      {
+        "rank": 12,
+        "configuration": "battle_elo",
+        "label": "Greedy: Battle Elo",
+        "training_q": "sqrt2",
+        "scoring_q": "sqrt2",
+        "mean_loss": 0.42784811725888905,
+        "fold_sd": 0.026036370637007516,
+        "fold_losses": [
+          0.45112262727706454,
+          0.43022945009204533,
+          0.38514609041651043,
+          0.4264856761285119,
+          0.44625674238031304
+        ],
+        "exact_accuracy": 0.45406002903913184,
+        "root_accuracy": 0.6957614035989953
+      },
+      {
+        "rank": 13,
+        "configuration": "random",
+        "label": "Greedy: random order",
+        "training_q": "sqrt2",
+        "scoring_q": "sqrt2",
+        "mean_loss": 0.4371585487505102,
+        "fold_sd": 0.01315711392033773,
+        "fold_losses": [
+          0.4492439476206242,
+          0.438281381949379,
+          0.4147906844101856,
+          0.44054459359559056,
+          0.4429321361767716
+        ],
+        "exact_accuracy": 0.4405954040721343,
+        "root_accuracy": 0.6920433284127485
+      },
+      {
+        "rank": 14,
+        "configuration": "mean_title_position",
+        "label": "Greedy: title position",
+        "training_q": "sqrt2",
+        "scoring_q": "sqrt2",
+        "mean_loss": 0.45457182562215787,
+        "fold_sd": 0.01228700862022342,
+        "fold_losses": [
+          0.46051036454935806,
+          0.44062320223071905,
+          0.44401690968673974,
+          0.4705743002975457,
+          0.45713435134642666
+        ],
+        "exact_accuracy": 0.4290001978479531,
+        "root_accuracy": 0.6622387352674782
+      },
+      {
+        "rank": 15,
+        "configuration": "frequency",
+        "label": "Greedy: frequency",
+        "training_q": "sqrt2",
+        "scoring_q": "sqrt2",
+        "mean_loss": 0.4549177202988498,
+        "fold_sd": 0.012609927079366277,
+        "fold_losses": [
+          0.46608728762628115,
+          0.44329187798588776,
+          0.4422423283634972,
+          0.4695220766722571,
+          0.4534450308463259
+        ],
+        "exact_accuracy": 0.4262946269386132,
+        "root_accuracy": 0.6659068082509819
+      },
+      {
+        "rank": 16,
+        "configuration": "dummy",
+        "label": "Dummy control",
+        "training_q": "classification_objective_unchanged",
+        "scoring_q": "sqrt2",
+        "mean_loss": 0.7806843959915821,
+        "fold_sd": 0.009041140043880689,
+        "fold_losses": [
+          0.767109959276491,
+          0.7799312440727638,
+          0.7846944164134164,
+          0.7918776607106666,
+          0.779808699484573
+        ],
+        "exact_accuracy": 0.05316638762327219,
+        "root_accuracy": 0.44224944025932766
+      }
+    ],
+    "fixed_q2": [
+      {
+        "rank": 1,
+        "configuration": "unn",
+        "label": "Neural network (width 2,000)",
+        "training_q": "classification_objective_unchanged",
+        "scoring_q": "2",
+        "mean_loss": 0.14175583579736203,
+        "fold_sd": 0.005498844376778287,
+        "fold_losses": [
+          0.14403846153846153,
+          0.14729805534779356,
+          0.13260385756676557,
+          0.14285714285714285,
+          0.14198166167664672
+        ],
+        "exact_accuracy": 0.6687180348827857,
+        "root_accuracy": 0.9253010811141972
+      },
+      {
+        "rank": 2,
+        "configuration": "ulr",
+        "label": "L1 logistic regression",
+        "training_q": "classification_objective_unchanged",
+        "scoring_q": "2",
+        "mean_loss": 0.15353468706255902,
+        "fold_sd": 0.007110171881164766,
+        "fold_losses": [
+          0.16033653846153847,
+          0.15758227374719522,
+          0.14192321958456974,
+          0.1524234693877551,
+          0.15540793413173654
+        ],
+        "exact_accuracy": 0.6587478004515647,
+        "root_accuracy": 0.9150619039418599
+      },
+      {
+        "rank": 3,
+        "configuration": "dt",
+        "label": "Decision tree",
+        "training_q": "classification_objective_unchanged",
+        "scoring_q": "2",
+        "mean_loss": 0.18587780825891792,
+        "fold_sd": 0.007430945466812518,
+        "fold_losses": [
+          0.1933173076923077,
+          0.18866866118175019,
+          0.1737759643916914,
+          0.1846301020408163,
+          0.18899700598802396
+        ],
+        "exact_accuracy": 0.6092829332977422,
+        "root_accuracy": 0.8907250060621006
+      },
+      {
+        "rank": 4,
+        "configuration": "levelwise",
+        "label": "Level-wise logistic regression",
+        "training_q": "classification_objective_unchanged",
+        "scoring_q": "2",
+        "mean_loss": 0.20985145882696513,
+        "fold_sd": 0.006201876608769891,
+        "fold_losses": [
+          0.21389423076923078,
+          0.2099850411368736,
+          0.1990912462908012,
+          0.21301020408163265,
+          0.21327657185628743
+        ],
+        "exact_accuracy": 0.5381226473299956,
+        "root_accuracy": 0.8806827437803045
+      },
+      {
+        "rank": 5,
+        "configuration": "ensemble_0.75_243",
+        "label": "243 members: 75% features",
+        "training_q": "71",
+        "scoring_q": "2",
+        "mean_loss": 0.21418709696169838,
+        "fold_sd": 0.010696998739080806,
+        "fold_losses": [
+          0.219375,
+          0.21031226626776364,
+          0.2001576409495549,
+          0.21223578717201166,
+          0.22885479041916168
+        ],
+        "exact_accuracy": 0.5738522425570096,
+        "root_accuracy": 0.8664985602506556
+      },
+      {
+        "rank": 6,
+        "configuration": "ensemble_1_243",
+        "label": "243 members: all features",
+        "training_q": "71",
+        "scoring_q": "2",
+        "mean_loss": 0.22098954329224066,
+        "fold_sd": 0.013074437875513708,
+        "fold_losses": [
+          0.22663461538461538,
+          0.2150336574420344,
+          0.20168768545994065,
+          0.22571975218658893,
+          0.23587200598802396
+        ],
+        "exact_accuracy": 0.5752432496219341,
+        "root_accuracy": 0.856512637364272
+      },
+      {
+        "rank": 7,
+        "configuration": "ensemble_0.75_15",
+        "label": "15 members: 75% features",
+        "training_q": "71",
+        "scoring_q": "2",
+        "mean_loss": 0.22782863568149322,
+        "fold_sd": 0.009009278057596227,
+        "fold_losses": [
+          0.23110576923076923,
+          0.22737471952131638,
+          0.21522626112759644,
+          0.22540087463556852,
+          0.24003555389221556
+        ],
+        "exact_accuracy": 0.5605752231697836,
+        "root_accuracy": 0.8538022821385205
+      },
+      {
+        "rank": 8,
+        "configuration": "ensemble_1_15",
+        "label": "15 members: all features",
+        "training_q": "71",
+        "scoring_q": "2",
+        "mean_loss": 0.2372473843685968,
+        "fold_sd": 0.011759168473638044,
+        "fold_losses": [
+          0.24942307692307691,
+          0.23349850411368736,
+          0.21912091988130564,
+          0.23934037900874636,
+          0.24485404191616766
+        ],
+        "exact_accuracy": 0.5580991740982597,
+        "root_accuracy": 0.8418467807185135
+      },
+      {
+        "rank": 9,
+        "configuration": "taxonomy_association",
+        "label": "Greedy: taxonomy association",
+        "training_q": "71",
+        "scoring_q": "2",
+        "mean_loss": 0.32828541482446744,
+        "fold_sd": 0.008214646244814435,
+        "fold_losses": [
+          0.3372596153846154,
+          0.33610695587135375,
+          0.31889836795252224,
+          0.32206632653061223,
+          0.32709580838323354
+        ],
+        "exact_accuracy": 0.498152370319429,
+        "root_accuracy": 0.7377368204536837
+      },
+      {
+        "rank": 10,
+        "configuration": "ensemble_1_1",
+        "label": "1 member: all features",
+        "training_q": "71",
+        "scoring_q": "2",
+        "mean_loss": 0.3470279463943073,
+        "fold_sd": 0.024727795605308762,
+        "fold_losses": [
+          0.3723076923076923,
+          0.3400336574420344,
+          0.3150964391691395,
+          0.3718112244897959,
+          0.3358907185628742
+        ],
+        "exact_accuracy": 0.4725643163264409,
+        "root_accuracy": 0.7239824526993941
+      },
+      {
+        "rank": 11,
+        "configuration": "ensemble_0.75_1",
+        "label": "1 member: 75% features",
+        "training_q": "71",
+        "scoring_q": "2",
+        "mean_loss": 0.3659022287424661,
+        "fold_sd": 0.019988858489621748,
+        "fold_losses": [
+          0.3619230769230769,
+          0.3354525056095737,
+          0.3674425074183976,
+          0.37486333819241985,
+          0.38982971556886226
+        ],
+        "exact_accuracy": 0.4441559901162344,
+        "root_accuracy": 0.7123098031137233
+      },
+      {
+        "rank": 12,
+        "configuration": "random",
+        "label": "Greedy: random order",
+        "training_q": "71",
+        "scoring_q": "2",
+        "mean_loss": 0.3829902942149267,
+        "fold_sd": 0.010661611843673873,
+        "fold_losses": [
+          0.39566346153846155,
+          0.3817782348541511,
+          0.36660793768545996,
+          0.3829901603498542,
+          0.38791167664670656
+        ],
+        "exact_accuracy": 0.43730430778262463,
+        "root_accuracy": 0.6881992660497269
+      },
+      {
+        "rank": 13,
+        "configuration": "frequency",
+        "label": "Greedy: frequency",
+        "training_q": "71",
+        "scoring_q": "2",
+        "mean_loss": 0.3870746915604083,
+        "fold_sd": 0.01831425089669631,
+        "fold_losses": [
+          0.40163461538461537,
+          0.3582647718773373,
+          0.3808419881305638,
+          0.3922649416909621,
+          0.4023671407185629
+        ],
+        "exact_accuracy": 0.42877433078933835,
+        "root_accuracy": 0.681262566384351
+      },
+      {
+        "rank": 14,
+        "configuration": "battle_elo",
+        "label": "Greedy: Battle Elo",
+        "training_q": "71",
+        "scoring_q": "2",
+        "mean_loss": 0.3912005749124707,
+        "fold_sd": 0.019063762006998105,
+        "fold_losses": [
+          0.4146153846153846,
+          0.38275991024682127,
+          0.3642896884272997,
+          0.39276603498542273,
+          0.40157185628742514
+        ],
+        "exact_accuracy": 0.43630443561994114,
+        "root_accuracy": 0.676065235277335
+      },
+      {
+        "rank": 15,
+        "configuration": "mean_title_position",
+        "label": "Greedy: title position",
+        "training_q": "71",
+        "scoring_q": "2",
+        "mean_loss": 0.4044340785661828,
+        "fold_sd": 0.017701122346992643,
+        "fold_losses": [
+          0.4212980769230769,
+          0.3761686611817502,
+          0.40277262611275966,
+          0.4173651603498542,
+          0.40456586826347307
+        ],
+        "exact_accuracy": 0.4228395489353881,
+        "root_accuracy": 0.6588615290239793
+      },
+      {
+        "rank": 16,
+        "configuration": "dummy",
+        "label": "Dummy control",
+        "training_q": "classification_objective_unchanged",
+        "scoring_q": "2",
+        "mean_loss": 0.6931149016213405,
+        "fold_sd": 0.00976568494887021,
+        "fold_losses": [
+          0.6793269230769231,
+          0.6922213911742707,
+          0.7004821958456974,
+          0.7041727405247813,
+          0.6893712574850299
+        ],
+        "exact_accuracy": 0.05316638762327219,
+        "root_accuracy": 0.44224944025932766
+      }
+    ],
+    "retrained_q2": [
+      {
+        "rank": 1,
+        "configuration": "unn",
+        "label": "Neural network (width 2,000)",
+        "training_q": "classification_objective_unchanged",
+        "scoring_q": "2",
+        "mean_loss": 0.14175583579736203,
+        "fold_sd": 0.005498844376778287,
+        "fold_losses": [
+          0.14403846153846153,
+          0.14729805534779356,
+          0.13260385756676557,
+          0.14285714285714285,
+          0.14198166167664672
+        ],
+        "exact_accuracy": 0.6687180348827857,
+        "root_accuracy": 0.9253010811141972
+      },
+      {
+        "rank": 2,
+        "configuration": "ulr",
+        "label": "L1 logistic regression",
+        "training_q": "classification_objective_unchanged",
+        "scoring_q": "2",
+        "mean_loss": 0.15353468706255902,
+        "fold_sd": 0.007110171881164766,
+        "fold_losses": [
+          0.16033653846153847,
+          0.15758227374719522,
+          0.14192321958456974,
+          0.1524234693877551,
+          0.15540793413173654
+        ],
+        "exact_accuracy": 0.6587478004515647,
+        "root_accuracy": 0.9150619039418599
+      },
+      {
+        "rank": 3,
+        "configuration": "dt",
+        "label": "Decision tree",
+        "training_q": "classification_objective_unchanged",
+        "scoring_q": "2",
+        "mean_loss": 0.18587780825891792,
+        "fold_sd": 0.007430945466812518,
+        "fold_losses": [
+          0.1933173076923077,
+          0.18866866118175019,
+          0.1737759643916914,
+          0.1846301020408163,
+          0.18899700598802396
+        ],
+        "exact_accuracy": 0.6092829332977422,
+        "root_accuracy": 0.8907250060621006
+      },
+      {
+        "rank": 4,
+        "configuration": "ensemble_0.75_243",
+        "label": "243 members: 75% features",
+        "training_q": "2",
+        "scoring_q": "2",
+        "mean_loss": 0.20729175496288,
+        "fold_sd": 0.010233572034889402,
+        "fold_losses": [
+          0.21264423076923078,
+          0.20465594614809274,
+          0.1952893175074184,
+          0.2020317055393586,
+          0.2218375748502994
+        ],
+        "exact_accuracy": 0.5781584062845712,
+        "root_accuracy": 0.8747130670715715
+      },
+      {
+        "rank": 5,
+        "configuration": "levelwise",
+        "label": "Level-wise logistic regression",
+        "training_q": "classification_objective_unchanged",
+        "scoring_q": "2",
+        "mean_loss": 0.20985145882696513,
+        "fold_sd": 0.006201876608769891,
+        "fold_losses": [
+          0.21389423076923078,
+          0.2099850411368736,
+          0.1990912462908012,
+          0.21301020408163265,
+          0.21327657185628743
+        ],
+        "exact_accuracy": 0.5381226473299956,
+        "root_accuracy": 0.8806827437803045
+      },
+      {
+        "rank": 6,
+        "configuration": "ensemble_1_243",
+        "label": "243 members: all features",
+        "training_q": "2",
+        "scoring_q": "2",
+        "mean_loss": 0.210146963187604,
+        "fold_sd": 0.01128998981640337,
+        "fold_losses": [
+          0.21211538461538462,
+          0.20091623036649214,
+          0.19751483679525222,
+          0.2144679300291545,
+          0.22572043413173654
+        ],
+        "exact_accuracy": 0.5809246791336375,
+        "root_accuracy": 0.8692404163894055
+      },
+      {
+        "rank": 7,
+        "configuration": "ensemble_0.75_15",
+        "label": "15 members: 75% features",
+        "training_q": "2",
+        "scoring_q": "2",
+        "mean_loss": 0.22253008415574377,
+        "fold_sd": 0.006428794471962703,
+        "fold_losses": [
+          0.22629807692307694,
+          0.21835265519820493,
+          0.21411350148367952,
+          0.22348760932944606,
+          0.23039857784431136
+        ],
+        "exact_accuracy": 0.5634362108247558,
+        "root_accuracy": 0.8606986778534896
+      },
+      {
+        "rank": 8,
+        "configuration": "ensemble_1_15",
+        "label": "15 members: all features",
+        "training_q": "2",
+        "scoring_q": "2",
+        "mean_loss": 0.22947334771187372,
+        "fold_sd": 0.009860160456543863,
+        "fold_losses": [
+          0.23528846153846153,
+          0.2212041884816754,
+          0.21726632047477745,
+          0.23291727405247814,
+          0.24069049401197604
+        ],
+        "exact_accuracy": 0.5620343985813591,
+        "root_accuracy": 0.8510066167783891
+      },
+      {
+        "rank": 9,
+        "configuration": "taxonomy_association",
+        "label": "Greedy: taxonomy association",
+        "training_q": "2",
+        "scoring_q": "2",
+        "mean_loss": 0.3263328631669468,
+        "fold_sd": 0.011864946593539866,
+        "fold_losses": [
+          0.3422596153846154,
+          0.33395661929693343,
+          0.3144473293768546,
+          0.31591654518950435,
+          0.32508420658682635
+        ],
+        "exact_accuracy": 0.49990982184126725,
+        "root_accuracy": 0.740351861077568
+      },
+      {
+        "rank": 10,
+        "configuration": "ensemble_1_1",
+        "label": "1 member: all features",
+        "training_q": "2",
+        "scoring_q": "2",
+        "mean_loss": 0.3459740258560585,
+        "fold_sd": 0.025746525205198136,
+        "fold_losses": [
+          0.37490384615384614,
+          0.3430254300673149,
+          0.30906899109792285,
+          0.36529701166180756,
+          0.3375748502994012
+        ],
+        "exact_accuracy": 0.4741678989342113,
+        "root_accuracy": 0.7243674636725741
+      },
+      {
+        "rank": 11,
+        "configuration": "ensemble_0.75_1",
+        "label": "1 member: 75% features",
+        "training_q": "2",
+        "scoring_q": "2",
+        "mean_loss": 0.35998167910693163,
+        "fold_sd": 0.018776590118212932,
+        "fold_losses": [
+          0.36028846153846156,
+          0.3283937920718025,
+          0.3632696587537092,
+          0.3761844023323615,
+          0.37177208083832336
+        ],
+        "exact_accuracy": 0.4478940949259654,
+        "root_accuracy": 0.719364652418165
+      },
+      {
+        "rank": 12,
+        "configuration": "battle_elo",
+        "label": "Greedy: Battle Elo",
+        "training_q": "2",
+        "scoring_q": "2",
+        "mean_loss": 0.37965584382794687,
+        "fold_sd": 0.022910444634152014,
+        "fold_losses": [
+          0.4084615384615385,
+          0.37490650710546,
+          0.34718100890207715,
+          0.375,
+          0.3927301646706587
+        ],
+        "exact_accuracy": 0.44687366847940646,
+        "root_accuracy": 0.6882605723661127
+      },
+      {
+        "rank": 13,
+        "configuration": "random",
+        "label": "Greedy: random order",
+        "training_q": "2",
+        "scoring_q": "2",
+        "mean_loss": 0.3821776747326306,
+        "fold_sd": 0.011061061252728223,
+        "fold_losses": [
+          0.39307692307692305,
+          0.3843399401645475,
+          0.36367767062314543,
+          0.38278972303207,
+          0.38700411676646707
+        ],
+        "exact_accuracy": 0.43791036442163034,
+        "root_accuracy": 0.688989579682727
+      },
+      {
+        "rank": 14,
+        "configuration": "frequency",
+        "label": "Greedy: frequency",
+        "training_q": "2",
+        "scoring_q": "2",
+        "mean_loss": 0.3921517069626967,
+        "fold_sd": 0.019219073921904566,
+        "fold_losses": [
+          0.4101442307692308,
+          0.36471578160059837,
+          0.3801928783382789,
+          0.4066599854227405,
+          0.39904565868263475
+        ],
+        "exact_accuracy": 0.4245934071135284,
+        "root_accuracy": 0.6768021208392329
+      },
+      {
+        "rank": 15,
+        "configuration": "mean_title_position",
+        "label": "Greedy: title position",
+        "training_q": "2",
+        "scoring_q": "2",
+        "mean_loss": 0.4055406209240158,
+        "fold_sd": 0.01606499728041198,
+        "fold_losses": [
+          0.41947115384615385,
+          0.37897344801795063,
+          0.40277262611275966,
+          0.4149963556851312,
+          0.41148952095808383
+        ],
+        "exact_accuracy": 0.42280837674010524,
+        "root_accuracy": 0.6575298091112678
+      },
+      {
+        "rank": 16,
+        "configuration": "dummy",
+        "label": "Dummy control",
+        "training_q": "classification_objective_unchanged",
+        "scoring_q": "2",
+        "mean_loss": 0.6931149016213405,
+        "fold_sd": 0.00976568494887021,
+        "fold_losses": [
+          0.6793269230769231,
+          0.6922213911742707,
+          0.7004821958456974,
+          0.7041727405247813,
+          0.6893712574850299
+        ],
+        "exact_accuracy": 0.05316638762327219,
+        "root_accuracy": 0.44224944025932766
+      }
+    ]
+  },
+  "paired_comparisons": [
+    {
+      "comparison": "fixed_sqrt2",
+      "configuration": "ensemble_0.75_243",
+      "mean_native_minus_levelwise": -0.007899831163104897,
+      "paired_fold_sd": 0.008210865819754097,
+      "native_wins": 4,
+      "ties": 0,
+      "folds": 5
+    },
+    {
+      "comparison": "fixed_sqrt2",
+      "configuration": "ensemble_1_243",
+      "mean_native_minus_levelwise": -0.0037469035661398366,
+      "paired_fold_sd": 0.009765383254433246,
+      "native_wins": 3,
+      "ties": 0,
+      "folds": 5
+    },
+    {
+      "comparison": "retrained_sqrt2",
+      "configuration": "ensemble_0.75_243",
+      "mean_native_minus_levelwise": -0.015439128755096721,
+      "paired_fold_sd": 0.008433803431860646,
+      "native_wins": 5,
+      "ties": 0,
+      "folds": 5
+    },
+    {
+      "comparison": "retrained_sqrt2",
+      "configuration": "ensemble_1_243",
+      "mean_native_minus_levelwise": -0.014796686781331692,
+      "paired_fold_sd": 0.007729025364134515,
+      "native_wins": 5,
+      "ties": 0,
+      "folds": 5
+    },
+    {
+      "comparison": "fixed_q2",
+      "configuration": "ensemble_0.75_243",
+      "mean_native_minus_levelwise": 0.004335638134733244,
+      "paired_fold_sd": 0.006718908582896332,
+      "native_wins": 1,
+      "ties": 0,
+      "folds": 5
+    },
+    {
+      "comparison": "fixed_q2",
+      "configuration": "ensemble_1_243",
+      "mean_native_minus_levelwise": 0.011138084465275533,
+      "paired_fold_sd": 0.007847755283510805,
+      "native_wins": 0,
+      "ties": 0,
+      "folds": 5
+    },
+    {
+      "comparison": "retrained_q2",
+      "configuration": "ensemble_0.75_243",
+      "mean_native_minus_levelwise": -0.0025597038640851498,
+      "paired_fold_sd": 0.007167185623040909,
+      "native_wins": 4,
+      "ties": 0,
+      "folds": 5
+    },
+    {
+      "comparison": "retrained_q2",
+      "configuration": "ensemble_1_243",
+      "mean_native_minus_levelwise": 0.00029550436063887633,
+      "paired_fold_sd": 0.007817140597084365,
+      "native_wins": 3,
+      "ties": 0,
+      "folds": 5
+    }
+  ],
+  "interpretation": "Classical training objectives unchanged. Fixed comparisons change only Q in evaluation. Retrained comparisons also use Q-specific native fits and consensus. Ranks use fold-mean point estimates; no significance claim."
+}

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
 
 import pytest
@@ -8,8 +8,10 @@ import pytest
 from padjective.benchmark_runtime import Prediction
 from padjective.paper_order_history import (
     FoldHistoryRow,
+    SnapshotSpec,
     compare_history_to_baseline,
     render_history_figure,
+    select_snapshot_specs,
     summarize_history_rows,
     valuation_histogram,
     write_history_csv,
@@ -137,3 +139,31 @@ def test_history_outputs_are_created(tmp_path: Path) -> None:
     assert "\\PadOrderHistorySnapshots" in tex
     assert "taxonomy\\_association" in tex
     assert eps_path.read_text(encoding="latin-1").startswith("%!PS-Adobe")
+
+
+def test_snapshot_selection_can_pin_the_paper_history_cutoff() -> None:
+    specs = [
+        SnapshotSpec(
+            snapshot_id=str(index),
+            snapshot_name=f"latest-{index}",
+            snapshot_date=when,
+            created_at=datetime(2026, 9, 1),
+            product_count=100,
+            tag_count=20,
+            taxonomy_count=5,
+            code_version=None,
+        )
+        for index, when in enumerate(
+            (date(2026, 8, 30), date(2026, 9, 2), date(2026, 9, 4))
+        )
+    ]
+
+    selected = select_snapshot_specs(
+        specs,
+        through_date=date(2026, 9, 2),
+    )
+
+    assert [spec.snapshot_date for spec in selected] == [
+        date(2026, 8, 30),
+        date(2026, 9, 2),
+    ]

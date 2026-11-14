@@ -14,8 +14,14 @@ from padjective.benchmark_bundle import (
 )
 from padjective.build_site import build_site
 from padjective.benchmark_runtime import (
+    BattleRecord,
+    ProductRecord,
+    _compute_zubarev_loss,
+    _initialize_coefficients_umllr_style,
+    _stochastic_optimize,
     build_snapshot_benchmark_bundle,
     load_snapshot_tables,
+    zubarev_run_fold,
 )
 
 
@@ -45,7 +51,6 @@ def _write_snapshot_fixture(root: Path) -> None:
     with (root / "tags.jsonl").open("w", encoding="utf-8") as handle:
         for row in tags:
             handle.write(json.dumps(row) + "\n")
-
     products = [
         {
             "product_id_hash": "prod-a0",
@@ -129,6 +134,120 @@ def _write_snapshot_fixture(root: Path) -> None:
     with (root / "products-00000.jsonl").open("w", encoding="utf-8") as handle:
         for row in products:
             handle.write(json.dumps(row) + "\n")
+
+
+def test_zubarev_initializer_uses_the_primary_greedy_order(monkeypatch) -> None:
+    records = [
+        ProductRecord(
+            product_id=1,
+            product_key="one",
+            tags=["less-specific", "more-specific"],
+            encoded_path=8,
+            cv_fold=0,
+            taxonomy_id="tax-a",
+            taxonomy_depth=2,
+            title_tag_positions=(),
+        ),
+        ProductRecord(
+            product_id=2,
+            product_key="two",
+            tags=["less-specific"],
+            encoded_path=4,
+            cv_fold=0,
+            taxonomy_id="tax-b",
+            taxonomy_depth=2,
+            title_tag_positions=(),
+        ),
+    ]
+    observed: dict[str, str] = {}
+
+    def fake_order(training, battles, holdout_fold, *, strategy, seed=None):
+        observed["strategy"] = strategy
+        return ["more-specific", "less-specific"]
+
+    monkeypatch.setattr("padjective.benchmark_runtime._tag_order", fake_order)
+
+    coefficients = _initialize_coefficients_umllr_style(
+        records,
+        [BattleRecord("more-specific", "less-specific", 0)],
+        1,
+        3,
+    )
+
+    assert observed["strategy"] == "taxonomy_association"
+    assert list(coefficients) == ["more-specific", "less-specific"]
+
+
+def test_stochastic_training_scores_zero_without_a_reporting_default() -> None:
+    records = [
+        ProductRecord(
+            product_id=index,
+            product_key=str(index),
+            tags=tags,
+            encoded_path=1,
+            cv_fold=0,
+            taxonomy_id="tax-a",
+            taxonomy_depth=1,
+            title_tag_positions=(),
+        )
+        for index, tags in enumerate([[], ["positive", "negative"], ["positive"]])
+    ]
+    coefficients = {"positive": 1, "negative": -1}
+    # Empty support and exact cancellation each have raw-score loss one.
+    assert _compute_zubarev_loss(records, coefficients, [], 71) == 2.0
+    fitted, weights, loss, iterations = _stochastic_optimize(
+        records, coefficients, 71, max_iterations=0, seed=42
+    )
+    assert fitted == coefficients
+    assert weights == []
+    assert loss == 2.0
+    assert iterations == 0
+
+
+def test_zubarev_degree_zero_uses_greedy_default_for_cancelling_coefficients(
+    monkeypatch,
+) -> None:
+    records = [
+        ProductRecord(
+            product_id=1,
+            product_key="training",
+            tags=["positive"],
+            encoded_path=5,
+            cv_fold=0,
+            taxonomy_id="tax-a",
+            taxonomy_depth=1,
+            title_tag_positions=(),
+        ),
+        ProductRecord(
+            product_id=2,
+            product_key="testing",
+            tags=["positive", "negative"],
+            encoded_path=5,
+            cv_fold=1,
+            taxonomy_id="tax-a",
+            taxonomy_depth=1,
+            title_tag_positions=(),
+        ),
+    ]
+    monkeypatch.setattr(
+        "padjective.benchmark_runtime._initialize_coefficients_umllr_style",
+        lambda *_args, **_kwargs: {"positive": 1, "negative": -1},
+    )
+
+    result = zubarev_run_fold(
+        1,
+        records,
+        [],
+        7,
+        mahler_degree=0,
+        max_iterations=0,
+        seed=42,
+        initialization_method="umllr",
+    )
+
+    assert result.default_prediction == 5
+    assert result.predictions[0].predicted_value == 5
+    assert result.exact_accuracy == 1.0
 
 
 def test_snapshot_bundle_writes_json_csv_html_and_tex(tmp_path: Path) -> None:

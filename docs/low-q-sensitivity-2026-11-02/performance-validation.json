@@ -1,0 +1,40 @@
+{
+  "old_algorithm_sha256": "912cbff50a2debb4ecf7303e97acb32f26e35ce130b12ecc12b2d5e2036565dd",
+  "new_algorithm_sha256": "f349eb35b45697cbf42eae9ba39a55001d239fad2fb2cf6e77b884021c269a8a",
+  "checks": [
+    {
+      "q": "2",
+      "fraction": 0.75,
+      "fold": 0,
+      "index": 0,
+      "identical_coefficients_and_predictions": true,
+      "seconds": 1.401
+    },
+    {
+      "q": "2",
+      "fraction": 1.0,
+      "fold": 0,
+      "index": 0,
+      "identical_coefficients_and_predictions": true,
+      "seconds": 1.871
+    },
+    {
+      "q": "sqrt2",
+      "fraction": 0.75,
+      "fold": 0,
+      "index": 0,
+      "identical_coefficients_and_predictions": true,
+      "seconds": 1.403
+    },
+    {
+      "q": "sqrt2",
+      "fraction": 1.0,
+      "fold": 0,
+      "index": 0,
+      "identical_coefficients_and_predictions": true,
+      "seconds": 1.864
+    }
+  ],
+  "synthetic_medoid_checks": 1800,
+  "synthetic_loss_vector_checks": 900
+}

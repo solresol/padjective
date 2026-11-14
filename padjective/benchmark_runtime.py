@@ -336,7 +336,9 @@ def _load_json_url(url: str, *, headers: dict[str, str] | None = None) -> dict[s
 def _load_json_url_df(url: str, *, headers: dict[str, str] | None = None) -> pd.DataFrame:
     request = urllib.request.Request(url, headers=headers or {})
     with urllib.request.urlopen(request) as response:
-        return pd.read_json(response, lines=True, compression="infer")
+        # A response stream has no filename from which pandas can infer gzip.
+        compression = "gzip" if urllib.parse.urlsplit(url).path.endswith(".gz") else None
+        return pd.read_json(response, lines=True, compression=compression)
 
 
 def _load_json_path(path: Path) -> dict[str, Any]:
@@ -465,7 +467,8 @@ def load_snapshot_tables_from_hf(
         return f"https://huggingface.co/datasets/{dataset_slug}/resolve/{revision_slug}/{path_slug}"
 
     snapshot_prefix = snapshot.strip("/") + "/"
-    dataset_meta = hf_api_json(f"datasets/{dataset_id}")
+    revision_slug = urllib.parse.quote(revision, safe="")
+    dataset_meta = hf_api_json(f"datasets/{dataset_id}/revision/{revision_slug}")
     all_paths = [entry.get("rfilename", "") for entry in dataset_meta.get("siblings", [])]
     snapshot_paths = [path for path in all_paths if path.startswith(snapshot_prefix)]
     if not snapshot_paths:
@@ -977,18 +980,15 @@ def _select_default_prediction(
     return int(best_value)
 
 
-def umllr_run_fold(
+def fit_one_pass(
     fold: int,
-    records: Sequence[ProductRecord],
+    training: Sequence[ProductRecord],
     battles: Sequence[BattleRecord],
     base: int,
     *,
     tag_order_strategy: str,
     tag_order_seed: int | None = None,
-) -> UMLLRFoldResult:
-    training = [record for record in records if record.cv_fold != fold]
-    testing = [record for record in records if record.cv_fold == fold]
-
+) -> tuple[list[TagCoefficient], int]:
     product_residuals: Dict[int, int] = {record.product_id: record.encoded_path for record in training}
     tag_to_products: Dict[str, List[int]] = {}
     for record in training:
@@ -1020,6 +1020,23 @@ def umllr_run_fold(
     ]
     all_training_values = [record.encoded_path for record in training]
     default_prediction = _select_default_prediction(no_tag_training_values, all_training_values, base)
+    return coefficients, default_prediction
+
+
+def umllr_run_fold(
+    fold: int,
+    records: Sequence[ProductRecord],
+    battles: Sequence[BattleRecord],
+    base: int,
+    *,
+    tag_order_strategy: str,
+    tag_order_seed: int | None = None,
+) -> UMLLRFoldResult:
+    training = [record for record in records if record.cv_fold != fold]
+    testing = [record for record in records if record.cv_fold == fold]
+    coefficients, default_prediction = fit_one_pass(
+        fold, training, battles, base, tag_order_strategy=tag_order_strategy, tag_order_seed=tag_order_seed)
+    coefficient_lookup = {entry.tag: entry.coefficient for entry in coefficients}
 
     predictions: list[Prediction] = []
     scoring_ops: list[float] = []
@@ -1090,15 +1107,17 @@ def _compute_zubarev_loss(
     records: Sequence[ProductRecord],
     coefficients: Mapping[str, int],
     mahler_weights: Sequence[int],
-    default_prediction: int,
     base: int,
 ) -> float:
+    """Raw-score training loss, matching the greedy coefficient pass.
+
+    Zero scores, including cancellation and empty support, are scored as zero.
+    The reporting default is fitted only after coefficient optimisation.
+    """
     total_loss = 0.0
     for record in records:
         score = sum(coefficients.get(tag, 0) for tag in record.tags)
         predicted = _mahler_predict(score, mahler_weights) if mahler_weights else score
-        if predicted == 0 and not any(coefficients.get(tag, 0) != 0 for tag in record.tags):
-            predicted = default_prediction
         total_loss += p_adic_distance(predicted, record.encoded_path, base)
     return float(total_loss)
 
@@ -1108,12 +1127,19 @@ def _initialize_coefficients_umllr_style(
     battles: Sequence[BattleRecord],
     holdout_fold: int,
     base: int,
+    *,
+    tag_order_strategy: str = DEFAULT_PRIMARY_UMLLR_STRATEGY,
 ) -> Dict[str, int]:
     tag_to_products: Dict[str, List[int]] = {}
     for record in training:
         for tag in record.tags:
             tag_to_products.setdefault(tag, []).append(record.product_id)
-    tag_order = _battle_elo_order(battles, holdout_fold, list(tag_to_products.keys()))
+    tag_order = _tag_order(
+        training,
+        battles,
+        holdout_fold,
+        strategy=tag_order_strategy,
+    )
     product_residuals: Dict[int, int] = {record.product_id: record.encoded_path for record in training}
     coefficients: Dict[str, int] = {}
     for tag in tag_order:
@@ -1145,10 +1171,7 @@ def _stochastic_optimize(
     coefficients = dict(initial_coefficients)
     tags = list(coefficients)
     mahler_weights = [0] + [1] + [0] * (mahler_degree - 1) if mahler_degree > 0 else []
-    all_values = sorted({record.encoded_path for record in training})
-    default_prediction = all_values[0] if all_values else 0
-
-    current_loss = _compute_zubarev_loss(training, coefficients, mahler_weights, default_prediction, base)
+    current_loss = _compute_zubarev_loss(training, coefficients, mahler_weights, base)
     best_coefficients = dict(coefficients)
     best_mahler = list(mahler_weights)
     best_loss = current_loss
@@ -1166,7 +1189,7 @@ def _stochastic_optimize(
             delta = random.randint(-perturbation_scale, perturbation_scale)
 
         coefficients[tag] = old_value + delta
-        new_loss = _compute_zubarev_loss(training, coefficients, mahler_weights, default_prediction, base)
+        new_loss = _compute_zubarev_loss(training, coefficients, mahler_weights, base)
         accepted = False
         if new_loss < current_loss:
             current_loss = new_loss
@@ -1202,13 +1225,20 @@ def zubarev_run_fold(
     max_iterations: int = DEFAULT_ZUBAREV_MAX_ITERATIONS,
     seed: int | None = None,
     initialization_method: str = "umllr",
+    initialization_strategy: str = DEFAULT_PRIMARY_UMLLR_STRATEGY,
 ) -> ZubarevFoldResult:
     all_training = [record for record in records if record.cv_fold != fold]
     testing = [record for record in records if record.cv_fold == fold]
     fold_seed = seed + fold if seed is not None else None
 
     if initialization_method == "umllr":
-        initial_coefficients = _initialize_coefficients_umllr_style(all_training, battles, fold, base)
+        initial_coefficients = _initialize_coefficients_umllr_style(
+            all_training,
+            battles,
+            fold,
+            base,
+            tag_order_strategy=initialization_strategy,
+        )
     elif initialization_method == "zeros":
         all_tags = {tag for record in all_training for tag in record.tags}
         initial_coefficients = {tag: 0 for tag in all_tags}
@@ -1244,7 +1274,7 @@ def zubarev_run_fold(
         ]
         score = int(sum(active_coefficients))
         predicted = _mahler_predict(score, mahler_weights) if mahler_weights else score
-        if predicted == 0 and not active_coefficients:
+        if predicted == 0:
             predicted = default_prediction
         loss = p_adic_distance(predicted, record.encoded_path, base)
         total_loss += loss
@@ -1258,7 +1288,12 @@ def zubarev_run_fold(
             )
         )
 
-    ordered_tags = _battle_elo_order(battles, fold, list(optimized_coefficients.keys()))
+    ordered_tags = _tag_order(
+        all_training,
+        battles,
+        fold,
+        strategy=initialization_strategy,
+    )
     coefficients = [
         TagCoefficient(tag=tag, coefficient=int(optimized_coefficients.get(tag, 0)), sequence=idx)
         for idx, tag in enumerate(ordered_tags)
@@ -1805,7 +1840,7 @@ def _build_model_rows(
     model_rows.append(
         _aggregate_model_rows(
             model_key="zubarev",
-            model_label="Zubarev (greedy init.)",
+            model_label="Stochastic continuation (Zubarev-inspired)",
             short_label="Zubarev",
             color="#7c3aed",
             marker="v",

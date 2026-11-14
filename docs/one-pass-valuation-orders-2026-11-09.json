@@ -1,0 +1,4168 @@
+{
+  "experiment_key": "paper-valuation-orders-2026-11-09",
+  "status": "validated",
+  "source_commit": "16318779848281a2733d7ff8268c8424d331b62c",
+  "valuation_prime": 71,
+  "fitting_q": 71,
+  "evaluation_q": 2,
+  "medoid_q": 71,
+  "references": {
+    "product": "paper-q2-primary-2026-11-05",
+    "store": "paper-matched-store-folds-2026-11-09",
+    "selector": "paper-valuation-selector-2026-11-09"
+  },
+  "protocol": "Reuse each original one-pass fit and default. Select the native p-adic medoid of the nonzero coefficients with lowest valuation. Break ties by signed integer order. Average random seeds within each fold, then weight all five folds equally.",
+  "snapshot_id": "244ddbe3-0a2c-4c04-9436-0a0253108a09",
+  "product_fold_digest": "039175941ed2a2ec888bc6c7314c3c5f8afac1201ff604413dedb55641706222",
+  "store_fold_digest": "f1dc7d524ee3afb9b9dbd4eea3bb3383724a936fca8dd35737a241ea09f89571",
+  "store_assignment_sha256": "32cc0e38daa28acfbd032595e958606224f542e5d80aa26d4d541836698ac4f3",
+  "stores": 395,
+  "taxonomy_sha256": "a6a0b205f4982a26bc8d3d640a83228aaaed20b96fc99587681436f72de079fd",
+  "feature_order_sha256": "94c1a7fb6e2cdcf1190e5ee351e677bc0f7cbb93f6c6988b1c97ee8123799eee",
+  "title_positions_sha256": "2d1fe4e15b48c6a6d9c9dd920c739da3dde53ce34b72b375715b48d37ad6f6e9",
+  "features": 2542,
+  "categories": 363,
+  "splits": {
+    "product": {
+      "battle_elo": {
+        "original": {
+          "loss_q2": 0.3912005749124707,
+          "root_accuracy": 0.676065235277335,
+          "exact_accuracy": 0.43630443561994114,
+          "loss_q2_sd": 0.019063762006998105
+        },
+        "selected": {
+          "loss_q2": 0.30327221818979466,
+          "root_accuracy": 0.7807222401540099,
+          "exact_accuracy": 0.47426076224898345,
+          "loss_q2_sd": 0.010267137964271332
+        },
+        "folds": [
+          {
+            "fold": 0,
+            "seeds": [
+              {
+                "seed": null,
+                "fold": 0,
+                "products": 1300,
+                "multi_term": 440,
+                "multi_term_tied_valuation": 336,
+                "multi_term_oracle_loss_matches": 318,
+                "original": {
+                  "loss_q2": 0.4146153846153846,
+                  "root_accuracy": 0.6538461538461539,
+                  "exact_accuracy": 0.42,
+                  "prediction_sha256": "4aa3e041f367385f1ff0994ebaec2a2b01b740e2fb116cf39024f213234e2e1c"
+                },
+                "selected": {
+                  "n": 1300,
+                  "loss_q2": 0.31548076923076923,
+                  "root_accuracy": 0.77,
+                  "exact_accuracy": 0.46153846153846156,
+                  "first_disagreement_counts": {
+                    "0": 299,
+                    "1": 109,
+                    "2": 171,
+                    "3": 101,
+                    "4": 20
+                  },
+                  "exact_correct": 600,
+                  "prediction_sha256": "8f825320a3105fa9aa7d8c178fd6cd49fb201c80950137fe57274c59171f6930"
+                },
+                "multi_term_outcomes": {
+                  "beats": 218,
+                  "ties": 142,
+                  "loses": 80
+                },
+                "multi_term_selected_loss_total": 175.75,
+                "multi_term_original_loss_total": 304.625
+              }
+            ],
+            "original": {
+              "loss_q2": 0.4146153846153846,
+              "root_accuracy": 0.6538461538461539,
+              "exact_accuracy": 0.42
+            },
+            "selected": {
+              "loss_q2": 0.31548076923076923,
+              "root_accuracy": 0.77,
+              "exact_accuracy": 0.46153846153846156
+            }
+          },
+          {
+            "fold": 1,
+            "seeds": [
+              {
+                "seed": null,
+                "fold": 1,
+                "products": 1337,
+                "multi_term": 420,
+                "multi_term_tied_valuation": 312,
+                "multi_term_oracle_loss_matches": 322,
+                "original": {
+                  "loss_q2": 0.38275991024682127,
+                  "root_accuracy": 0.6866118175018698,
+                  "exact_accuracy": 0.43829468960359014,
+                  "prediction_sha256": "d09e8b5664240182e0aa9fbb29a00c02c1f7cda46d52a70f99a97bf4e1ffa7fb"
+                },
+                "selected": {
+                  "n": 1337,
+                  "loss_q2": 0.2941753926701571,
+                  "root_accuracy": 0.7913238593866866,
+                  "exact_accuracy": 0.4741959611069559,
+                  "first_disagreement_counts": {
+                    "0": 279,
+                    "1": 101,
+                    "2": 202,
+                    "3": 92,
+                    "4": 29
+                  },
+                  "exact_correct": 634,
+                  "prediction_sha256": "04e5e36f9cee30cf7d99bce17d02470b832180aeadf61a3920c2af8e57329b73"
+                },
+                "multi_term_outcomes": {
+                  "beats": 202,
+                  "ties": 133,
+                  "loses": 85
+                },
+                "multi_term_selected_loss_total": 144.3125,
+                "multi_term_original_loss_total": 262.75
+              }
+            ],
+            "original": {
+              "loss_q2": 0.38275991024682127,
+              "root_accuracy": 0.6866118175018698,
+              "exact_accuracy": 0.43829468960359014
+            },
+            "selected": {
+              "loss_q2": 0.2941753926701571,
+              "root_accuracy": 0.7913238593866866,
+              "exact_accuracy": 0.4741959611069559
+            }
+          },
+          {
+            "fold": 2,
+            "seeds": [
+              {
+                "seed": null,
+                "fold": 2,
+                "products": 1348,
+                "multi_term": 385,
+                "multi_term_tied_valuation": 298,
+                "multi_term_oracle_loss_matches": 269,
+                "original": {
+                  "loss_q2": 0.3642896884272997,
+                  "root_accuracy": 0.7010385756676558,
+                  "exact_accuracy": 0.46735905044510384,
+                  "prediction_sha256": "c27f4108518619e28248de1955d34cb7eb7aa02fac33f7bbb8a107829bb19bc9"
+                },
+                "selected": {
+                  "n": 1348,
+                  "loss_q2": 0.29381491097922846,
+                  "root_accuracy": 0.78486646884273,
+                  "exact_accuracy": 0.48887240356083084,
+                  "first_disagreement_counts": {
+                    "0": 290,
+                    "1": 104,
+                    "2": 147,
+                    "3": 129,
+                    "4": 19
+                  },
+                  "exact_correct": 659,
+                  "prediction_sha256": "95ca119995bab1250a20ec67e8f7403ded91c79821dcd01c49f1aaf40017dcfb"
+                },
+                "multi_term_outcomes": {
+                  "beats": 169,
+                  "ties": 139,
+                  "loses": 77
+                },
+                "multi_term_selected_loss_total": 152.3125,
+                "multi_term_original_loss_total": 247.3125
+              }
+            ],
+            "original": {
+              "loss_q2": 0.3642896884272997,
+              "root_accuracy": 0.7010385756676558,
+              "exact_accuracy": 0.46735905044510384
+            },
+            "selected": {
+              "loss_q2": 0.29381491097922846,
+              "root_accuracy": 0.78486646884273,
+              "exact_accuracy": 0.48887240356083084
+            }
+          },
+          {
+            "fold": 3,
+            "seeds": [
+              {
+                "seed": null,
+                "fold": 3,
+                "products": 1372,
+                "multi_term": 419,
+                "multi_term_tied_valuation": 334,
+                "multi_term_oracle_loss_matches": 289,
+                "original": {
+                  "loss_q2": 0.39276603498542273,
+                  "root_accuracy": 0.6756559766763848,
+                  "exact_accuracy": 0.4322157434402332,
+                  "prediction_sha256": "fbb7cb9e1fe0b102a19af6ea6ec5d65e7c96ef8366b58a4d299e44f2d9ae26fb"
+                },
+                "selected": {
+                  "n": 1372,
+                  "loss_q2": 0.30010932944606417,
+                  "root_accuracy": 0.7857142857142857,
+                  "exact_accuracy": 0.478134110787172,
+                  "first_disagreement_counts": {
+                    "0": 294,
+                    "1": 122,
+                    "2": 167,
+                    "3": 107,
+                    "4": 26
+                  },
+                  "exact_correct": 656,
+                  "prediction_sha256": "27312a14645feb8154165877f8874a2523fb259939aa7ac38ea9582a4b5dd014"
+                },
+                "multi_term_outcomes": {
+                  "beats": 194,
+                  "ties": 154,
+                  "loses": 71
+                },
+                "multi_term_selected_loss_total": 168.875,
+                "multi_term_original_loss_total": 296.0
+              }
+            ],
+            "original": {
+              "loss_q2": 0.39276603498542273,
+              "root_accuracy": 0.6756559766763848,
+              "exact_accuracy": 0.4322157434402332
+            },
+            "selected": {
+              "loss_q2": 0.30010932944606417,
+              "root_accuracy": 0.7857142857142857,
+              "exact_accuracy": 0.478134110787172
+            }
+          },
+          {
+            "fold": 4,
+            "seeds": [
+              {
+                "seed": null,
+                "fold": 4,
+                "products": 1336,
+                "multi_term": 416,
+                "multi_term_tied_valuation": 352,
+                "multi_term_oracle_loss_matches": 290,
+                "original": {
+                  "loss_q2": 0.40157185628742514,
+                  "root_accuracy": 0.6631736526946108,
+                  "exact_accuracy": 0.4236526946107784,
+                  "prediction_sha256": "f310159d3fd1f4be46040ede1c638a09ff75dea4f9cfdcd1f8048cf0d4869bfb"
+                },
+                "selected": {
+                  "n": 1336,
+                  "loss_q2": 0.3127806886227545,
+                  "root_accuracy": 0.7717065868263473,
+                  "exact_accuracy": 0.468562874251497,
+                  "first_disagreement_counts": {
+                    "0": 305,
+                    "1": 116,
+                    "2": 162,
+                    "3": 103,
+                    "4": 24
+                  },
+                  "exact_correct": 626,
+                  "prediction_sha256": "56be6d307806f48fcbe4f0d9354ba663c1083b3f0ee5112b2cef041db40c6a96"
+                },
+                "multi_term_outcomes": {
+                  "beats": 199,
+                  "ties": 151,
+                  "loses": 66
+                },
+                "multi_term_selected_loss_total": 179.0625,
+                "multi_term_original_loss_total": 297.6875
+              }
+            ],
+            "original": {
+              "loss_q2": 0.40157185628742514,
+              "root_accuracy": 0.6631736526946108,
+              "exact_accuracy": 0.4236526946107784
+            },
+            "selected": {
+              "loss_q2": 0.3127806886227545,
+              "root_accuracy": 0.7717065868263473,
+              "exact_accuracy": 0.468562874251497
+            }
+          }
+        ]
+      },
+      "frequency": {
+        "original": {
+          "loss_q2": 0.3870746915604083,
+          "root_accuracy": 0.681262566384351,
+          "exact_accuracy": 0.42877433078933835,
+          "loss_q2_sd": 0.01831425089669631
+        },
+        "selected": {
+          "loss_q2": 0.351017113803676,
+          "root_accuracy": 0.7443060707445945,
+          "exact_accuracy": 0.40497523532549984,
+          "loss_q2_sd": 0.017716552676683876
+        },
+        "folds": [
+          {
+            "fold": 0,
+            "seeds": [
+              {
+                "seed": null,
+                "fold": 0,
+                "products": 1300,
+                "multi_term": 590,
+                "multi_term_tied_valuation": 406,
+                "multi_term_oracle_loss_matches": 425,
+                "original": {
+                  "loss_q2": 0.40163461538461537,
+                  "root_accuracy": 0.6707692307692308,
+                  "exact_accuracy": 0.4169230769230769,
+                  "prediction_sha256": "295dded7c17988d58b20f47160a6734bac1214ab799c517e314a67f6935eb4fd"
+                },
+                "selected": {
+                  "n": 1300,
+                  "loss_q2": 0.36370192307692306,
+                  "root_accuracy": 0.7369230769230769,
+                  "exact_accuracy": 0.3930769230769231,
+                  "first_disagreement_counts": {
+                    "0": 342,
+                    "1": 138,
+                    "2": 193,
+                    "3": 101,
+                    "4": 15
+                  },
+                  "exact_correct": 511,
+                  "prediction_sha256": "9dbf6fa714a5063a8984310da02dde612a90b9379265548cb0593f29fc0c276b"
+                },
+                "multi_term_outcomes": {
+                  "beats": 197,
+                  "ties": 216,
+                  "loses": 177
+                },
+                "multi_term_selected_loss_total": 273.9375,
+                "multi_term_original_loss_total": 323.25
+              }
+            ],
+            "original": {
+              "loss_q2": 0.40163461538461537,
+              "root_accuracy": 0.6707692307692308,
+              "exact_accuracy": 0.4169230769230769
+            },
+            "selected": {
+              "loss_q2": 0.36370192307692306,
+              "root_accuracy": 0.7369230769230769,
+              "exact_accuracy": 0.3930769230769231
+            }
+          },
+          {
+            "fold": 1,
+            "seeds": [
+              {
+                "seed": null,
+                "fold": 1,
+                "products": 1337,
+                "multi_term": 552,
+                "multi_term_tied_valuation": 368,
+                "multi_term_oracle_loss_matches": 401,
+                "original": {
+                  "loss_q2": 0.3582647718773373,
+                  "root_accuracy": 0.7135377711293942,
+                  "exact_accuracy": 0.4457741211667913,
+                  "prediction_sha256": "886a183f268ffbe9110893cf6c46a1b1e0621935d5ad6f692f57f8b8ba4f480a"
+                },
+                "selected": {
+                  "n": 1337,
+                  "loss_q2": 0.3245138369483919,
+                  "root_accuracy": 0.7778608825729245,
+                  "exact_accuracy": 0.4091249065071055,
+                  "first_disagreement_counts": {
+                    "0": 297,
+                    "1": 127,
+                    "2": 234,
+                    "3": 106,
+                    "4": 26
+                  },
+                  "exact_correct": 547,
+                  "prediction_sha256": "852fa2c86a382192d440dd962b486808ee0cd013e8b004f6109130fd754af054"
+                },
+                "multi_term_outcomes": {
+                  "beats": 169,
+                  "ties": 233,
+                  "loses": 150
+                },
+                "multi_term_selected_loss_total": 259.875,
+                "multi_term_original_loss_total": 305.0
+              }
+            ],
+            "original": {
+              "loss_q2": 0.3582647718773373,
+              "root_accuracy": 0.7135377711293942,
+              "exact_accuracy": 0.4457741211667913
+            },
+            "selected": {
+              "loss_q2": 0.3245138369483919,
+              "root_accuracy": 0.7778608825729245,
+              "exact_accuracy": 0.4091249065071055
+            }
+          },
+          {
+            "fold": 2,
+            "seeds": [
+              {
+                "seed": null,
+                "fold": 2,
+                "products": 1348,
+                "multi_term": 614,
+                "multi_term_tied_valuation": 395,
+                "multi_term_oracle_loss_matches": 471,
+                "original": {
+                  "loss_q2": 0.3808419881305638,
+                  "root_accuracy": 0.6787833827893175,
+                  "exact_accuracy": 0.4495548961424332,
+                  "prediction_sha256": "a7e82bc03af38ca8e58c639a8d9c5959642f96ec462ee53e0e3cb4958125f288"
+                },
+                "selected": {
+                  "n": 1348,
+                  "loss_q2": 0.34783011869436203,
+                  "root_accuracy": 0.7344213649851632,
+                  "exact_accuracy": 0.42952522255192876,
+                  "first_disagreement_counts": {
+                    "0": 358,
+                    "1": 100,
+                    "2": 186,
+                    "3": 105,
+                    "4": 20
+                  },
+                  "exact_correct": 579,
+                  "prediction_sha256": "20f33befcd4723df182918338c647d895088ad95cba2940f551eee11390d7e9c"
+                },
+                "multi_term_outcomes": {
+                  "beats": 198,
+                  "ties": 230,
+                  "loses": 186
+                },
+                "multi_term_selected_loss_total": 284.375,
+                "multi_term_original_loss_total": 328.875
+              }
+            ],
+            "original": {
+              "loss_q2": 0.3808419881305638,
+              "root_accuracy": 0.6787833827893175,
+              "exact_accuracy": 0.4495548961424332
+            },
+            "selected": {
+              "loss_q2": 0.34783011869436203,
+              "root_accuracy": 0.7344213649851632,
+              "exact_accuracy": 0.42952522255192876
+            }
+          },
+          {
+            "fold": 3,
+            "seeds": [
+              {
+                "seed": null,
+                "fold": 3,
+                "products": 1372,
+                "multi_term": 583,
+                "multi_term_tied_valuation": 405,
+                "multi_term_oracle_loss_matches": 420,
+                "original": {
+                  "loss_q2": 0.3922649416909621,
+                  "root_accuracy": 0.6793002915451896,
+                  "exact_accuracy": 0.41545189504373176,
+                  "prediction_sha256": "ecbaf39ffc7ce017b265334558f966ab3704189b2369dd320899a89cf841f5e7"
+                },
+                "selected": {
+                  "n": 1372,
+                  "loss_q2": 0.34862427113702626,
+                  "root_accuracy": 0.749271137026239,
+                  "exact_accuracy": 0.39868804664723034,
+                  "first_disagreement_counts": {
+                    "0": 344,
+                    "1": 127,
+                    "2": 223,
+                    "3": 110,
+                    "4": 21
+                  },
+                  "exact_correct": 547,
+                  "prediction_sha256": "9974774915485458d333aaa74ab0351c9f9070a93dbbec5843eaa48fcbd23ee1"
+                },
+                "multi_term_outcomes": {
+                  "beats": 208,
+                  "ties": 211,
+                  "loses": 164
+                },
+                "multi_term_selected_loss_total": 274.4375,
+                "multi_term_original_loss_total": 334.3125
+              }
+            ],
+            "original": {
+              "loss_q2": 0.3922649416909621,
+              "root_accuracy": 0.6793002915451896,
+              "exact_accuracy": 0.41545189504373176
+            },
+            "selected": {
+              "loss_q2": 0.34862427113702626,
+              "root_accuracy": 0.749271137026239,
+              "exact_accuracy": 0.39868804664723034
+            }
+          },
+          {
+            "fold": 4,
+            "seeds": [
+              {
+                "seed": null,
+                "fold": 4,
+                "products": 1336,
+                "multi_term": 593,
+                "multi_term_tied_valuation": 412,
+                "multi_term_oracle_loss_matches": 431,
+                "original": {
+                  "loss_q2": 0.4023671407185629,
+                  "root_accuracy": 0.6639221556886228,
+                  "exact_accuracy": 0.4161676646706587,
+                  "prediction_sha256": "569d3a538fbf5c4681ac32ff75a7de8a76f954452fb2fa56a6ae76f6ec9a8c0c"
+                },
+                "selected": {
+                  "n": 1336,
+                  "loss_q2": 0.37041541916167664,
+                  "root_accuracy": 0.7230538922155689,
+                  "exact_accuracy": 0.3944610778443114,
+                  "first_disagreement_counts": {
+                    "0": 370,
+                    "1": 129,
+                    "2": 185,
+                    "3": 101,
+                    "4": 24
+                  },
+                  "exact_correct": 527,
+                  "prediction_sha256": "b5a6d917fdf8ee903dc70b0afea56cb229fa3920731ec0c71f8836d50d473c05"
+                },
+                "multi_term_outcomes": {
+                  "beats": 191,
+                  "ties": 230,
+                  "loses": 172
+                },
+                "multi_term_selected_loss_total": 292.6875,
+                "multi_term_original_loss_total": 335.375
+              }
+            ],
+            "original": {
+              "loss_q2": 0.4023671407185629,
+              "root_accuracy": 0.6639221556886228,
+              "exact_accuracy": 0.4161676646706587
+            },
+            "selected": {
+              "loss_q2": 0.37041541916167664,
+              "root_accuracy": 0.7230538922155689,
+              "exact_accuracy": 0.3944610778443114
+            }
+          }
+        ]
+      },
+      "mean_title_position": {
+        "original": {
+          "loss_q2": 0.4044340785661828,
+          "root_accuracy": 0.6588615290239793,
+          "exact_accuracy": 0.4228395489353881,
+          "loss_q2_sd": 0.017701122346992643
+        },
+        "selected": {
+          "loss_q2": 0.33048557413829066,
+          "root_accuracy": 0.7621797409689022,
+          "exact_accuracy": 0.4337683932056647,
+          "loss_q2_sd": 0.013928789490372954
+        },
+        "folds": [
+          {
+            "fold": 0,
+            "seeds": [
+              {
+                "seed": null,
+                "fold": 0,
+                "products": 1300,
+                "multi_term": 505,
+                "multi_term_tied_valuation": 373,
+                "multi_term_oracle_loss_matches": 357,
+                "original": {
+                  "loss_q2": 0.4212980769230769,
+                  "root_accuracy": 0.64,
+                  "exact_accuracy": 0.4115384615384615,
+                  "prediction_sha256": "de939e3916884260c3b4682ff934aa19d98224f46b3550939c90bcb6ab2f536e"
+                },
+                "selected": {
+                  "n": 1300,
+                  "loss_q2": 0.3462980769230769,
+                  "root_accuracy": 0.7469230769230769,
+                  "exact_accuracy": 0.41384615384615386,
+                  "first_disagreement_counts": {
+                    "0": 329,
+                    "1": 118,
+                    "2": 191,
+                    "3": 107,
+                    "4": 17
+                  },
+                  "exact_correct": 538,
+                  "prediction_sha256": "347964be8584d90d7e7531c1d0c5e7305a60d4cf78ed93ec04d1c2b3f4c186b3"
+                },
+                "multi_term_outcomes": {
+                  "beats": 210,
+                  "ties": 175,
+                  "loses": 120
+                },
+                "multi_term_selected_loss_total": 227.875,
+                "multi_term_original_loss_total": 325.375
+              }
+            ],
+            "original": {
+              "loss_q2": 0.4212980769230769,
+              "root_accuracy": 0.64,
+              "exact_accuracy": 0.4115384615384615
+            },
+            "selected": {
+              "loss_q2": 0.3462980769230769,
+              "root_accuracy": 0.7469230769230769,
+              "exact_accuracy": 0.41384615384615386
+            }
+          },
+          {
+            "fold": 1,
+            "seeds": [
+              {
+                "seed": null,
+                "fold": 1,
+                "products": 1337,
+                "multi_term": 449,
+                "multi_term_tied_valuation": 322,
+                "multi_term_oracle_loss_matches": 332,
+                "original": {
+                  "loss_q2": 0.3761686611817502,
+                  "root_accuracy": 0.6925953627524308,
+                  "exact_accuracy": 0.4397905759162304,
+                  "prediction_sha256": "3c23fad051f424c15f8d9b53ebc3a6243051ab8c1b99bc2720e07dcc02d9ed21"
+                },
+                "selected": {
+                  "n": 1337,
+                  "loss_q2": 0.31044315632011965,
+                  "root_accuracy": 0.7830964846671653,
+                  "exact_accuracy": 0.44801795063575167,
+                  "first_disagreement_counts": {
+                    "0": 290,
+                    "1": 121,
+                    "2": 202,
+                    "3": 100,
+                    "4": 25
+                  },
+                  "exact_correct": 599,
+                  "prediction_sha256": "139ccd5bac189c93cd56ccdf87d1a736a6c6c1f8526e53fa7c6c17adacc8130a"
+                },
+                "multi_term_outcomes": {
+                  "beats": 188,
+                  "ties": 152,
+                  "loses": 109
+                },
+                "multi_term_selected_loss_total": 200.4375,
+                "multi_term_original_loss_total": 288.3125
+              }
+            ],
+            "original": {
+              "loss_q2": 0.3761686611817502,
+              "root_accuracy": 0.6925953627524308,
+              "exact_accuracy": 0.4397905759162304
+            },
+            "selected": {
+              "loss_q2": 0.31044315632011965,
+              "root_accuracy": 0.7830964846671653,
+              "exact_accuracy": 0.44801795063575167
+            }
+          },
+          {
+            "fold": 2,
+            "seeds": [
+              {
+                "seed": null,
+                "fold": 2,
+                "products": 1348,
+                "multi_term": 492,
+                "multi_term_tied_valuation": 349,
+                "multi_term_oracle_loss_matches": 351,
+                "original": {
+                  "loss_q2": 0.40277262611275966,
+                  "root_accuracy": 0.6565281899109792,
+                  "exact_accuracy": 0.443620178041543,
+                  "prediction_sha256": "7b7102f8fe0e0a3512d8789eae392ca4306ef5ae70f2c6556968cc2f9c27608d"
+                },
+                "selected": {
+                  "n": 1348,
+                  "loss_q2": 0.3258994807121662,
+                  "root_accuracy": 0.7596439169139466,
+                  "exact_accuracy": 0.45845697329376855,
+                  "first_disagreement_counts": {
+                    "0": 324,
+                    "1": 117,
+                    "2": 174,
+                    "3": 98,
+                    "4": 17
+                  },
+                  "exact_correct": 618,
+                  "prediction_sha256": "4d591cd97c5a72b576a6b467cf750b43114e0d01dad146ff15bb7a4e8ec60e58"
+                },
+                "multi_term_outcomes": {
+                  "beats": 214,
+                  "ties": 163,
+                  "loses": 115
+                },
+                "multi_term_selected_loss_total": 218.3125,
+                "multi_term_original_loss_total": 321.9375
+              }
+            ],
+            "original": {
+              "loss_q2": 0.40277262611275966,
+              "root_accuracy": 0.6565281899109792,
+              "exact_accuracy": 0.443620178041543
+            },
+            "selected": {
+              "loss_q2": 0.3258994807121662,
+              "root_accuracy": 0.7596439169139466,
+              "exact_accuracy": 0.45845697329376855
+            }
+          },
+          {
+            "fold": 3,
+            "seeds": [
+              {
+                "seed": null,
+                "fold": 3,
+                "products": 1372,
+                "multi_term": 517,
+                "multi_term_tied_valuation": 407,
+                "multi_term_oracle_loss_matches": 372,
+                "original": {
+                  "loss_q2": 0.4173651603498542,
+                  "root_accuracy": 0.6465014577259476,
+                  "exact_accuracy": 0.40233236151603496,
+                  "prediction_sha256": "764efe017f926e216d1da51407fe33c1771ebfbbd1273d2cc8140df064c41637"
+                },
+                "selected": {
+                  "n": 1372,
+                  "loss_q2": 0.3292182944606414,
+                  "root_accuracy": 0.7674927113702624,
+                  "exact_accuracy": 0.4271137026239067,
+                  "first_disagreement_counts": {
+                    "0": 319,
+                    "1": 132,
+                    "2": 210,
+                    "3": 102,
+                    "4": 23
+                  },
+                  "exact_correct": 586,
+                  "prediction_sha256": "6ff3f2561d6fa1c2b83c321c2fde63460953709aaf00fb4549fb30f0ba21fbfd"
+                },
+                "multi_term_outcomes": {
+                  "beats": 231,
+                  "ties": 176,
+                  "loses": 110
+                },
+                "multi_term_selected_loss_total": 237.0,
+                "multi_term_original_loss_total": 357.9375
+              }
+            ],
+            "original": {
+              "loss_q2": 0.4173651603498542,
+              "root_accuracy": 0.6465014577259476,
+              "exact_accuracy": 0.40233236151603496
+            },
+            "selected": {
+              "loss_q2": 0.3292182944606414,
+              "root_accuracy": 0.7674927113702624,
+              "exact_accuracy": 0.4271137026239067
+            }
+          },
+          {
+            "fold": 4,
+            "seeds": [
+              {
+                "seed": null,
+                "fold": 4,
+                "products": 1336,
+                "multi_term": 505,
+                "multi_term_tied_valuation": 400,
+                "multi_term_oracle_loss_matches": 365,
+                "original": {
+                  "loss_q2": 0.40456586826347307,
+                  "root_accuracy": 0.6586826347305389,
+                  "exact_accuracy": 0.41691616766467066,
+                  "prediction_sha256": "2732f1c7d6dc4d1e6f89d1aa588e0748594eac8641527a74ca1bf4ad0e7b7ca8"
+                },
+                "selected": {
+                  "n": 1336,
+                  "loss_q2": 0.3405688622754491,
+                  "root_accuracy": 0.7537425149700598,
+                  "exact_accuracy": 0.4214071856287425,
+                  "first_disagreement_counts": {
+                    "0": 329,
+                    "1": 129,
+                    "2": 186,
+                    "3": 111,
+                    "4": 18
+                  },
+                  "exact_correct": 563,
+                  "prediction_sha256": "cf1469cec24d2837a41e8ba857668eca15e1fa1b8c78b01eefc8a8f9bc089761"
+                },
+                "multi_term_outcomes": {
+                  "beats": 205,
+                  "ties": 186,
+                  "loses": 114
+                },
+                "multi_term_selected_loss_total": 238.4375,
+                "multi_term_original_loss_total": 323.9375
+              }
+            ],
+            "original": {
+              "loss_q2": 0.40456586826347307,
+              "root_accuracy": 0.6586826347305389,
+              "exact_accuracy": 0.41691616766467066
+            },
+            "selected": {
+              "loss_q2": 0.3405688622754491,
+              "root_accuracy": 0.7537425149700598,
+              "exact_accuracy": 0.4214071856287425
+            }
+          }
+        ]
+      },
+      "taxonomy_association": {
+        "original": {
+          "loss_q2": 0.32828541482446744,
+          "root_accuracy": 0.7377368204536837,
+          "exact_accuracy": 0.498152370319429,
+          "loss_q2_sd": 0.008214646244814435
+        },
+        "selected": {
+          "loss_q2": 0.2339640595344194,
+          "root_accuracy": 0.8448647306685096,
+          "exact_accuracy": 0.5616638888870165,
+          "loss_q2_sd": 0.00655008257807909
+        },
+        "folds": [
+          {
+            "fold": 0,
+            "seeds": [
+              {
+                "seed": null,
+                "fold": 0,
+                "products": 1300,
+                "multi_term": 252,
+                "multi_term_tied_valuation": 219,
+                "multi_term_oracle_loss_matches": 178,
+                "original": {
+                  "loss_q2": 0.3372596153846154,
+                  "root_accuracy": 0.7338461538461538,
+                  "exact_accuracy": 0.48846153846153845,
+                  "prediction_sha256": "af22d7d071ccb08941f756f5bdcb4284f4d5b10ca1a066be4a4526b62479d2db"
+                },
+                "selected": {
+                  "n": 1300,
+                  "loss_q2": 0.24307692307692308,
+                  "root_accuracy": 0.84,
+                  "exact_accuracy": 0.5546153846153846,
+                  "first_disagreement_counts": {
+                    "0": 208,
+                    "1": 121,
+                    "2": 138,
+                    "3": 96,
+                    "4": 16
+                  },
+                  "exact_correct": 721,
+                  "prediction_sha256": "b59273188a568edcde58f975a0ade04a723ef81bcca6373b82c42a0aa9dcc845"
+                },
+                "multi_term_outcomes": {
+                  "beats": 160,
+                  "ties": 77,
+                  "loses": 15
+                },
+                "multi_term_selected_loss_total": 74.6875,
+                "multi_term_original_loss_total": 197.125
+              }
+            ],
+            "original": {
+              "loss_q2": 0.3372596153846154,
+              "root_accuracy": 0.7338461538461538,
+              "exact_accuracy": 0.48846153846153845
+            },
+            "selected": {
+              "loss_q2": 0.24307692307692308,
+              "root_accuracy": 0.84,
+              "exact_accuracy": 0.5546153846153846
+            }
+          },
+          {
+            "fold": 1,
+            "seeds": [
+              {
+                "seed": null,
+                "fold": 1,
+                "products": 1337,
+                "multi_term": 252,
+                "multi_term_tied_valuation": 232,
+                "multi_term_oracle_loss_matches": 163,
+                "original": {
+                  "loss_q2": 0.33610695587135375,
+                  "root_accuracy": 0.731488406881077,
+                  "exact_accuracy": 0.48541510845175767,
+                  "prediction_sha256": "1a0b8f6412807eecc7d9678ccf4e77680d489cc0ab1e0a0a3d5e79916623daf6"
+                },
+                "selected": {
+                  "n": 1337,
+                  "loss_q2": 0.23518137621540763,
+                  "root_accuracy": 0.8459237097980553,
+                  "exact_accuracy": 0.5527299925205684,
+                  "first_disagreement_counts": {
+                    "0": 206,
+                    "1": 107,
+                    "2": 166,
+                    "3": 96,
+                    "4": 23
+                  },
+                  "exact_correct": 739,
+                  "prediction_sha256": "46a838d6feb3a888d70cc0ee7299d020c5f8b28bc7a3bfabdbee3ba262e9b3bc"
+                },
+                "multi_term_outcomes": {
+                  "beats": 168,
+                  "ties": 69,
+                  "loses": 15
+                },
+                "multi_term_selected_loss_total": 78.875,
+                "multi_term_original_loss_total": 213.8125
+              }
+            ],
+            "original": {
+              "loss_q2": 0.33610695587135375,
+              "root_accuracy": 0.731488406881077,
+              "exact_accuracy": 0.48541510845175767
+            },
+            "selected": {
+              "loss_q2": 0.23518137621540763,
+              "root_accuracy": 0.8459237097980553,
+              "exact_accuracy": 0.5527299925205684
+            }
+          },
+          {
+            "fold": 2,
+            "seeds": [
+              {
+                "seed": null,
+                "fold": 2,
+                "products": 1348,
+                "multi_term": 235,
+                "multi_term_tied_valuation": 209,
+                "multi_term_oracle_loss_matches": 174,
+                "original": {
+                  "loss_q2": 0.31889836795252224,
+                  "root_accuracy": 0.7433234421364985,
+                  "exact_accuracy": 0.5192878338278932,
+                  "prediction_sha256": "4eb8a1254f7c2ce2ae7825b5180fc592876ff6f1a5399d573b99e43d86f3280f"
+                },
+                "selected": {
+                  "n": 1348,
+                  "loss_q2": 0.23312314540059348,
+                  "root_accuracy": 0.8375370919881305,
+                  "exact_accuracy": 0.5838278931750742,
+                  "first_disagreement_counts": {
+                    "0": 219,
+                    "1": 102,
+                    "2": 123,
+                    "3": 99,
+                    "4": 18
+                  },
+                  "exact_correct": 787,
+                  "prediction_sha256": "5a9d664d45eacb8451c57a50761e0b3264f19e5f5581816d9f9f34edc5b241d7"
+                },
+                "multi_term_outcomes": {
+                  "beats": 149,
+                  "ties": 70,
+                  "loses": 16
+                },
+                "multi_term_selected_loss_total": 61.875,
+                "multi_term_original_loss_total": 177.5
+              }
+            ],
+            "original": {
+              "loss_q2": 0.31889836795252224,
+              "root_accuracy": 0.7433234421364985,
+              "exact_accuracy": 0.5192878338278932
+            },
+            "selected": {
+              "loss_q2": 0.23312314540059348,
+              "root_accuracy": 0.8375370919881305,
+              "exact_accuracy": 0.5838278931750742
+            }
+          },
+          {
+            "fold": 3,
+            "seeds": [
+              {
+                "seed": null,
+                "fold": 3,
+                "products": 1372,
+                "multi_term": 246,
+                "multi_term_tied_valuation": 234,
+                "multi_term_oracle_loss_matches": 161,
+                "original": {
+                  "loss_q2": 0.32206632653061223,
+                  "root_accuracy": 0.7412536443148687,
+                  "exact_accuracy": 0.5058309037900874,
+                  "prediction_sha256": "38f4452d189d3611ef3f063c1f86cf6ac814d5081e547ad97995f7b4bec9bcca"
+                },
+                "selected": {
+                  "n": 1372,
+                  "loss_q2": 0.22467201166180759,
+                  "root_accuracy": 0.8513119533527697,
+                  "exact_accuracy": 0.5692419825072886,
+                  "first_disagreement_counts": {
+                    "0": 204,
+                    "1": 94,
+                    "2": 177,
+                    "3": 92,
+                    "4": 24
+                  },
+                  "exact_correct": 781,
+                  "prediction_sha256": "2bf6ca0da9acf3fc4b3f24a063ba437df89a55572fedaab8f60bd63d11cb88b9"
+                },
+                "multi_term_outcomes": {
+                  "beats": 168,
+                  "ties": 64,
+                  "loses": 14
+                },
+                "multi_term_selected_loss_total": 70.3125,
+                "multi_term_original_loss_total": 203.9375
+              }
+            ],
+            "original": {
+              "loss_q2": 0.32206632653061223,
+              "root_accuracy": 0.7412536443148687,
+              "exact_accuracy": 0.5058309037900874
+            },
+            "selected": {
+              "loss_q2": 0.22467201166180759,
+              "root_accuracy": 0.8513119533527697,
+              "exact_accuracy": 0.5692419825072886
+            }
+          },
+          {
+            "fold": 4,
+            "seeds": [
+              {
+                "seed": null,
+                "fold": 4,
+                "products": 1336,
+                "multi_term": 256,
+                "multi_term_tied_valuation": 241,
+                "multi_term_oracle_loss_matches": 159,
+                "original": {
+                  "loss_q2": 0.32709580838323354,
+                  "root_accuracy": 0.7387724550898204,
+                  "exact_accuracy": 0.49176646706586824,
+                  "prediction_sha256": "699b2ea259849ba3f5f4f43414df8f133530110e03d5b6783a4098254a54fe3d"
+                },
+                "selected": {
+                  "n": 1336,
+                  "loss_q2": 0.23376684131736528,
+                  "root_accuracy": 0.8495508982035929,
+                  "exact_accuracy": 0.5479041916167665,
+                  "first_disagreement_counts": {
+                    "0": 201,
+                    "1": 114,
+                    "2": 157,
+                    "3": 109,
+                    "4": 23
+                  },
+                  "exact_correct": 732,
+                  "prediction_sha256": "a818f0af9ef8c0bef000f8463c1339c542a5198ef32279c8dbc4e9e360e37bf9"
+                },
+                "multi_term_outcomes": {
+                  "beats": 163,
+                  "ties": 72,
+                  "loses": 21
+                },
+                "multi_term_selected_loss_total": 80.0625,
+                "multi_term_original_loss_total": 204.75
+              }
+            ],
+            "original": {
+              "loss_q2": 0.32709580838323354,
+              "root_accuracy": 0.7387724550898204,
+              "exact_accuracy": 0.49176646706586824
+            },
+            "selected": {
+              "loss_q2": 0.23376684131736528,
+              "root_accuracy": 0.8495508982035929,
+              "exact_accuracy": 0.5479041916167665
+            }
+          }
+        ]
+      },
+      "random": {
+        "original": {
+          "loss_q2": 0.3829902942149267,
+          "root_accuracy": 0.6881992660497269,
+          "exact_accuracy": 0.43730430778262463,
+          "loss_q2_sd": 0.010661611843673873
+        },
+        "selected": {
+          "loss_q2": 0.29767811825920054,
+          "root_accuracy": 0.7941385716077827,
+          "exact_accuracy": 0.4741615457544829,
+          "loss_q2_sd": 0.007329773264626252
+        },
+        "folds": [
+          {
+            "fold": 0,
+            "seeds": [
+              {
+                "seed": 7,
+                "fold": 0,
+                "products": 1300,
+                "multi_term": 419,
+                "multi_term_tied_valuation": 309,
+                "multi_term_oracle_loss_matches": 315,
+                "original": {
+                  "loss_q2": 0.39100961538461537,
+                  "root_accuracy": 0.6799999999999999,
+                  "exact_accuracy": 0.4330769230769231,
+                  "prediction_sha256": "78364d7940e90624020a670654ad47e952d6caeef7b92ac39203e79b6cff57b1"
+                },
+                "selected": {
+                  "n": 1300,
+                  "loss_q2": 0.3147596153846154,
+                  "root_accuracy": 0.7823076923076924,
+                  "exact_accuracy": 0.46153846153846156,
+                  "first_disagreement_counts": {
+                    "0": 283,
+                    "1": 141,
+                    "2": 176,
+                    "3": 87,
+                    "4": 13
+                  },
+                  "exact_correct": 600,
+                  "prediction_sha256": "78b2540f0a51fad72f66701bdf907f351c0eb8476f89b645afbc01dde6fc4a03"
+                },
+                "multi_term_outcomes": {
+                  "beats": 201,
+                  "ties": 122,
+                  "loses": 96
+                },
+                "multi_term_selected_loss_total": 155.0,
+                "multi_term_original_loss_total": 254.125
+              },
+              {
+                "seed": 13,
+                "fold": 0,
+                "products": 1300,
+                "multi_term": 423,
+                "multi_term_tied_valuation": 344,
+                "multi_term_oracle_loss_matches": 311,
+                "original": {
+                  "loss_q2": 0.4016826923076923,
+                  "root_accuracy": 0.6676923076923077,
+                  "exact_accuracy": 0.42230769230769233,
+                  "prediction_sha256": "b50e7f8616245c4df3649b79d11b2190a3fddff7f4604f8e02f938c1b0da56d8"
+                },
+                "selected": {
+                  "n": 1300,
+                  "loss_q2": 0.3055769230769231,
+                  "root_accuracy": 0.7807692307692308,
+                  "exact_accuracy": 0.4807692307692308,
+                  "first_disagreement_counts": {
+                    "0": 285,
+                    "1": 115,
+                    "2": 170,
+                    "3": 91,
+                    "4": 14
+                  },
+                  "exact_correct": 625,
+                  "prediction_sha256": "36a9bc8f98028c40b531ee34012bfe777dfb62c955d25a877b71e0ae550a6690"
+                },
+                "multi_term_outcomes": {
+                  "beats": 199,
+                  "ties": 158,
+                  "loses": 66
+                },
+                "multi_term_selected_loss_total": 157.75,
+                "multi_term_original_loss_total": 282.6875
+              },
+              {
+                "seed": 23,
+                "fold": 0,
+                "products": 1300,
+                "multi_term": 438,
+                "multi_term_tied_valuation": 352,
+                "multi_term_oracle_loss_matches": 310,
+                "original": {
+                  "loss_q2": 0.39826923076923076,
+                  "root_accuracy": 0.6692307692307693,
+                  "exact_accuracy": 0.43,
+                  "prediction_sha256": "a80ce0ec6ba4c980be7e4b994f1c6ae3b0bec41fefe46fb0e309401809f18d6d"
+                },
+                "selected": {
+                  "n": 1300,
+                  "loss_q2": 0.3049519230769231,
+                  "root_accuracy": 0.7815384615384615,
+                  "exact_accuracy": 0.48538461538461536,
+                  "first_disagreement_counts": {
+                    "0": 284,
+                    "1": 121,
+                    "2": 161,
+                    "3": 84,
+                    "4": 19
+                  },
+                  "exact_correct": 631,
+                  "prediction_sha256": "ce29d19dba34753db7076743704595348a80a7e993fc13e166c228fde05ee3ee"
+                },
+                "multi_term_outcomes": {
+                  "beats": 197,
+                  "ties": 177,
+                  "loses": 64
+                },
+                "multi_term_selected_loss_total": 168.5,
+                "multi_term_original_loss_total": 289.8125
+              },
+              {
+                "seed": 37,
+                "fold": 0,
+                "products": 1300,
+                "multi_term": 430,
+                "multi_term_tied_valuation": 331,
+                "multi_term_oracle_loss_matches": 302,
+                "original": {
+                  "loss_q2": 0.4006730769230769,
+                  "root_accuracy": 0.6746153846153846,
+                  "exact_accuracy": 0.41384615384615386,
+                  "prediction_sha256": "cd170feedaa87fe77b8f3a26d0fa72d606d484b94a3967a6209135dadac327dd"
+                },
+                "selected": {
+                  "n": 1300,
+                  "loss_q2": 0.31423076923076926,
+                  "root_accuracy": 0.7823076923076924,
+                  "exact_accuracy": 0.44769230769230767,
+                  "first_disagreement_counts": {
+                    "0": 283,
+                    "1": 127,
+                    "2": 196,
+                    "3": 96,
+                    "4": 16
+                  },
+                  "exact_correct": 582,
+                  "prediction_sha256": "899250d7b6c514961a260584432c29ec98746097d9000fc617438e631d19818e"
+                },
+                "multi_term_outcomes": {
+                  "beats": 199,
+                  "ties": 140,
+                  "loses": 91
+                },
+                "multi_term_selected_loss_total": 170.8125,
+                "multi_term_original_loss_total": 283.1875
+              },
+              {
+                "seed": 101,
+                "fold": 0,
+                "products": 1300,
+                "multi_term": 440,
+                "multi_term_tied_valuation": 346,
+                "multi_term_oracle_loss_matches": 314,
+                "original": {
+                  "loss_q2": 0.3866826923076923,
+                  "root_accuracy": 0.6923076923076923,
+                  "exact_accuracy": 0.43,
+                  "prediction_sha256": "c4036154f9650a51e29497c7b7351b5da56f439dfcf1525b90a350065d59d7b8"
+                },
+                "selected": {
+                  "n": 1300,
+                  "loss_q2": 0.30072115384615383,
+                  "root_accuracy": 0.8,
+                  "exact_accuracy": 0.4653846153846154,
+                  "first_disagreement_counts": {
+                    "0": 260,
+                    "1": 141,
+                    "2": 196,
+                    "3": 85,
+                    "4": 13
+                  },
+                  "exact_correct": 605,
+                  "prediction_sha256": "3d775849955dec6168be63ee7638784cb7dd83590d3b10c29d16df8bc89ea8cc"
+                },
+                "multi_term_outcomes": {
+                  "beats": 208,
+                  "ties": 138,
+                  "loses": 94
+                },
+                "multi_term_selected_loss_total": 173.4375,
+                "multi_term_original_loss_total": 285.1875
+              }
+            ],
+            "original": {
+              "loss_q2": 0.39566346153846155,
+              "root_accuracy": 0.6767692307692308,
+              "exact_accuracy": 0.4258461538461539
+            },
+            "selected": {
+              "loss_q2": 0.30804807692307695,
+              "root_accuracy": 0.7853846153846155,
+              "exact_accuracy": 0.46815384615384614
+            }
+          },
+          {
+            "fold": 1,
+            "seeds": [
+              {
+                "seed": 7,
+                "fold": 1,
+                "products": 1337,
+                "multi_term": 412,
+                "multi_term_tied_valuation": 322,
+                "multi_term_oracle_loss_matches": 293,
+                "original": {
+                  "loss_q2": 0.37504674644727,
+                  "root_accuracy": 0.7015706806282722,
+                  "exact_accuracy": 0.44203440538519073,
+                  "prediction_sha256": "d5c56af2015d33066d84dc2eac396c25f20046192374e4fee0d9730b80a68fef"
+                },
+                "selected": {
+                  "n": 1337,
+                  "loss_q2": 0.2949233358264772,
+                  "root_accuracy": 0.8055347793567689,
+                  "exact_accuracy": 0.456245325355273,
+                  "first_disagreement_counts": {
+                    "0": 260,
+                    "1": 135,
+                    "2": 212,
+                    "3": 101,
+                    "4": 19
+                  },
+                  "exact_correct": 610,
+                  "prediction_sha256": "a605a9a005d6d90f46c1a49fa95884b712fe364cb825e331bd160ebbd85afaec"
+                },
+                "multi_term_outcomes": {
+                  "beats": 192,
+                  "ties": 132,
+                  "loses": 88
+                },
+                "multi_term_selected_loss_total": 163.1875,
+                "multi_term_original_loss_total": 270.3125
+              },
+              {
+                "seed": 13,
+                "fold": 1,
+                "products": 1337,
+                "multi_term": 393,
+                "multi_term_tied_valuation": 281,
+                "multi_term_oracle_loss_matches": 287,
+                "original": {
+                  "loss_q2": 0.3805628272251309,
+                  "root_accuracy": 0.6910994764397906,
+                  "exact_accuracy": 0.42408376963350786,
+                  "prediction_sha256": "27ba49995c143f1268cffc1d616bb1254528bbf23ee2a49660f3590a6042053b"
+                },
+                "selected": {
+                  "n": 1337,
+                  "loss_q2": 0.30857329842931935,
+                  "root_accuracy": 0.7793567688855647,
+                  "exact_accuracy": 0.4569932685115931,
+                  "first_disagreement_counts": {
+                    "0": 295,
+                    "1": 104,
+                    "2": 205,
+                    "3": 107,
+                    "4": 15
+                  },
+                  "exact_correct": 611,
+                  "prediction_sha256": "11eff7255cab649d54c5989d6383f8cce6fbba7b1a5075d44250c7760ee1b225"
+                },
+                "multi_term_outcomes": {
+                  "beats": 175,
+                  "ties": 129,
+                  "loses": 89
+                },
+                "multi_term_selected_loss_total": 147.8125,
+                "multi_term_original_loss_total": 244.0625
+              },
+              {
+                "seed": 23,
+                "fold": 1,
+                "products": 1337,
+                "multi_term": 413,
+                "multi_term_tied_valuation": 335,
+                "multi_term_oracle_loss_matches": 278,
+                "original": {
+                  "loss_q2": 0.3925766641735228,
+                  "root_accuracy": 0.6724008975317877,
+                  "exact_accuracy": 0.44502617801047123,
+                  "prediction_sha256": "5d4d2d9466cd7bfa8673fe4f9d45b5b8dbe50aeaff4e513253bf5d29fadb829d"
+                },
+                "selected": {
+                  "n": 1337,
+                  "loss_q2": 0.28047868362004486,
+                  "root_accuracy": 0.8085265519820494,
+                  "exact_accuracy": 0.49663425579655945,
+                  "first_disagreement_counts": {
+                    "0": 256,
+                    "1": 115,
+                    "2": 199,
+                    "3": 85,
+                    "4": 18
+                  },
+                  "exact_correct": 664,
+                  "prediction_sha256": "6988b5c59cd23ac6f0ee2b4049b8898b7c2355db1d0e11f63ba4ab1a1e98c67f"
+                },
+                "multi_term_outcomes": {
+                  "beats": 225,
+                  "ties": 126,
+                  "loses": 62
+                },
+                "multi_term_selected_loss_total": 145.0625,
+                "multi_term_original_loss_total": 294.9375
+              },
+              {
+                "seed": 37,
+                "fold": 1,
+                "products": 1337,
+                "multi_term": 451,
+                "multi_term_tied_valuation": 342,
+                "multi_term_oracle_loss_matches": 332,
+                "original": {
+                  "loss_q2": 0.39281039640987286,
+                  "root_accuracy": 0.6791323859386686,
+                  "exact_accuracy": 0.42707554225878835,
+                  "prediction_sha256": "6da20d54b97d4946e7d585787d6188860b9fb5cdcdf2d33e175c6603fa9778a4"
+                },
+                "selected": {
+                  "n": 1337,
+                  "loss_q2": 0.28791136873597606,
+                  "root_accuracy": 0.8115183246073299,
+                  "exact_accuracy": 0.4569932685115931,
+                  "first_disagreement_counts": {
+                    "0": 252,
+                    "1": 126,
+                    "2": 224,
+                    "3": 99,
+                    "4": 25
+                  },
+                  "exact_correct": 611,
+                  "prediction_sha256": "097c1b50ac093f01b5aa7221c56b97517972dfb009b3d575744fdf3c7ad7573b"
+                },
+                "multi_term_outcomes": {
+                  "beats": 219,
+                  "ties": 136,
+                  "loses": 96
+                },
+                "multi_term_selected_loss_total": 172.5625,
+                "multi_term_original_loss_total": 312.8125
+              },
+              {
+                "seed": 101,
+                "fold": 1,
+                "products": 1337,
+                "multi_term": 424,
+                "multi_term_tied_valuation": 312,
+                "multi_term_oracle_loss_matches": 319,
+                "original": {
+                  "loss_q2": 0.36789454001495886,
+                  "root_accuracy": 0.7045624532535527,
+                  "exact_accuracy": 0.4457741211667913,
+                  "prediction_sha256": "ae8f603a73120ad569c1e0aa7d28f81af36f766d103aac030b7b42eb4c47f0af"
+                },
+                "selected": {
+                  "n": 1337,
+                  "loss_q2": 0.2885658189977562,
+                  "root_accuracy": 0.8070306656694091,
+                  "exact_accuracy": 0.474943904263276,
+                  "first_disagreement_counts": {
+                    "0": 258,
+                    "1": 128,
+                    "2": 204,
+                    "3": 93,
+                    "4": 19
+                  },
+                  "exact_correct": 635,
+                  "prediction_sha256": "2355577c076d463102576e7b010e5eef06c9569bf901fd6b6a8ba4d93c36a290"
+                },
+                "multi_term_outcomes": {
+                  "beats": 194,
+                  "ties": 127,
+                  "loses": 103
+                },
+                "multi_term_selected_loss_total": 159.875,
+                "multi_term_original_loss_total": 265.9375
+              }
+            ],
+            "original": {
+              "loss_q2": 0.3817782348541511,
+              "root_accuracy": 0.6897531787584144,
+              "exact_accuracy": 0.4367988032909499
+            },
+            "selected": {
+              "loss_q2": 0.2920905011219147,
+              "root_accuracy": 0.8023934181002244,
+              "exact_accuracy": 0.4683620044876589
+            }
+          },
+          {
+            "fold": 2,
+            "seeds": [
+              {
+                "seed": 7,
+                "fold": 2,
+                "products": 1348,
+                "multi_term": 433,
+                "multi_term_tied_valuation": 298,
+                "multi_term_oracle_loss_matches": 332,
+                "original": {
+                  "loss_q2": 0.3575204005934718,
+                  "root_accuracy": 0.7143916913946587,
+                  "exact_accuracy": 0.46735905044510384,
+                  "prediction_sha256": "b1f98f2ae92fbff32dbd14c277804a1c7739d638d7efe92cc7cb75048a4b5a9d"
+                },
+                "selected": {
+                  "n": 1348,
+                  "loss_q2": 0.27944176557863504,
+                  "root_accuracy": 0.8086053412462908,
+                  "exact_accuracy": 0.4970326409495549,
+                  "first_disagreement_counts": {
+                    "0": 258,
+                    "1": 126,
+                    "2": 162,
+                    "3": 111,
+                    "4": 21
+                  },
+                  "exact_correct": 670,
+                  "prediction_sha256": "5d54ff7ff85f357b97f394eb9c338399a62f06dca1dc5f985d045e522c73f125"
+                },
+                "multi_term_outcomes": {
+                  "beats": 201,
+                  "ties": 134,
+                  "loses": 98
+                },
+                "multi_term_selected_loss_total": 151.6875,
+                "multi_term_original_loss_total": 256.9375
+              },
+              {
+                "seed": 13,
+                "fold": 2,
+                "products": 1348,
+                "multi_term": 397,
+                "multi_term_tied_valuation": 293,
+                "multi_term_oracle_loss_matches": 286,
+                "original": {
+                  "loss_q2": 0.36758160237388726,
+                  "root_accuracy": 0.7040059347181009,
+                  "exact_accuracy": 0.4577151335311573,
+                  "prediction_sha256": "fb3d9c9f200307e4376585c46d94a6ff75abd933ec64e7e2cdc08b8caf919b19"
+                },
+                "selected": {
+                  "n": 1348,
+                  "loss_q2": 0.29237759643916916,
+                  "root_accuracy": 0.7937685459940653,
+                  "exact_accuracy": 0.4836795252225519,
+                  "first_disagreement_counts": {
+                    "0": 278,
+                    "1": 117,
+                    "2": 166,
+                    "3": 123,
+                    "4": 12
+                  },
+                  "exact_correct": 652,
+                  "prediction_sha256": "1ece6d8ebf9d8abd68f1c8c79d99f07b87a855e946b69c4276588ddd94fec081"
+                },
+                "multi_term_outcomes": {
+                  "beats": 187,
+                  "ties": 122,
+                  "loses": 88
+                },
+                "multi_term_selected_loss_total": 144.5625,
+                "multi_term_original_loss_total": 245.9375
+              },
+              {
+                "seed": 23,
+                "fold": 2,
+                "products": 1348,
+                "multi_term": 437,
+                "multi_term_tied_valuation": 333,
+                "multi_term_oracle_loss_matches": 338,
+                "original": {
+                  "loss_q2": 0.36734977744807124,
+                  "root_accuracy": 0.693620178041543,
+                  "exact_accuracy": 0.47403560830860536,
+                  "prediction_sha256": "2a3214bd646d51892b1fcac65031dcf7dea21184781509d71bf8874cfdc1ac12"
+                },
+                "selected": {
+                  "n": 1348,
+                  "loss_q2": 0.2692878338278932,
+                  "root_accuracy": 0.8100890207715133,
+                  "exact_accuracy": 0.5229970326409495,
+                  "first_disagreement_counts": {
+                    "0": 256,
+                    "1": 106,
+                    "2": 161,
+                    "3": 100,
+                    "4": 20
+                  },
+                  "exact_correct": 705,
+                  "prediction_sha256": "41f220068b0c0637fd92692a0be5c0266a60a36379602f528cc43a17e3f7471a"
+                },
+                "multi_term_outcomes": {
+                  "beats": 218,
+                  "ties": 142,
+                  "loses": 77
+                },
+                "multi_term_selected_loss_total": 144.5625,
+                "multi_term_original_loss_total": 276.75
+              },
+              {
+                "seed": 37,
+                "fold": 2,
+                "products": 1348,
+                "multi_term": 421,
+                "multi_term_tied_valuation": 286,
+                "multi_term_oracle_loss_matches": 305,
+                "original": {
+                  "loss_q2": 0.36280600890207715,
+                  "root_accuracy": 0.701780415430267,
+                  "exact_accuracy": 0.4688427299703264,
+                  "prediction_sha256": "66d44353540f9a1796c8561ff8d35294a501e707625c898de29f19a368497b50"
+                },
+                "selected": {
+                  "n": 1348,
+                  "loss_q2": 0.2968286350148368,
+                  "root_accuracy": 0.7841246290801187,
+                  "exact_accuracy": 0.4948071216617211,
+                  "first_disagreement_counts": {
+                    "0": 291,
+                    "1": 110,
+                    "2": 162,
+                    "3": 100,
+                    "4": 18
+                  },
+                  "exact_correct": 667,
+                  "prediction_sha256": "d20cdfeb68ac26c78e4e5192cc03b3f121aee25d46173e7f3c4b00c5e5cda418"
+                },
+                "multi_term_outcomes": {
+                  "beats": 179,
+                  "ties": 142,
+                  "loses": 100
+                },
+                "multi_term_selected_loss_total": 162.5625,
+                "multi_term_original_loss_total": 251.5
+              },
+              {
+                "seed": 101,
+                "fold": 2,
+                "products": 1348,
+                "multi_term": 442,
+                "multi_term_tied_valuation": 341,
+                "multi_term_oracle_loss_matches": 300,
+                "original": {
+                  "loss_q2": 0.37778189910979226,
+                  "root_accuracy": 0.6913946587537092,
+                  "exact_accuracy": 0.45178041543026703,
+                  "prediction_sha256": "521e771dc01f0a70bfd2e2f9586700f3ff97422006a6cd7632a53a3418eeab48"
+                },
+                "selected": {
+                  "n": 1348,
+                  "loss_q2": 0.31198998516320475,
+                  "root_accuracy": 0.7789317507418397,
+                  "exact_accuracy": 0.47477744807121663,
+                  "first_disagreement_counts": {
+                    "0": 298,
+                    "1": 138,
+                    "2": 164,
+                    "3": 93,
+                    "4": 15
+                  },
+                  "exact_correct": 640,
+                  "prediction_sha256": "a466e81f421975fa53a183f0e4454f83fc110d8102e9cbd357e431182b2e0321"
+                },
+                "multi_term_outcomes": {
+                  "beats": 188,
+                  "ties": 161,
+                  "loses": 93
+                },
+                "multi_term_selected_loss_total": 189.5625,
+                "multi_term_original_loss_total": 278.25
+              }
+            ],
+            "original": {
+              "loss_q2": 0.36660793768545996,
+              "root_accuracy": 0.7010385756676558,
+              "exact_accuracy": 0.463946587537092
+            },
+            "selected": {
+              "loss_q2": 0.28998516320474776,
+              "root_accuracy": 0.7951038575667656,
+              "exact_accuracy": 0.4946587537091988
+            }
+          },
+          {
+            "fold": 3,
+            "seeds": [
+              {
+                "seed": 7,
+                "fold": 3,
+                "products": 1372,
+                "multi_term": 387,
+                "multi_term_tied_valuation": 299,
+                "multi_term_oracle_loss_matches": 282,
+                "original": {
+                  "loss_q2": 0.3708545918367347,
+                  "root_accuracy": 0.7048104956268222,
+                  "exact_accuracy": 0.44533527696793,
+                  "prediction_sha256": "e709a98bcf90e4e171665048d974beac0f3b60490ee4847b4eda198257a81436"
+                },
+                "selected": {
+                  "n": 1372,
+                  "loss_q2": 0.28220663265306123,
+                  "root_accuracy": 0.814139941690962,
+                  "exact_accuracy": 0.49198250728862974,
+                  "first_disagreement_counts": {
+                    "0": 255,
+                    "1": 141,
+                    "2": 202,
+                    "3": 80,
+                    "4": 19
+                  },
+                  "exact_correct": 675,
+                  "prediction_sha256": "15b6421f2afe1aa3ca502fac6ccfcdd31fb96f0380a43f08f3e614b558a27427"
+                },
+                "multi_term_outcomes": {
+                  "beats": 195,
+                  "ties": 130,
+                  "loses": 62
+                },
+                "multi_term_selected_loss_total": 148.4375,
+                "multi_term_original_loss_total": 270.0625
+              },
+              {
+                "seed": 13,
+                "fold": 3,
+                "products": 1372,
+                "multi_term": 391,
+                "multi_term_tied_valuation": 317,
+                "multi_term_oracle_loss_matches": 281,
+                "original": {
+                  "loss_q2": 0.37846209912536444,
+                  "root_accuracy": 0.69533527696793,
+                  "exact_accuracy": 0.43731778425655976,
+                  "prediction_sha256": "6b66b77bbc2ae8c4c21be7b667763c8850a24bb430175de60e0cf3728edff7f2"
+                },
+                "selected": {
+                  "n": 1372,
+                  "loss_q2": 0.2940051020408163,
+                  "root_accuracy": 0.7973760932944607,
+                  "exact_accuracy": 0.478134110787172,
+                  "first_disagreement_counts": {
+                    "0": 278,
+                    "1": 125,
+                    "2": 200,
+                    "3": 93,
+                    "4": 20
+                  },
+                  "exact_correct": 656,
+                  "prediction_sha256": "c3b6c06619d84434cd836ff2f99073138168106c591a9cca072780f2ed1b9b0c"
+                },
+                "multi_term_outcomes": {
+                  "beats": 195,
+                  "ties": 124,
+                  "loses": 72
+                },
+                "multi_term_selected_loss_total": 159.125,
+                "multi_term_original_loss_total": 275.0
+              },
+              {
+                "seed": 23,
+                "fold": 3,
+                "products": 1372,
+                "multi_term": 402,
+                "multi_term_tied_valuation": 308,
+                "multi_term_oracle_loss_matches": 274,
+                "original": {
+                  "loss_q2": 0.3819241982507289,
+                  "root_accuracy": 0.6931486880466473,
+                  "exact_accuracy": 0.4322157434402332,
+                  "prediction_sha256": "c3440f8e42eb05279db4a14c0b076f4ce2674372de31b918fcef05f6cafa38d6"
+                },
+                "selected": {
+                  "n": 1372,
+                  "loss_q2": 0.3051658163265306,
+                  "root_accuracy": 0.7893586005830904,
+                  "exact_accuracy": 0.46647230320699706,
+                  "first_disagreement_counts": {
+                    "0": 289,
+                    "1": 137,
+                    "2": 194,
+                    "3": 91,
+                    "4": 21
+                  },
+                  "exact_correct": 640,
+                  "prediction_sha256": "c7d66b94d9f36b3b5f943d0606834bed4ed38f692fff24a857dd72ac74f01af0"
+                },
+                "multi_term_outcomes": {
+                  "beats": 191,
+                  "ties": 130,
+                  "loses": 81
+                },
+                "multi_term_selected_loss_total": 162.8125,
+                "multi_term_original_loss_total": 268.125
+              },
+              {
+                "seed": 37,
+                "fold": 3,
+                "products": 1372,
+                "multi_term": 435,
+                "multi_term_tied_valuation": 343,
+                "multi_term_oracle_loss_matches": 331,
+                "original": {
+                  "loss_q2": 0.3867984693877551,
+                  "root_accuracy": 0.685860058309038,
+                  "exact_accuracy": 0.42565597667638483,
+                  "prediction_sha256": "0ac5fedaa8582807f29a1c9cf87dfa68fd9541872a6249e5dcdcabcda433898c"
+                },
+                "selected": {
+                  "n": 1372,
+                  "loss_q2": 0.2839832361516035,
+                  "root_accuracy": 0.8053935860058309,
+                  "exact_accuracy": 0.48250728862973763,
+                  "first_disagreement_counts": {
+                    "0": 267,
+                    "1": 112,
+                    "2": 212,
+                    "3": 99,
+                    "4": 20
+                  },
+                  "exact_correct": 662,
+                  "prediction_sha256": "1eadc4c2d25d5a7dacb703adbae43658692e702eaa0481a8606a1353fbbe7a82"
+                },
+                "multi_term_outcomes": {
+                  "beats": 218,
+                  "ties": 139,
+                  "loses": 78
+                },
+                "multi_term_selected_loss_total": 152.4375,
+                "multi_term_original_loss_total": 293.5
+              },
+              {
+                "seed": 101,
+                "fold": 3,
+                "products": 1372,
+                "multi_term": 438,
+                "multi_term_tied_valuation": 321,
+                "multi_term_oracle_loss_matches": 308,
+                "original": {
+                  "loss_q2": 0.39691144314868804,
+                  "root_accuracy": 0.6778425655976676,
+                  "exact_accuracy": 0.41690962099125367,
+                  "prediction_sha256": "8f1b5e39dc9973426ae51aea2e8c36323b16a5c07d6c2e7a44f92ad0cb7b8cbc"
+                },
+                "selected": {
+                  "n": 1372,
+                  "loss_q2": 0.31769314868804666,
+                  "root_accuracy": 0.7776967930029155,
+                  "exact_accuracy": 0.4489795918367347,
+                  "first_disagreement_counts": {
+                    "0": 305,
+                    "1": 140,
+                    "2": 188,
+                    "3": 99,
+                    "4": 24
+                  },
+                  "exact_correct": 616,
+                  "prediction_sha256": "2ce852fcc96f50bf880837a28f7f5f438f20560c3a80c45af3e9cc0178d2e2f0"
+                },
+                "multi_term_outcomes": {
+                  "beats": 197,
+                  "ties": 149,
+                  "loses": 92
+                },
+                "multi_term_selected_loss_total": 179.25,
+                "multi_term_original_loss_total": 287.9375
+              }
+            ],
+            "original": {
+              "loss_q2": 0.3829901603498542,
+              "root_accuracy": 0.691399416909621,
+              "exact_accuracy": 0.4314868804664723
+            },
+            "selected": {
+              "loss_q2": 0.29661078717201167,
+              "root_accuracy": 0.7967930029154519,
+              "exact_accuracy": 0.47361516034985424
+            }
+          },
+          {
+            "fold": 4,
+            "seeds": [
+              {
+                "seed": 7,
+                "fold": 4,
+                "products": 1336,
+                "multi_term": 417,
+                "multi_term_tied_valuation": 320,
+                "multi_term_oracle_loss_matches": 290,
+                "original": {
+                  "loss_q2": 0.3865550149700599,
+                  "root_accuracy": 0.6818862275449102,
+                  "exact_accuracy": 0.43038922155688625,
+                  "prediction_sha256": "e2d02ff3a5a18b87b5ad3369ef6706e8e5d90683bb97cf25a803615ab5246461"
+                },
+                "selected": {
+                  "n": 1336,
+                  "loss_q2": 0.2990269461077844,
+                  "root_accuracy": 0.7941616766467066,
+                  "exact_accuracy": 0.4648203592814371,
+                  "first_disagreement_counts": {
+                    "0": 275,
+                    "1": 129,
+                    "2": 178,
+                    "3": 115,
+                    "4": 18
+                  },
+                  "exact_correct": 621,
+                  "prediction_sha256": "bfd4e57185bcdcc303583cc45a6a6b10f0a639f191ef2853713fb1b295af3d1a"
+                },
+                "multi_term_outcomes": {
+                  "beats": 199,
+                  "ties": 150,
+                  "loses": 68
+                },
+                "multi_term_selected_loss_total": 169.25,
+                "multi_term_original_loss_total": 286.1875
+              },
+              {
+                "seed": 13,
+                "fold": 4,
+                "products": 1336,
+                "multi_term": 418,
+                "multi_term_tied_valuation": 343,
+                "multi_term_oracle_loss_matches": 297,
+                "original": {
+                  "loss_q2": 0.39127994011976047,
+                  "root_accuracy": 0.6766467065868264,
+                  "exact_accuracy": 0.4281437125748503,
+                  "prediction_sha256": "6304a7292db4ae6b2ba139388410b7d48604f16b5d1483f2b790bbab4f4d0738"
+                },
+                "selected": {
+                  "n": 1336,
+                  "loss_q2": 0.31497941616766467,
+                  "root_accuracy": 0.7724550898203593,
+                  "exact_accuracy": 0.46182634730538924,
+                  "first_disagreement_counts": {
+                    "0": 304,
+                    "1": 115,
+                    "2": 184,
+                    "3": 97,
+                    "4": 19
+                  },
+                  "exact_correct": 617,
+                  "prediction_sha256": "a269547d7151deaee20630198294a47ce52985a89f153457341cbf3a42477880"
+                },
+                "multi_term_outcomes": {
+                  "beats": 194,
+                  "ties": 143,
+                  "loses": 81
+                },
+                "multi_term_selected_loss_total": 176.875,
+                "multi_term_original_loss_total": 278.8125
+              },
+              {
+                "seed": 23,
+                "fold": 4,
+                "products": 1336,
+                "multi_term": 389,
+                "multi_term_tied_valuation": 310,
+                "multi_term_oracle_loss_matches": 273,
+                "original": {
+                  "loss_q2": 0.38763098802395207,
+                  "root_accuracy": 0.6826347305389222,
+                  "exact_accuracy": 0.4273952095808383,
+                  "prediction_sha256": "d5c6dc1965f5ac61cc9d4c35d647dd0834669f81b8c8da114701c0943464b657"
+                },
+                "selected": {
+                  "n": 1336,
+                  "loss_q2": 0.28410366766467066,
+                  "root_accuracy": 0.8076347305389222,
+                  "exact_accuracy": 0.4820359281437126,
+                  "first_disagreement_counts": {
+                    "0": 257,
+                    "1": 124,
+                    "2": 183,
+                    "3": 109,
+                    "4": 19
+                  },
+                  "exact_correct": 644,
+                  "prediction_sha256": "66904ece7a744e0af0b58b5affda37f844a1b85b8df1dc6a571180630a231a3a"
+                },
+                "multi_term_outcomes": {
+                  "beats": 211,
+                  "ties": 118,
+                  "loses": 60
+                },
+                "multi_term_selected_loss_total": 128.6875,
+                "multi_term_original_loss_total": 267.0
+              },
+              {
+                "seed": 37,
+                "fold": 4,
+                "products": 1336,
+                "multi_term": 426,
+                "multi_term_tied_valuation": 322,
+                "multi_term_oracle_loss_matches": 317,
+                "original": {
+                  "loss_q2": 0.3852451347305389,
+                  "root_accuracy": 0.687874251497006,
+                  "exact_accuracy": 0.43038922155688625,
+                  "prediction_sha256": "71a4d6021bd386bbd2cef00d19f51a465cfeb397b210fab967655ce4248418a9"
+                },
+                "selected": {
+                  "n": 1336,
+                  "loss_q2": 0.289623877245509,
+                  "root_accuracy": 0.8031437125748503,
+                  "exact_accuracy": 0.47380239520958084,
+                  "first_disagreement_counts": {
+                    "0": 263,
+                    "1": 127,
+                    "2": 180,
+                    "3": 114,
+                    "4": 19
+                  },
+                  "exact_correct": 633,
+                  "prediction_sha256": "2878c8db22a17d069a7c6d7c12a8c1021bfb29e137bde2dc1d7f81eb54e4cc91"
+                },
+                "multi_term_outcomes": {
+                  "beats": 214,
+                  "ties": 121,
+                  "loses": 91
+                },
+                "multi_term_selected_loss_total": 149.0625,
+                "multi_term_original_loss_total": 276.8125
+              },
+              {
+                "seed": 101,
+                "fold": 4,
+                "products": 1336,
+                "multi_term": 435,
+                "multi_term_tied_valuation": 337,
+                "multi_term_oracle_loss_matches": 295,
+                "original": {
+                  "loss_q2": 0.3888473053892216,
+                  "root_accuracy": 0.6811377245508983,
+                  "exact_accuracy": 0.4258982035928144,
+                  "prediction_sha256": "c5c023c3d87484414eae2441cc51d0359da50d92b4c308e3b56ca8eceeb34067"
+                },
+                "selected": {
+                  "n": 1336,
+                  "loss_q2": 0.32054640718562877,
+                  "root_accuracy": 0.7776946107784432,
+                  "exact_accuracy": 0.4476047904191617,
+                  "first_disagreement_counts": {
+                    "0": 297,
+                    "1": 141,
+                    "2": 194,
+                    "3": 90,
+                    "4": 16
+                  },
+                  "exact_correct": 598,
+                  "prediction_sha256": "b069e67a11f3d632dcff5573700f749d07b45742fdd7abf0b1747cf93965937d"
+                },
+                "multi_term_outcomes": {
+                  "beats": 194,
+                  "ties": 153,
+                  "loses": 88
+                },
+                "multi_term_selected_loss_total": 198.3125,
+                "multi_term_original_loss_total": 289.5625
+              }
+            ],
+            "original": {
+              "loss_q2": 0.38791167664670656,
+              "root_accuracy": 0.6820359281437126,
+              "exact_accuracy": 0.4284431137724551
+            },
+            "selected": {
+              "loss_q2": 0.3016560628742515,
+              "root_accuracy": 0.7910179640718563,
+              "exact_accuracy": 0.4660179640718563
+            }
+          }
+        ]
+      }
+    },
+    "store": {
+      "battle_elo": {
+        "original": {
+          "loss_q2": 0.7479486519193634,
+          "root_accuracy": 0.35064916271323826,
+          "exact_accuracy": 0.06921620172331792,
+          "loss_q2_sd": 0.035028247655658255
+        },
+        "selected": {
+          "loss_q2": 0.7020538378218771,
+          "root_accuracy": 0.40811180379847023,
+          "exact_accuracy": 0.09250998413461761,
+          "loss_q2_sd": 0.02924381519175511
+        },
+        "folds": [
+          {
+            "fold": 0,
+            "seeds": [
+              {
+                "seed": null,
+                "fold": 0,
+                "products": 818,
+                "multi_term": 144,
+                "multi_term_tied_valuation": 120,
+                "multi_term_oracle_loss_matches": 75,
+                "original": {
+                  "loss_q2": 0.8013447432762836,
+                  "root_accuracy": 0.30195599022004893,
+                  "exact_accuracy": 0.04156479217603912,
+                  "prediction_sha256": "183fee4b8e204004fdf9d255256d35da13d8895b70f846caa7e5bf8d35194842"
+                },
+                "selected": {
+                  "n": 818,
+                  "loss_q2": 0.7448808068459658,
+                  "root_accuracy": 0.3753056234718827,
+                  "exact_accuracy": 0.061124694376528114,
+                  "first_disagreement_counts": {
+                    "0": 511,
+                    "1": 156,
+                    "2": 63,
+                    "3": 35,
+                    "4": 3
+                  },
+                  "exact_correct": 50,
+                  "prediction_sha256": "18001719fbbe55678b2241d48e82bfaf8f7ae84b914f6e49a8c2942df69be691"
+                },
+                "multi_term_outcomes": {
+                  "beats": 67,
+                  "ties": 73,
+                  "loses": 4
+                },
+                "multi_term_selected_loss_total": 83.0625,
+                "multi_term_original_loss_total": 129.25
+              }
+            ],
+            "original": {
+              "loss_q2": 0.8013447432762836,
+              "root_accuracy": 0.30195599022004893,
+              "exact_accuracy": 0.04156479217603912
+            },
+            "selected": {
+              "loss_q2": 0.7448808068459658,
+              "root_accuracy": 0.3753056234718827,
+              "exact_accuracy": 0.061124694376528114
+            }
+          },
+          {
+            "fold": 1,
+            "seeds": [
+              {
+                "seed": null,
+                "fold": 1,
+                "products": 1491,
+                "multi_term": 303,
+                "multi_term_tied_valuation": 212,
+                "multi_term_oracle_loss_matches": 216,
+                "original": {
+                  "loss_q2": 0.7369634473507712,
+                  "root_accuracy": 0.35412474849094566,
+                  "exact_accuracy": 0.08048289738430583,
+                  "prediction_sha256": "c56177de7b33714165a6daa903c4a56d363f1b60beec36eea88fbb3a7f4a117f"
+                },
+                "selected": {
+                  "n": 1491,
+                  "loss_q2": 0.698817907444668,
+                  "root_accuracy": 0.40308517773306507,
+                  "exact_accuracy": 0.10462776659959759,
+                  "first_disagreement_counts": {
+                    "0": 890,
+                    "1": 216,
+                    "2": 123,
+                    "3": 105,
+                    "4": 1
+                  },
+                  "exact_correct": 156,
+                  "prediction_sha256": "b850cbbc914ed2ae361bd5dea7860b3a426ace0b12187053ba8dd4a5f800ac47"
+                },
+                "multi_term_outcomes": {
+                  "beats": 84,
+                  "ties": 193,
+                  "loses": 26
+                },
+                "multi_term_selected_loss_total": 200.125,
+                "multi_term_original_loss_total": 257.0
+              }
+            ],
+            "original": {
+              "loss_q2": 0.7369634473507712,
+              "root_accuracy": 0.35412474849094566,
+              "exact_accuracy": 0.08048289738430583
+            },
+            "selected": {
+              "loss_q2": 0.698817907444668,
+              "root_accuracy": 0.40308517773306507,
+              "exact_accuracy": 0.10462776659959759
+            }
+          },
+          {
+            "fold": 2,
+            "seeds": [
+              {
+                "seed": null,
+                "fold": 2,
+                "products": 1710,
+                "multi_term": 192,
+                "multi_term_tied_valuation": 147,
+                "multi_term_oracle_loss_matches": 148,
+                "original": {
+                  "loss_q2": 0.7054093567251462,
+                  "root_accuracy": 0.4157894736842105,
+                  "exact_accuracy": 0.07368421052631578,
+                  "prediction_sha256": "f426b19c5eccf6bdd79e0d51b156de65eeac9d75c893cdf69b00855e5e5408a0"
+                },
+                "selected": {
+                  "n": 1710,
+                  "loss_q2": 0.6768274853801169,
+                  "root_accuracy": 0.45204678362573103,
+                  "exact_accuracy": 0.08654970760233918,
+                  "first_disagreement_counts": {
+                    "0": 937,
+                    "1": 321,
+                    "2": 175,
+                    "3": 129
+                  },
+                  "exact_correct": 148,
+                  "prediction_sha256": "fcff269bdb091043f8d5c63923e02b1a4b5ad8adcfd95adeb71ff8108a1ce2c8"
+                },
+                "multi_term_outcomes": {
+                  "beats": 73,
+                  "ties": 111,
+                  "loses": 8
+                },
+                "multi_term_selected_loss_total": 132.125,
+                "multi_term_original_loss_total": 181.0
+              }
+            ],
+            "original": {
+              "loss_q2": 0.7054093567251462,
+              "root_accuracy": 0.4157894736842105,
+              "exact_accuracy": 0.07368421052631578
+            },
+            "selected": {
+              "loss_q2": 0.6768274853801169,
+              "root_accuracy": 0.45204678362573103,
+              "exact_accuracy": 0.08654970760233918
+            }
+          },
+          {
+            "fold": 3,
+            "seeds": [
+              {
+                "seed": null,
+                "fold": 3,
+                "products": 1341,
+                "multi_term": 224,
+                "multi_term_tied_valuation": 202,
+                "multi_term_oracle_loss_matches": 144,
+                "original": {
+                  "loss_q2": 0.755965697240865,
+                  "root_accuracy": 0.3407904548844146,
+                  "exact_accuracy": 0.07307979120059657,
+                  "prediction_sha256": "c4ac81676a92855a8013e89c23a2359a3b689d456ee0a2ae8a1c5a9a50934a69"
+                },
+                "selected": {
+                  "n": 1341,
+                  "loss_q2": 0.7153243847874721,
+                  "root_accuracy": 0.38851603281133484,
+                  "exact_accuracy": 0.0924683072334079,
+                  "first_disagreement_counts": {
+                    "0": 820,
+                    "1": 195,
+                    "2": 136,
+                    "3": 58,
+                    "4": 8
+                  },
+                  "exact_correct": 124,
+                  "prediction_sha256": "4153dcf2b62ca69dea44ad7e8cab6927d132d851f2cd4a3ac0cb2c84369fbc71"
+                },
+                "multi_term_outcomes": {
+                  "beats": 75,
+                  "ties": 141,
+                  "loses": 8
+                },
+                "multi_term_selected_loss_total": 155.875,
+                "multi_term_original_loss_total": 210.375
+              }
+            ],
+            "original": {
+              "loss_q2": 0.755965697240865,
+              "root_accuracy": 0.3407904548844146,
+              "exact_accuracy": 0.07307979120059657
+            },
+            "selected": {
+              "loss_q2": 0.7153243847874721,
+              "root_accuracy": 0.38851603281133484,
+              "exact_accuracy": 0.0924683072334079
+            }
+          },
+          {
+            "fold": 4,
+            "seeds": [
+              {
+                "seed": null,
+                "fold": 4,
+                "products": 1333,
+                "multi_term": 216,
+                "multi_term_tied_valuation": 172,
+                "multi_term_oracle_loss_matches": 145,
+                "original": {
+                  "loss_q2": 0.740060015003751,
+                  "root_accuracy": 0.34058514628657166,
+                  "exact_accuracy": 0.07726931732933233,
+                  "prediction_sha256": "1f4727e70b26a52563320b00c41c6ee685d3e23f920462b5604f3afecd436164"
+                },
+                "selected": {
+                  "n": 1333,
+                  "loss_q2": 0.6744186046511628,
+                  "root_accuracy": 0.42160540135033764,
+                  "exact_accuracy": 0.1177794448612153,
+                  "first_disagreement_counts": {
+                    "0": 771,
+                    "1": 155,
+                    "2": 156,
+                    "3": 90,
+                    "4": 4
+                  },
+                  "exact_correct": 157,
+                  "prediction_sha256": "ad292122e8b1a15905e60e1c4866b8a2ff1b5c7614f1cb4af4601341987c76ff"
+                },
+                "multi_term_outcomes": {
+                  "beats": 130,
+                  "ties": 83,
+                  "loses": 3
+                },
+                "multi_term_selected_loss_total": 106.75,
+                "multi_term_original_loss_total": 194.25
+              }
+            ],
+            "original": {
+              "loss_q2": 0.740060015003751,
+              "root_accuracy": 0.34058514628657166,
+              "exact_accuracy": 0.07726931732933233
+            },
+            "selected": {
+              "loss_q2": 0.6744186046511628,
+              "root_accuracy": 0.42160540135033764,
+              "exact_accuracy": 0.1177794448612153
+            }
+          }
+        ]
+      },
+      "frequency": {
+        "original": {
+          "loss_q2": 0.7940648392809957,
+          "root_accuracy": 0.2956869872801906,
+          "exact_accuracy": 0.04766810878978047,
+          "loss_q2_sd": 0.020992838622709425
+        },
+        "selected": {
+          "loss_q2": 0.731384060579232,
+          "root_accuracy": 0.3699830314655596,
+          "exact_accuracy": 0.07294994484694009,
+          "loss_q2_sd": 0.015032325136884817
+        },
+        "folds": [
+          {
+            "fold": 0,
+            "seeds": [
+              {
+                "seed": null,
+                "fold": 0,
+                "products": 818,
+                "multi_term": 208,
+                "multi_term_tied_valuation": 180,
+                "multi_term_oracle_loss_matches": 159,
+                "original": {
+                  "loss_q2": 0.7995110024449877,
+                  "root_accuracy": 0.32885085574572126,
+                  "exact_accuracy": 0.02567237163814181,
+                  "prediction_sha256": "694ab70489a82d04ac5020febc156a18a348361c3e5d638a3bd98c4d995caf4d"
+                },
+                "selected": {
+                  "n": 818,
+                  "loss_q2": 0.7541259168704156,
+                  "root_accuracy": 0.3679706601466992,
+                  "exact_accuracy": 0.05256723716381418,
+                  "first_disagreement_counts": {
+                    "0": 517,
+                    "1": 148,
+                    "2": 97,
+                    "3": 13
+                  },
+                  "exact_correct": 43,
+                  "prediction_sha256": "a74d65702eeaafb41b8483f6bf496bb0ee592b8e76d00e621a71577ce90ae34c"
+                },
+                "multi_term_outcomes": {
+                  "beats": 95,
+                  "ties": 64,
+                  "loses": 49
+                },
+                "multi_term_selected_loss_total": 131.375,
+                "multi_term_original_loss_total": 168.5
+              }
+            ],
+            "original": {
+              "loss_q2": 0.7995110024449877,
+              "root_accuracy": 0.32885085574572126,
+              "exact_accuracy": 0.02567237163814181
+            },
+            "selected": {
+              "loss_q2": 0.7541259168704156,
+              "root_accuracy": 0.3679706601466992,
+              "exact_accuracy": 0.05256723716381418
+            }
+          },
+          {
+            "fold": 1,
+            "seeds": [
+              {
+                "seed": null,
+                "fold": 1,
+                "products": 1491,
+                "multi_term": 324,
+                "multi_term_tied_valuation": 275,
+                "multi_term_oracle_loss_matches": 235,
+                "original": {
+                  "loss_q2": 0.7963195841716968,
+                  "root_accuracy": 0.2816901408450704,
+                  "exact_accuracy": 0.06438631790744467,
+                  "prediction_sha256": "011ce369972c8e44da6f94189717444b6d1a9408e2337bad1f351e152368bcbd"
+                },
+                "selected": {
+                  "n": 1491,
+                  "loss_q2": 0.727741448692153,
+                  "root_accuracy": 0.36686787391012743,
+                  "exact_accuracy": 0.08249496981891348,
+                  "first_disagreement_counts": {
+                    "0": 944,
+                    "1": 181,
+                    "2": 162,
+                    "3": 80,
+                    "4": 1
+                  },
+                  "exact_correct": 123,
+                  "prediction_sha256": "71a8b880b91213f2c151a6ef28a4d04326248447c449671a48e9499bc3e98983"
+                },
+                "multi_term_outcomes": {
+                  "beats": 158,
+                  "ties": 145,
+                  "loses": 21
+                },
+                "multi_term_selected_loss_total": 187.0,
+                "multi_term_original_loss_total": 289.25
+              }
+            ],
+            "original": {
+              "loss_q2": 0.7963195841716968,
+              "root_accuracy": 0.2816901408450704,
+              "exact_accuracy": 0.06438631790744467
+            },
+            "selected": {
+              "loss_q2": 0.727741448692153,
+              "root_accuracy": 0.36686787391012743,
+              "exact_accuracy": 0.08249496981891348
+            }
+          },
+          {
+            "fold": 2,
+            "seeds": [
+              {
+                "seed": null,
+                "fold": 2,
+                "products": 1710,
+                "multi_term": 282,
+                "multi_term_tied_valuation": 238,
+                "multi_term_oracle_loss_matches": 199,
+                "original": {
+                  "loss_q2": 0.7584795321637426,
+                  "root_accuracy": 0.32573099415204676,
+                  "exact_accuracy": 0.0608187134502924,
+                  "prediction_sha256": "2efd7b687e39d72d533719b0a9f1bd79f04a6ac7279c530068c577d2ef1e95a5"
+                },
+                "selected": {
+                  "n": 1710,
+                  "loss_q2": 0.7173976608187135,
+                  "root_accuracy": 0.3807017543859649,
+                  "exact_accuracy": 0.06900584795321638,
+                  "first_disagreement_counts": {
+                    "0": 1059,
+                    "1": 194,
+                    "2": 227,
+                    "3": 112
+                  },
+                  "exact_correct": 118,
+                  "prediction_sha256": "35405547478dbc8a3056e06467a0ede82dcc73330d307ea4c9b260b8a23eef6e"
+                },
+                "multi_term_outcomes": {
+                  "beats": 104,
+                  "ties": 175,
+                  "loses": 3
+                },
+                "multi_term_selected_loss_total": 195.875,
+                "multi_term_original_loss_total": 266.125
+              }
+            ],
+            "original": {
+              "loss_q2": 0.7584795321637426,
+              "root_accuracy": 0.32573099415204676,
+              "exact_accuracy": 0.0608187134502924
+            },
+            "selected": {
+              "loss_q2": 0.7173976608187135,
+              "root_accuracy": 0.3807017543859649,
+              "exact_accuracy": 0.06900584795321638
+            }
+          },
+          {
+            "fold": 3,
+            "seeds": [
+              {
+                "seed": null,
+                "fold": 3,
+                "products": 1341,
+                "multi_term": 342,
+                "multi_term_tied_valuation": 301,
+                "multi_term_oracle_loss_matches": 238,
+                "original": {
+                  "loss_q2": 0.8019668158090977,
+                  "root_accuracy": 0.28709917971662935,
+                  "exact_accuracy": 0.05145413870246085,
+                  "prediction_sha256": "d9649948de25dec07042a35ad3ff904e237d0ec31ac54756b1a3b83181cd77ea"
+                },
+                "selected": {
+                  "n": 1341,
+                  "loss_q2": 0.7197520507084265,
+                  "root_accuracy": 0.3847874720357942,
+                  "exact_accuracy": 0.10141685309470544,
+                  "first_disagreement_counts": {
+                    "0": 825,
+                    "1": 205,
+                    "2": 127,
+                    "3": 47,
+                    "4": 1
+                  },
+                  "exact_correct": 136,
+                  "prediction_sha256": "ead4b6b45c4a057c89ee4a865b9151e84160bcb558600fb6ec6f8c72bde47751"
+                },
+                "multi_term_outcomes": {
+                  "beats": 153,
+                  "ties": 167,
+                  "loses": 22
+                },
+                "multi_term_selected_loss_total": 200.875,
+                "multi_term_original_loss_total": 311.125
+              }
+            ],
+            "original": {
+              "loss_q2": 0.8019668158090977,
+              "root_accuracy": 0.28709917971662935,
+              "exact_accuracy": 0.05145413870246085
+            },
+            "selected": {
+              "loss_q2": 0.7197520507084265,
+              "root_accuracy": 0.3847874720357942,
+              "exact_accuracy": 0.10141685309470544
+            }
+          },
+          {
+            "fold": 4,
+            "seeds": [
+              {
+                "seed": null,
+                "fold": 4,
+                "products": 1333,
+                "multi_term": 279,
+                "multi_term_tied_valuation": 232,
+                "multi_term_oracle_loss_matches": 201,
+                "original": {
+                  "loss_q2": 0.8140472618154538,
+                  "root_accuracy": 0.2550637659414854,
+                  "exact_accuracy": 0.03600900225056264,
+                  "prediction_sha256": "0728f998f7b534c4ed1eb7e80c5fcd8f34922efdcd7128fd664b7703cb6d35d5"
+                },
+                "selected": {
+                  "n": 1333,
+                  "loss_q2": 0.7379032258064516,
+                  "root_accuracy": 0.34958739684921225,
+                  "exact_accuracy": 0.05926481620405101,
+                  "first_disagreement_counts": {
+                    "0": 867,
+                    "1": 115,
+                    "2": 202,
+                    "3": 68,
+                    "4": 2
+                  },
+                  "exact_correct": 79,
+                  "prediction_sha256": "b46dc5af152751cd17ccf47480e48e8193a9d6fe00a21385ca8637176d5d8ba3"
+                },
+                "multi_term_outcomes": {
+                  "beats": 143,
+                  "ties": 134,
+                  "loses": 2
+                },
+                "multi_term_selected_loss_total": 162.125,
+                "multi_term_original_loss_total": 263.625
+              }
+            ],
+            "original": {
+              "loss_q2": 0.8140472618154538,
+              "root_accuracy": 0.2550637659414854,
+              "exact_accuracy": 0.03600900225056264
+            },
+            "selected": {
+              "loss_q2": 0.7379032258064516,
+              "root_accuracy": 0.34958739684921225,
+              "exact_accuracy": 0.05926481620405101
+            }
+          }
+        ]
+      },
+      "mean_title_position": {
+        "original": {
+          "loss_q2": 0.7978792901753883,
+          "root_accuracy": 0.2842903639744224,
+          "exact_accuracy": 0.04794209345252799,
+          "loss_q2_sd": 0.02913457814407684
+        },
+        "selected": {
+          "loss_q2": 0.7159159491544635,
+          "root_accuracy": 0.3882294922267061,
+          "exact_accuracy": 0.07969366452904342,
+          "loss_q2_sd": 0.026268191884041933
+        },
+        "folds": [
+          {
+            "fold": 0,
+            "seeds": [
+              {
+                "seed": null,
+                "fold": 0,
+                "products": 818,
+                "multi_term": 206,
+                "multi_term_tied_valuation": 154,
+                "multi_term_oracle_loss_matches": 138,
+                "original": {
+                  "loss_q2": 0.8221271393643031,
+                  "root_accuracy": 0.26650366748166254,
+                  "exact_accuracy": 0.03667481662591687,
+                  "prediction_sha256": "594c5a6d9a092fa2c006d0246a9557785d8b0a2ae226fe04703f334aa8fc6d0d"
+                },
+                "selected": {
+                  "n": 818,
+                  "loss_q2": 0.7373166259168704,
+                  "root_accuracy": 0.37652811735941316,
+                  "exact_accuracy": 0.06234718826405868,
+                  "first_disagreement_counts": {
+                    "0": 510,
+                    "1": 135,
+                    "2": 84,
+                    "3": 36,
+                    "4": 2
+                  },
+                  "exact_correct": 51,
+                  "prediction_sha256": "94494ef9c833404f997862a10b0b6cf9f47b8a83e3b49b56aaf6290dc1eaa73b"
+                },
+                "multi_term_outcomes": {
+                  "beats": 92,
+                  "ties": 112,
+                  "loses": 2
+                },
+                "multi_term_selected_loss_total": 130.125,
+                "multi_term_original_loss_total": 199.5
+              }
+            ],
+            "original": {
+              "loss_q2": 0.8221271393643031,
+              "root_accuracy": 0.26650366748166254,
+              "exact_accuracy": 0.03667481662591687
+            },
+            "selected": {
+              "loss_q2": 0.7373166259168704,
+              "root_accuracy": 0.37652811735941316,
+              "exact_accuracy": 0.06234718826405868
+            }
+          },
+          {
+            "fold": 1,
+            "seeds": [
+              {
+                "seed": null,
+                "fold": 1,
+                "products": 1491,
+                "multi_term": 399,
+                "multi_term_tied_valuation": 324,
+                "multi_term_oracle_loss_matches": 260,
+                "original": {
+                  "loss_q2": 0.7934691482226693,
+                  "root_accuracy": 0.28101945003353457,
+                  "exact_accuracy": 0.052313883299798795,
+                  "prediction_sha256": "451dc2bf2624faaf3978b01a903ec99a65496fba26b3dd73bff4793a55934b06"
+                },
+                "selected": {
+                  "n": 1491,
+                  "loss_q2": 0.7342806841046278,
+                  "root_accuracy": 0.35747820254862506,
+                  "exact_accuracy": 0.07780013413816231,
+                  "first_disagreement_counts": {
+                    "0": 958,
+                    "1": 176,
+                    "2": 150,
+                    "3": 90,
+                    "4": 1
+                  },
+                  "exact_correct": 116,
+                  "prediction_sha256": "aa4f5259b1fbed4c48f5e6ccb1febbb548a8cc2388d1e74dadc744750f7e8d68"
+                },
+                "multi_term_outcomes": {
+                  "beats": 158,
+                  "ties": 205,
+                  "loses": 36
+                },
+                "multi_term_selected_loss_total": 256.625,
+                "multi_term_original_loss_total": 344.875
+              }
+            ],
+            "original": {
+              "loss_q2": 0.7934691482226693,
+              "root_accuracy": 0.28101945003353457,
+              "exact_accuracy": 0.052313883299798795
+            },
+            "selected": {
+              "loss_q2": 0.7342806841046278,
+              "root_accuracy": 0.35747820254862506,
+              "exact_accuracy": 0.07780013413816231
+            }
+          },
+          {
+            "fold": 2,
+            "seeds": [
+              {
+                "seed": null,
+                "fold": 2,
+                "products": 1710,
+                "multi_term": 338,
+                "multi_term_tied_valuation": 321,
+                "multi_term_oracle_loss_matches": 262,
+                "original": {
+                  "loss_q2": 0.7493421052631579,
+                  "root_accuracy": 0.3497076023391813,
+                  "exact_accuracy": 0.05497076023391813,
+                  "prediction_sha256": "256a2fb9f100f9a7fb4a62c6af40546cb350213a18261b1f68604ae97a53851b"
+                },
+                "selected": {
+                  "n": 1710,
+                  "loss_q2": 0.6740497076023392,
+                  "root_accuracy": 0.4374269005847953,
+                  "exact_accuracy": 0.09532163742690059,
+                  "first_disagreement_counts": {
+                    "0": 962,
+                    "1": 246,
+                    "2": 202,
+                    "3": 137
+                  },
+                  "exact_correct": 163,
+                  "prediction_sha256": "0f78e2a3b6812a94e97e6db0a0f3d918eaa6f2d7e4e3a60c690d5301410ab68f"
+                },
+                "multi_term_outcomes": {
+                  "beats": 156,
+                  "ties": 178,
+                  "loses": 4
+                },
+                "multi_term_selected_loss_total": 200.5,
+                "multi_term_original_loss_total": 329.25
+              }
+            ],
+            "original": {
+              "loss_q2": 0.7493421052631579,
+              "root_accuracy": 0.3497076023391813,
+              "exact_accuracy": 0.05497076023391813
+            },
+            "selected": {
+              "loss_q2": 0.6740497076023392,
+              "root_accuracy": 0.4374269005847953,
+              "exact_accuracy": 0.09532163742690059
+            }
+          },
+          {
+            "fold": 3,
+            "seeds": [
+              {
+                "seed": null,
+                "fold": 3,
+                "products": 1341,
+                "multi_term": 303,
+                "multi_term_tied_valuation": 274,
+                "multi_term_oracle_loss_matches": 205,
+                "original": {
+                  "loss_q2": 0.8090510812826249,
+                  "root_accuracy": 0.2766592095451156,
+                  "exact_accuracy": 0.04548844146159582,
+                  "prediction_sha256": "61ba57102e3243885284603ff15527ba1bfc767b755d4de3513afc504735b95b"
+                },
+                "selected": {
+                  "n": 1341,
+                  "loss_q2": 0.7272091722595079,
+                  "root_accuracy": 0.3713646532438478,
+                  "exact_accuracy": 0.09023117076808351,
+                  "first_disagreement_counts": {
+                    "0": 843,
+                    "1": 189,
+                    "2": 114,
+                    "3": 73,
+                    "4": 1
+                  },
+                  "exact_correct": 121,
+                  "prediction_sha256": "21945ef2f6da54b052317b682cefaa2b85349742a734b53b2ad5b51a64cbf5fc"
+                },
+                "multi_term_outcomes": {
+                  "beats": 146,
+                  "ties": 148,
+                  "loses": 9
+                },
+                "multi_term_selected_loss_total": 178.0,
+                "multi_term_original_loss_total": 287.75
+              }
+            ],
+            "original": {
+              "loss_q2": 0.8090510812826249,
+              "root_accuracy": 0.2766592095451156,
+              "exact_accuracy": 0.04548844146159582
+            },
+            "selected": {
+              "loss_q2": 0.7272091722595079,
+              "root_accuracy": 0.3713646532438478,
+              "exact_accuracy": 0.09023117076808351
+            }
+          },
+          {
+            "fold": 4,
+            "seeds": [
+              {
+                "seed": null,
+                "fold": 4,
+                "products": 1333,
+                "multi_term": 317,
+                "multi_term_tied_valuation": 279,
+                "multi_term_oracle_loss_matches": 265,
+                "original": {
+                  "loss_q2": 0.815406976744186,
+                  "root_accuracy": 0.24756189047261812,
+                  "exact_accuracy": 0.05026256564141035,
+                  "prediction_sha256": "428035c25cf295626592cfc9d81ed23336e5bb92aa5ebb21978e2b378390a869"
+                },
+                "selected": {
+                  "n": 1333,
+                  "loss_q2": 0.7067235558889723,
+                  "root_accuracy": 0.3983495873968492,
+                  "exact_accuracy": 0.072768192048012,
+                  "first_disagreement_counts": {
+                    "0": 802,
+                    "1": 167,
+                    "2": 186,
+                    "3": 80,
+                    "4": 1
+                  },
+                  "exact_correct": 97,
+                  "prediction_sha256": "f582a3a32dc5b0aace09e57f59e56e38fb72db57c7a197f69d26bbec1e8ce895"
+                },
+                "multi_term_outcomes": {
+                  "beats": 214,
+                  "ties": 100,
+                  "loses": 3
+                },
+                "multi_term_selected_loss_total": 160.5,
+                "multi_term_original_loss_total": 305.375
+              }
+            ],
+            "original": {
+              "loss_q2": 0.815406976744186,
+              "root_accuracy": 0.24756189047261812,
+              "exact_accuracy": 0.05026256564141035
+            },
+            "selected": {
+              "loss_q2": 0.7067235558889723,
+              "root_accuracy": 0.3983495873968492,
+              "exact_accuracy": 0.072768192048012
+            }
+          }
+        ]
+      },
+      "taxonomy_association": {
+        "original": {
+          "loss_q2": 0.7127630411260666,
+          "root_accuracy": 0.3886357979672824,
+          "exact_accuracy": 0.09454320125355267,
+          "loss_q2_sd": 0.027029488937485538
+        },
+        "selected": {
+          "loss_q2": 0.6593714056338599,
+          "root_accuracy": 0.4533771090658247,
+          "exact_accuracy": 0.12328721768580495,
+          "loss_q2_sd": 0.0194236629420125
+        },
+        "folds": [
+          {
+            "fold": 0,
+            "seeds": [
+              {
+                "seed": null,
+                "fold": 0,
+                "products": 818,
+                "multi_term": 94,
+                "multi_term_tied_valuation": 93,
+                "multi_term_oracle_loss_matches": 44,
+                "original": {
+                  "loss_q2": 0.7422830073349633,
+                  "root_accuracy": 0.38019559902200484,
+                  "exact_accuracy": 0.06723716381418093,
+                  "prediction_sha256": "39bbd8bedfcf7cbf3921fec0497e627fcefcd12c04ede4a462e757e6f410fcfd"
+                },
+                "selected": {
+                  "n": 818,
+                  "loss_q2": 0.6768031784841075,
+                  "root_accuracy": 0.4682151589242054,
+                  "exact_accuracy": 0.08557457212713937,
+                  "first_disagreement_counts": {
+                    "0": 435,
+                    "1": 179,
+                    "2": 99,
+                    "3": 35
+                  },
+                  "exact_correct": 70,
+                  "prediction_sha256": "1d905f6448145de789d56b60d9fb3f4ca270708df1b5cda8988cc14b101c6143"
+                },
+                "multi_term_outcomes": {
+                  "beats": 73,
+                  "ties": 19,
+                  "loses": 2
+                },
+                "multi_term_selected_loss_total": 38.25,
+                "multi_term_original_loss_total": 91.8125
+              }
+            ],
+            "original": {
+              "loss_q2": 0.7422830073349633,
+              "root_accuracy": 0.38019559902200484,
+              "exact_accuracy": 0.06723716381418093
+            },
+            "selected": {
+              "loss_q2": 0.6768031784841075,
+              "root_accuracy": 0.4682151589242054,
+              "exact_accuracy": 0.08557457212713937
+            }
+          },
+          {
+            "fold": 1,
+            "seeds": [
+              {
+                "seed": null,
+                "fold": 1,
+                "products": 1491,
+                "multi_term": 203,
+                "multi_term_tied_valuation": 194,
+                "multi_term_oracle_loss_matches": 150,
+                "original": {
+                  "loss_q2": 0.7016683433936955,
+                  "root_accuracy": 0.3963782696177063,
+                  "exact_accuracy": 0.11133467471495641,
+                  "prediction_sha256": "1fba00a4be5489971c77c47b45df37674fd1950d7771e499d11e7904488dae60"
+                },
+                "selected": {
+                  "n": 1491,
+                  "loss_q2": 0.6334255533199196,
+                  "root_accuracy": 0.47551978537894035,
+                  "exact_accuracy": 0.15694164989939638,
+                  "first_disagreement_counts": {
+                    "0": 782,
+                    "1": 219,
+                    "2": 168,
+                    "3": 87,
+                    "4": 1
+                  },
+                  "exact_correct": 234,
+                  "prediction_sha256": "0dcd065ba2f57bd8efcd9a24d0eef8cd9991bdcfca933c99f303a095fa4ef38d"
+                },
+                "multi_term_outcomes": {
+                  "beats": 126,
+                  "ties": 77,
+                  "loses": 0
+                },
+                "multi_term_selected_loss_total": 95.0,
+                "multi_term_original_loss_total": 196.75
+              }
+            ],
+            "original": {
+              "loss_q2": 0.7016683433936955,
+              "root_accuracy": 0.3963782696177063,
+              "exact_accuracy": 0.11133467471495641
+            },
+            "selected": {
+              "loss_q2": 0.6334255533199196,
+              "root_accuracy": 0.47551978537894035,
+              "exact_accuracy": 0.15694164989939638
+            }
+          },
+          {
+            "fold": 2,
+            "seeds": [
+              {
+                "seed": null,
+                "fold": 2,
+                "products": 1710,
+                "multi_term": 121,
+                "multi_term_tied_valuation": 111,
+                "multi_term_oracle_loss_matches": 81,
+                "original": {
+                  "loss_q2": 0.6721491228070176,
+                  "root_accuracy": 0.4187134502923977,
+                  "exact_accuracy": 0.11988304093567251,
+                  "prediction_sha256": "5db39cd7ab0fe1cb0eb478c0747e88a27e27f25d9a0bcd84e10896baac5c524d"
+                },
+                "selected": {
+                  "n": 1710,
+                  "loss_q2": 0.6532894736842105,
+                  "root_accuracy": 0.43918128654970756,
+                  "exact_accuracy": 0.1286549707602339,
+                  "first_disagreement_counts": {
+                    "0": 959,
+                    "1": 177,
+                    "2": 203,
+                    "3": 151
+                  },
+                  "exact_correct": 220,
+                  "prediction_sha256": "495919a08dbbbc63f69a7c048cb26fd6a3198dadc9cb8d26b80d882a0ccc34f3"
+                },
+                "multi_term_outcomes": {
+                  "beats": 45,
+                  "ties": 70,
+                  "loses": 6
+                },
+                "multi_term_selected_loss_total": 82.5,
+                "multi_term_original_loss_total": 114.75
+              }
+            ],
+            "original": {
+              "loss_q2": 0.6721491228070176,
+              "root_accuracy": 0.4187134502923977,
+              "exact_accuracy": 0.11988304093567251
+            },
+            "selected": {
+              "loss_q2": 0.6532894736842105,
+              "root_accuracy": 0.43918128654970756,
+              "exact_accuracy": 0.1286549707602339
+            }
+          },
+          {
+            "fold": 3,
+            "seeds": [
+              {
+                "seed": null,
+                "fold": 3,
+                "products": 1341,
+                "multi_term": 160,
+                "multi_term_tied_valuation": 160,
+                "multi_term_oracle_loss_matches": 108,
+                "original": {
+                  "loss_q2": 0.7198452647278151,
+                  "root_accuracy": 0.3825503355704698,
+                  "exact_accuracy": 0.08873974645786727,
+                  "prediction_sha256": "96278657afc5d2261ecd1649fb63c6eb4824945094aba5c88d2e1145be0473fa"
+                },
+                "selected": {
+                  "n": 1341,
+                  "loss_q2": 0.6527311707680835,
+                  "root_accuracy": 0.4586129753914989,
+                  "exact_accuracy": 0.13273676360924683,
+                  "first_disagreement_counts": {
+                    "0": 726,
+                    "1": 205,
+                    "2": 147,
+                    "3": 76,
+                    "4": 9
+                  },
+                  "exact_correct": 178,
+                  "prediction_sha256": "babf27a5104ed003d8e56028f0717d01bb4d37fd183c7e898d5eb9762a6dd5af"
+                },
+                "multi_term_outcomes": {
+                  "beats": 107,
+                  "ties": 48,
+                  "loses": 5
+                },
+                "multi_term_selected_loss_total": 66.25,
+                "multi_term_original_loss_total": 156.25
+              }
+            ],
+            "original": {
+              "loss_q2": 0.7198452647278151,
+              "root_accuracy": 0.3825503355704698,
+              "exact_accuracy": 0.08873974645786727
+            },
+            "selected": {
+              "loss_q2": 0.6527311707680835,
+              "root_accuracy": 0.4586129753914989,
+              "exact_accuracy": 0.13273676360924683
+            }
+          },
+          {
+            "fold": 4,
+            "seeds": [
+              {
+                "seed": null,
+                "fold": 4,
+                "products": 1333,
+                "multi_term": 142,
+                "multi_term_tied_valuation": 140,
+                "multi_term_oracle_loss_matches": 65,
+                "original": {
+                  "loss_q2": 0.7278694673668417,
+                  "root_accuracy": 0.3653413353338335,
+                  "exact_accuracy": 0.08552138034508627,
+                  "prediction_sha256": "b26dc1f0562c630037bbc77a13dec70d7e2775430bc03763b7e055add3bb9821"
+                },
+                "selected": {
+                  "n": 1333,
+                  "loss_q2": 0.6806076519129782,
+                  "root_accuracy": 0.4253563390847712,
+                  "exact_accuracy": 0.11252813203300825,
+                  "first_disagreement_counts": {
+                    "0": 766,
+                    "1": 188,
+                    "2": 150,
+                    "3": 77,
+                    "4": 2
+                  },
+                  "exact_correct": 150,
+                  "prediction_sha256": "083e7c060db07334d9a61db74d90e381e714431f95adac0a93d29bf6be13f593"
+                },
+                "multi_term_outcomes": {
+                  "beats": 84,
+                  "ties": 54,
+                  "loses": 4
+                },
+                "multi_term_selected_loss_total": 76.5,
+                "multi_term_original_loss_total": 139.5
+              }
+            ],
+            "original": {
+              "loss_q2": 0.7278694673668417,
+              "root_accuracy": 0.3653413353338335,
+              "exact_accuracy": 0.08552138034508627
+            },
+            "selected": {
+              "loss_q2": 0.6806076519129782,
+              "root_accuracy": 0.4253563390847712,
+              "exact_accuracy": 0.11252813203300825
+            }
+          }
+        ]
+      },
+      "random": {
+        "original": {
+          "loss_q2": 0.7504730842378505,
+          "root_accuracy": 0.3474739036556485,
+          "exact_accuracy": 0.06905354289746377,
+          "loss_q2_sd": 0.019814338052553605
+        },
+        "selected": {
+          "loss_q2": 0.7036181354347735,
+          "root_accuracy": 0.40765745315505486,
+          "exact_accuracy": 0.08918444798933815,
+          "loss_q2_sd": 0.017665676325087924
+        },
+        "folds": [
+          {
+            "fold": 0,
+            "seeds": [
+              {
+                "seed": 7,
+                "fold": 0,
+                "products": 818,
+                "multi_term": 182,
+                "multi_term_tied_valuation": 172,
+                "multi_term_oracle_loss_matches": 63,
+                "original": {
+                  "loss_q2": 0.8273227383863081,
+                  "root_accuracy": 0.25061124694376524,
+                  "exact_accuracy": 0.039119804400977995,
+                  "prediction_sha256": "1c808740d8dd45023862d8d9aa762c3dea3b62843b842f14c1350932f81fb5e4"
+                },
+                "selected": {
+                  "n": 818,
+                  "loss_q2": 0.7493887530562348,
+                  "root_accuracy": 0.3863080684596577,
+                  "exact_accuracy": 0.04767726161369193,
+                  "first_disagreement_counts": {
+                    "0": 502,
+                    "1": 178,
+                    "2": 78,
+                    "3": 19,
+                    "4": 2
+                  },
+                  "exact_correct": 39,
+                  "prediction_sha256": "2a157f7b5de172a1a209f879777644f6f79587acaf2872420dd770792f063588"
+                },
+                "multi_term_outcomes": {
+                  "beats": 119,
+                  "ties": 58,
+                  "loses": 5
+                },
+                "multi_term_selected_loss_total": 107.0,
+                "multi_term_original_loss_total": 170.75
+              },
+              {
+                "seed": 13,
+                "fold": 0,
+                "products": 818,
+                "multi_term": 94,
+                "multi_term_tied_valuation": 75,
+                "multi_term_oracle_loss_matches": 68,
+                "original": {
+                  "loss_q2": 0.7519865525672371,
+                  "root_accuracy": 0.36552567237163813,
+                  "exact_accuracy": 0.06601466992665037,
+                  "prediction_sha256": "c797d8a12bedf90b589ffb27523a517f737dba801ee307c040f3792efdc81abb"
+                },
+                "selected": {
+                  "n": 818,
+                  "loss_q2": 0.7166870415647921,
+                  "root_accuracy": 0.41320293398533003,
+                  "exact_accuracy": 0.07212713936430318,
+                  "first_disagreement_counts": {
+                    "0": 480,
+                    "1": 160,
+                    "2": 91,
+                    "3": 28
+                  },
+                  "exact_correct": 59,
+                  "prediction_sha256": "79054e9b6a1553664962042402ad709e007bcd152eabe42008f77f2965f2225a"
+                },
+                "multi_term_outcomes": {
+                  "beats": 44,
+                  "ties": 45,
+                  "loses": 5
+                },
+                "multi_term_selected_loss_total": 55.125,
+                "multi_term_original_loss_total": 84.0
+              },
+              {
+                "seed": 23,
+                "fold": 0,
+                "products": 818,
+                "multi_term": 150,
+                "multi_term_tied_valuation": 141,
+                "multi_term_oracle_loss_matches": 93,
+                "original": {
+                  "loss_q2": 0.74190097799511,
+                  "root_accuracy": 0.3899755501222494,
+                  "exact_accuracy": 0.0550122249388753,
+                  "prediction_sha256": "3a0d037e6123fb0ec6d7410477a56f541f1e7732b29ccfa06ca33f18d16c3402"
+                },
+                "selected": {
+                  "n": 818,
+                  "loss_q2": 0.7202017114914425,
+                  "root_accuracy": 0.4205378973105135,
+                  "exact_accuracy": 0.05867970660146699,
+                  "first_disagreement_counts": {
+                    "0": 474,
+                    "1": 179,
+                    "2": 89,
+                    "3": 26,
+                    "4": 2
+                  },
+                  "exact_correct": 48,
+                  "prediction_sha256": "5b7c2ec83a597c1ec6bcc45cf18f65b132c78653ab64cc279a0ddf471785fe1c"
+                },
+                "multi_term_outcomes": {
+                  "beats": 65,
+                  "ties": 47,
+                  "loses": 38
+                },
+                "multi_term_selected_loss_total": 108.25,
+                "multi_term_original_loss_total": 126.0
+              },
+              {
+                "seed": 37,
+                "fold": 0,
+                "products": 818,
+                "multi_term": 119,
+                "multi_term_tied_valuation": 85,
+                "multi_term_oracle_loss_matches": 79,
+                "original": {
+                  "loss_q2": 0.7443459657701712,
+                  "root_accuracy": 0.3704156479217604,
+                  "exact_accuracy": 0.05867970660146699,
+                  "prediction_sha256": "4bdb9f5cb65cb85e4dedff67cd0a38efce73606ee290aa8f55105ee53cce40ad"
+                },
+                "selected": {
+                  "n": 818,
+                  "loss_q2": 0.7107273838630807,
+                  "root_accuracy": 0.4046454767726161,
+                  "exact_accuracy": 0.08190709046454768,
+                  "first_disagreement_counts": {
+                    "0": 487,
+                    "1": 135,
+                    "2": 87,
+                    "3": 40,
+                    "4": 2
+                  },
+                  "exact_correct": 67,
+                  "prediction_sha256": "7aed60e614322e2ea65d0cedd600513983d7e9c26d2fcc3ec36c22d5c203f0ef"
+                },
+                "multi_term_outcomes": {
+                  "beats": 39,
+                  "ties": 73,
+                  "loses": 7
+                },
+                "multi_term_selected_loss_total": 72.25,
+                "multi_term_original_loss_total": 99.75
+              },
+              {
+                "seed": 101,
+                "fold": 0,
+                "products": 818,
+                "multi_term": 170,
+                "multi_term_tied_valuation": 148,
+                "multi_term_oracle_loss_matches": 65,
+                "original": {
+                  "loss_q2": 0.77429706601467,
+                  "root_accuracy": 0.3251833740831296,
+                  "exact_accuracy": 0.039119804400977995,
+                  "prediction_sha256": "c45b88e41266496751fd5aa2408b808ad3d9d11d42855719964280036937499d"
+                },
+                "selected": {
+                  "n": 818,
+                  "loss_q2": 0.6928484107579462,
+                  "root_accuracy": 0.4559902200488998,
+                  "exact_accuracy": 0.05378973105134474,
+                  "first_disagreement_counts": {
+                    "0": 445,
+                    "1": 176,
+                    "2": 117,
+                    "3": 36
+                  },
+                  "exact_correct": 44,
+                  "prediction_sha256": "c5281971598c0550127037de007ebe7845133a9a268e88e40f4ad54f05000cd9"
+                },
+                "multi_term_outcomes": {
+                  "beats": 123,
+                  "ties": 46,
+                  "loses": 1
+                },
+                "multi_term_selected_loss_total": 88.125,
+                "multi_term_original_loss_total": 154.75
+              }
+            ],
+            "original": {
+              "loss_q2": 0.7679706601466992,
+              "root_accuracy": 0.34034229828850854,
+              "exact_accuracy": 0.05158924205378973
+            },
+            "selected": {
+              "loss_q2": 0.7179706601466993,
+              "root_accuracy": 0.4161369193154034,
+              "exact_accuracy": 0.06283618581907091
+            }
+          },
+          {
+            "fold": 1,
+            "seeds": [
+              {
+                "seed": 7,
+                "fold": 1,
+                "products": 1491,
+                "multi_term": 278,
+                "multi_term_tied_valuation": 225,
+                "multi_term_oracle_loss_matches": 189,
+                "original": {
+                  "loss_q2": 0.7438799463447351,
+                  "root_accuracy": 0.3407109322602281,
+                  "exact_accuracy": 0.08853118712273642,
+                  "prediction_sha256": "acdf2c9dd28c462b7b7b8fd9dfb348be9f612ca426171d372963e035348c1989"
+                },
+                "selected": {
+                  "n": 1491,
+                  "loss_q2": 0.6805415828303152,
+                  "root_accuracy": 0.4178403755868545,
+                  "exact_accuracy": 0.11670020120724346,
+                  "first_disagreement_counts": {
+                    "0": 868,
+                    "1": 187,
+                    "2": 166,
+                    "3": 91,
+                    "4": 5
+                  },
+                  "exact_correct": 174,
+                  "prediction_sha256": "76454382c88d1df02a3c06cb175a5b055a28cadb48bb48e6354fea723ffc6296"
+                },
+                "multi_term_outcomes": {
+                  "beats": 125,
+                  "ties": 152,
+                  "loses": 1
+                },
+                "multi_term_selected_loss_total": 157.5625,
+                "multi_term_original_loss_total": 252.0
+              },
+              {
+                "seed": 13,
+                "fold": 1,
+                "products": 1491,
+                "multi_term": 252,
+                "multi_term_tied_valuation": 213,
+                "multi_term_oracle_loss_matches": 188,
+                "original": {
+                  "loss_q2": 0.750125754527163,
+                  "root_accuracy": 0.35077129443326627,
+                  "exact_accuracy": 0.09054325955734406,
+                  "prediction_sha256": "b3bbcb5fb35a0398eb2fd14865ea4c81a06946191a39334f8bee74b75b935493"
+                },
+                "selected": {
+                  "n": 1491,
+                  "loss_q2": 0.6922786720321932,
+                  "root_accuracy": 0.42320590207914155,
+                  "exact_accuracy": 0.12474849094567404,
+                  "first_disagreement_counts": {
+                    "0": 860,
+                    "1": 274,
+                    "2": 111,
+                    "3": 59,
+                    "4": 1
+                  },
+                  "exact_correct": 186,
+                  "prediction_sha256": "25eed1b652fb6da52672fb46ae054d606214b3d73d4078e93218fd4321ba76ff"
+                },
+                "multi_term_outcomes": {
+                  "beats": 125,
+                  "ties": 125,
+                  "loses": 2
+                },
+                "multi_term_selected_loss_total": 147.625,
+                "multi_term_original_loss_total": 233.875
+              },
+              {
+                "seed": 23,
+                "fold": 1,
+                "products": 1491,
+                "multi_term": 260,
+                "multi_term_tied_valuation": 201,
+                "multi_term_oracle_loss_matches": 204,
+                "original": {
+                  "loss_q2": 0.7455147551978538,
+                  "root_accuracy": 0.3420523138832998,
+                  "exact_accuracy": 0.08987256874580818,
+                  "prediction_sha256": "2f649a2ff447e7f7fa26e2e404612fa26305b8c39a01c3ee5fb45ca50f7ac6e8"
+                },
+                "selected": {
+                  "n": 1491,
+                  "loss_q2": 0.6725771294433266,
+                  "root_accuracy": 0.42991281019450034,
+                  "exact_accuracy": 0.13279678068410464,
+                  "first_disagreement_counts": {
+                    "0": 850,
+                    "1": 204,
+                    "2": 168,
+                    "3": 70,
+                    "4": 1
+                  },
+                  "exact_correct": 198,
+                  "prediction_sha256": "fa5d7a954b2f23adf3ffbc6a18deda192badb10a73cb62593635ce16bb4a55a2"
+                },
+                "multi_term_outcomes": {
+                  "beats": 152,
+                  "ties": 105,
+                  "loses": 3
+                },
+                "multi_term_selected_loss_total": 134.75,
+                "multi_term_original_loss_total": 243.5
+              },
+              {
+                "seed": 37,
+                "fold": 1,
+                "products": 1491,
+                "multi_term": 221,
+                "multi_term_tied_valuation": 164,
+                "multi_term_oracle_loss_matches": 175,
+                "original": {
+                  "loss_q2": 0.7339872568745808,
+                  "root_accuracy": 0.3762575452716298,
+                  "exact_accuracy": 0.07914151576123407,
+                  "prediction_sha256": "08697b899e0fee9c3ec325d59150cecc0b5644becc6bea34267af9dafd6ab987"
+                },
+                "selected": {
+                  "n": 1491,
+                  "loss_q2": 0.682260228034876,
+                  "root_accuracy": 0.43729040912139505,
+                  "exact_accuracy": 0.11200536552649229,
+                  "first_disagreement_counts": {
+                    "0": 839,
+                    "1": 260,
+                    "2": 162,
+                    "3": 61,
+                    "4": 2
+                  },
+                  "exact_correct": 167,
+                  "prediction_sha256": "76c75c6269d65fd51a5d2e00f8c21c6be6932e96b434e1e382956f5c5af6f293"
+                },
+                "multi_term_outcomes": {
+                  "beats": 107,
+                  "ties": 106,
+                  "loses": 8
+                },
+                "multi_term_selected_loss_total": 119.5,
+                "multi_term_original_loss_total": 196.625
+              },
+              {
+                "seed": 101,
+                "fold": 1,
+                "products": 1491,
+                "multi_term": 182,
+                "multi_term_tied_valuation": 100,
+                "multi_term_oracle_loss_matches": 136,
+                "original": {
+                  "loss_q2": 0.7108484238765929,
+                  "root_accuracy": 0.39168343393695504,
+                  "exact_accuracy": 0.0892018779342723,
+                  "prediction_sha256": "e623e4470b2533d989b3d335a8b39614bdcd265aa54b3717c30be41a06a47572"
+                },
+                "selected": {
+                  "n": 1491,
+                  "loss_q2": 0.6724513749161637,
+                  "root_accuracy": 0.4325955734406438,
+                  "exact_accuracy": 0.11401743796109994,
+                  "first_disagreement_counts": {
+                    "0": 846,
+                    "1": 200,
+                    "2": 179,
+                    "3": 94,
+                    "4": 2
+                  },
+                  "exact_correct": 170,
+                  "prediction_sha256": "a4c45fd606906fd888905a654c9405afa7cd0ba6216e54f1d552d5deef9c1b2c"
+                },
+                "multi_term_outcomes": {
+                  "beats": 90,
+                  "ties": 88,
+                  "loses": 4
+                },
+                "multi_term_selected_loss_total": 86.75,
+                "multi_term_original_loss_total": 144.0
+              }
+            ],
+            "original": {
+              "loss_q2": 0.7368712273641851,
+              "root_accuracy": 0.3602951039570758,
+              "exact_accuracy": 0.087458081824279
+            },
+            "selected": {
+              "loss_q2": 0.6800217974513749,
+              "root_accuracy": 0.428169014084507,
+              "exact_accuracy": 0.12005365526492287
+            }
+          },
+          {
+            "fold": 2,
+            "seeds": [
+              {
+                "seed": 7,
+                "fold": 2,
+                "products": 1710,
+                "multi_term": 160,
+                "multi_term_tied_valuation": 143,
+                "multi_term_oracle_loss_matches": 101,
+                "original": {
+                  "loss_q2": 0.7282163742690059,
+                  "root_accuracy": 0.36608187134502923,
+                  "exact_accuracy": 0.07017543859649122,
+                  "prediction_sha256": "a31e3ba3928713f133ab41d8e05cb8f08d389062902d7b16338b893663bcae35"
+                },
+                "selected": {
+                  "n": 1710,
+                  "loss_q2": 0.7099415204678362,
+                  "root_accuracy": 0.387719298245614,
+                  "exact_accuracy": 0.08011695906432749,
+                  "first_disagreement_counts": {
+                    "0": 1047,
+                    "1": 209,
+                    "2": 183,
+                    "3": 134
+                  },
+                  "exact_correct": 137,
+                  "prediction_sha256": "a2ba9d914a6063745ddffe6a32c3d78820318f2c44bf555f923c83222c491707"
+                },
+                "multi_term_outcomes": {
+                  "beats": 41,
+                  "ties": 117,
+                  "loses": 2
+                },
+                "multi_term_selected_loss_total": 122.5,
+                "multi_term_original_loss_total": 153.75
+              },
+              {
+                "seed": 13,
+                "fold": 2,
+                "products": 1710,
+                "multi_term": 232,
+                "multi_term_tied_valuation": 197,
+                "multi_term_oracle_loss_matches": 199,
+                "original": {
+                  "loss_q2": 0.7192616959064327,
+                  "root_accuracy": 0.3730994152046784,
+                  "exact_accuracy": 0.07894736842105263,
+                  "prediction_sha256": "3f832ae886fe8b485fdb04747d5846f258a493a30c8f576c2f82b30461ad223d"
+                },
+                "selected": {
+                  "n": 1710,
+                  "loss_q2": 0.6758406432748538,
+                  "root_accuracy": 0.43801169590643274,
+                  "exact_accuracy": 0.09181286549707603,
+                  "first_disagreement_counts": {
+                    "0": 961,
+                    "1": 260,
+                    "2": 186,
+                    "3": 145,
+                    "4": 1
+                  },
+                  "exact_correct": 157,
+                  "prediction_sha256": "9576c80f02a4b49a43cb28f28daf7fa0ca71a6e5069ac9b0a1c4f9d9b9a4763a"
+                },
+                "multi_term_outcomes": {
+                  "beats": 134,
+                  "ties": 82,
+                  "loses": 16
+                },
+                "multi_term_selected_loss_total": 139.75,
+                "multi_term_original_loss_total": 214.0
+              },
+              {
+                "seed": 23,
+                "fold": 2,
+                "products": 1710,
+                "multi_term": 223,
+                "multi_term_tied_valuation": 181,
+                "multi_term_oracle_loss_matches": 161,
+                "original": {
+                  "loss_q2": 0.6986111111111111,
+                  "root_accuracy": 0.42397660818713445,
+                  "exact_accuracy": 0.07426900584795322,
+                  "prediction_sha256": "ff58979b17a9ddf261a4d35128ee73a1361ad4727950f11af6a4d29c288da122"
+                },
+                "selected": {
+                  "n": 1710,
+                  "loss_q2": 0.6732456140350878,
+                  "root_accuracy": 0.4526315789473684,
+                  "exact_accuracy": 0.08421052631578947,
+                  "first_disagreement_counts": {
+                    "0": 936,
+                    "1": 303,
+                    "2": 183,
+                    "3": 144
+                  },
+                  "exact_correct": 144,
+                  "prediction_sha256": "fb2ab014d8545175f2566b44753a4c3eb60bb91682b5358ebf0887917573a12f"
+                },
+                "multi_term_outcomes": {
+                  "beats": 64,
+                  "ties": 153,
+                  "loses": 6
+                },
+                "multi_term_selected_loss_total": 166.75,
+                "multi_term_original_loss_total": 210.125
+              },
+              {
+                "seed": 37,
+                "fold": 2,
+                "products": 1710,
+                "multi_term": 210,
+                "multi_term_tied_valuation": 201,
+                "multi_term_oracle_loss_matches": 146,
+                "original": {
+                  "loss_q2": 0.7492690058479532,
+                  "root_accuracy": 0.33040935672514615,
+                  "exact_accuracy": 0.07602339181286549,
+                  "prediction_sha256": "e88a7955ed0b70e4d4cfae650b3fe1e64395af6f96fbaf98b01c4ca57148f410"
+                },
+                "selected": {
+                  "n": 1710,
+                  "loss_q2": 0.7137426900584796,
+                  "root_accuracy": 0.37660818713450295,
+                  "exact_accuracy": 0.08654970760233918,
+                  "first_disagreement_counts": {
+                    "0": 1066,
+                    "1": 185,
+                    "2": 185,
+                    "3": 126
+                  },
+                  "exact_correct": 148,
+                  "prediction_sha256": "4ed5f3d07431084ac73ad0a64a22a614d7e17ad40e2fcdb0b928a8b7ad42be50"
+                },
+                "multi_term_outcomes": {
+                  "beats": 85,
+                  "ties": 122,
+                  "loses": 3
+                },
+                "multi_term_selected_loss_total": 143.625,
+                "multi_term_original_loss_total": 204.375
+              },
+              {
+                "seed": 101,
+                "fold": 2,
+                "products": 1710,
+                "multi_term": 252,
+                "multi_term_tied_valuation": 213,
+                "multi_term_oracle_loss_matches": 174,
+                "original": {
+                  "loss_q2": 0.7305555555555555,
+                  "root_accuracy": 0.3555555555555555,
+                  "exact_accuracy": 0.07602339181286549,
+                  "prediction_sha256": "be0a09c39434ef3bf5b8ebb7e159d135afc1b265d9d7071f027bef42df10808e"
+                },
+                "selected": {
+                  "n": 1710,
+                  "loss_q2": 0.6961988304093567,
+                  "root_accuracy": 0.3923976608187134,
+                  "exact_accuracy": 0.09473684210526316,
+                  "first_disagreement_counts": {
+                    "0": 1039,
+                    "1": 170,
+                    "2": 193,
+                    "3": 146
+                  },
+                  "exact_correct": 162,
+                  "prediction_sha256": "092e862242415f5f53e1b0d29b598b65c4479d113a055602783acfaf24cdddfd"
+                },
+                "multi_term_outcomes": {
+                  "beats": 77,
+                  "ties": 168,
+                  "loses": 7
+                },
+                "multi_term_selected_loss_total": 176.25,
+                "multi_term_original_loss_total": 235.0
+              }
+            ],
+            "original": {
+              "loss_q2": 0.7251827485380117,
+              "root_accuracy": 0.3698245614035087,
+              "exact_accuracy": 0.0750877192982456
+            },
+            "selected": {
+              "loss_q2": 0.6937938596491228,
+              "root_accuracy": 0.4094736842105263,
+              "exact_accuracy": 0.08748538011695907
+            }
+          },
+          {
+            "fold": 3,
+            "seeds": [
+              {
+                "seed": 7,
+                "fold": 3,
+                "products": 1341,
+                "multi_term": 211,
+                "multi_term_tied_valuation": 195,
+                "multi_term_oracle_loss_matches": 130,
+                "original": {
+                  "loss_q2": 0.7534955257270693,
+                  "root_accuracy": 0.34601043997017156,
+                  "exact_accuracy": 0.07755406413124534,
+                  "prediction_sha256": "450af2dabbd8d71bf6f4411872bd0f84067dc9c1e4b4409db77f6ff566314d83"
+                },
+                "selected": {
+                  "n": 1341,
+                  "loss_q2": 0.7149049217002237,
+                  "root_accuracy": 0.38926174496644295,
+                  "exact_accuracy": 0.09694258016405667,
+                  "first_disagreement_counts": {
+                    "0": 819,
+                    "1": 196,
+                    "2": 141,
+                    "3": 48,
+                    "4": 7
+                  },
+                  "exact_correct": 130,
+                  "prediction_sha256": "1d8e081f0d645d06ce0dde00707f12ab0f31a1b14b87b21cfb37bc849e8669a9"
+                },
+                "multi_term_outcomes": {
+                  "beats": 66,
+                  "ties": 139,
+                  "loses": 6
+                },
+                "multi_term_selected_loss_total": 148.625,
+                "multi_term_original_loss_total": 200.375
+              },
+              {
+                "seed": 13,
+                "fold": 3,
+                "products": 1341,
+                "multi_term": 278,
+                "multi_term_tied_valuation": 233,
+                "multi_term_oracle_loss_matches": 211,
+                "original": {
+                  "loss_q2": 0.7670115585384042,
+                  "root_accuracy": 0.337061894108874,
+                  "exact_accuracy": 0.05070842654735272,
+                  "prediction_sha256": "28a16fc420c6ce16a29d13fc2232c3f22d04eabcaa1b493b8ec73bab49f5906a"
+                },
+                "selected": {
+                  "n": 1341,
+                  "loss_q2": 0.6887583892617449,
+                  "root_accuracy": 0.42281879194630867,
+                  "exact_accuracy": 0.10067114093959731,
+                  "first_disagreement_counts": {
+                    "0": 774,
+                    "1": 212,
+                    "2": 135,
+                    "3": 73,
+                    "4": 12
+                  },
+                  "exact_correct": 135,
+                  "prediction_sha256": "ad7d84185db3242685fbb97107685fa79a512a68b7f712c1839a7b486ea450fe"
+                },
+                "multi_term_outcomes": {
+                  "beats": 131,
+                  "ties": 147,
+                  "loses": 0
+                },
+                "multi_term_selected_loss_total": 154.6875,
+                "multi_term_original_loss_total": 259.625
+              },
+              {
+                "seed": 23,
+                "fold": 3,
+                "products": 1341,
+                "multi_term": 191,
+                "multi_term_tied_valuation": 142,
+                "multi_term_oracle_loss_matches": 145,
+                "original": {
+                  "loss_q2": 0.7509321401938852,
+                  "root_accuracy": 0.3497390007457122,
+                  "exact_accuracy": 0.08128262490678598,
+                  "prediction_sha256": "3b43a27139433bc481e78ef0d3ec9fe653fe27d9f4afefd0d795bb5a5787d81d"
+                },
+                "selected": {
+                  "n": 1341,
+                  "loss_q2": 0.7191461595824012,
+                  "root_accuracy": 0.38851603281133484,
+                  "exact_accuracy": 0.09395973154362416,
+                  "first_disagreement_counts": {
+                    "0": 820,
+                    "1": 215,
+                    "2": 116,
+                    "3": 62,
+                    "4": 2
+                  },
+                  "exact_correct": 126,
+                  "prediction_sha256": "6ccfc222ba6ccc8540eac65d307f185890f039625bbd750ec3d1144f498f55c6"
+                },
+                "multi_term_outcomes": {
+                  "beats": 69,
+                  "ties": 113,
+                  "loses": 9
+                },
+                "multi_term_selected_loss_total": 120.625,
+                "multi_term_original_loss_total": 163.25
+              },
+              {
+                "seed": 37,
+                "fold": 3,
+                "products": 1341,
+                "multi_term": 272,
+                "multi_term_tied_valuation": 224,
+                "multi_term_oracle_loss_matches": 195,
+                "original": {
+                  "loss_q2": 0.752703206562267,
+                  "root_accuracy": 0.3527218493661447,
+                  "exact_accuracy": 0.07531692766592095,
+                  "prediction_sha256": "b647f2a4ea82c89a0e1835ef003188e6228a4892ebc8d6a3d32eeb188af6e42b"
+                },
+                "selected": {
+                  "n": 1341,
+                  "loss_q2": 0.6946774794929157,
+                  "root_accuracy": 0.41685309470544374,
+                  "exact_accuracy": 0.10439970171513796,
+                  "first_disagreement_counts": {
+                    "0": 782,
+                    "1": 212,
+                    "2": 146,
+                    "3": 52,
+                    "4": 9
+                  },
+                  "exact_correct": 140,
+                  "prediction_sha256": "a6f519259b51168e753f307cf1d3cf2161b9e1a0a8359aa7cb46d425a08da4b5"
+                },
+                "multi_term_outcomes": {
+                  "beats": 105,
+                  "ties": 154,
+                  "loses": 13
+                },
+                "multi_term_selected_loss_total": 171.3125,
+                "multi_term_original_loss_total": 249.125
+              },
+              {
+                "seed": 101,
+                "fold": 3,
+                "products": 1341,
+                "multi_term": 183,
+                "multi_term_tied_valuation": 158,
+                "multi_term_oracle_loss_matches": 127,
+                "original": {
+                  "loss_q2": 0.7303784489187174,
+                  "root_accuracy": 0.37211036539895603,
+                  "exact_accuracy": 0.09023117076808351,
+                  "prediction_sha256": "dedd36c18f39e3cb7978e74f1d06bdae244f61de93c3b6c8ea5d6f5a9c38073d"
+                },
+                "selected": {
+                  "n": 1341,
+                  "loss_q2": 0.6973806860551827,
+                  "root_accuracy": 0.4146159582401193,
+                  "exact_accuracy": 0.10141685309470544,
+                  "first_disagreement_counts": {
+                    "0": 785,
+                    "1": 215,
+                    "2": 141,
+                    "3": 55,
+                    "4": 9
+                  },
+                  "exact_correct": 136,
+                  "prediction_sha256": "abcc3c03e1ccf7809deda2cd4556c9c8eba67c2c835f8f738c97d540df9538b2"
+                },
+                "multi_term_outcomes": {
+                  "beats": 68,
+                  "ties": 115,
+                  "loses": 0
+                },
+                "multi_term_selected_loss_total": 129.25,
+                "multi_term_original_loss_total": 173.5
+              }
+            ],
+            "original": {
+              "loss_q2": 0.7509041759880686,
+              "root_accuracy": 0.3515287099179717,
+              "exact_accuracy": 0.0750186428038777
+            },
+            "selected": {
+              "loss_q2": 0.7029735272184936,
+              "root_accuracy": 0.4064131245339299,
+              "exact_accuracy": 0.09947800149142431
+            }
+          },
+          {
+            "fold": 4,
+            "seeds": [
+              {
+                "seed": 7,
+                "fold": 4,
+                "products": 1333,
+                "multi_term": 198,
+                "multi_term_tied_valuation": 149,
+                "multi_term_oracle_loss_matches": 159,
+                "original": {
+                  "loss_q2": 0.7599868717179294,
+                  "root_accuracy": 0.3300825206301575,
+                  "exact_accuracy": 0.060765191297824456,
+                  "prediction_sha256": "b227ec39f2e45c00c07a65af7dba00cccb93ba9babe946da125842e99af9f30f"
+                },
+                "selected": {
+                  "n": 1333,
+                  "loss_q2": 0.7084114778694673,
+                  "root_accuracy": 0.3960990247561891,
+                  "exact_accuracy": 0.0795198799699925,
+                  "first_disagreement_counts": {
+                    "0": 805,
+                    "1": 171,
+                    "2": 180,
+                    "3": 70,
+                    "4": 1
+                  },
+                  "exact_correct": 106,
+                  "prediction_sha256": "b10c81cad504d42771cc9bd2c3c712ea4c738b3750f46d5444e45e7d2483b8c6"
+                },
+                "multi_term_outcomes": {
+                  "beats": 97,
+                  "ties": 98,
+                  "loses": 3
+                },
+                "multi_term_selected_loss_total": 115.0,
+                "multi_term_original_loss_total": 183.75
+              },
+              {
+                "seed": 13,
+                "fold": 4,
+                "products": 1333,
+                "multi_term": 182,
+                "multi_term_tied_valuation": 153,
+                "multi_term_oracle_loss_matches": 117,
+                "original": {
+                  "loss_q2": 0.7763972243060765,
+                  "root_accuracy": 0.31282820705176295,
+                  "exact_accuracy": 0.06301575393848462,
+                  "prediction_sha256": "b49040910bc887ab0e14ff9998933b7902fd9c6f4ed6533ac4a50aa875545cd5"
+                },
+                "selected": {
+                  "n": 1333,
+                  "loss_q2": 0.7348555888972244,
+                  "root_accuracy": 0.36759189797449365,
+                  "exact_accuracy": 0.07501875468867217,
+                  "first_disagreement_counts": {
+                    "0": 843,
+                    "1": 180,
+                    "2": 163,
+                    "3": 46,
+                    "4": 1
+                  },
+                  "exact_correct": 100,
+                  "prediction_sha256": "dcf182e1e1335ac118a8c11bcf600ee69b5475440db360b12c4b3953ae90a59e"
+                },
+                "multi_term_outcomes": {
+                  "beats": 84,
+                  "ties": 94,
+                  "loses": 4
+                },
+                "multi_term_selected_loss_total": 115.875,
+                "multi_term_original_loss_total": 171.25
+              },
+              {
+                "seed": 23,
+                "fold": 4,
+                "products": 1333,
+                "multi_term": 205,
+                "multi_term_tied_valuation": 183,
+                "multi_term_oracle_loss_matches": 119,
+                "original": {
+                  "loss_q2": 0.7910258814703676,
+                  "root_accuracy": 0.2888222055513878,
+                  "exact_accuracy": 0.04876219054763691,
+                  "prediction_sha256": "43f90c976af9d7036b89786fed57459758df4c98ff35dea69731646c5bef72bd"
+                },
+                "selected": {
+                  "n": 1333,
+                  "loss_q2": 0.735043135783946,
+                  "root_accuracy": 0.36384096024005996,
+                  "exact_accuracy": 0.07351837959489872,
+                  "first_disagreement_counts": {
+                    "0": 848,
+                    "1": 175,
+                    "2": 143,
+                    "3": 68,
+                    "4": 1
+                  },
+                  "exact_correct": 98,
+                  "prediction_sha256": "b1d0222fa62c8bd8b5cc106eba03823ed8d88c51bd342a853ea5186633ad97b0"
+                },
+                "multi_term_outcomes": {
+                  "beats": 103,
+                  "ties": 101,
+                  "loses": 1
+                },
+                "multi_term_selected_loss_total": 124.125,
+                "multi_term_original_loss_total": 198.75
+              },
+              {
+                "seed": 37,
+                "fold": 4,
+                "products": 1333,
+                "multi_term": 145,
+                "multi_term_tied_valuation": 118,
+                "multi_term_oracle_loss_matches": 89,
+                "original": {
+                  "loss_q2": 0.7452175543885972,
+                  "root_accuracy": 0.3525881470367592,
+                  "exact_accuracy": 0.05401350337584396,
+                  "prediction_sha256": "0e1c7dc2b0b8d239ac7843d6357ea03e260af7fac101cc6922ae7f6ee8c01df9"
+                },
+                "selected": {
+                  "n": 1333,
+                  "loss_q2": 0.7050825206301575,
+                  "root_accuracy": 0.4006001500375094,
+                  "exact_accuracy": 0.07576894223555888,
+                  "first_disagreement_counts": {
+                    "0": 799,
+                    "1": 171,
+                    "2": 181,
+                    "3": 81
+                  },
+                  "exact_correct": 101,
+                  "prediction_sha256": "8312dafbe436d29d4f6ba52b2e221ccc5042b3b44e32b8fbf26d2cfa5f03fc16"
+                },
+                "multi_term_outcomes": {
+                  "beats": 66,
+                  "ties": 79,
+                  "loses": 0
+                },
+                "multi_term_selected_loss_total": 84.25,
+                "multi_term_original_loss_total": 137.75
+              },
+              {
+                "seed": 101,
+                "fold": 4,
+                "products": 1333,
+                "multi_term": 218,
+                "multi_term_tied_valuation": 207,
+                "multi_term_oracle_loss_matches": 120,
+                "original": {
+                  "loss_q2": 0.7845555138784697,
+                  "root_accuracy": 0.2925731432858214,
+                  "exact_accuracy": 0.05401350337584396,
+                  "prediction_sha256": "b02b6a158dcb40ce4a70585b993c41ec1d181abcff1313ec20d0ac0bb11f73b8"
+                },
+                "selected": {
+                  "n": 1333,
+                  "loss_q2": 0.73326144036009,
+                  "root_accuracy": 0.36234058514628653,
+                  "exact_accuracy": 0.07651912978244561,
+                  "first_disagreement_counts": {
+                    "0": 850,
+                    "1": 165,
+                    "2": 144,
+                    "3": 71,
+                    "4": 1
+                  },
+                  "exact_correct": 102,
+                  "prediction_sha256": "329c74bcbb77dc21811e7a4a6c8ee260af51946766b3742deb8e431880cdb726"
+                },
+                "multi_term_outcomes": {
+                  "beats": 96,
+                  "ties": 122,
+                  "loses": 0
+                },
+                "multi_term_selected_loss_total": 140.625,
+                "multi_term_original_loss_total": 209.0
+              }
+            ],
+            "original": {
+              "loss_q2": 0.7714366091522881,
+              "root_accuracy": 0.3153788447111778,
+              "exact_accuracy": 0.05611402850712678
+            },
+            "selected": {
+              "loss_q2": 0.723330832708177,
+              "root_accuracy": 0.37809452363090773,
+              "exact_accuracy": 0.07606901725431357
+            }
+          }
+        ]
+      }
+    }
+  }
+}

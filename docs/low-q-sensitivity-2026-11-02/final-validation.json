@@ -1,0 +1,39 @@
+{
+  "postgres_report_matches_export": true,
+  "coordinate_banks": [
+    {
+      "q": "2",
+      "fraction": 0.75,
+      "count": 1215
+    },
+    {
+      "q": "2",
+      "fraction": 1.0,
+      "count": 1215
+    },
+    {
+      "q": "sqrt2",
+      "fraction": 0.75,
+      "count": 1215
+    },
+    {
+      "q": "sqrt2",
+      "fraction": 1.0,
+      "count": 1215
+    }
+  ],
+  "certified_coordinate_fits": 4860,
+  "greedy_fits": 135,
+  "series": 33,
+  "snapshots": 1,
+  "products": 6693,
+  "folds": 5,
+  "fixed_ranks_unchanged_at_both_low_q": true,
+  "leading_ranks_preserved_after_retraining": 7,
+  "historical_one_pass_score_checks": 25,
+  "historical_ensemble_score_checks": 25,
+  "unit_tests_passed": 341,
+  "unit_tests_skipped": 6,
+  "ranking_plot_visually_inspected": true,
+  "experiment_source_commit": "4457a43"
+}

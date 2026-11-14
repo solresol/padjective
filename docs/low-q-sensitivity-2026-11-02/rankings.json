@@ -1,0 +1,232 @@
+{
+  "original": [
+    {
+      "configuration": "ensemble_0.75_243",
+      "rank": 1.0
+    },
+    {
+      "configuration": "ensemble_1_243",
+      "rank": 2.0
+    },
+    {
+      "configuration": "ensemble_0.75_15",
+      "rank": 3.0
+    },
+    {
+      "configuration": "ensemble_1_15",
+      "rank": 4.0
+    },
+    {
+      "configuration": "taxonomy_association",
+      "rank": 5.0
+    },
+    {
+      "configuration": "ensemble_1_1",
+      "rank": 6.0
+    },
+    {
+      "configuration": "ensemble_0.75_1",
+      "rank": 7.0
+    },
+    {
+      "configuration": "random",
+      "rank": 8.0
+    },
+    {
+      "configuration": "frequency",
+      "rank": 9.0
+    },
+    {
+      "configuration": "battle_elo",
+      "rank": 10.0
+    },
+    {
+      "configuration": "mean_title_position",
+      "rank": 11.0
+    }
+  ],
+  "rescored_sqrt2": [
+    {
+      "configuration": "ensemble_0.75_243",
+      "rank": 1.0
+    },
+    {
+      "configuration": "ensemble_1_243",
+      "rank": 2.0
+    },
+    {
+      "configuration": "ensemble_0.75_15",
+      "rank": 3.0
+    },
+    {
+      "configuration": "ensemble_1_15",
+      "rank": 4.0
+    },
+    {
+      "configuration": "taxonomy_association",
+      "rank": 5.0
+    },
+    {
+      "configuration": "ensemble_1_1",
+      "rank": 6.0
+    },
+    {
+      "configuration": "ensemble_0.75_1",
+      "rank": 7.0
+    },
+    {
+      "configuration": "random",
+      "rank": 8.0
+    },
+    {
+      "configuration": "frequency",
+      "rank": 9.0
+    },
+    {
+      "configuration": "battle_elo",
+      "rank": 10.0
+    },
+    {
+      "configuration": "mean_title_position",
+      "rank": 11.0
+    }
+  ],
+  "retrained_sqrt2": [
+    {
+      "configuration": "ensemble_0.75_243",
+      "rank": 1.0
+    },
+    {
+      "configuration": "ensemble_1_243",
+      "rank": 2.0
+    },
+    {
+      "configuration": "ensemble_0.75_15",
+      "rank": 3.0
+    },
+    {
+      "configuration": "ensemble_1_15",
+      "rank": 4.0
+    },
+    {
+      "configuration": "taxonomy_association",
+      "rank": 5.0
+    },
+    {
+      "configuration": "ensemble_1_1",
+      "rank": 6.0
+    },
+    {
+      "configuration": "ensemble_0.75_1",
+      "rank": 7.0
+    },
+    {
+      "configuration": "random",
+      "rank": 9.0
+    },
+    {
+      "configuration": "frequency",
+      "rank": 11.0
+    },
+    {
+      "configuration": "battle_elo",
+      "rank": 8.0
+    },
+    {
+      "configuration": "mean_title_position",
+      "rank": 10.0
+    }
+  ],
+  "rescored_q2": [
+    {
+      "configuration": "ensemble_0.75_243",
+      "rank": 1.0
+    },
+    {
+      "configuration": "ensemble_1_243",
+      "rank": 2.0
+    },
+    {
+      "configuration": "ensemble_0.75_15",
+      "rank": 3.0
+    },
+    {
+      "configuration": "ensemble_1_15",
+      "rank": 4.0
+    },
+    {
+      "configuration": "taxonomy_association",
+      "rank": 5.0
+    },
+    {
+      "configuration": "ensemble_1_1",
+      "rank": 6.0
+    },
+    {
+      "configuration": "ensemble_0.75_1",
+      "rank": 7.0
+    },
+    {
+      "configuration": "random",
+      "rank": 8.0
+    },
+    {
+      "configuration": "frequency",
+      "rank": 9.0
+    },
+    {
+      "configuration": "battle_elo",
+      "rank": 10.0
+    },
+    {
+      "configuration": "mean_title_position",
+      "rank": 11.0
+    }
+  ],
+  "retrained_q2": [
+    {
+      "configuration": "ensemble_0.75_243",
+      "rank": 1.0
+    },
+    {
+      "configuration": "ensemble_1_243",
+      "rank": 2.0
+    },
+    {
+      "configuration": "ensemble_0.75_15",
+      "rank": 3.0
+    },
+    {
+      "configuration": "ensemble_1_15",
+      "rank": 4.0
+    },
+    {
+      "configuration": "taxonomy_association",
+      "rank": 5.0
+    },
+    {
+      "configuration": "ensemble_1_1",
+      "rank": 6.0
+    },
+    {
+      "configuration": "ensemble_0.75_1",
+      "rank": 7.0
+    },
+    {
+      "configuration": "random",
+      "rank": 9.0
+    },
+    {
+      "configuration": "frequency",
+      "rank": 10.0
+    },
+    {
+      "configuration": "battle_elo",
+      "rank": 8.0
+    },
+    {
+      "configuration": "mean_title_position",
+      "rank": 11.0
+    }
+  ]
+}

@@ -60,21 +60,48 @@ This notebook loads an anonymised snapshot directly from Hugging Face and reruns
 - Unconstrained neural network
 - Decision tree
 - Level-wise logistic regression
-- Zubarev simulated-annealing $p$-adic regression
+- Zubarev-inspired stochastic continuation of the greedy linear fit
 
 The benchmark runtime is embedded directly in this notebook so it runs without
 Postgres access or local project imports. By default the notebook analyses the
 fixed `paper` snapshot; set `PRODUCT_TAXONOMY_BENCH_SNAPSHOT=latest` to inspect
-the rolling benchmark release instead.
+the rolling benchmark release instead (and select a revision containing it).
+The paper uses 2,000 hidden units, selected after the width sweep, and a 10,000
+iteration ceiling. The stochastic search uses raw training scores and fits the
+reporting default afterwards. The separate bounded digitwise experiment is
+documented at the end; its population is not the main benchmark population.
+Exact paper replication uses Python 3.11.11 and the frozen requirements. Colab
+may provide a different interpreter; in that case use the standalone setup
+below, or explicitly choose an exploratory (non-paper) run.
             """
         ),
         _code_cell(runtime_source),
         _code_cell(
             """
 import os
+import platform
+import importlib.metadata
+from threadpoolctl import threadpool_info, threadpool_limits
+
+# Reference run: Linux x86-64, OpenBLAS 0.3.28 Haswell, 12 threads.
+paper_thread_controller = threadpool_limits(limits=12)
+blas_libraries = [entry for entry in threadpool_info() if entry["user_api"] == "blas"]
+numerical_drift = not blas_libraries or any(
+    entry.get("internal_api") != "openblas" or entry.get("version") != "0.3.28"
+    or entry.get("architecture") != "Haswell" for entry in blas_libraries
+)
+
+paper_versions = {"numpy": "2.2.5", "pandas": "2.2.3", "scipy": "1.15.3", "scikit-learn": "1.6.1"}
+environment_drift = numerical_drift or platform.python_version() != "3.11.11" or any(
+    importlib.metadata.version(name) != expected for name, expected in paper_versions.items()
+)
+if environment_drift and not os.getenv("PRODUCT_TAXONOMY_BENCH_ALLOW_ENVIRONMENT_DRIFT"):
+    raise RuntimeError("Paper replication requires Python 3.11.11, the frozen requirements and numerical-library configuration. See the setup at the end. Set PRODUCT_TAXONOMY_BENCH_ALLOW_ENVIRONMENT_DRIFT=1 only for an exploratory run.")
+if environment_drift:
+    print("Exploratory run: interpreter or scientific dependencies differ from the frozen paper environment.")
 
 DATASET_ID = os.getenv("PRODUCT_TAXONOMY_BENCH_DATASET_ID", "gregb/product-taxonomy-bench")
-REVISION = os.getenv("PRODUCT_TAXONOMY_BENCH_REVISION", "main")
+REVISION = os.getenv("PRODUCT_TAXONOMY_BENCH_REVISION", "paper-submission-2026-09-06")
 SNAPSHOT = os.getenv("PRODUCT_TAXONOMY_BENCH_SNAPSHOT", "paper")
 HF_TOKEN = os.getenv("HF_TOKEN")
 MAX_PRODUCTS = int(os.getenv("PRODUCT_TAXONOMY_BENCH_MAX_PRODUCTS", "0")) or None
@@ -86,6 +113,10 @@ snapshot_tables = load_snapshot_tables_from_hf(
     hf_token=HF_TOKEN,
     max_products=MAX_PRODUCTS,
 )
+# Paper reference: largest tested width, selected after the width sweep.
+# Override explicitly for a shorter exploratory run; it is then not the paper run.
+DEFAULT_UNN_HIDDEN = int(os.getenv("PRODUCT_TAXONOMY_BENCH_UNN_HIDDEN", "2000"))
+DEFAULT_UNN_MAX_ITER = int(os.getenv("PRODUCT_TAXONOMY_BENCH_UNN_MAX_ITER", "10000"))
 benchmark = build_snapshot_benchmark_bundle(snapshot_tables)
 
 model_results = pd.DataFrame(benchmark["models"]["rows"]).copy()
@@ -123,10 +154,11 @@ for row in model_results.itertuples(index=False):
         scatter_kwargs["linewidths"] = 2
     ax.scatter(row.params, row.mean_padic_loss, **scatter_kwargs)
     ax.annotate(
-        row.short_label,
+        "Stochastic continuation" if row.model_key == "zubarev" else row.short_label,
         (row.params, row.mean_padic_loss),
         textcoords="offset points",
-        xytext=(10, 5),
+        xytext=(-10, 5) if row.model_key == "unn" else (10, -18) if row.model_key == "zubarev" else (10, 5),
+        ha="right" if row.model_key == "unn" else "left",
         fontsize=9,
         fontweight="bold",
         color=row.color,
@@ -151,7 +183,7 @@ ax.plot(
     label=f"Parsimoniousness baseline ({benchmark['snapshot']['taxonomy_count_filtered']:,} taxonomies)",
 )
 
-ax.set_xlabel("Number of Parameters (non-zero)", fontsize=12, fontweight="bold")
+ax.set_xlabel("Stored-size measure (tree uses a node-count proxy)", fontsize=12, fontweight="bold")
 ax.set_ylabel("P-adic Loss (lower is better)", fontsize=12, fontweight="bold")
 ax.set_title("Model Complexity vs Performance (Parsimoniousness Baseline)", fontsize=14, fontweight="bold", pad=15)
 ax.set_xscale("log")
@@ -169,7 +201,9 @@ plt.show()
 
 from scipy import stats
 
-ACTIVE_PARAMS_EXCLUDED = {"pclr", "pcnn"}
+# The matched-budget models are separate feature-dropping ablations. The
+# stochastic continuation duplicates the greedy point in this paper run.
+ACTIVE_PARAMS_EXCLUDED = {"pclr", "pcnn", "zubarev"}
 
 active_results = model_results[
     ~model_results["model_key"].isin(ACTIVE_PARAMS_EXCLUDED)
@@ -242,7 +276,8 @@ for ax, y_column, y_label, title, regression, target_name in plot_specs:
             row.short_label,
             (row.mean_scoring_ops, y_value),
             textcoords="offset points",
-            xytext=(10, 5),
+            xytext=(-10, 5) if row.model_key == "unn" else (10, 5),
+            ha="right" if row.model_key == "unn" else "left",
             fontsize=9,
             fontweight="bold",
             color=row.color,
@@ -389,6 +424,30 @@ results_table.sort_values("parsimony_score", ascending=False).reset_index(drop=T
         _code_cell(
             """
 ablation_table.sort_values("mean_padic_loss", ascending=True).reset_index(drop=True)
+            """
+        ),
+        _markdown_cell(
+            """
+## Additional paper experiments
+
+The frozen release includes a standalone runner and pinned dependencies in
+`submission/2026-09-06/`. Download that directory from the same revision and run:
+
+```sh
+uv venv --python 3.11.11 .venv
+uv pip install --python .venv/bin/python -r requirements.txt
+.venv/bin/python paper_replication.py --suite neural --output neural.json
+.venv/bin/python paper_replication.py --suite digitwise --output digitwise.json
+```
+
+The neural sweep uses widths 4, 8, 12, 24, 48 and 2,000. The digitwise runner
+uses the separately released **6,527-product, 2,747-tag, 308-class** matrix,
+not the main **6,693-product, 2,542-tag, 363-class** matrix used above. It is a
+bounded Mihara-inspired diagnostic with 96 candidate trials per digit; its
+90% agreement threshold is an experiment setting, not a published Mihara
+acceptance criterion. The full dimension sweep can take many hours.
+Use `--caps 32 --folds 0` for a short smoke test, not a paper replication.
+See the release README and manifest for settings, provenance and checksums.
             """
         ),
     ]

@@ -1,0 +1,2622 @@
+{
+  "audit_id": "7cac5a6f-cb7b-4426-8a0a-4daf72b86e3d",
+  "checked_at": "2026-10-01T07:33:50.407936+00:00",
+  "live": {
+    "metrics_recomputed_from_private_saved_predictions": true,
+    "note": "Store-grouped refits; overlapping captures and paper identities prevent independent confirmation.",
+    "runs": [
+      {
+        "batch_id": "bdf961d0-9b86-4422-8e2c-c9feaa9fed8b",
+        "captured_at": "2026-09-11 06:37:29.992512+10:00",
+        "checked_models": 2430,
+        "comparisons": {
+          "all": {
+            "ci95": [
+              -0.01002457857632303,
+              0.0006082867535930044
+            ],
+            "difference": -0.004708145911365013,
+            "fold_loss": {
+              "0.75": [
+                0.6278661702323988,
+                0.6096483415075796,
+                0.6218124555336063,
+                0.633538532290039,
+                0.645963722820177
+              ],
+              "1.0": [
+                0.6311401102024851,
+                0.6132215468663774,
+                0.6258734511995908,
+                0.6364167568735035,
+                0.6557180867986689
+              ]
+            },
+            "holm_over_captures": 0.48848330556611164,
+            "mean_loss": {
+              "0.75": 0.6277658444767601,
+              "1.0": 0.6324739903881251
+            },
+            "p_value": 0.06978332936658738
+          },
+          "outside_paper": {
+            "ci95": [
+              -0.007923605387804244,
+              -0.0010397195886854842
+            ],
+            "difference": -0.004481662488244864,
+            "fold_loss": {
+              "0.75": [
+                0.6506923674873315,
+                0.6393723165339465,
+                0.6493182597320991,
+                0.6443125253460815,
+                0.6683396390664899
+              ],
+              "1.0": [
+                0.6524791380666851,
+                0.6445299653098049,
+                0.6549781730763735,
+                0.6477665096802278,
+                0.6746896344740816
+              ]
+            },
+            "holm_over_captures": 0.2020854388636636,
+            "mean_loss": {
+              "0.75": 0.6504070216331898,
+              "1.0": 0.6548886841214345
+            },
+            "p_value": 0.022453937651518176
+          }
+        },
+        "coverage": {
+          "duplicate_entity_rows": 76,
+          "empty_tags": 7551,
+          "entities_with_conflicting_historical_labels": 14,
+          "missing_reference_label": 90,
+          "outside_paper": 24345,
+          "paper_overlap": 6693,
+          "retained_products": 31038,
+          "source_rows": 31204,
+          "stores": 1989,
+          "taxonomies": 2954
+        },
+        "fold_sizes": [
+          5700,
+          6078,
+          6686,
+          6266,
+          6308
+        ],
+        "outside_paper": 24345,
+        "precision": 8,
+        "prime": 83,
+        "products": 31038,
+        "source_commit": "e8d4049c05b09da822df711ebdfac86e82051fc9"
+      },
+      {
+        "batch_id": "640449c0-1251-43ee-a541-06d6987baef4",
+        "captured_at": "2026-09-11 12:17:42.412688+10:00",
+        "checked_models": 2430,
+        "comparisons": {
+          "all": {
+            "ci95": [
+              -0.012283606692286208,
+              0.002600026651954867
+            ],
+            "difference": -0.004841790020165671,
+            "fold_loss": {
+              "0.75": [
+                0.6329822988997315,
+                0.6052962315907875,
+                0.6196556044098539,
+                0.6347682660070466,
+                0.6502692224607757
+              ],
+              "1.0": [
+                0.6311048098880473,
+                0.61346296320922,
+                0.6260646651781845,
+                0.6392007682912826,
+                0.6573473669022891
+              ]
+            },
+            "holm_over_captures": 0.7257607496551097,
+            "mean_loss": {
+              "0.75": 0.6285943246736391,
+              "1.0": 0.6334361146938047
+            },
+            "p_value": 0.14515214993102193
+          },
+          "outside_paper": {
+            "ci95": [
+              -0.012246423811586648,
+              0.0032207533456997776
+            ],
+            "difference": -0.004512835232943435,
+            "fold_loss": {
+              "0.75": [
+                0.6545841793739933,
+                0.6376332509970086,
+                0.6474535028450603,
+                0.6455815402655994,
+                0.6707863805450601
+              ],
+              "1.0": [
+                0.6519893490822682,
+                0.6454115328415606,
+                0.6544562198095419,
+                0.6502064809421699,
+                0.6765394475158982
+              ]
+            },
+            "holm_over_captures": 1.0,
+            "mean_loss": {
+              "0.75": 0.6512077708053443,
+              "1.0": 0.6557206060382877
+            },
+            "p_value": 0.18051325988745348
+          }
+        },
+        "coverage": {
+          "duplicate_entity_rows": 76,
+          "empty_tags": 7561,
+          "entities_with_conflicting_historical_labels": 14,
+          "missing_reference_label": 90,
+          "outside_paper": 24445,
+          "paper_overlap": 6693,
+          "retained_products": 31138,
+          "source_rows": 31304,
+          "stores": 2019,
+          "taxonomies": 2961
+        },
+        "fold_sizes": [
+          5712,
+          6089,
+          6716,
+          6306,
+          6315
+        ],
+        "outside_paper": 24445,
+        "precision": 8,
+        "prime": 83,
+        "products": 31138,
+        "source_commit": "e8d4049c05b09da822df711ebdfac86e82051fc9"
+      },
+      {
+        "batch_id": "4546c744-da62-40cd-b06b-42d52e2e052f",
+        "captured_at": "2026-09-12 12:17:07.470736+10:00",
+        "checked_models": 2430,
+        "comparisons": {
+          "all": {
+            "ci95": [
+              -0.017379425668422543,
+              0.001435409334036651
+            ],
+            "difference": -0.007972008167192946,
+            "fold_loss": {
+              "0.75": [
+                0.6306699742931382,
+                0.6067318380694715,
+                0.6144863344199466,
+                0.637967194756394,
+                0.6440929426256433
+              ],
+              "1.0": [
+                0.6339796707351427,
+                0.6125672924870529,
+                0.6295132204254306,
+                0.6422129930967237,
+                0.6555351482562084
+              ]
+            },
+            "holm_over_captures": 0.48848330556611164,
+            "mean_loss": {
+              "0.75": 0.6267896568329188,
+              "1.0": 0.6347616650001117
+            },
+            "p_value": 0.07827495873258476
+          },
+          "outside_paper": {
+            "ci95": [
+              -0.020409880410098336,
+              0.0068551096772103155
+            ],
+            "difference": -0.006777385366444011,
+            "fold_loss": {
+              "0.75": [
+                0.6536458797532861,
+                0.6383985881110538,
+                0.6396892134368669,
+                0.6498935704833616,
+                0.668096723537369
+              ],
+              "1.0": [
+                0.6532626119597387,
+                0.6418250939384222,
+                0.6584535845381326,
+                0.6540736377295607,
+                0.6759959739883032
+              ]
+            },
+            "holm_over_captures": 1.0,
+            "mean_loss": {
+              "0.75": 0.6499447950643875,
+              "1.0": 0.6567221804308315
+            },
+            "p_value": 0.2396139691418202
+          }
+        },
+        "coverage": {
+          "duplicate_entity_rows": 76,
+          "empty_tags": 7581,
+          "entities_with_conflicting_historical_labels": 14,
+          "missing_reference_label": 90,
+          "outside_paper": 24545,
+          "paper_overlap": 6693,
+          "retained_products": 31238,
+          "source_rows": 31404,
+          "stores": 2043,
+          "taxonomies": 2970
+        },
+        "fold_sizes": [
+          5725,
+          6096,
+          6722,
+          6373,
+          6322
+        ],
+        "outside_paper": 24545,
+        "precision": 8,
+        "prime": 83,
+        "products": 31238,
+        "source_commit": "e8d4049c05b09da822df711ebdfac86e82051fc9"
+      },
+      {
+        "batch_id": "84f5bbe1-f31e-407f-aef1-6dff3297b8bd",
+        "captured_at": "2026-09-13 12:17:25.320909+10:00",
+        "checked_models": 2430,
+        "comparisons": {
+          "all": {
+            "ci95": [
+              -0.025456015238734815,
+              0.0224771075364524
+            ],
+            "difference": -0.0014894538511412091,
+            "fold_loss": {
+              "0.75": [
+                0.6291844166832518,
+                0.609072624295383,
+                0.6183524099285891,
+                0.6412108014102725,
+                0.6767906821697095
+              ],
+              "1.0": [
+                0.6403004989832352,
+                0.6150631855986849,
+                0.6273611081048011,
+                0.6432398615162417,
+                0.6560935495399491
+              ]
+            },
+            "holm_over_captures": 0.9198737077645025,
+            "mean_loss": {
+              "0.75": 0.6349221868974412,
+              "1.0": 0.6364116407485824
+            },
+            "p_value": 0.871385327995118
+          },
+          "outside_paper": {
+            "ci95": [
+              -0.03240119437698854,
+              0.030831902679884494
+            ],
+            "difference": -0.0007846458485520236,
+            "fold_loss": {
+              "0.75": [
+                0.6518196763514437,
+                0.6389138644429183,
+                0.6450654998125092,
+                0.6527839049830475,
+                0.7063309314516907
+              ],
+              "1.0": [
+                0.6629721786131824,
+                0.6464070070697951,
+                0.6563370286951699,
+                0.655751512759717,
+                0.6773693791465051
+              ]
+            },
+            "holm_over_captures": 1.0,
+            "mean_loss": {
+              "0.75": 0.6589827754083218,
+              "1.0": 0.6597674212568739
+            },
+            "p_value": 0.9483725915666852
+          }
+        },
+        "coverage": {
+          "duplicate_entity_rows": 76,
+          "empty_tags": 7595,
+          "entities_with_conflicting_historical_labels": 14,
+          "missing_reference_label": 90,
+          "outside_paper": 24645,
+          "paper_overlap": 6693,
+          "retained_products": 31338,
+          "source_rows": 31504,
+          "stores": 2052,
+          "taxonomies": 2973
+        },
+        "fold_sizes": [
+          5742,
+          6097,
+          6761,
+          6383,
+          6355
+        ],
+        "outside_paper": 24645,
+        "precision": 8,
+        "prime": 83,
+        "products": 31338,
+        "source_commit": "e8d4049c05b09da822df711ebdfac86e82051fc9"
+      },
+      {
+        "batch_id": "ebcdb777-168b-4c95-9c5f-a5ace9ef0e2c",
+        "captured_at": "2026-09-14 12:20:49.331972+10:00",
+        "checked_models": 2430,
+        "comparisons": {
+          "all": {
+            "ci95": [
+              -0.014224844859855139,
+              0.0030833709343045792
+            ],
+            "difference": -0.00557073696277528,
+            "fold_loss": {
+              "0.75": [
+                0.6362353594642959,
+                0.6096574132604736,
+                0.6123441300750251,
+                0.6392692677826314,
+                0.6487986009664347
+              ],
+              "1.0": [
+                0.6364193990168061,
+                0.6134007246720605,
+                0.6242858677800378,
+                0.6427105940125312,
+                0.6573418708813015
+              ]
+            },
+            "holm_over_captures": 0.7257607496551097,
+            "mean_loss": {
+              "0.75": 0.6292609543097721,
+              "1.0": 0.6348316912725475
+            },
+            "p_value": 0.14842941252069167
+          },
+          "outside_paper": {
+            "ci95": [
+              -0.01606602972891586,
+              0.004626592922571853
+            ],
+            "difference": -0.005719718403172003,
+            "fold_loss": {
+              "0.75": [
+                0.6585488919512691,
+                0.6390049190540055,
+                0.6366973041746433,
+                0.651093502330837,
+                0.6725501739786822
+              ],
+              "1.0": [
+                0.658573208501846,
+                0.6443815886472595,
+                0.6514790461119678,
+                0.6538651610425459,
+                0.6781943792016779
+              ]
+            },
+            "holm_over_captures": 1.0,
+            "mean_loss": {
+              "0.75": 0.6515789582978874,
+              "1.0": 0.6572986767010595
+            },
+            "p_value": 0.19960204049579852
+          }
+        },
+        "coverage": {
+          "duplicate_entity_rows": 76,
+          "empty_tags": 7623,
+          "entities_with_conflicting_historical_labels": 14,
+          "missing_reference_label": 90,
+          "outside_paper": 24745,
+          "paper_overlap": 6693,
+          "retained_products": 31438,
+          "source_rows": 31604,
+          "stores": 2076,
+          "taxonomies": 2977
+        },
+        "fold_sizes": [
+          5760,
+          6104,
+          6788,
+          6396,
+          6390
+        ],
+        "outside_paper": 24745,
+        "precision": 8,
+        "prime": 83,
+        "products": 31438,
+        "source_commit": "e8d4049c05b09da822df711ebdfac86e82051fc9"
+      },
+      {
+        "batch_id": "4d78daef-362d-420f-aec7-2625a0624f22",
+        "captured_at": "2026-09-15 12:19:42.207576+10:00",
+        "checked_models": 2430,
+        "comparisons": {
+          "all": {
+            "ci95": [
+              -0.008523249362045827,
+              -0.0004228095735879546
+            ],
+            "difference": -0.004473029467816891,
+            "fold_loss": {
+              "0.75": [
+                0.6287724246457752,
+                0.6075529868426532,
+                0.6197024233758708,
+                0.6359608045469466,
+                0.6531276329761491
+              ],
+              "1.0": [
+                0.6297919568267819,
+                0.6125554208521654,
+                0.6256251952762082,
+                0.6398462344645348,
+                0.659662612306789
+              ]
+            },
+            "holm_over_captures": 0.2994267546548925,
+            "mean_loss": {
+              "0.75": 0.629023254477479,
+              "1.0": 0.6334962839452959
+            },
+            "p_value": 0.03742834433186156
+          },
+          "outside_paper": {
+            "ci95": [
+              -0.008951063624249963,
+              0.0019966746867764533
+            ],
+            "difference": -0.003477194468736755,
+            "fold_loss": {
+              "0.75": [
+                0.6506523656490257,
+                0.638766985102855,
+                0.646154261148247,
+                0.6472250769907487,
+                0.6783063552946872
+              ],
+              "1.0": [
+                0.6508227848890271,
+                0.6425932322941914,
+                0.6540579133069246,
+                0.6511518095231933,
+                0.679865276515911
+              ]
+            },
+            "holm_over_captures": 1.0,
+            "mean_loss": {
+              "0.75": 0.6522210088371128,
+              "1.0": 0.6556982033058495
+            },
+            "p_value": 0.15255743433322944
+          }
+        },
+        "coverage": {
+          "duplicate_entity_rows": 76,
+          "empty_tags": 7645,
+          "entities_with_conflicting_historical_labels": 14,
+          "missing_reference_label": 90,
+          "outside_paper": 24845,
+          "paper_overlap": 6693,
+          "retained_products": 31538,
+          "source_rows": 31704,
+          "stores": 2081,
+          "taxonomies": 2979
+        },
+        "fold_sizes": [
+          5765,
+          6109,
+          6823,
+          6431,
+          6410
+        ],
+        "outside_paper": 24845,
+        "precision": 8,
+        "prime": 83,
+        "products": 31538,
+        "source_commit": "e8d4049c05b09da822df711ebdfac86e82051fc9"
+      },
+      {
+        "batch_id": "cba50320-ccce-4efd-b485-131f21a3f5bd",
+        "captured_at": "2026-09-16 12:19:50.067097+10:00",
+        "checked_models": 2430,
+        "comparisons": {
+          "all": {
+            "ci95": [
+              -0.016879084871416455,
+              0.009205914226644145
+            ],
+            "difference": -0.0038365853223861547,
+            "fold_loss": {
+              "0.75": [
+                0.6291442252065199,
+                0.6081724860018083,
+                0.6158798816608136,
+                0.633439826327885,
+                0.6512160142447994
+              ],
+              "1.0": [
+                0.6299207069228494,
+                0.6152500318737265,
+                0.6278424153356066,
+                0.6269731232144303,
+                0.6570490827071441
+              ]
+            },
+            "holm_over_captures": 0.9198737077645025,
+            "mean_loss": {
+              "0.75": 0.6275704866883652,
+              "1.0": 0.6314070720107514
+            },
+            "p_value": 0.45993685388225125
+          },
+          "outside_paper": {
+            "ci95": [
+              -0.01907129929199627,
+              0.01169935626229344
+            ],
+            "difference": -0.003685971514851416,
+            "fold_loss": {
+              "0.75": [
+                0.6512483990552843,
+                0.6394896258177558,
+                0.641624964803183,
+                0.6423549487324755,
+                0.6714926773953058
+              ],
+              "1.0": [
+                0.6507446772145772,
+                0.645205907729639,
+                0.6558267931703741,
+                0.6345954724536452,
+                0.678267622810026
+              ]
+            },
+            "holm_over_captures": 1.0,
+            "mean_loss": {
+              "0.75": 0.6492421231608009,
+              "1.0": 0.6529280946756523
+            },
+            "p_value": 0.5423313238197979
+          }
+        },
+        "coverage": {
+          "duplicate_entity_rows": 76,
+          "empty_tags": 7654,
+          "entities_with_conflicting_historical_labels": 14,
+          "missing_reference_label": 90,
+          "outside_paper": 24945,
+          "paper_overlap": 6693,
+          "retained_products": 31638,
+          "source_rows": 31804,
+          "stores": 2095,
+          "taxonomies": 2985
+        },
+        "fold_sizes": [
+          5770,
+          6121,
+          6826,
+          6493,
+          6428
+        ],
+        "outside_paper": 24945,
+        "precision": 8,
+        "prime": 83,
+        "products": 31638,
+        "source_commit": "e8d4049c05b09da822df711ebdfac86e82051fc9"
+      },
+      {
+        "batch_id": "b59e8d79-b9c3-472e-869e-90fe05765726",
+        "captured_at": "2026-09-17 12:19:20.582371+10:00",
+        "checked_models": 2430,
+        "comparisons": {
+          "all": {
+            "ci95": [
+              -0.009358141187829419,
+              -0.0008046793554487086
+            ],
+            "difference": -0.005081410271639064,
+            "fold_loss": {
+              "0.75": [
+                0.6297084477773655,
+                0.6053018785972945,
+                0.6207859106470652,
+                0.6346450304991296,
+                0.6506892510719643
+              ],
+              "1.0": [
+                0.6376373582070983,
+                0.6111097043053539,
+                0.6264498072724829,
+                0.6363318407712161,
+                0.6550088593948631
+              ]
+            },
+            "holm_over_captures": 0.26969350455147884,
+            "mean_loss": {
+              "0.75": 0.6282261037185638,
+              "1.0": 0.6333075139902029
+            },
+            "p_value": 0.029965944950164317
+          },
+          "outside_paper": {
+            "ci95": [
+              -0.010377014937282346,
+              0.0014366775738758088
+            ],
+            "difference": -0.0044701686817032685,
+            "fold_loss": {
+              "0.75": [
+                0.6526688970982917,
+                0.6363075688134618,
+                0.6473611926924719,
+                0.6428130435035425,
+                0.6757910747772583
+              ],
+              "1.0": [
+                0.6595176502658439,
+                0.6411820708207069,
+                0.654728603710523,
+                0.6466638089598578,
+                0.6752004865366111
+              ]
+            },
+            "holm_over_captures": 0.8281493178607122,
+            "mean_loss": {
+              "0.75": 0.6509883553770053,
+              "1.0": 0.6554585240587085
+            },
+            "p_value": 0.10351866473258903
+          }
+        },
+        "coverage": {
+          "duplicate_entity_rows": 76,
+          "empty_tags": 7664,
+          "entities_with_conflicting_historical_labels": 14,
+          "missing_reference_label": 90,
+          "outside_paper": 25045,
+          "paper_overlap": 6693,
+          "retained_products": 31738,
+          "source_rows": 31904,
+          "stores": 2109,
+          "taxonomies": 2989
+        },
+        "fold_sizes": [
+          5777,
+          6127,
+          6830,
+          6550,
+          6454
+        ],
+        "outside_paper": 25045,
+        "precision": 8,
+        "prime": 83,
+        "products": 31738,
+        "source_commit": "e8d4049c05b09da822df711ebdfac86e82051fc9"
+      },
+      {
+        "batch_id": "729fd099-6e5d-4e5d-85e2-907d5aff3f7b",
+        "captured_at": "2026-09-18 12:20:32.928964+10:00",
+        "checked_models": 2430,
+        "comparisons": {
+          "all": {
+            "ci95": [
+              -0.02281671878023784,
+              0.007864219240096336
+            ],
+            "difference": -0.007476249770070753,
+            "fold_loss": {
+              "0.75": [
+                0.6270759591263276,
+                0.6099113963963174,
+                0.6165186537217323,
+                0.6226405115789616,
+                0.6587519672119941
+              ],
+              "1.0": [
+                0.6410800885895082,
+                0.6133935114661346,
+                0.6271517784077976,
+                0.6369277714345661,
+                0.6537265869876804
+              ]
+            },
+            "holm_over_captures": 0.7423174485274868,
+            "mean_loss": {
+              "0.75": 0.6269796976070666,
+              "1.0": 0.6344559473771374
+            },
+            "p_value": 0.2474391495091623
+          },
+          "outside_paper": {
+            "ci95": [
+              -0.028741861750449633,
+              0.015167606599985436
+            ],
+            "difference": -0.006787127575232099,
+            "fold_loss": {
+              "0.75": [
+                0.649298178247341,
+                0.6388141594657423,
+                0.6416635376809002,
+                0.6292204581437986,
+                0.6860324083268886
+              ],
+              "1.0": [
+                0.6610297490352608,
+                0.6426039898680492,
+                0.6550703347785493,
+                0.6465828480771733,
+                0.6736774579817987
+              ]
+            },
+            "holm_over_captures": 1.0,
+            "mean_loss": {
+              "0.75": 0.6490057483729341,
+              "1.0": 0.6557928759481663
+            },
+            "p_value": 0.43910713420638714
+          }
+        },
+        "coverage": {
+          "duplicate_entity_rows": 76,
+          "empty_tags": 7685,
+          "entities_with_conflicting_historical_labels": 14,
+          "missing_reference_label": 90,
+          "outside_paper": 25145,
+          "paper_overlap": 6693,
+          "retained_products": 31838,
+          "source_rows": 32004,
+          "stores": 2113,
+          "taxonomies": 2998
+        },
+        "fold_sizes": [
+          5802,
+          6151,
+          6832,
+          6580,
+          6473
+        ],
+        "outside_paper": 25145,
+        "precision": 8,
+        "prime": 83,
+        "products": 31838,
+        "source_commit": "e8d4049c05b09da822df711ebdfac86e82051fc9"
+      }
+    ],
+    "status": "passed"
+  },
+  "members": {
+    "checked_models": {
+      "0.75": 1215,
+      "1.0": 1215
+    },
+    "counts": {
+      "0.75": {
+        "held_out": {
+          "integer_and_quotient_reported_outputs_differ": 177336,
+          "modular_zero_with_nonzero_integer_sum": 13328,
+          "rows": 1626399,
+          "wrapped_integer_sums": 177336
+        },
+        "training": {
+          "integer_and_quotient_reported_outputs_differ": 714366,
+          "modular_zero_with_nonzero_integer_sum": 34636,
+          "rows": 6505596,
+          "wrapped_integer_sums": 714366
+        }
+      },
+      "1.0": {
+        "held_out": {
+          "integer_and_quotient_reported_outputs_differ": 216879,
+          "modular_zero_with_nonzero_integer_sum": 16187,
+          "rows": 1626399,
+          "wrapped_integer_sums": 216879
+        },
+        "training": {
+          "integer_and_quotient_reported_outputs_differ": 871903,
+          "modular_zero_with_nonzero_integer_sum": 40515,
+          "rows": 6505596,
+          "wrapped_integer_sums": 871903
+        }
+      }
+    },
+    "note": "Integer sums are a counterfactual interpretation of the manuscript, not another fitted experiment.",
+    "snapshot_digest": "039175941ed2a2ec888bc6c7314c3c5f8afac1201ff604413dedb55641706222",
+    "status": "passed",
+    "stored_quotient_predictions_matched": true
+  },
+  "postgres_report_sha256": "41f86ff17b25cee72a0852c8d5a932433f8b1d4e144d3c4485ad066b6a68c0a6",
+  "schema_version": 1,
+  "source_sha256": "b1b0c80bc503cc50a88181f677d26b5f34e5dad777b530d5bb18d7113fd205c4",
+  "tree": {
+    "aggregate_rows_sha256": "64ad37360b2d6e0619e9062a62f80df7a8bcda04b70833fb9401a15cbd3ff1b1",
+    "batch_id": "95b8a6bf-28b9-4a17-9ee6-58759d149ff5",
+    "budget_tables": {
+      "balanced_active": [
+        {
+          "budget": 3,
+          "forest": {
+            "active": 1.9995022742722182,
+            "config": {
+              "class_weight": "balanced",
+              "family": "forest",
+              "max_depth": 2,
+              "members": 1
+            },
+            "exact_accuracy": 0.00273509690197986,
+            "loss": 0.8958806171863161,
+            "root_accuracy": 0.10472078559070415,
+            "stored_slots": 725.4
+          },
+          "padic100": {
+            "active": 1.3617662286229606,
+            "config": {
+              "family": "padic",
+              "fraction": 1.0,
+              "members": 1,
+              "seed": "fixed_primary_roster"
+            },
+            "exact_accuracy": 0.4725643163264409,
+            "loss": 0.2770636451344009,
+            "root_accuracy": 0.7239824526993942,
+            "stored_slots": 1829.2
+          },
+          "padic75": {
+            "active": 1.2016015966379219,
+            "config": {
+              "family": "padic",
+              "fraction": 0.75,
+              "members": 1,
+              "seed": "fixed_primary_roster"
+            },
+            "exact_accuracy": 0.44415599011623447,
+            "loss": 0.2889186223338883,
+            "root_accuracy": 0.7123098031137232,
+            "stored_slots": 1600.0
+          },
+          "tree": {
+            "active": 1.996411217291985,
+            "config": {
+              "class_weight": "balanced",
+              "family": "tree",
+              "max_depth": 2,
+              "seed": 42,
+              "sweep": "depth"
+            },
+            "exact_accuracy": 0.04424009531547783,
+            "loss": 0.7057254921194609,
+            "root_accuracy": 0.29597860401287707,
+            "stored_slots": 11.0
+          }
+        },
+        {
+          "budget": 10,
+          "forest": {
+            "active": 3.994353041674091,
+            "config": {
+              "class_weight": "balanced",
+              "family": "forest",
+              "max_depth": 4,
+              "members": 1
+            },
+            "exact_accuracy": 0.005172978943183344,
+            "loss": 0.8870490622289241,
+            "root_accuracy": 0.11364165300709414,
+            "stored_slots": 755.0
+          },
+          "padic100": {
+            "active": 4.010255237587158,
+            "config": {
+              "family": "padic",
+              "fraction": 1.0,
+              "members": 3,
+              "seed": "fixed_primary_roster"
+            },
+            "exact_accuracy": 0.5245117231712824,
+            "loss": 0.19648537094676902,
+            "root_accuracy": 0.8045948424051075,
+            "stored_slots": 4689.2
+          },
+          "padic75": {
+            "active": 3.5986783175546164,
+            "config": {
+              "family": "padic",
+              "fraction": 0.75,
+              "members": 3,
+              "seed": "fixed_primary_roster"
+            },
+            "exact_accuracy": 0.5049267935360616,
+            "loss": 0.1989493987245729,
+            "root_accuracy": 0.8022905624231378,
+            "stored_slots": 4062.8
+          },
+          "tree": {
+            "active": 5.966177815131937,
+            "config": {
+              "class_weight": "balanced",
+              "family": "tree",
+              "max_depth": 6,
+              "seed": 42,
+              "sweep": "depth"
+            },
+            "exact_accuracy": 0.05067706396641376,
+            "loss": 0.6998711466670833,
+            "root_accuracy": 0.30182462627670387,
+            "stored_slots": 31.0
+          }
+        },
+        {
+          "budget": 30,
+          "forest": {
+            "active": 23.892031130882724,
+            "config": {
+              "class_weight": "balanced",
+              "family": "forest",
+              "max_depth": 8,
+              "members": 3
+            },
+            "exact_accuracy": 0.02768461129055711,
+            "loss": 0.8821365250757995,
+            "root_accuracy": 0.11844721082211673,
+            "stored_slots": 2503.9333333333334
+          },
+          "padic100": {
+            "active": 20.082975847039656,
+            "config": {
+              "family": "padic",
+              "fraction": 1.0,
+              "members": 15,
+              "seed": "fixed_primary_roster"
+            },
+            "exact_accuracy": 0.5580991740982597,
+            "loss": 0.1592823572064599,
+            "root_accuracy": 0.8418467807185135,
+            "stored_slots": 22072.0
+          },
+          "padic75": {
+            "active": 17.855169209232884,
+            "config": {
+              "family": "padic",
+              "fraction": 0.75,
+              "members": 15,
+              "seed": "fixed_primary_roster"
+            },
+            "exact_accuracy": 0.5605752231697836,
+            "loss": 0.14737086694423163,
+            "root_accuracy": 0.8538022821385205,
+            "stored_slots": 19151.2
+          },
+          "tree": {
+            "active": 11.877432019103257,
+            "config": {
+              "class_weight": "balanced",
+              "family": "tree",
+              "max_depth": 12,
+              "seed": 42,
+              "sweep": "depth"
+            },
+            "exact_accuracy": 0.05711452252025133,
+            "loss": 0.6930005055166601,
+            "root_accuracy": 0.30869940261479795,
+            "stored_slots": 66.0
+          }
+        },
+        {
+          "budget": 100,
+          "forest": {
+            "active": 59.485845612007054,
+            "config": {
+              "class_weight": "balanced",
+              "family": "forest",
+              "max_depth": 64,
+              "members": 1
+            },
+            "exact_accuracy": 0.10548414585826775,
+            "loss": 0.7674467191374699,
+            "root_accuracy": 0.23351273595899805,
+            "stored_slots": 1983.0
+          },
+          "padic100": {
+            "active": 60.12017872992372,
+            "config": {
+              "family": "padic",
+              "fraction": 1.0,
+              "members": 45,
+              "seed": "fixed_primary_roster"
+            },
+            "exact_accuracy": 0.5683738080076113,
+            "loss": 0.15095219068051707,
+            "root_accuracy": 0.8501876942698245,
+            "stored_slots": 65585.2
+          },
+          "padic75": {
+            "active": 96.40585008565536,
+            "config": {
+              "family": "padic",
+              "fraction": 0.75,
+              "members": 81,
+              "seed": "fixed_primary_roster"
+            },
+            "exact_accuracy": 0.5723048240458671,
+            "loss": 0.13658069674516407,
+            "root_accuracy": 0.8645547731063772,
+            "stored_slots": 101994.8
+          },
+          "tree": {
+            "active": 87.12136108964509,
+            "config": {
+              "class_weight": "balanced",
+              "family": "tree",
+              "max_depth": 96,
+              "seed": 42,
+              "sweep": "depth"
+            },
+            "exact_accuracy": 0.17472417584045127,
+            "loss": 0.5550008566991641,
+            "root_accuracy": 0.4469338837044132,
+            "stored_slots": 1207.0
+          }
+        },
+        {
+          "budget": 300,
+          "forest": {
+            "active": 247.02626061328615,
+            "config": {
+              "class_weight": "balanced",
+              "family": "forest",
+              "max_depth": null,
+              "members": 1
+            },
+            "exact_accuracy": 0.5636191834693849,
+            "loss": 0.13212755616024704,
+            "root_accuracy": 0.8690375313693768,
+            "stored_slots": 10225.133333333333
+          },
+          "padic100": {
+            "active": 180.27510248519042,
+            "config": {
+              "family": "padic",
+              "fraction": 1.0,
+              "members": 135,
+              "seed": "fixed_primary_roster"
+            },
+            "exact_accuracy": 0.5717770055829992,
+            "loss": 0.14417814059737982,
+            "root_accuracy": 0.8569275086035972,
+            "stored_slots": 196148.0
+          },
+          "padic75": {
+            "active": 287.7327352997028,
+            "config": {
+              "family": "padic",
+              "fraction": 0.75,
+              "members": 243,
+              "seed": "fixed_primary_roster"
+            },
+            "exact_accuracy": 0.5738522425570096,
+            "loss": 0.13465532540420427,
+            "root_accuracy": 0.8664985602506556,
+            "stored_slots": 304580.0
+          },
+          "tree": {
+            "active": 258.1440193440158,
+            "config": {
+              "ccp_alpha": 1e-05,
+              "class_weight": "balanced",
+              "family": "tree",
+              "seed": 42,
+              "sweep": "alpha"
+            },
+            "exact_accuracy": 0.6095770738450167,
+            "loss": 0.11031437466013819,
+            "root_accuracy": 0.8907250060621006,
+            "stored_slots": 8205.0
+          }
+        },
+        {
+          "budget": 1000,
+          "forest": {
+            "active": 740.0333031750799,
+            "config": {
+              "class_weight": "balanced",
+              "family": "forest",
+              "max_depth": null,
+              "members": 3
+            },
+            "exact_accuracy": 0.5969651226805828,
+            "loss": 0.1123981702851911,
+            "root_accuracy": 0.8886397179805169,
+            "stored_slots": 30671.666666666668
+          },
+          "padic100": {
+            "active": 180.27510248519042,
+            "config": {
+              "family": "padic",
+              "fraction": 1.0,
+              "members": 135,
+              "seed": "fixed_primary_roster"
+            },
+            "exact_accuracy": 0.5717770055829992,
+            "loss": 0.14417814059737982,
+            "root_accuracy": 0.8569275086035972,
+            "stored_slots": 196148.0
+          },
+          "padic75": {
+            "active": 287.7327352997028,
+            "config": {
+              "family": "padic",
+              "fraction": 0.75,
+              "members": 243,
+              "seed": "fixed_primary_roster"
+            },
+            "exact_accuracy": 0.5738522425570096,
+            "loss": 0.13465532540420427,
+            "root_accuracy": 0.8664985602506556,
+            "stored_slots": 304580.0
+          },
+          "tree": {
+            "active": 258.1440193440158,
+            "config": {
+              "ccp_alpha": 1e-05,
+              "class_weight": "balanced",
+              "family": "tree",
+              "seed": 42,
+              "sweep": "alpha"
+            },
+            "exact_accuracy": 0.6095770738450167,
+            "loss": 0.11031437466013819,
+            "root_accuracy": 0.8907250060621006,
+            "stored_slots": 8205.0
+          }
+        },
+        {
+          "budget": 3000,
+          "forest": {
+            "active": 2224.536501782419,
+            "config": {
+              "class_weight": "balanced",
+              "family": "forest",
+              "max_depth": null,
+              "members": 9
+            },
+            "exact_accuracy": 0.6322031221940522,
+            "loss": 0.09935828277104693,
+            "root_accuracy": 0.9015742067106158,
+            "stored_slots": 91765.93333333333
+          },
+          "padic100": {
+            "active": 180.27510248519042,
+            "config": {
+              "family": "padic",
+              "fraction": 1.0,
+              "members": 135,
+              "seed": "fixed_primary_roster"
+            },
+            "exact_accuracy": 0.5717770055829992,
+            "loss": 0.14417814059737982,
+            "root_accuracy": 0.8569275086035972,
+            "stored_slots": 196148.0
+          },
+          "padic75": {
+            "active": 287.7327352997028,
+            "config": {
+              "family": "padic",
+              "fraction": 0.75,
+              "members": 243,
+              "seed": "fixed_primary_roster"
+            },
+            "exact_accuracy": 0.5738522425570096,
+            "loss": 0.13465532540420427,
+            "root_accuracy": 0.8664985602506556,
+            "stored_slots": 304580.0
+          },
+          "tree": {
+            "active": 258.1440193440158,
+            "config": {
+              "ccp_alpha": 1e-05,
+              "class_weight": "balanced",
+              "family": "tree",
+              "seed": 42,
+              "sweep": "alpha"
+            },
+            "exact_accuracy": 0.6095770738450167,
+            "loss": 0.11031437466013819,
+            "root_accuracy": 0.8907250060621006,
+            "stored_slots": 8205.0
+          }
+        },
+        {
+          "budget": 10000,
+          "forest": {
+            "active": 6684.546588708123,
+            "config": {
+              "class_weight": "balanced",
+              "family": "forest",
+              "max_depth": null,
+              "members": 27
+            },
+            "exact_accuracy": 0.6426879092843325,
+            "loss": 0.09613435115962571,
+            "root_accuracy": 0.9047570281204083,
+            "stored_slots": 275439.13333333336
+          },
+          "padic100": {
+            "active": 180.27510248519042,
+            "config": {
+              "family": "padic",
+              "fraction": 1.0,
+              "members": 135,
+              "seed": "fixed_primary_roster"
+            },
+            "exact_accuracy": 0.5717770055829992,
+            "loss": 0.14417814059737982,
+            "root_accuracy": 0.8569275086035972,
+            "stored_slots": 196148.0
+          },
+          "padic75": {
+            "active": 287.7327352997028,
+            "config": {
+              "family": "padic",
+              "fraction": 0.75,
+              "members": 243,
+              "seed": "fixed_primary_roster"
+            },
+            "exact_accuracy": 0.5738522425570096,
+            "loss": 0.13465532540420427,
+            "root_accuracy": 0.8664985602506556,
+            "stored_slots": 304580.0
+          },
+          "tree": {
+            "active": 258.1440193440158,
+            "config": {
+              "ccp_alpha": 1e-05,
+              "class_weight": "balanced",
+              "family": "tree",
+              "seed": 42,
+              "sweep": "alpha"
+            },
+            "exact_accuracy": 0.6095770738450167,
+            "loss": 0.11031437466013819,
+            "root_accuracy": 0.8907250060621006,
+            "stored_slots": 8205.0
+          }
+        }
+      ],
+      "balanced_stored_slots": [
+        {
+          "budget": 100,
+          "tree": {
+            "active": 11.877432019103257,
+            "config": {
+              "class_weight": "balanced",
+              "family": "tree",
+              "max_depth": 12,
+              "seed": 42,
+              "sweep": "depth"
+            },
+            "exact_accuracy": 0.05711452252025133,
+            "loss": 0.6930005055166601,
+            "root_accuracy": 0.30869940261479795,
+            "stored_slots": 66.0
+          }
+        },
+        {
+          "budget": 1000,
+          "forest": {
+            "active": 3.994353041674091,
+            "config": {
+              "class_weight": "balanced",
+              "family": "forest",
+              "max_depth": 4,
+              "members": 1
+            },
+            "exact_accuracy": 0.005172978943183344,
+            "loss": 0.8870490622289241,
+            "root_accuracy": 0.11364165300709414,
+            "stored_slots": 755.0
+          },
+          "tree": {
+            "active": 106.86134832084781,
+            "config": {
+              "class_weight": "balanced",
+              "family": "tree",
+              "max_leaf_nodes": 128,
+              "seed": 42,
+              "sweep": "leaves"
+            },
+            "exact_accuracy": 0.19512329921852442,
+            "loss": 0.5069519563103253,
+            "root_accuracy": 0.49475921398167877,
+            "stored_slots": 636.0
+          }
+        },
+        {
+          "budget": 3000,
+          "forest": {
+            "active": 59.485845612007054,
+            "config": {
+              "class_weight": "balanced",
+              "family": "forest",
+              "max_depth": 64,
+              "members": 1
+            },
+            "exact_accuracy": 0.10548414585826775,
+            "loss": 0.7674467191374699,
+            "root_accuracy": 0.23351273595899805,
+            "stored_slots": 1983.0
+          },
+          "padic100": {
+            "active": 1.3617662286229606,
+            "config": {
+              "family": "padic",
+              "fraction": 1.0,
+              "members": 1,
+              "seed": "fixed_primary_roster"
+            },
+            "exact_accuracy": 0.4725643163264409,
+            "loss": 0.2770636451344009,
+            "root_accuracy": 0.7239824526993942,
+            "stored_slots": 1829.2
+          },
+          "padic75": {
+            "active": 1.2016015966379219,
+            "config": {
+              "family": "padic",
+              "fraction": 0.75,
+              "members": 1,
+              "seed": "fixed_primary_roster"
+            },
+            "exact_accuracy": 0.44415599011623447,
+            "loss": 0.2889186223338883,
+            "root_accuracy": 0.7123098031137232,
+            "stored_slots": 1600.0
+          },
+          "tree": {
+            "active": 168.2680983356177,
+            "config": {
+              "class_weight": "balanced",
+              "family": "tree",
+              "max_leaf_nodes": 256,
+              "seed": 42,
+              "sweep": "leaves"
+            },
+            "exact_accuracy": 0.3117004759334542,
+            "loss": 0.25306854201646223,
+            "root_accuracy": 0.7491165183846193,
+            "stored_slots": 1276.0
+          }
+        },
+        {
+          "budget": 10000,
+          "forest": {
+            "active": 178.53988173132566,
+            "config": {
+              "class_weight": "balanced",
+              "family": "forest",
+              "max_depth": 64,
+              "members": 3
+            },
+            "exact_accuracy": 0.19518023307130228,
+            "loss": 0.5376433442289612,
+            "root_accuracy": 0.46435196292887965,
+            "stored_slots": 6040.6
+          },
+          "padic100": {
+            "active": 4.010255237587158,
+            "config": {
+              "family": "padic",
+              "fraction": 1.0,
+              "members": 3,
+              "seed": "fixed_primary_roster"
+            },
+            "exact_accuracy": 0.5245117231712824,
+            "loss": 0.19648537094676902,
+            "root_accuracy": 0.8045948424051075,
+            "stored_slots": 4689.2
+          },
+          "padic75": {
+            "active": 3.5986783175546164,
+            "config": {
+              "family": "padic",
+              "fraction": 0.75,
+              "members": 3,
+              "seed": "fixed_primary_roster"
+            },
+            "exact_accuracy": 0.5049267935360616,
+            "loss": 0.1989493987245729,
+            "root_accuracy": 0.8022905624231378,
+            "stored_slots": 4062.8
+          },
+          "tree": {
+            "active": 258.1440193440158,
+            "config": {
+              "ccp_alpha": 1e-05,
+              "class_weight": "balanced",
+              "family": "tree",
+              "seed": 42,
+              "sweep": "alpha"
+            },
+            "exact_accuracy": 0.6095770738450167,
+            "loss": 0.11031437466013819,
+            "root_accuracy": 0.8907250060621006,
+            "stored_slots": 8205.0
+          }
+        },
+        {
+          "budget": 30000,
+          "forest": {
+            "active": 247.02626061328615,
+            "config": {
+              "class_weight": "balanced",
+              "family": "forest",
+              "max_depth": null,
+              "members": 1
+            },
+            "exact_accuracy": 0.5636191834693849,
+            "loss": 0.13212755616024704,
+            "root_accuracy": 0.8690375313693768,
+            "stored_slots": 10225.133333333333
+          },
+          "padic100": {
+            "active": 20.082975847039656,
+            "config": {
+              "family": "padic",
+              "fraction": 1.0,
+              "members": 15,
+              "seed": "fixed_primary_roster"
+            },
+            "exact_accuracy": 0.5580991740982597,
+            "loss": 0.1592823572064599,
+            "root_accuracy": 0.8418467807185135,
+            "stored_slots": 22072.0
+          },
+          "padic75": {
+            "active": 17.855169209232884,
+            "config": {
+              "family": "padic",
+              "fraction": 0.75,
+              "members": 15,
+              "seed": "fixed_primary_roster"
+            },
+            "exact_accuracy": 0.5605752231697836,
+            "loss": 0.14737086694423163,
+            "root_accuracy": 0.8538022821385205,
+            "stored_slots": 19151.2
+          },
+          "tree": {
+            "active": 258.1440193440158,
+            "config": {
+              "ccp_alpha": 1e-05,
+              "class_weight": "balanced",
+              "family": "tree",
+              "seed": 42,
+              "sweep": "alpha"
+            },
+            "exact_accuracy": 0.6095770738450167,
+            "loss": 0.11031437466013819,
+            "root_accuracy": 0.8907250060621006,
+            "stored_slots": 8205.0
+          }
+        },
+        {
+          "budget": 100000,
+          "forest": {
+            "active": 2224.536501782419,
+            "config": {
+              "class_weight": "balanced",
+              "family": "forest",
+              "max_depth": null,
+              "members": 9
+            },
+            "exact_accuracy": 0.6322031221940522,
+            "loss": 0.09935828277104693,
+            "root_accuracy": 0.9015742067106158,
+            "stored_slots": 91765.93333333333
+          },
+          "padic100": {
+            "active": 60.12017872992372,
+            "config": {
+              "family": "padic",
+              "fraction": 1.0,
+              "members": 45,
+              "seed": "fixed_primary_roster"
+            },
+            "exact_accuracy": 0.5683738080076113,
+            "loss": 0.15095219068051707,
+            "root_accuracy": 0.8501876942698245,
+            "stored_slots": 65585.2
+          },
+          "padic75": {
+            "active": 53.65998314371806,
+            "config": {
+              "family": "padic",
+              "fraction": 0.75,
+              "members": 45,
+              "seed": "fixed_primary_roster"
+            },
+            "exact_accuracy": 0.5690759910366201,
+            "loss": 0.14261800516885897,
+            "root_accuracy": 0.8584881373892757,
+            "stored_slots": 56906.0
+          },
+          "tree": {
+            "active": 258.1440193440158,
+            "config": {
+              "ccp_alpha": 1e-05,
+              "class_weight": "balanced",
+              "family": "tree",
+              "seed": 42,
+              "sweep": "alpha"
+            },
+            "exact_accuracy": 0.6095770738450167,
+            "loss": 0.11031437466013819,
+            "root_accuracy": 0.8907250060621006,
+            "stored_slots": 8205.0
+          }
+        },
+        {
+          "budget": 300000,
+          "forest": {
+            "active": 6684.546588708123,
+            "config": {
+              "class_weight": "balanced",
+              "family": "forest",
+              "max_depth": null,
+              "members": 27
+            },
+            "exact_accuracy": 0.6426879092843325,
+            "loss": 0.09613435115962571,
+            "root_accuracy": 0.9047570281204083,
+            "stored_slots": 275439.13333333336
+          },
+          "padic100": {
+            "active": 180.27510248519042,
+            "config": {
+              "family": "padic",
+              "fraction": 1.0,
+              "members": 135,
+              "seed": "fixed_primary_roster"
+            },
+            "exact_accuracy": 0.5717770055829992,
+            "loss": 0.14417814059737982,
+            "root_accuracy": 0.8569275086035972,
+            "stored_slots": 196148.0
+          },
+          "padic75": {
+            "active": 160.13471687359672,
+            "config": {
+              "family": "padic",
+              "fraction": 0.75,
+              "members": 135,
+              "seed": "fixed_primary_roster"
+            },
+            "exact_accuracy": 0.5720313614944404,
+            "loss": 0.13478409716479073,
+            "root_accuracy": 0.8663681994181542,
+            "stored_slots": 169536.8
+          },
+          "tree": {
+            "active": 258.1440193440158,
+            "config": {
+              "ccp_alpha": 1e-05,
+              "class_weight": "balanced",
+              "family": "tree",
+              "seed": 42,
+              "sweep": "alpha"
+            },
+            "exact_accuracy": 0.6095770738450167,
+            "loss": 0.11031437466013819,
+            "root_accuracy": 0.8907250060621006,
+            "stored_slots": 8205.0
+          }
+        },
+        {
+          "budget": 1000000,
+          "forest": {
+            "active": 20105.735376155666,
+            "config": {
+              "class_weight": "balanced",
+              "family": "forest",
+              "max_depth": null,
+              "members": 81
+            },
+            "exact_accuracy": 0.6433449663927885,
+            "loss": 0.09450200086879265,
+            "root_accuracy": 0.9064050750204398,
+            "stored_slots": 826510.2000000001
+          },
+          "padic100": {
+            "active": 180.27510248519042,
+            "config": {
+              "family": "padic",
+              "fraction": 1.0,
+              "members": 135,
+              "seed": "fixed_primary_roster"
+            },
+            "exact_accuracy": 0.5717770055829992,
+            "loss": 0.14417814059737982,
+            "root_accuracy": 0.8569275086035972,
+            "stored_slots": 196148.0
+          },
+          "padic75": {
+            "active": 287.7327352997028,
+            "config": {
+              "family": "padic",
+              "fraction": 0.75,
+              "members": 243,
+              "seed": "fixed_primary_roster"
+            },
+            "exact_accuracy": 0.5738522425570096,
+            "loss": 0.13465532540420427,
+            "root_accuracy": 0.8664985602506556,
+            "stored_slots": 304580.0
+          },
+          "tree": {
+            "active": 258.1440193440158,
+            "config": {
+              "ccp_alpha": 1e-05,
+              "class_weight": "balanced",
+              "family": "tree",
+              "seed": 42,
+              "sweep": "alpha"
+            },
+            "exact_accuracy": 0.6095770738450167,
+            "loss": 0.11031437466013819,
+            "root_accuracy": 0.8907250060621006,
+            "stored_slots": 8205.0
+          }
+        }
+      ],
+      "unweighted_active": [
+        {
+          "budget": 3,
+          "forest": {
+            "active": 1.9985568254161739,
+            "config": {
+              "class_weight": null,
+              "family": "forest",
+              "max_depth": 2,
+              "members": 1
+            },
+            "exact_accuracy": 0.06128642397167548,
+            "loss": 0.5528088188585343,
+            "root_accuracy": 0.4498467170752708,
+            "stored_slots": 733.0
+          },
+          "padic100": {
+            "active": 1.3617662286229606,
+            "config": {
+              "family": "padic",
+              "fraction": 1.0,
+              "members": 1,
+              "seed": "fixed_primary_roster"
+            },
+            "exact_accuracy": 0.4725643163264409,
+            "loss": 0.2770636451344009,
+            "root_accuracy": 0.7239824526993942,
+            "stored_slots": 1829.2
+          },
+          "padic75": {
+            "active": 1.2016015966379219,
+            "config": {
+              "family": "padic",
+              "fraction": 0.75,
+              "members": 1,
+              "seed": "fixed_primary_roster"
+            },
+            "exact_accuracy": 0.44415599011623447,
+            "loss": 0.2889186223338883,
+            "root_accuracy": 0.7123098031137232,
+            "stored_slots": 1600.0
+          },
+          "tree": {
+            "active": 2.9607744022720808,
+            "config": {
+              "class_weight": null,
+              "family": "tree",
+              "max_leaf_nodes": 4,
+              "seed": 42,
+              "sweep": "leaves"
+            },
+            "exact_accuracy": 0.07013894687804849,
+            "loss": 0.5427330136441435,
+            "root_accuracy": 0.4598756190094943,
+            "stored_slots": 16.0
+          }
+        },
+        {
+          "budget": 10,
+          "forest": {
+            "active": 7.936016944420598,
+            "config": {
+              "class_weight": null,
+              "family": "forest",
+              "max_depth": 8,
+              "members": 1
+            },
+            "exact_accuracy": 0.08365607531970844,
+            "loss": 0.5324829030066847,
+            "root_accuracy": 0.4700739630133965,
+            "stored_slots": 894.4666666666666
+          },
+          "padic100": {
+            "active": 4.010255237587158,
+            "config": {
+              "family": "padic",
+              "fraction": 1.0,
+              "members": 3,
+              "seed": "fixed_primary_roster"
+            },
+            "exact_accuracy": 0.5245117231712824,
+            "loss": 0.19648537094676902,
+            "root_accuracy": 0.8045948424051075,
+            "stored_slots": 4689.2
+          },
+          "padic75": {
+            "active": 3.5986783175546164,
+            "config": {
+              "family": "padic",
+              "fraction": 0.75,
+              "members": 3,
+              "seed": "fixed_primary_roster"
+            },
+            "exact_accuracy": 0.5049267935360616,
+            "loss": 0.1989493987245729,
+            "root_accuracy": 0.8022905624231378,
+            "stored_slots": 4062.8
+          },
+          "tree": {
+            "active": 7.808910444824167,
+            "config": {
+              "class_weight": null,
+              "family": "tree",
+              "max_depth": 8,
+              "seed": 42,
+              "sweep": "depth"
+            },
+            "exact_accuracy": 0.1003435356161575,
+            "loss": 0.5258448986181308,
+            "root_accuracy": 0.4765866202399723,
+            "stored_slots": 121.0
+          }
+        },
+        {
+          "budget": 30,
+          "forest": {
+            "active": 29.886885964066586,
+            "config": {
+              "class_weight": null,
+              "family": "forest",
+              "max_depth": 32,
+              "members": 1
+            },
+            "exact_accuracy": 0.15804755155550976,
+            "loss": 0.4931077289021246,
+            "root_accuracy": 0.5090562364873195,
+            "stored_slots": 1721.0
+          },
+          "padic100": {
+            "active": 20.082975847039656,
+            "config": {
+              "family": "padic",
+              "fraction": 1.0,
+              "members": 15,
+              "seed": "fixed_primary_roster"
+            },
+            "exact_accuracy": 0.5580991740982597,
+            "loss": 0.1592823572064599,
+            "root_accuracy": 0.8418467807185135,
+            "stored_slots": 22072.0
+          },
+          "padic75": {
+            "active": 17.855169209232884,
+            "config": {
+              "family": "padic",
+              "fraction": 0.75,
+              "members": 15,
+              "seed": "fixed_primary_roster"
+            },
+            "exact_accuracy": 0.5605752231697836,
+            "loss": 0.14737086694423163,
+            "root_accuracy": 0.8538022821385205,
+            "stored_slots": 19151.2
+          },
+          "tree": {
+            "active": 28.895002357637175,
+            "config": {
+              "class_weight": null,
+              "family": "tree",
+              "max_depth": 32,
+              "seed": 42,
+              "sweep": "depth"
+            },
+            "exact_accuracy": 0.20588486158154198,
+            "loss": 0.43478899589011233,
+            "root_accuracy": 0.5673984193168826,
+            "stored_slots": 679.0
+          }
+        },
+        {
+          "budget": 100,
+          "forest": {
+            "active": 96.58483983946921,
+            "config": {
+              "class_weight": null,
+              "family": "forest",
+              "max_depth": 128,
+              "members": 1
+            },
+            "exact_accuracy": 0.35446911051499475,
+            "loss": 0.315573251597101,
+            "root_accuracy": 0.6862276309926345,
+            "stored_slots": 3856.2
+          },
+          "padic100": {
+            "active": 60.12017872992372,
+            "config": {
+              "family": "padic",
+              "fraction": 1.0,
+              "members": 45,
+              "seed": "fixed_primary_roster"
+            },
+            "exact_accuracy": 0.5683738080076113,
+            "loss": 0.15095219068051707,
+            "root_accuracy": 0.8501876942698245,
+            "stored_slots": 65585.2
+          },
+          "padic75": {
+            "active": 96.40585008565536,
+            "config": {
+              "family": "padic",
+              "fraction": 0.75,
+              "members": 81,
+              "seed": "fixed_primary_roster"
+            },
+            "exact_accuracy": 0.5723048240458671,
+            "loss": 0.13658069674516407,
+            "root_accuracy": 0.8645547731063772,
+            "stored_slots": 101994.8
+          },
+          "tree": {
+            "active": 93.24854783852956,
+            "config": {
+              "class_weight": null,
+              "family": "tree",
+              "max_depth": 128,
+              "seed": 42,
+              "sweep": "depth"
+            },
+            "exact_accuracy": 0.39123870390874366,
+            "loss": 0.2981353686410952,
+            "root_accuracy": 0.7035320238379914,
+            "stored_slots": 2134.0
+          }
+        },
+        {
+          "budget": 300,
+          "forest": {
+            "active": 212.2498370682183,
+            "config": {
+              "class_weight": null,
+              "family": "forest",
+              "max_depth": null,
+              "members": 1
+            },
+            "exact_accuracy": 0.6011573978752812,
+            "loss": 0.12064240768037979,
+            "root_accuracy": 0.8803493009708294,
+            "stored_slots": 9137.4
+          },
+          "padic100": {
+            "active": 180.27510248519042,
+            "config": {
+              "family": "padic",
+              "fraction": 1.0,
+              "members": 135,
+              "seed": "fixed_primary_roster"
+            },
+            "exact_accuracy": 0.5717770055829992,
+            "loss": 0.14417814059737982,
+            "root_accuracy": 0.8569275086035972,
+            "stored_slots": 196148.0
+          },
+          "padic75": {
+            "active": 287.7327352997028,
+            "config": {
+              "family": "padic",
+              "fraction": 0.75,
+              "members": 243,
+              "seed": "fixed_primary_roster"
+            },
+            "exact_accuracy": 0.5738522425570096,
+            "loss": 0.13465532540420427,
+            "root_accuracy": 0.8664985602506556,
+            "stored_slots": 304580.0
+          },
+          "tree": {
+            "active": 202.91913195589026,
+            "config": {
+              "class_weight": null,
+              "family": "tree",
+              "max_leaf_nodes": 1024,
+              "seed": 42,
+              "sweep": "leaves"
+            },
+            "exact_accuracy": 0.6508416782894052,
+            "loss": 0.09071789844899082,
+            "root_accuracy": 0.9101575767828098,
+            "stored_slots": 5116.0
+          }
+        },
+        {
+          "budget": 1000,
+          "forest": {
+            "active": 644.4437923294962,
+            "config": {
+              "class_weight": null,
+              "family": "forest",
+              "max_depth": null,
+              "members": 3
+            },
+            "exact_accuracy": 0.6346434038260884,
+            "loss": 0.09645303137046354,
+            "root_accuracy": 0.9044949565110517,
+            "stored_slots": 27353.13333333333
+          },
+          "padic100": {
+            "active": 180.27510248519042,
+            "config": {
+              "family": "padic",
+              "fraction": 1.0,
+              "members": 135,
+              "seed": "fixed_primary_roster"
+            },
+            "exact_accuracy": 0.5717770055829992,
+            "loss": 0.14417814059737982,
+            "root_accuracy": 0.8569275086035972,
+            "stored_slots": 196148.0
+          },
+          "padic75": {
+            "active": 287.7327352997028,
+            "config": {
+              "family": "padic",
+              "fraction": 0.75,
+              "members": 243,
+              "seed": "fixed_primary_roster"
+            },
+            "exact_accuracy": 0.5738522425570096,
+            "loss": 0.13465532540420427,
+            "root_accuracy": 0.8664985602506556,
+            "stored_slots": 304580.0
+          },
+          "tree": {
+            "active": 202.91913195589026,
+            "config": {
+              "class_weight": null,
+              "family": "tree",
+              "max_leaf_nodes": 1024,
+              "seed": 42,
+              "sweep": "leaves"
+            },
+            "exact_accuracy": 0.6508416782894052,
+            "loss": 0.09071789844899082,
+            "root_accuracy": 0.9101575767828098,
+            "stored_slots": 5116.0
+          }
+        },
+        {
+          "budget": 3000,
+          "forest": {
+            "active": 1930.2926655025974,
+            "config": {
+              "class_weight": null,
+              "family": "forest",
+              "max_depth": null,
+              "members": 9
+            },
+            "exact_accuracy": 0.6629214254412497,
+            "loss": 0.08091250226896772,
+            "root_accuracy": 0.9199536854762123,
+            "stored_slots": 81682.33333333333
+          },
+          "padic100": {
+            "active": 180.27510248519042,
+            "config": {
+              "family": "padic",
+              "fraction": 1.0,
+              "members": 135,
+              "seed": "fixed_primary_roster"
+            },
+            "exact_accuracy": 0.5717770055829992,
+            "loss": 0.14417814059737982,
+            "root_accuracy": 0.8569275086035972,
+            "stored_slots": 196148.0
+          },
+          "padic75": {
+            "active": 287.7327352997028,
+            "config": {
+              "family": "padic",
+              "fraction": 0.75,
+              "members": 243,
+              "seed": "fixed_primary_roster"
+            },
+            "exact_accuracy": 0.5738522425570096,
+            "loss": 0.13465532540420427,
+            "root_accuracy": 0.8664985602506556,
+            "stored_slots": 304580.0
+          },
+          "tree": {
+            "active": 202.91913195589026,
+            "config": {
+              "class_weight": null,
+              "family": "tree",
+              "max_leaf_nodes": 1024,
+              "seed": 42,
+              "sweep": "leaves"
+            },
+            "exact_accuracy": 0.6508416782894052,
+            "loss": 0.09071789844899082,
+            "root_accuracy": 0.9101575767828098,
+            "stored_slots": 5116.0
+          }
+        },
+        {
+          "budget": 10000,
+          "forest": {
+            "active": 5796.305834421877,
+            "config": {
+              "class_weight": null,
+              "family": "forest",
+              "max_depth": null,
+              "members": 27
+            },
+            "exact_accuracy": 0.6719029349957228,
+            "loss": 0.080138638190745,
+            "root_accuracy": 0.9206797650897407,
+            "stored_slots": 245177.93333333335
+          },
+          "padic100": {
+            "active": 180.27510248519042,
+            "config": {
+              "family": "padic",
+              "fraction": 1.0,
+              "members": 135,
+              "seed": "fixed_primary_roster"
+            },
+            "exact_accuracy": 0.5717770055829992,
+            "loss": 0.14417814059737982,
+            "root_accuracy": 0.8569275086035972,
+            "stored_slots": 196148.0
+          },
+          "padic75": {
+            "active": 287.7327352997028,
+            "config": {
+              "family": "padic",
+              "fraction": 0.75,
+              "members": 243,
+              "seed": "fixed_primary_roster"
+            },
+            "exact_accuracy": 0.5738522425570096,
+            "loss": 0.13465532540420427,
+            "root_accuracy": 0.8664985602506556,
+            "stored_slots": 304580.0
+          },
+          "tree": {
+            "active": 202.91913195589026,
+            "config": {
+              "class_weight": null,
+              "family": "tree",
+              "max_leaf_nodes": 1024,
+              "seed": 42,
+              "sweep": "leaves"
+            },
+            "exact_accuracy": 0.6508416782894052,
+            "loss": 0.09071789844899082,
+            "root_accuracy": 0.9101575767828098,
+            "stored_slots": 5116.0
+          }
+        }
+      ],
+      "unweighted_stored_slots": [
+        {
+          "budget": 100,
+          "tree": {
+            "active": 6.774067987441692,
+            "config": {
+              "class_weight": null,
+              "family": "tree",
+              "max_leaf_nodes": 8,
+              "seed": 42,
+              "sweep": "leaves"
+            },
+            "exact_accuracy": 0.09373397014734815,
+            "loss": 0.5294518130320796,
+            "root_accuracy": 0.47300737083874533,
+            "stored_slots": 36.0
+          }
+        },
+        {
+          "budget": 1000,
+          "forest": {
+            "active": 7.936016944420598,
+            "config": {
+              "class_weight": null,
+              "family": "forest",
+              "max_depth": 8,
+              "members": 1
+            },
+            "exact_accuracy": 0.08365607531970844,
+            "loss": 0.5324829030066847,
+            "root_accuracy": 0.4700739630133965,
+            "stored_slots": 894.4666666666666
+          },
+          "tree": {
+            "active": 119.73814671133911,
+            "config": {
+              "ccp_alpha": 0.001,
+              "class_weight": null,
+              "family": "tree",
+              "seed": 42,
+              "sweep": "alpha"
+            },
+            "exact_accuracy": 0.45755145359097804,
+            "loss": 0.24719300892819557,
+            "root_accuracy": 0.7544383150878298,
+            "stored_slots": 977.0
+          }
+        },
+        {
+          "budget": 3000,
+          "forest": {
+            "active": 55.33906658914852,
+            "config": {
+              "class_weight": null,
+              "family": "forest",
+              "max_depth": 64,
+              "members": 1
+            },
+            "exact_accuracy": 0.24437942935562385,
+            "loss": 0.4416010216875537,
+            "root_accuracy": 0.5602412956167664,
+            "stored_slots": 2513.4
+          },
+          "padic100": {
+            "active": 1.3617662286229606,
+            "config": {
+              "family": "padic",
+              "fraction": 1.0,
+              "members": 1,
+              "seed": "fixed_primary_roster"
+            },
+            "exact_accuracy": 0.4725643163264409,
+            "loss": 0.2770636451344009,
+            "root_accuracy": 0.7239824526993942,
+            "stored_slots": 1829.2
+          },
+          "padic75": {
+            "active": 1.2016015966379219,
+            "config": {
+              "family": "padic",
+              "fraction": 0.75,
+              "members": 1,
+              "seed": "fixed_primary_roster"
+            },
+            "exact_accuracy": 0.44415599011623447,
+            "loss": 0.2889186223338883,
+            "root_accuracy": 0.7123098031137232,
+            "stored_slots": 1600.0
+          },
+          "tree": {
+            "active": 184.63343494880144,
+            "config": {
+              "class_weight": null,
+              "family": "tree",
+              "max_leaf_nodes": 512,
+              "seed": 42,
+              "sweep": "leaves"
+            },
+            "exact_accuracy": 0.6110980566221796,
+            "loss": 0.13181705586545234,
+            "root_accuracy": 0.8691161197450074,
+            "stored_slots": 2556.0
+          }
+        },
+        {
+          "budget": 10000,
+          "forest": {
+            "active": 212.2498370682183,
+            "config": {
+              "class_weight": null,
+              "family": "forest",
+              "max_depth": null,
+              "members": 1
+            },
+            "exact_accuracy": 0.6011573978752812,
+            "loss": 0.12064240768037979,
+            "root_accuracy": 0.8803493009708294,
+            "stored_slots": 9137.4
+          },
+          "padic100": {
+            "active": 4.010255237587158,
+            "config": {
+              "family": "padic",
+              "fraction": 1.0,
+              "members": 3,
+              "seed": "fixed_primary_roster"
+            },
+            "exact_accuracy": 0.5245117231712824,
+            "loss": 0.19648537094676902,
+            "root_accuracy": 0.8045948424051075,
+            "stored_slots": 4689.2
+          },
+          "padic75": {
+            "active": 3.5986783175546164,
+            "config": {
+              "family": "padic",
+              "fraction": 0.75,
+              "members": 3,
+              "seed": "fixed_primary_roster"
+            },
+            "exact_accuracy": 0.5049267935360616,
+            "loss": 0.1989493987245729,
+            "root_accuracy": 0.8022905624231378,
+            "stored_slots": 4062.8
+          },
+          "tree": {
+            "active": 202.91913195589026,
+            "config": {
+              "class_weight": null,
+              "family": "tree",
+              "max_leaf_nodes": 1024,
+              "seed": 42,
+              "sweep": "leaves"
+            },
+            "exact_accuracy": 0.6508416782894052,
+            "loss": 0.09071789844899082,
+            "root_accuracy": 0.9101575767828098,
+            "stored_slots": 5116.0
+          }
+        },
+        {
+          "budget": 30000,
+          "forest": {
+            "active": 644.4437923294962,
+            "config": {
+              "class_weight": null,
+              "family": "forest",
+              "max_depth": null,
+              "members": 3
+            },
+            "exact_accuracy": 0.6346434038260884,
+            "loss": 0.09645303137046354,
+            "root_accuracy": 0.9044949565110517,
+            "stored_slots": 27353.13333333333
+          },
+          "padic100": {
+            "active": 20.082975847039656,
+            "config": {
+              "family": "padic",
+              "fraction": 1.0,
+              "members": 15,
+              "seed": "fixed_primary_roster"
+            },
+            "exact_accuracy": 0.5580991740982597,
+            "loss": 0.1592823572064599,
+            "root_accuracy": 0.8418467807185135,
+            "stored_slots": 22072.0
+          },
+          "padic75": {
+            "active": 17.855169209232884,
+            "config": {
+              "family": "padic",
+              "fraction": 0.75,
+              "members": 15,
+              "seed": "fixed_primary_roster"
+            },
+            "exact_accuracy": 0.5605752231697836,
+            "loss": 0.14737086694423163,
+            "root_accuracy": 0.8538022821385205,
+            "stored_slots": 19151.2
+          },
+          "tree": {
+            "active": 202.91913195589026,
+            "config": {
+              "class_weight": null,
+              "family": "tree",
+              "max_leaf_nodes": 1024,
+              "seed": 42,
+              "sweep": "leaves"
+            },
+            "exact_accuracy": 0.6508416782894052,
+            "loss": 0.09071789844899082,
+            "root_accuracy": 0.9101575767828098,
+            "stored_slots": 5116.0
+          }
+        },
+        {
+          "budget": 100000,
+          "forest": {
+            "active": 1930.2926655025974,
+            "config": {
+              "class_weight": null,
+              "family": "forest",
+              "max_depth": null,
+              "members": 9
+            },
+            "exact_accuracy": 0.6629214254412497,
+            "loss": 0.08091250226896772,
+            "root_accuracy": 0.9199536854762123,
+            "stored_slots": 81682.33333333333
+          },
+          "padic100": {
+            "active": 60.12017872992372,
+            "config": {
+              "family": "padic",
+              "fraction": 1.0,
+              "members": 45,
+              "seed": "fixed_primary_roster"
+            },
+            "exact_accuracy": 0.5683738080076113,
+            "loss": 0.15095219068051707,
+            "root_accuracy": 0.8501876942698245,
+            "stored_slots": 65585.2
+          },
+          "padic75": {
+            "active": 53.65998314371806,
+            "config": {
+              "family": "padic",
+              "fraction": 0.75,
+              "members": 45,
+              "seed": "fixed_primary_roster"
+            },
+            "exact_accuracy": 0.5690759910366201,
+            "loss": 0.14261800516885897,
+            "root_accuracy": 0.8584881373892757,
+            "stored_slots": 56906.0
+          },
+          "tree": {
+            "active": 202.91913195589026,
+            "config": {
+              "class_weight": null,
+              "family": "tree",
+              "max_leaf_nodes": 1024,
+              "seed": 42,
+              "sweep": "leaves"
+            },
+            "exact_accuracy": 0.6508416782894052,
+            "loss": 0.09071789844899082,
+            "root_accuracy": 0.9101575767828098,
+            "stored_slots": 5116.0
+          }
+        },
+        {
+          "budget": 300000,
+          "forest": {
+            "active": 5796.305834421877,
+            "config": {
+              "class_weight": null,
+              "family": "forest",
+              "max_depth": null,
+              "members": 27
+            },
+            "exact_accuracy": 0.6719029349957228,
+            "loss": 0.080138638190745,
+            "root_accuracy": 0.9206797650897407,
+            "stored_slots": 245177.93333333335
+          },
+          "padic100": {
+            "active": 180.27510248519042,
+            "config": {
+              "family": "padic",
+              "fraction": 1.0,
+              "members": 135,
+              "seed": "fixed_primary_roster"
+            },
+            "exact_accuracy": 0.5717770055829992,
+            "loss": 0.14417814059737982,
+            "root_accuracy": 0.8569275086035972,
+            "stored_slots": 196148.0
+          },
+          "padic75": {
+            "active": 160.13471687359672,
+            "config": {
+              "family": "padic",
+              "fraction": 0.75,
+              "members": 135,
+              "seed": "fixed_primary_roster"
+            },
+            "exact_accuracy": 0.5720313614944404,
+            "loss": 0.13478409716479073,
+            "root_accuracy": 0.8663681994181542,
+            "stored_slots": 169536.8
+          },
+          "tree": {
+            "active": 202.91913195589026,
+            "config": {
+              "class_weight": null,
+              "family": "tree",
+              "max_leaf_nodes": 1024,
+              "seed": 42,
+              "sweep": "leaves"
+            },
+            "exact_accuracy": 0.6508416782894052,
+            "loss": 0.09071789844899082,
+            "root_accuracy": 0.9101575767828098,
+            "stored_slots": 5116.0
+          }
+        },
+        {
+          "budget": 1000000,
+          "forest": {
+            "active": 17328.930555486524,
+            "config": {
+              "class_weight": null,
+              "family": "forest",
+              "max_depth": null,
+              "members": 81
+            },
+            "exact_accuracy": 0.674210398389836,
+            "loss": 0.07628834942840626,
+            "root_accuracy": 0.9245411710779354,
+            "stored_slots": 736261.1333333334
+          },
+          "padic100": {
+            "active": 180.27510248519042,
+            "config": {
+              "family": "padic",
+              "fraction": 1.0,
+              "members": 135,
+              "seed": "fixed_primary_roster"
+            },
+            "exact_accuracy": 0.5717770055829992,
+            "loss": 0.14417814059737982,
+            "root_accuracy": 0.8569275086035972,
+            "stored_slots": 196148.0
+          },
+          "padic75": {
+            "active": 287.7327352997028,
+            "config": {
+              "family": "padic",
+              "fraction": 0.75,
+              "members": 243,
+              "seed": "fixed_primary_roster"
+            },
+            "exact_accuracy": 0.5738522425570096,
+            "loss": 0.13465532540420427,
+            "root_accuracy": 0.8664985602506556,
+            "stored_slots": 304580.0
+          },
+          "tree": {
+            "active": 202.91913195589026,
+            "config": {
+              "class_weight": null,
+              "family": "tree",
+              "max_leaf_nodes": 1024,
+              "seed": 42,
+              "sweep": "leaves"
+            },
+            "exact_accuracy": 0.6508416782894052,
+            "loss": 0.09071789844899082,
+            "root_accuracy": 0.9101575767828098,
+            "stored_slots": 5116.0
+          }
+        }
+      ]
+    },
+    "configurations": 178,
+    "ensemble_sizes": [
+      1,
+      3,
+      9,
+      15,
+      27,
+      45,
+      81,
+      135,
+      243
+    ],
+    "protocol_sha256": "303dcf40dd943258bae0a83c77ea60d36841ef1505acd3e57c960f049c911ce6",
+    "small_ensemble_tradeoff": {
+      "active": 17.855169209232884,
+      "config": {
+        "family": "padic",
+        "fraction": 0.75,
+        "members": 15,
+        "seed": "fixed_primary_roster"
+      },
+      "exact_accuracy": 0.5605752231697836,
+      "fraction_of_1_to_243_loss_reduction": 0.9175724764535318,
+      "fraction_of_243_member_work": 0.06205470222439207,
+      "loss": 0.14737086694423163,
+      "root_accuracy": 0.8538022821385205,
+      "same_budget_comparisons": {
+        "budget": 17.855169209232884,
+        "forest": {
+          "active": 15.570546279558247,
+          "config": {
+            "class_weight": null,
+            "family": "forest",
+            "max_depth": 16,
+            "members": 1
+          },
+          "exact_accuracy": 0.11486763691159207,
+          "loss": 0.5098274689387191,
+          "root_accuracy": 0.4925929605302505,
+          "stored_slots": 1192.4666666666667
+        },
+        "padic100": {
+          "active": 12.024667658988719,
+          "config": {
+            "family": "padic",
+            "fraction": 1.0,
+            "members": 9,
+            "seed": "fixed_primary_roster"
+          },
+          "exact_accuracy": 0.5550498450067972,
+          "loss": 0.16119706300065992,
+          "root_accuracy": 0.8399307356173453,
+          "stored_slots": 13346.4
+        },
+        "padic75": {
+          "active": 17.855169209232884,
+          "config": {
+            "family": "padic",
+            "fraction": 0.75,
+            "members": 15,
+            "seed": "fixed_primary_roster"
+          },
+          "exact_accuracy": 0.5605752231697836,
+          "loss": 0.14737086694423163,
+          "root_accuracy": 0.8538022821385205,
+          "stored_slots": 19151.2
+        },
+        "tree": {
+          "active": 7.808910444824167,
+          "config": {
+            "class_weight": null,
+            "family": "tree",
+            "max_depth": 8,
+            "seed": 42,
+            "sweep": "depth"
+          },
+          "exact_accuracy": 0.1003435356161575,
+          "loss": 0.5258448986181308,
+          "root_accuracy": 0.4765866202399723,
+          "stored_slots": 121.0
+        }
+      },
+      "selection": "Illustrative choice after inspecting the fixed-fold results; not a validated optimum."
+    },
+    "source_commit": "b876b709b35205ea05c4dcffa4d79d5eebe48bdf",
+    "stored_slot_dominated_configurations": 18,
+    "validation": {
+      "prediction_scores_rechecked": 2262234,
+      "rows": 1690,
+      "status": "passed"
+    }
+  }
+}

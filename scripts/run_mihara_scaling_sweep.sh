@@ -9,6 +9,7 @@ snapshot_ref=${PADJECTIVE_MIHARA_SNAPSHOT_REF:-paper}
 schema=${PADJECTIVE_MIHARA_SCHEMA:-padjective}
 output_root=${PADJECTIVE_MIHARA_SWEEP_DIR:-build/mihara-scaling-sweep}
 folds_text=${PADJECTIVE_MIHARA_FOLDS:-"0 1 2 3 4"}
+timing_file="$output_root/timings.csv"
 
 # Split the default or explicitly supplied space-separated values deliberately.
 read -r -a folds <<< "$folds_text"
@@ -19,6 +20,9 @@ else
 fi
 
 mkdir -p "$output_root"
+if [[ ! -f "$timing_file" ]]; then
+    echo "requested_cap,elapsed_seconds,measurement_basis,notes" > "$timing_file"
+fi
 
 run_fold() {
     local budget=$1
@@ -53,6 +57,7 @@ run_fold() {
 
 overall_status=0
 for budget in "${budgets[@]}"; do
+    budget_started=$SECONDS
     echo "Launching tag budget $budget across folds: ${folds[*]}"
     pids=()
     for fold in "${folds[@]}"; do
@@ -67,7 +72,9 @@ for budget in "${budgets[@]}"; do
             overall_status=1
         fi
     done
-    echo "Finished tag budget $budget with status $budget_status at $(date --iso-8601=seconds)"
+    budget_elapsed=$((SECONDS - budget_started))
+    echo "$budget,$budget_elapsed,sweep_controller_wall_clock,five folds run concurrently" >> "$timing_file"
+    echo "Finished tag budget $budget with status $budget_status after ${budget_elapsed}s at $(date --iso-8601=seconds)"
 done
 
 exit "$overall_status"

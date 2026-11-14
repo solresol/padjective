@@ -1,0 +1,87 @@
+{
+  "experiment_key": "paper-protocol-audit-2026-11-09",
+  "snapshot_id": "244ddbe3-0a2c-4c04-9436-0a0253108a09",
+  "snapshot_digest": "039175941ed2a2ec888bc6c7314c3c5f8afac1201ff604413dedb55641706222",
+  "captured_at": "2026-02-26T17:35:34.843938+11:00",
+  "source_cutoff": "2026-02-12T06:15:00+11:00",
+  "snapshot_git_head": "53856c6cff6a1f0c00742c04e34e66bed3422274",
+  "first_committed_snapshot_builder": "f214fd441986e90247f757a83d36e240523df800",
+  "minimum_source_tag_count": 5,
+  "minimum_source_taxonomy_count": 5,
+  "minimum_frozen_tag_count": 5,
+  "products": 6693,
+  "taxonomy_paths": 363,
+  "product_fold_sizes": [
+    1300,
+    1337,
+    1348,
+    1372,
+    1336
+  ],
+  "training_taxonomy_counts": [
+    360,
+    361,
+    362,
+    359,
+    363
+  ],
+  "fold_replay": {
+    "cutoff_selection": "The reconstructed source cutoff maximised agreement with the stored folds among nearby classification timestamps. The builder itself assigned folds before applying the snapshot cutoff.",
+    "capture_timestamp": {
+      "classification_cutoff": "2026-02-26T17:35:34.843938+11:00",
+      "source_rows": 12734,
+      "source_paths": 1608,
+      "minimum_source_path_count": 1,
+      "source_paths_with_fewer_than_five": 1141,
+      "matched_product_keys": 6693,
+      "stored_folds_reproduced": {
+        "KFold": 4325,
+        "StratifiedKFold": 1362
+      }
+    },
+    "reconstructed_source": {
+      "classification_cutoff": "2026-02-25T20:49:55.183887+00:00",
+      "source_rows": 12717,
+      "source_paths": 1606,
+      "minimum_source_path_count": 1,
+      "source_paths_with_fewer_than_five": 1139,
+      "matched_product_keys": 6689,
+      "stored_folds_reproduced": {
+        "KFold": 6689,
+        "StratifiedKFold": 1351
+      }
+    }
+  },
+  "title_coverage": {
+    "product_tag_pairs": 34042,
+    "matching_product_tag_pairs": 3559,
+    "distinct_tags": 2542,
+    "distinct_matching_tags": 456,
+    "products_with_title_match": 2456,
+    "products_with_same_part_pair": 609,
+    "elo_battles": 1178
+  },
+  "encoding": {
+    "prime": 71,
+    "maximum_digit": 67,
+    "maximum_path_depth": 7,
+    "paths_by_depth": {
+      "1": 13,
+      "2": 39,
+      "3": 101,
+      "4": 143,
+      "5": 59,
+      "6": 7,
+      "7": 1
+    },
+    "products_by_depth": {
+      "1": 214,
+      "2": 574,
+      "3": 2450,
+      "4": 2588,
+      "5": 695,
+      "6": 140,
+      "7": 32
+    }
+  }
+}

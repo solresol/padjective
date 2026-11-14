@@ -1,8 +1,10 @@
 import json
 from datetime import datetime, timezone
+from pathlib import Path
 import uuid
 
 import padjective.product_taxonomy_bench_export as export_mod
+import padjective.hf_sync as sync_mod
 from padjective.product_taxonomy_bench_export import (
     DEFAULT_DATASET_CITATION_BIBTEX,
     SnapshotMetadata,
@@ -12,6 +14,7 @@ from padjective.product_taxonomy_bench_export import (
     stage_hf_notebook,
 )
 from padjective.product_taxonomy_bench_notebook import render_notebook
+from padjective.release_licensing import stage_release_licenses
 
 
 def test_render_hf_dataset_card_includes_snapshots() -> None:
@@ -65,6 +68,12 @@ def test_render_hf_dataset_card_includes_snapshots() -> None:
     assert "- config_name: latest" in card
     assert '"latest/products-*.jsonl.gz"' in card
     assert DEFAULT_DATASET_CITATION_BIBTEX in card
+    assert "SHIMP (Shopify Hierarchical Inference for Merchant Products)" in card
+    assert "title={{SHIMP: Shopify Hierarchical Inference for Merchant Products}}" in card
+    assert "doi={10.57967/hf/8413}" in card
+    assert "license: cc-by-4.0" in card
+    assert "[LICENSE-CODE](./LICENSE-CODE)" in card
+    assert "license: other" not in card
     assert "TODO" not in card
 
 
@@ -78,6 +87,37 @@ def test_stage_hf_notebook_generates_ablation_notebook(tmp_path) -> None:
     assert notebook_path.name == "product_taxonomy_bench.ipynb"
 
 
+def test_release_licences_reach_the_hub_uploader(tmp_path, monkeypatch) -> None:
+    notices = stage_release_licenses(tmp_path)
+    (tmp_path / "README.md").write_text("---\nlicense: cc-by-4.0\n---\n")
+    for name in ("paper", "latest"):
+        (tmp_path / name).mkdir()
+    uploaded = {}
+    folders = []
+
+    class FakeApi:
+        def create_repo(self, **kwargs):
+            pass
+
+        def upload_file(self, *, path_in_repo, path_or_fileobj, **kwargs):
+            uploaded[path_in_repo] = Path(path_or_fileobj).read_bytes()
+
+        def upload_folder(self, *, path_in_repo, **kwargs):
+            folders.append(path_in_repo)
+
+    monkeypatch.setattr(sync_mod, "_require_huggingface_hub", lambda: FakeApi)
+    sync_mod.upload_export_root(
+        tmp_path, sync_mod.UploadOptions(repo_id="test/shimp", replace_folders=())
+    )
+
+    assert set(uploaded) == {"README.md", "LICENSE", "LICENSE-DATA", "LICENSE-CODE", "THIRD_PARTY_NOTICES.md"}
+    assert all(uploaded[path.name] == path.read_bytes() for path in notices)
+    assert b"Attribution 4.0 International" in uploaded["LICENSE-DATA"]
+    assert b"Copyright (c) 2026 Gregory D. Baker" in uploaded["LICENSE-CODE"]
+    assert b"Copyright (c) Shopify" in uploaded["THIRD_PARTY_NOTICES.md"]
+    assert set(folders) == {"paper", "latest"}
+
+
 def test_render_notebook_includes_embedded_runtime_and_tables() -> None:
     notebook = render_notebook()
     combined = "\n".join(
@@ -87,7 +127,7 @@ def test_render_notebook_includes_embedded_runtime_and_tables() -> None:
     assert "build_snapshot_benchmark_bundle" in combined
     assert "load_snapshot_tables_from_hf" in combined
     assert "ablation_table" in combined
-    assert "ACTIVE_PARAMS_EXCLUDED = {\"pclr\", \"pcnn\"}" in combined
+    assert "ACTIVE_PARAMS_EXCLUDED = {\"pclr\", \"pcnn\", \"zubarev\"}" in combined
     assert "log10(mean p-adic loss)" in combined
 
 

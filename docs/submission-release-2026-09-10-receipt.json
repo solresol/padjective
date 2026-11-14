@@ -1,0 +1,17 @@
+{
+  "status": "published_and_verified",
+  "repository": "gregb/product-taxonomy-bench",
+  "revision": "edf77476974fc3b26e9c7a74178124a1d6b1986b",
+  "tag": "paper-submission-2026-09-10",
+  "tag_object": "ab1c03a38c43435aa012e97577abae5f2fe4deb5",
+  "previous_tag_object": "6a496bd7f1969629a41f547371d15d3375aa86c1",
+  "parent_commit": "7cbb35030dcb2175d130e44a42442a1efb1c983b",
+  "previous_reference_commit": "7cbb35030dcb2175d130e44a42442a1efb1c983b",
+  "preserved_previous_files": 52,
+  "verified_new_files": 110,
+  "appended_new_file_lfs_rules": [
+    "submission/2026-09-10/paper-evidence/output/pdf/padjective-padic-journal.pdf"
+  ],
+  "manifest_sha256": "ed0792dd8556b19a51248cad07f85a49eac2e3002030ce2cd4e26922bc753b06",
+  "url": "https://huggingface.co/datasets/gregb/product-taxonomy-bench/tree/paper-submission-2026-09-10/submission/2026-09-10"
+}

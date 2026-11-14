@@ -1,0 +1,96 @@
+{
+  "experiment_key": "paper-polish-audit-2026-11-10",
+  "snapshot_id": "244ddbe3-0a2c-4c04-9436-0a0253108a09",
+  "snapshot_digest": "039175941ed2a2ec888bc6c7314c3c5f8afac1201ff604413dedb55641706222",
+  "tree_batch": "95b8a6bf-28b9-4a17-9ee6-58759d149ff5",
+  "configuration": {
+    "family": "tree",
+    "class_weight": null,
+    "seed": 42,
+    "sweep": "leaves",
+    "max_leaf_nodes": 512
+  },
+  "scikit_learn": "1.6.1",
+  "trees": [
+    {
+      "fold": 0,
+      "depth": 414,
+      "leaves": 512,
+      "leaf_offshoots": 363,
+      "absent_tag_branches": 414,
+      "splits_with_at_most_ten_percent_present": 414,
+      "model_sha256": "ff2188fae7d96809662fa08e974dab95d971c8f8cac1c644949f1622ac39cba8",
+      "prediction_sha256": "e28daccacc698432eae3c8b339478ab45608c218b1741f46471c6aa33fe828e6"
+    },
+    {
+      "fold": 1,
+      "depth": 410,
+      "leaves": 512,
+      "leaf_offshoots": 356,
+      "absent_tag_branches": 410,
+      "splits_with_at_most_ten_percent_present": 410,
+      "model_sha256": "e1936487de2df0c6b541db86271ecf41c943aec51bb8b36c86456b3aa0e91a42",
+      "prediction_sha256": "e62de30ce0735b9252430d27b1bc36b02428a973a87c681be7209dbee89a4fda"
+    },
+    {
+      "fold": 2,
+      "depth": 415,
+      "leaves": 512,
+      "leaf_offshoots": 366,
+      "absent_tag_branches": 415,
+      "splits_with_at_most_ten_percent_present": 415,
+      "model_sha256": "437f4f7841387779d00a49460832cb56c73a9e5a4be487ccd2f4b882a1591f2f",
+      "prediction_sha256": "4421a6e00dd94828d0651a98d5348109e6719ca31d4e23562f435f9bf50a89b6"
+    },
+    {
+      "fold": 3,
+      "depth": 398,
+      "leaves": 512,
+      "leaf_offshoots": 343,
+      "absent_tag_branches": 398,
+      "splits_with_at_most_ten_percent_present": 398,
+      "model_sha256": "de3f09d017c1da98d809374f4b37f6cde4eee7bfe0697c3ebc4ec941b692afa3",
+      "prediction_sha256": "6367e62721ce9005b47f16d391e69d8dcb80d4733affb33f67af9f516be7622b"
+    },
+    {
+      "fold": 4,
+      "depth": 421,
+      "leaves": 512,
+      "leaf_offshoots": 376,
+      "absent_tag_branches": 421,
+      "splits_with_at_most_ten_percent_present": 421,
+      "model_sha256": "8b2391ba949aaee3bbc0c67a381426f048b61c03426a4fa497b9af6ec24a33b3",
+      "prediction_sha256": "e0d2746079e7141b553e444e63ad5fe7b109a0d90e29965de3a16f4703b078fb"
+    }
+  ],
+  "encoding": {
+    "paths": 363,
+    "smallest_digit": 1,
+    "largest_digit": 67,
+    "maximum_observed_out_degree": 24
+  },
+  "catalogue_key_sample": [
+    {
+      "run": "2023-03",
+      "sampled_rows": 7,
+      "wrapped_products": 7,
+      "product_type_key": 7,
+      "standard_category_keys": 0
+    },
+    {
+      "run": "2023-04",
+      "sampled_rows": 774,
+      "wrapped_products": 774,
+      "product_type_key": 774,
+      "standard_category_keys": 0
+    },
+    {
+      "run": "2024-08",
+      "sampled_rows": 706,
+      "wrapped_products": 706,
+      "product_type_key": 706,
+      "standard_category_keys": 0
+    }
+  ],
+  "catalogue_sample_protocol": "PostgreSQL system block sample, 0.003% with seed 42. Key coverage cannot establish merchant category assignment."
+}
