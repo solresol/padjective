@@ -5,7 +5,7 @@ import pytest
 from padjective import db
 
 
-def connection(database="shopifystores", port=5433, major=18, user="padjective"):
+def connection(database="shopifystores", port=5432, major=18, user="padjective"):
     return Mock(info=SimpleNamespace(dbname=database, port=port, server_version=major * 10000, user=user))
 
 
@@ -22,15 +22,15 @@ def test_default_is_explicit_pg18_socket(monkeypatch):
     connect = Mock(return_value=conn)
     monkeypatch.setattr(db.psycopg, "connect", connect)
     assert db.get_connection() is conn
-    connect.assert_called_once_with(dbname="shopifystores", host="/var/run/postgresql", port="5433")
+    connect.assert_called_once_with(dbname="shopifystores", host="/var/run/postgresql", port="5432")
     conn.cursor.assert_not_called()
 
 
-@pytest.mark.parametrize("bad", [connection(port=5432, major=16), connection(port=5432),
+@pytest.mark.parametrize("bad", [connection(port=5433, major=16), connection(port=5433),
                                  connection(major=16), connection(database="other")])
 def test_wrong_route_closes_before_application_sql(monkeypatch, bad):
     monkeypatch.setattr(db.psycopg, "connect", Mock(return_value=bad))
-    monkeypatch.setenv("PGPORT", "5432")
+    monkeypatch.setenv("PGPORT", "5433")
     with pytest.raises(RuntimeError, match="identity mismatch"):
         db.get_connection()
     bad.close.assert_called_once()
@@ -38,12 +38,12 @@ def test_wrong_route_closes_before_application_sql(monkeypatch, bad):
 
 
 def test_explicit_dsn_has_precedence_but_cannot_evade_guard(monkeypatch):
-    connect = Mock(return_value=connection(port=5432, major=16))
+    connect = Mock(return_value=connection(port=5433, major=16))
     monkeypatch.setattr(db.psycopg, "connect", connect)
-    monkeypatch.setenv("SHOPIFY_DB_DSN", "dbname=shopifystores port=5433")
+    monkeypatch.setenv("SHOPIFY_DB_DSN", "dbname=shopifystores port=5432")
     with pytest.raises(RuntimeError):
-        db.get_connection("dbname=shopifystores port=5432")
-    connect.assert_called_once_with("dbname=shopifystores port=5432")
+        db.get_connection("dbname=shopifystores port=5433")
+    connect.assert_called_once_with("dbname=shopifystores port=5433")
 
 
 def test_expected_role_and_isolated_rehearsal(monkeypatch):
@@ -59,6 +59,6 @@ def test_ci_fixture_uses_its_explicit_pg18_identity(monkeypatch):
     monkeypatch.setenv("PADJECTIVE_EXPECTED_PORT", "5433")
     monkeypatch.setenv("PADJECTIVE_EXPECTED_SERVER_MAJOR", "18")
     monkeypatch.setenv("PADJECTIVE_EXPECTED_USER", "postgres")
-    db.verify_connection(connection(database="postgres", user="postgres"))
+    db.verify_connection(connection(database="postgres", user="postgres", port=5433))
     with pytest.raises(RuntimeError, match="identity mismatch"):
-        db.verify_connection(connection(database="postgres", user="postgres", major=15))
+        db.verify_connection(connection(database="postgres", user="postgres", port=5433, major=15))

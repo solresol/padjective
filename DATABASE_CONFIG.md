@@ -1,5 +1,17 @@
 # Production database configuration
 
+## Standard-port deployment
+
+This revision targets PostgreSQL 18 on port **5432** on Raksasa. Activate its
+connection defaults and guards together with the final cluster port change.
+Database names, application roles, authentication and schedule times stay the
+same. Earlier dated migration records below describe the temporary 5433 phase.
+
+Keep the PostgreSQL 16 cluster registered and its original data intact, stopped
+and without automatic startup after the handoff. Do not resume writes to an old
+copy after PostgreSQL 18 writes without first reconciling the newer data.
+
+
 This revision's production profile uses PostgreSQL 18. Activate it only as part
 of the verified Shopify / Padjective / CantBuyMeLove group cutover.
 

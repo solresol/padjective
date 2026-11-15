@@ -16,7 +16,7 @@ def verify_connection(conn: psycopg.Connection) -> None:
     """Reject a stale or unexpected endpoint before application SQL runs."""
     expected = (
         os.getenv("PADJECTIVE_EXPECTED_DATABASE", "shopifystores"),
-        int(os.getenv("PADJECTIVE_EXPECTED_PORT", "5433")),
+        int(os.getenv("PADJECTIVE_EXPECTED_PORT", "5432")),
         int(os.getenv("PADJECTIVE_EXPECTED_SERVER_MAJOR", "18")),
     )
     actual = (conn.info.dbname, conn.info.port, conn.info.server_version // 10000)
@@ -42,7 +42,7 @@ def get_connection(dsn: str | None = None) -> psycopg.Connection:
         conn = psycopg.connect(
             dbname=os.getenv("PGDATABASE", "shopifystores"),
             host=os.getenv("PGHOST", "/var/run/postgresql"),
-            port=os.getenv("PGPORT", "5433"),
+            port=os.getenv("PGPORT", "5432"),
         )
     try:
         verify_connection(conn)

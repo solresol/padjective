@@ -11,8 +11,8 @@ cd "$SCRIPT_DIR"
 git pull -q
 
 # Production endpoint; stale inherited routes must fail before any writes.
-export PGHOST=/var/run/postgresql PGPORT=5433 PGDATABASE=shopifystores PGUSER=padjective
-export PADJECTIVE_EXPECTED_DATABASE=shopifystores PADJECTIVE_EXPECTED_PORT=5433
+export PGHOST=/var/run/postgresql PGPORT=5432 PGDATABASE=shopifystores PGUSER=padjective
+export PADJECTIVE_EXPECTED_DATABASE=shopifystores PADJECTIVE_EXPECTED_PORT=5432
 export PADJECTIVE_EXPECTED_SERVER_MAJOR=18 PADJECTIVE_EXPECTED_USER=padjective
 
 OUTPUT_DIR=${PADJECTIVE_SITE_DIR:-build/site}
