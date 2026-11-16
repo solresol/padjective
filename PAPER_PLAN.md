@@ -1,4 +1,9 @@
-# PAPER_PLAN.md — the paper this should become
+# PAPER_PLAN.md — historical July 2026 proposal
+
+**Archived planning document, not the current manuscript specification.** The
+submission is now the SHIMP benchmark paper in `solresol/papers/padjective/padic-journal`.
+Retain the analysis below as history; do not restore its proposed framing or
+claims without checking the current paper and evidence.
 
 *Written 2026-07-12, after a multi-agent review of the padjective repo, the rejected
 SIGIR-eCom draft, the thesis (Chapter 11), all accumulated reviews, a literature sweep,

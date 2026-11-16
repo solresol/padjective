@@ -1,0 +1,257 @@
+{
+  "source_commit": "b98d1871934010bd03a5126f52dae02a48604b74",
+  "folds": [
+    {
+      "fold": 0,
+      "coordinates": 2542,
+      "nonoptimal": [],
+      "different_exact_ties": [
+        {
+          "step": 1733,
+          "actual": 4683233,
+          "exact": 2893678,
+          "cost_gap": "0"
+        }
+      ],
+      "defaults": [
+        {
+          "actual": 2928893,
+          "exact": 2928893,
+          "cost_gap": "0"
+        }
+      ],
+      "stored_predictions_match": true,
+      "prediction_sha256": "af22d7d071ccb08941f756f5bdcb4284f4d5b10ca1a066be4a4526b62479d2db",
+      "independent_fit_matches_exact_replay": true,
+      "original_losses": {
+        "2": 0.3372596153846154,
+        "71": 0.2673087232539301
+      },
+      "exact_losses": {
+        "2": 0.3370673076923077,
+        "71": 0.2673087189554829
+      },
+      "exact_fit_changed_predictions": 3,
+      "exact_fit_changed_coefficients": 2
+    },
+    {
+      "fold": 1,
+      "coordinates": 2542,
+      "nonoptimal": [],
+      "different_exact_ties": [
+        {
+          "step": 1788,
+          "actual": 1073733,
+          "exact": 0,
+          "cost_gap": "0"
+        },
+        {
+          "step": 1789,
+          "actual": 0,
+          "exact": -1073733,
+          "cost_gap": "0"
+        },
+        {
+          "step": 1804,
+          "actual": 0,
+          "exact": -1073733,
+          "cost_gap": "0"
+        },
+        {
+          "step": 1805,
+          "actual": 0,
+          "exact": -1073733,
+          "cost_gap": "0"
+        },
+        {
+          "step": 1806,
+          "actual": 0,
+          "exact": -1073733,
+          "cost_gap": "0"
+        },
+        {
+          "step": 1811,
+          "actual": 0,
+          "exact": -1073733,
+          "cost_gap": "0"
+        },
+        {
+          "step": 1924,
+          "actual": 146,
+          "exact": 4,
+          "cost_gap": "0"
+        },
+        {
+          "step": 2413,
+          "actual": -4898,
+          "exact": -2035873382,
+          "cost_gap": "0"
+        },
+        {
+          "step": 2435,
+          "actual": 486053446,
+          "exact": 155701593,
+          "cost_gap": "0"
+        },
+        {
+          "step": 2461,
+          "actual": 50823362,
+          "exact": 0,
+          "cost_gap": "0"
+        }
+      ],
+      "defaults": [
+        {
+          "actual": 2928893,
+          "exact": 2928893,
+          "cost_gap": "0"
+        }
+      ],
+      "stored_predictions_match": true,
+      "prediction_sha256": "1a0b8f6412807eecc7d9678ccf4e77680d489cc0ab1e0a0a3d5e79916623daf6",
+      "independent_fit_matches_exact_replay": true,
+      "original_losses": {
+        "2": 0.33610695587135375,
+        "71": 0.26951031488600635
+      },
+      "exact_losses": {
+        "2": 0.3343305908750935,
+        "71": 0.26946802881254966
+      },
+      "exact_fit_changed_predictions": 28,
+      "exact_fit_changed_coefficients": 5
+    },
+    {
+      "fold": 2,
+      "coordinates": 2542,
+      "nonoptimal": [],
+      "different_exact_ties": [
+        {
+          "step": 2396,
+          "actual": 511465127,
+          "exact": 155701593,
+          "cost_gap": "0"
+        },
+        {
+          "step": 2448,
+          "actual": 4360537,
+          "exact": 423516,
+          "cost_gap": "0"
+        },
+        {
+          "step": 2453,
+          "actual": 4718448,
+          "exact": 3286804,
+          "cost_gap": "0"
+        }
+      ],
+      "defaults": [
+        {
+          "actual": 2928893,
+          "exact": 2928893,
+          "cost_gap": "0"
+        }
+      ],
+      "stored_predictions_match": true,
+      "prediction_sha256": "4eb8a1254f7c2ce2ae7825b5180fc592876ff6f1a5399d573b99e43d86f3280f",
+      "independent_fit_matches_exact_replay": true,
+      "original_losses": {
+        "2": 0.31889836795252224,
+        "71": 0.2576431424265482
+      },
+      "exact_losses": {
+        "2": 0.31889836795252224,
+        "71": 0.2576431424265482
+      },
+      "exact_fit_changed_predictions": 8,
+      "exact_fit_changed_coefficients": 4
+    },
+    {
+      "fold": 3,
+      "coordinates": 2541,
+      "nonoptimal": [],
+      "different_exact_ties": [
+        {
+          "step": 2123,
+          "actual": 177881767,
+          "exact": 0,
+          "cost_gap": "0"
+        },
+        {
+          "step": 2363,
+          "actual": 0,
+          "exact": -357911,
+          "cost_gap": "0"
+        }
+      ],
+      "defaults": [
+        {
+          "actual": 2928893,
+          "exact": 2928893,
+          "cost_gap": "0"
+        }
+      ],
+      "stored_predictions_match": true,
+      "prediction_sha256": "38f4452d189d3611ef3f063c1f86cf6ac814d5081e547ad97995f7b4bec9bcca",
+      "independent_fit_matches_exact_replay": true,
+      "original_losses": {
+        "2": 0.32206632653061223,
+        "71": 0.2595884451514726
+      },
+      "exact_losses": {
+        "2": 0.3220207725947522,
+        "71": 0.2595884451227904
+      },
+      "exact_fit_changed_predictions": 2,
+      "exact_fit_changed_coefficients": 3
+    },
+    {
+      "fold": 4,
+      "coordinates": 2542,
+      "nonoptimal": [],
+      "different_exact_ties": [
+        {
+          "step": 2100,
+          "actual": 104520320,
+          "exact": 79108639,
+          "cost_gap": "0"
+        },
+        {
+          "step": 2220,
+          "actual": 5096594,
+          "exact": 443751,
+          "cost_gap": "0"
+        },
+        {
+          "step": 2474,
+          "actual": 4718448,
+          "exact": 3286804,
+          "cost_gap": "0"
+        }
+      ],
+      "defaults": [
+        {
+          "actual": 2928893,
+          "exact": 2928893,
+          "cost_gap": "0"
+        }
+      ],
+      "stored_predictions_match": true,
+      "prediction_sha256": "699b2ea259849ba3f5f4f43414df8f133530110e03d5b6783a4098254a54fe3d",
+      "independent_fit_matches_exact_replay": true,
+      "original_losses": {
+        "2": 0.32709580838323354,
+        "71": 0.2621327524134289
+      },
+      "exact_losses": {
+        "2": 0.32704902694610777,
+        "71": 0.26213275035157363
+      },
+      "exact_fit_changed_predictions": 7,
+      "exact_fit_changed_coefficients": 3
+    }
+  ],
+  "snapshot_digest": "039175941ed2a2ec888bc6c7314c3c5f8afac1201ff604413dedb55641706222",
+  "products": 6693,
+  "archived_folds": 5
+}
