@@ -11,7 +11,7 @@ association. PageRank and the leading eigenvector are weaker than degree
 and betweenness on both graphs.
 
 Report: `docs/priority-list-graph-2026-11-23.json`, experiment
-`paper-priority-list-graph-2026-11-23`, source commit `300b1a9`, status
+`paper-priority-list-graph-2026-11-23-v2`, source commit `51f3a65`, status
 `exploratory`. It was not inserted into `padjective.paper_low_q_reports`.
 The priority-list models are described in `docs/priority-list-results.md`.
 
@@ -110,6 +110,82 @@ Store holdouts:
   label-free orders fall between the two references and are not
   significantly different from either.
 
+## Further scores and pure-tag peeling
+
+A second batch added five scores and one order built from an exact
+reduction. The rows of the first batch are unchanged.
+
+- **Neighbourhood completeness** is the local clustering coefficient: the
+  share of pairs of a tag's neighbours in the co-occurrence graph that are
+  themselves joined. The graph's density is 0.016 and the mean
+  completeness is 0.73.
+- **Core number** is the largest $k$ for which the tag survives in the
+  $k$-core of the co-occurrence graph.
+- **Taxonomy spread** is the mean $d_{71,71}$ distance from a tag's
+  labels to their medoid. It is taxonomy association with the hierarchical
+  distance in place of exact category match.
+- **Shared path prefix** is the number of leading digits on which all of a
+  tag's labels agree.
+
+Product holdouts:
+
+| Order | Uses labels | List | Backfilled | Pooled | Reverse direction: backfilled |
+|---|---|---:|---:|---:|---:|
+| Co-occurrence: neighbourhood completeness, most complete first | no | 0.1755 | 0.1693 | 0.1874 | 0.2679 |
+| Co-occurrence: core number, shallowest first | no | 0.1778 | 0.1711 | 0.1979 | 0.2673 |
+| Co-occurrence: mean neighbour degree, highest first | no | 0.2003 | 0.1944 | 0.2230 | 0.2170 |
+| Taxonomy spread of a tag's paths, tightest first | yes | 0.1519 | 0.1455 | 0.1606 | 0.2835 |
+| Shared path prefix, longest first | yes | 0.1651 | 0.1569 | 0.1729 | 0.2790 |
+| Pure tags peeled first, then taxonomy association | yes | 0.1604 | 0.1557 | 0.1697 | |
+| Taxonomy association (reference) | yes | 0.1576 | 0.1516 | 0.1657 | |
+| Random, five seeds (reference) | no | 0.2141 | 0.2072 | 0.2195 | |
+
+Store holdouts:
+
+| Order | Uses labels | List | Backfilled | Pooled | Reverse direction: backfilled |
+|---|---|---:|---:|---:|---:|
+| Co-occurrence: neighbourhood completeness, most complete first | no | 0.6698 | 0.6523 | 0.6392 | 0.6559 |
+| Co-occurrence: core number, shallowest first | no | 0.6670 | 0.6559 | 0.6409 | 0.6638 |
+| Co-occurrence: mean neighbour degree, highest first | no | 0.6633 | 0.6530 | 0.6444 | 0.6476 |
+| Taxonomy spread of a tag's paths, tightest first | yes | 0.6445 | 0.6353 | 0.6249 | 0.6781 |
+| Shared path prefix, longest first | yes | 0.6481 | 0.6422 | 0.6269 | 0.6733 |
+| Pure tags peeled first, then taxonomy association | yes | 0.6585 | 0.6513 | 0.6305 | |
+| Taxonomy association (reference) | yes | 0.6517 | 0.6420 | 0.6259 | |
+| Random, five seeds (reference) | no | 0.6723 | 0.6592 | 0.6464 | |
+
+Neighbourhood completeness orders tags usefully without labels: most
+complete first is 0.038 below random orders on every product fold
+(adjusted p 0.005, backfilled). It is 0.018 above taxonomy association and
+no better than the simpler count of distinct neighbours.
+
+Taxonomy spread is the lowest static order tried. On product holdouts it
+is below taxonomy association on every fold, by 0.006 for both the plain
+and the backfilled list (unadjusted p 0.077 and 0.017). It gains at the
+top of the tree: backfilled root accuracy is 0.929 against 0.919, while
+exact accuracy is 0.646 against 0.657. These are two of
+66 comparisons with taxonomy association in this report, and neither
+survives Holm adjustment, so the result needs an untouched check. On store
+holdouts it is 0.007 lower and not significant (unadjusted p 0.29).
+
+### Peeling pure tags
+
+A tag is pure when all of its products share one label. Moving a pure tag
+to the front of any order cannot raise the fitting loss: the tag then
+heads all of its products exactly, and every other tag heads a subset of
+what it headed before. Repeating this on the products that remain gives a
+prefix of the order that is optimal for fitting, and leaves a kernel on
+which the choice of order matters.
+
+On the product fitting folds, peeling places a mean of 1,306 tags and
+settles 2,336 of 5,354 products with zero fitting loss. The
+kernel has 3,018 products and 1,150 tags in 63
+co-occurrence components, the largest with 955 tags. Exact search
+over the kernel is therefore still out of reach.
+
+Peeling first and then following taxonomy association lowers the fitting
+loss from 0.096 to 0.093 and does not lower the held-out loss (0.1557
+against 0.1516 backfilled on product holdouts).
+
 ## Limits
 
 - These comparisons reuse the same five folds as every earlier analysis.
@@ -120,8 +196,8 @@ Store holdouts:
 ## Reproduce
 
 ```bash
-uv run -m padjective.paper_priority_list_graph --source-commit 300b1a9 --workers 10 --output docs/priority-list-graph-2026-11-23.json
+uv run -m padjective.paper_priority_list_graph --source-commit 51f3a65 --workers 10 --output docs/priority-list-graph-2026-11-23.json
 ```
 
-The run takes about 95 seconds with ten workers on Raksasa. Add `--archive`
+The run takes about 100 seconds with ten workers on Raksasa. Add `--archive`
 to insert the report into `padjective.paper_low_q_reports`.
