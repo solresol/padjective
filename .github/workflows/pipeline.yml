@@ -2,7 +2,7 @@ name: Pipeline
 
 on:
   push:
-    branches: ["main"]
+    branches: ["main", "codex/padjective-ci-verify-thread-restore-20261123"]
   pull_request:
     branches: ["main"]
 
