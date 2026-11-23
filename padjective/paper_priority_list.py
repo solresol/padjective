@@ -149,6 +149,7 @@ def run_split(dataset, scoring, references, archived):
     reference = defaultdict(lambda: defaultdict(list))
     lists = {q: defaultdict(lambda: defaultdict(list)) for q in FIT_Q}
     votes = {q: [] for q in FIT_Q}
+    constants = {q: [] for q in FIT_Q}
     sizes = []
     for fold in matched.FOLDS:
         training = [r for r in dataset.records if r.cv_fold != fold]
@@ -161,6 +162,8 @@ def run_split(dataset, scoring, references, archived):
         for q, (values, default) in pooled.items():
             votes[q].append(dict(fold=fold, stored=len(values), **scored(
                 targets, *predict_vote(testing, values, default, prime=matched.PRIME))))
+            constants[q].append(dict(fold=fold, **scored(
+                targets, [default] * len(targets), [False] * len(targets))))
         for order, seed in ORDERS:
             one_pass_default, original, terms = oracle.term_rows(
                 dataset, fold, references[fold, order, seed], scoring,
@@ -197,11 +200,17 @@ def run_split(dataset, scoring, references, archived):
             pooled_priority=summarise(lists[q][order]["pooled_priority"], ("stored",)))
             for order in orders}
         cell = {order: by_order[order]["cell"] for order in orders}
+        pooled_lists = {order: by_order[order]["pooled_priority"] for order in orders}
+        vote = summarise(votes[q], ("stored",))
+        medoids = {order: refs[order]["medoid"] for order in orders}
         fits[str(q)] = dict(
-            orders=by_order, pooled_vote=summarise(votes[q], ("stored",)),
+            orders=by_order, pooled_vote=vote, constant=summarise(constants[q]),
             tests=dict(
-                cell_minus_medoid=paired(cell, {o: refs[o]["medoid"] for o in orders}, sizes),
-                cell_minus_sum=paired(cell, {o: refs[o]["sum"] for o in orders}, sizes)))
+                cell_minus_medoid=paired(cell, medoids, sizes),
+                cell_minus_sum=paired(cell, {o: refs[o]["sum"] for o in orders}, sizes),
+                pooled_priority_minus_medoid=paired(pooled_lists, medoids, sizes),
+                pooled_vote_minus_medoid=paired({o: vote for o in orders}, medoids, sizes),
+                cell_minus_pooled_priority=paired(cell, pooled_lists, sizes)))
     return dict(fold_sizes=sizes, reference=refs, fits=fits)
 
 
@@ -223,9 +232,10 @@ def run(source_commit, *, archive=False):
                  "ties by integer order. Predict the coefficient of the highest-priority tag that "
                  "has one, else the medoid of all fitting labels. The pooled variants give each tag "
                  "the medoid of all of its fitting products and then select by the same order or by "
-                 "the native 71-adic medoid of the active values. The sum and medoid references "
-                 "reuse the frozen one-pass fits and must reproduce their archived scores. Average "
-                 "random seeds within each fold, then weight all five folds equally.",
+                 "the native 71-adic medoid of the active values. The constant row always predicts "
+                 "that default. The sum and medoid references reuse the frozen one-pass fits and "
+                 "must reproduce their archived scores. Average random seeds within each fold, "
+                 "then weight all five folds equally.",
         **provenance, splits=splits)
     return oracle.save_report(report) if archive else report
 
