@@ -179,8 +179,12 @@ jobs:
                   (idx, taxonomy_id),
                 )
           PY
-      - name: Run tests
-        run: uv run -m pytest -q -m "not slow"
+      # Isolate the levelwise optimizer tests: both partitions pass on the hosted
+      # runner, while the combined process segfaults in SciPy's L-BFGS-B.
+      - name: Run fast tests excluding the levelwise classifier
+        run: uv run -m pytest -q -m "not slow" --ignore=tests/test_taxonomy_levelwise_classifier.py
+      - name: Run fast levelwise classifier tests in a fresh process
+        run: uv run -m pytest -q -m "not slow" tests/test_taxonomy_levelwise_classifier.py
       - name: Run pipeline scripts
         run: |
           uv run padjective/tagbattle.py \
