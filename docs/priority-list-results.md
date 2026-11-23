@@ -134,11 +134,10 @@ values and not in coverage.
 - The lowest product-holdout entry, 0.1458, is the best of sixteen
   order-and-weight combinations and is not significantly below the
   backfilled taxonomy-association list.
-- The models were not tested against the classical learners. The
-  manuscript's product and store means for those are 0.1535 and 0.6708 for
-  L1 logistic regression and 0.1418 and 0.6539 for the wide network.
-- No local search over orders, shrinkage between cell and pooled values, or
-  ensemble of lists was run.
+- Tests against the classical learners and ensembles of lists are in
+  `docs/priority-list-ensembles-results.md`.
+- No local search over orders or shrinkage between cell and pooled values
+  was run.
 
 ## Reproduce
 
