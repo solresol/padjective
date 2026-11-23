@@ -190,8 +190,11 @@ def collect(rows, one_pass, classical):
             minus_single_list=family({
                 variant: (losses[variant, 243], single[variant]["fold_loss_q2"])
                 for variant in plist.VARIANTS}, sizes))
+    single_tests = family({
+        f"{variant}-{model}": (single[variant]["fold_loss_q2"], classical[model])
+        for variant in plist.VARIANTS for model in TESTED_CLASSICAL}, sizes)
     return dict(
-        fold_sizes=sizes, single_list=single,
+        fold_sizes=sizes, single_list=single, single_list_minus_classical=single_tests,
         classical={model: dict(loss_q2=mean(values), fold_loss_q2=values)
                    for model, values in classical.items()},
         one_pass_ensemble={kind: {str(size): row for size, row in by_size.items()}
