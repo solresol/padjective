@@ -25,7 +25,7 @@ from . import paper_matched_store_folds as matched
 from . import paper_priority_list as plist
 from . import paper_sum_oracle as oracle
 
-EXPERIMENT = "paper-priority-list-graph-2026-11-23"
+EXPERIMENT = "paper-priority-list-graph-2026-11-23-v2"
 FIT_Q = 71
 REFERENCE = "taxonomy_association"
 TESTED = ("cell", "cell_backfill")
@@ -104,6 +104,24 @@ def centralities(training):
     scores["battle_pagerank"] = nx.pagerank(battle_graph(training), weight="weight")
     counts = Counter(tag for record in training for tag in set(record.tags))
     scores["frequency"] = dict(counts)
+
+    # How complete a tag's neighbourhood is, and how deep it sits in the graph's core.
+    scores.update(
+        cooccurrence_clustering=nx.clustering(co),
+        cooccurrence_core=nx.core_number(co),
+        cooccurrence_neighbour_degree=nx.average_neighbor_degree(co))
+    labels = {tag: Counter() for tag in tags}
+    for record in training:
+        for tag in set(record.tags):
+            labels[tag][record.encoded_path] += 1
+    scale = float(FIT_Q) ** plist.DEPTH_CAP
+    scores["path_dispersion"] = {
+        tag: plist.medoid_cost(seen, prime=matched.PRIME, q=FIT_Q)[1] / scale / counts[tag]
+        for tag, seen in labels.items()}
+    scores["path_shared_prefix"] = {tag: shared_prefix(seen) for tag, seen in labels.items()}
+
+    placed, kernel = plist.peel_pure_tags(training)
+    kernel_graph = cooccurrence_graph(kernel)
     facts = dict(
         tags=len(tags), products=len(training),
         tags_per_product=mean(len(set(r.tags)) for r in training),
@@ -111,8 +129,22 @@ def centralities(training):
         cooccurrence_components=nx.number_connected_components(co),
         largest_component=len(max(nx.connected_components(co), key=len)),
         tag_path_edges=paths.number_of_edges(),
-        single_path_tags=sum(paths.degree(("tag", tag)) == 1 for tag in tags))
-    return scores, counts, facts
+        single_path_tags=sum(paths.degree(("tag", tag)) == 1 for tag in tags),
+        cooccurrence_density=nx.density(co),
+        mean_clustering=mean(scores["cooccurrence_clustering"].values()),
+        peeled_tags=len(placed), peeled_products=len(training) - len(kernel),
+        kernel_tags=kernel_graph.number_of_nodes(), kernel_products=len(kernel),
+        kernel_components=nx.number_connected_components(kernel_graph),
+        kernel_largest_component=max(map(len, nx.connected_components(kernel_graph)), default=0))
+    return scores, counts, facts, placed
+
+
+def shared_prefix(labels):
+    """Number of leading base-71 digits on which all of a tag's labels agree."""
+    depth = 0
+    while depth < matched.PRECISION and len({y % matched.PRIME ** (depth + 1) for y in labels}) == 1:
+        depth += 1
+    return depth
 
 
 def centrality_order(score, counts, *, descending):
@@ -135,7 +167,10 @@ def fold_job(job):
     rows = {REFERENCE: [fit(reference)]}
     rows["random"] = [fit(runtime._tag_order(training, [], fold, strategy="random", seed=seed))
                       for seed in runtime.DEFAULT_RANDOM_SEEDS]
-    scores, counts, facts = centralities(training)
+    scores, counts, facts, placed = centralities(training)
+    peeled = set(placed)
+    rows["peel_then_taxonomy_association"] = [
+        fit(placed + [tag for tag in reference if tag not in peeled])]
     position = {tag: i for i, tag in enumerate(reference)}
     correlation = {}
     for name, score in scores.items():
@@ -155,7 +190,7 @@ def collect(results):
         orders[name] = {variant: plist.summarise(
             [dict(fold=r["fold"], **fit[variant]) for r in results for fit in r["rows"][name]], EXTRA)
             for variant in plist.VARIANTS}
-    graph = [name for name in orders if ":" in name]
+    graph = [name for name in orders if ":" in name or name.startswith("peel")]
     tests = {}
     for baseline in (REFERENCE, "random"):
         keys = [(name, variant) for name in graph for variant in TESTED]
@@ -186,8 +221,13 @@ def run(source_commit, workers, *, archive=False):
                  "eigenvector and unweighted betweenness give a score for every tag. Tags are "
                  "sorted by each score in both directions, with ties to the larger tag and then the "
                  "tag name, and each order is fitted as a priority list with cell medoids, "
-                 "backfilled cell medoids and pooled values. Taxonomy association and five random "
-                 "orders are refitted as references. Folds have equal weight.",
+                 "backfilled cell medoids and pooled values. Further scores are the local clustering "
+                 "coefficient, core number and mean neighbour degree in the co-occurrence graph, and "
+                 "for each tag the mean distance of its labels to their medoid and the number of "
+                 "leading digits its labels share. The peel order first places, repeatedly, every "
+                 "tag whose remaining products share one label, then the other tags in "
+                 "taxonomy-association order. Taxonomy association and five random orders are "
+                 "refitted as references. Folds have equal weight.",
         **provenance,
         splits={split: collect([r for r in results if r["split"] == split]) for split in datasets})
     return oracle.save_report(report) if archive else report

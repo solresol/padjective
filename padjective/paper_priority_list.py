@@ -168,6 +168,28 @@ def dynamic_order(training, rule, fallback):
     return order + [tag for tag in fallback if tag not in placed]
 
 
+def peel_pure_tags(training):
+    """Repeatedly place every tag whose remaining products all share one label.
+
+    Moving such a tag to the front of any order cannot raise the fitting loss:
+    it then heads all of its products exactly, and every other tag heads a
+    subset of what it headed before. The products left when no tag is pure are
+    the part of the fitting fold on which the choice of order matters.
+    """
+    remaining, placed = list(training), []
+    while True:
+        labels = defaultdict(set)
+        for record in remaining:
+            for tag in record.tags:
+                labels[tag].add(record.encoded_path)
+        pure = sorted(tag for tag, seen in labels.items() if len(seen) == 1)
+        if not pure:
+            return placed, remaining
+        placed.extend(pure)
+        chosen = set(pure)
+        remaining = [record for record in remaining if chosen.isdisjoint(record.tags)]
+
+
 def predict_priority(records, rank, coefficients, default):
     predictions, covered = [], []
     for record in records:
