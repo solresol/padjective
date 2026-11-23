@@ -151,6 +151,23 @@ def greedy_order(training, fallback, *, prime, q, smoothing):
     return order + [tag for tag in fallback if tag not in chosen]
 
 
+def dynamic_order(training, rule, fallback):
+    """Apply a static ordering rule to the products not yet headed, place its first tag, repeat.
+
+    ``rule`` maps a list of records to an ordering of the tags they carry. Each
+    placed tag heads every remaining product that has it, so the rule next sees
+    only products with none of the placed tags. Tags that head nothing follow
+    in ``fallback`` order.
+    """
+    remaining, order = list(training), []
+    while remaining:
+        tag = rule(remaining)[0]
+        order.append(tag)
+        remaining = [record for record in remaining if tag not in record.tags]
+    placed = set(order)
+    return order + [tag for tag in fallback if tag not in placed]
+
+
 def predict_priority(records, rank, coefficients, default):
     predictions, covered = [], []
     for record in records:
