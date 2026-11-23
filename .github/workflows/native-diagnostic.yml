@@ -46,3 +46,11 @@ jobs:
         run: |
           ulimit -c 0
           uv run --no-sync python .github/diagnostics/padjective_prefix.py
+      - name: Compare two-test order with and without threadpool restoration
+        run: |
+          ulimit -c 0
+          set +e
+          uv run --no-sync python .github/diagnostics/padjective_thread_fixture.py default
+          echo "unrestored pair exit=$?"
+          uv run --no-sync python .github/diagnostics/padjective_thread_fixture.py restored
+          echo "restored pair exit=$?"

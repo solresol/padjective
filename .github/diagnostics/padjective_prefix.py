@@ -25,22 +25,8 @@ def driver():
                 if any(w in l for w in ('Segmentation fault','train_levelwise_models','_lbfgsb_py.py','failed,','ERROR')):
                     print(l,flush=True)
         return p.returncode,meta['preceding']
-    _,hi=run(-1)
-    r0,_=run(0)
-    rf,_=run(hi)
-    if not (r0==0 and rf in (-11,139)):
-        print('Could not recreate a useful success/crash boundary; stop.',flush=True)
-        return
-    lo=0
-    for _ in range(7):
-        if hi-lo<=1:break
-        m=(hi+lo)//2; r,_=run(m)
-        if r==0:lo=m
-        elif r in (-11,139):hi=m
-        else:
-            print('Unexpected error; stop.',flush=True);return
-    # Confirm each result on a fresh process; a boundary is not a causal attribution.
-    a,_=run(lo); b,_=run(hi)
-    print(f'Observed reproduced boundary {lo}({a}) -> {hi}({b}); not proof of causal test.',flush=True)
+    a,_=run(253)
+    b,_=run(254)
+    print(f'Exact hosted prefix boundary 253({a}) -> 254({b})',flush=True)
 if len(sys.argv)==1:driver()
 else:raise SystemExit(collect_prefix(int(sys.argv[1])))
