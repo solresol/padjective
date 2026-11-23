@@ -42,51 +42,7 @@ jobs:
           numpy.show_config()
           scipy.show_config()
           PY
-      - name: Exact classifier in fresh process
-        id: targeted
-        continue-on-error: true
+      - name: Bound test execution prefix after complete collection
         run: |
           ulimit -c 0
-          uv run --no-sync -m pytest -vv tests/test_taxonomy_levelwise_classifier.py::test_levelwise_classifier_predicts_valid_taxonomy_leaf
-      - name: Collect all modules but execute target only
-        id: collected
-        continue-on-error: true
-        run: |
-          ulimit -c 0
-          uv run --no-sync -m pytest -vv -m 'not slow' -k test_levelwise_classifier_predicts_valid_taxonomy_leaf
-      - name: Collect all and execute preceding test plus target
-        id: pair
-        continue-on-error: true
-        run: |
-          ulimit -c 0
-          uv run --no-sync -m pytest -vv -m 'not slow' -k 'test_compute_taxonomy_top_tags_binary_expansion or test_levelwise_classifier_predicts_valid_taxonomy_leaf'
-      - name: Verify fast suite without levelwise classifier file
-        id: remainder
-        continue-on-error: true
-        run: |
-          ulimit -c 0
-          uv run --no-sync -m pytest -vv -m 'not slow' --ignore=tests/test_taxonomy_levelwise_classifier.py
-      - name: Verify entire levelwise classifier file separately
-        id: isolated_file
-        continue-on-error: true
-        run: |
-          ulimit -c 0
-          uv run --no-sync -m pytest -vv -m 'not slow' tests/test_taxonomy_levelwise_classifier.py
-      - name: Try available native debugger without installation
-        continue-on-error: true
-        run: |
-          ulimit -c 0
-          if command -v lldb >/dev/null; then
-            timeout 180 lldb --batch -o 'settings set target.disable-aslr false' -o 'run' -k 'bt 30' -k 'image list' \
-              -- .venv/bin/python -m pytest -vv -m 'not slow'
-          else
-            echo 'Neither GDB (previous run) nor LLDB was available; no installation attempted.'
-          fi
-      - name: Surface differential outcomes
-        if: always()
-        env:
-          ONLY: ${{ steps.collected.outcome }}
-          PAIR: ${{ steps.pair.outcome }}
-          REST: ${{ steps.remainder.outcome }}
-          FILE: ${{ steps.isolated_file.outcome }}
-        run: printf 'collect-only target=%s; preceding + target=%s; remainder=%s; isolated file=%s\n' "$ONLY" "$PAIR" "$REST" "$FILE"
+          uv run --no-sync python .github/diagnostics/padjective_prefix.py
