@@ -182,14 +182,19 @@ def scored(targets, predictions, covered):
     return row
 
 
+def fill(training, order, pooled_values, *, prime, q):
+    """The three ways of filling a priority list for one order."""
+    rank, cells = fit_cells(training, order, prime=prime, q=q)
+    kept = {tag: pooled_values[tag] for tag in rank if tag in pooled_values}
+    return rank, dict(cell=cells, cell_backfill={**kept, **cells}, pooled_priority=kept)
+
+
 def list_rows(training, testing, order, pooled_values, default, *, prime, q):
     """Score the three ways of filling a priority list for one order."""
     targets = [record.encoded_path for record in testing]
-    rank, cells = fit_cells(training, order, prime=prime, q=q)
+    rank, coefficients = fill(training, order, pooled_values, prime=prime, q=q)
     fitted = matched.SCORE([record.encoded_path for record in training],
-                           predict_priority(training, rank, cells, default)[0])
-    coefficients = dict(cell=cells, cell_backfill={**pooled_values, **cells},
-                        pooled_priority=pooled_values)
+                           predict_priority(training, rank, coefficients["cell"], default)[0])
     return {variant: dict(
         stored=len(values),
         train_loss_q2=None if variant == "pooled_priority" else fitted["loss_q2"],
