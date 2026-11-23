@@ -1,0 +1,70 @@
+name: Padjective native diagnostic
+on:
+  push:
+    branches:
+      - codex/padjective-ci-native-diagnostic-20261123
+permissions:
+  contents: read
+jobs:
+  native:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      PYTHONFAULTHANDLER: '1'
+      PYTHONPATH: ${{ github.workspace }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.11.18'
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: latest
+      - name: Inspect runner and locked runtime
+        run: |
+          set -euo pipefail
+          ulimit -c 0
+          uv sync --locked
+          uname -a
+          lscpu
+          uv run --no-sync python - <<'PY'
+          import json, os, platform, sys
+          import numpy, scipy, sklearn
+          from threadpoolctl import threadpool_info
+          print(sys.version)
+          print(platform.platform())
+          print('Affinity:', sorted(os.sched_getaffinity(0)))
+          print('Libraries:', numpy.__version__, scipy.__version__, sklearn.__version__)
+          print('Thread environment:', {k: os.getenv(k) for k in ('OMP_NUM_THREADS','OPENBLAS_NUM_THREADS','MKL_NUM_THREADS','BLIS_NUM_THREADS')})
+          print(json.dumps(threadpool_info(), indent=2))
+          numpy.show_config()
+          scipy.show_config()
+          PY
+      - name: Exact classifier in fresh process
+        id: targeted
+        continue-on-error: true
+        run: |
+          ulimit -c 0
+          uv run --no-sync -m pytest -vv tests/test_taxonomy_levelwise_classifier.py::test_levelwise_classifier_predicts_valid_taxonomy_leaf
+      - name: Full fast suite in fresh process
+        id: full
+        continue-on-error: true
+        run: |
+          ulimit -c 0
+          uv run --no-sync -m pytest -vv -m 'not slow'
+      - name: Single-thread control if baseline fails
+        if: steps.targeted.outcome == 'failure' || steps.full.outcome == 'failure'
+        env:
+          OMP_NUM_THREADS: '1'
+          OPENBLAS_NUM_THREADS: '1'
+          MKL_NUM_THREADS: '1'
+          BLIS_NUM_THREADS: '1'
+        run: |
+          ulimit -c 0
+          uv run --no-sync -m pytest -vv tests/test_taxonomy_levelwise_classifier.py::test_levelwise_classifier_predicts_valid_taxonomy_leaf
+          uv run --no-sync -m pytest -vv -m 'not slow'
+      - name: Surface original failure in diagnostic status
+        if: always() && (steps.targeted.outcome == 'failure' || steps.full.outcome == 'failure')
+        run: exit 1
