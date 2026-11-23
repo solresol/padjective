@@ -25,11 +25,14 @@ EXPERIMENT = "paper-priority-list-transductive-2026-11-23"
 FIT_Q = 71
 ORDER = "taxonomy_association"
 FILLS = ("cell_backfill", "pooled_priority")
-BASE, ORACLE = "base", "store_oracle_constant"
-EXTRA = ("uncovered_loss_q2", "reached_share", "reached_loss_q2", "reached_default_loss_q2",
-         "changed_share")
+BASE = "base"
+# Diagnostic rows that read held-out labels. They are not predictors.
+ORACLES = ("oracle_store_constant", "oracle_covered_labels", "oracle_tags", "oracle_leave_one_out")
+EXTRA = ("uncovered_loss_q2", "covered_products_loss_q2", "reached_share", "reached_loss_q2",
+         "reached_default_loss_q2", "changed_share")
 CONTRASTS = (("tags", "tags_one_round"), ("tags_vote", "tags"), ("tags_then_store", "store_default"),
-             ("tags_then_store", "tags"), ("tags_fold_scope", "tags"), ("local_first", "tags_one_round"))
+             ("tags_then_store", "tags"), ("tags_fold_scope", "tags"), ("local_first", "tags_one_round"),
+             ("store_consensus", "store_default"))
 
 
 def pick(active, choice, prime):
@@ -106,6 +109,7 @@ def store_variants(tag_lists, base, covered, targets, *, prime, q):
 
     out = {BASE: (list(base), list(covered))}
     out["store_default"] = then_store(*out[BASE])
+    out["store_consensus"] = out[BASE] if prior is None else ([prior] * n, [True] * n)
     for name, options in (("tags_one_round", dict(rounds=1)), ("tags", {}),
                           ("tags_vote", dict(choice="vote"))):
         values, when, _ = spread(tag_lists, base, covered, prime=prime, q=q, **options)
@@ -114,10 +118,28 @@ def store_variants(tag_lists, base, covered, targets, *, prime, q):
     values, when = smooth(tag_lists, base, covered, prime=prime, q=q)
     out["local_first"] = values, [step is not None for step in when]
 
-    # Diagnostic only: the best single code for the store's uncovered products, from their labels.
+    # Diagnostics from held-out labels. The first three change only the uncovered products.
     missed = [target for target, flag in zip(targets, covered, strict=True) if not flag]
     best = plist.medoid(missed, prime=prime, q=2) if missed else None
-    out[ORACLE] = [value if flag else best for value, flag in zip(base, covered)], [True] * n
+    out["oracle_store_constant"] = (
+        [value if flag else best for value, flag in zip(base, covered)], [True] * n)
+    truth = [target for target, flag in zip(targets, covered) if flag]
+    known = plist.medoid(truth, prime=prime, q=2) if truth else None
+    out["oracle_covered_labels"] = out[BASE] if known is None else (
+        [value if flag else known for value, flag in zip(base, covered)], [True] * n)
+    values, when, _ = spread(
+        tag_lists, [target if flag else value for target, value, flag in zip(targets, base, covered)],
+        covered, prime=prime, q=q)
+    out["oracle_tags"] = ([old if flag else value for old, value, flag in zip(base, values, covered)],
+                          [step is not None for step in when])
+    counts = Counter(targets)
+    others = []
+    for target in targets:
+        rest = counts - Counter([target])
+        others.append(plist.medoid_cost(rest, prime=prime, q=2)[0] if rest else None)
+    out["oracle_leave_one_out"] = (
+        [value if other is None else other for value, other in zip(base, others)],
+        [flag or other is not None for flag, other in zip(covered, others)])
     return out
 
 
@@ -146,6 +168,7 @@ def row(targets, predictions, reached, base, covered):
     changed = sum(flag and value != old for flag, value, old in zip(covered, predictions, base))
     out.update(
         uncovered_loss_q2=part(after, uncovered),
+        covered_products_loss_q2=part(after, [i for i, flag in enumerate(covered) if flag]),
         reached_share=len(gained) / len(uncovered) if uncovered else None,
         reached_loss_q2=part(after, gained), reached_default_loss_q2=part(before, gained),
         changed_share=changed / sum(covered) if any(covered) else None)
@@ -191,6 +214,9 @@ def facts(testing, stores, covered, fitted, *, prime=matched.PRIME, q=FIT_Q):
 
     return dict(
         stores=len(groups), median_store_products=median(map(len, groups.values())),
+        mean_store_products=len(testing) / len(groups),
+        single_product_stores=sum(len(rows) == 1 for rows in groups.values()),
+        stores_with_uncovered_product=len({stores[testing[i].product_key] for i in uncovered}),
         stores_without_covered_product=len(groups) - len(anchored),
         unfitted_tags=len(carriers),
         unfitted_tags_in_several_stores=sum(len(found) > 1 for found in carriers.values()),
@@ -235,7 +261,7 @@ def collect(results):
     return dict(
         fold_sizes=sizes, fits=fits,
         tests=dict(
-            minus_base=family([(name, BASE) for name in variants if name not in (BASE, ORACLE)]),
+            minus_base=family([(name, BASE) for name in variants if name not in (BASE, *ORACLES)]),
             contrasts=family(CONTRASTS)),
         facts={key: mean(r["facts"][key] for r in results) for key in results[0]["facts"]})
 
@@ -267,8 +293,12 @@ def run(source_commit, *, archive=False):
                  "the medoid of the predictions on the store's covered products. The fold-scope "
                  "row pools all held-out stores of a fold. The local-first row runs one round and "
                  "also lets a covered product take the value of its tightest unfitted tag. The "
-                 "store oracle constant is a diagnostic that uses held-out labels: the best single "
-                 "code for each store's uncovered products. Folds have equal weight.",
+                 "store-consensus row gives that store default to every product of the store. "
+                 "Four oracle rows are diagnostics that read held-out labels and are not "
+                 "predictors: the best single code for each store's uncovered products; the store "
+                 "default and the full tag passing computed from the true labels of the store's "
+                 "covered products; and, for every product, the medoid of the labels of the "
+                 "store's other products. Folds have equal weight.",
         **provenance, **collect([fold_job(dataset, stores, fold) for fold in matched.FOLDS]))
     return oracle.save_report(report) if archive else report
 

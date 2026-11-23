@@ -100,14 +100,30 @@ def test_store_variants_fall_back_in_order_and_leave_covered_products_alone():
     assert out["tags_one_round"] == out["tags"] == ([1, 2, 2, 1, 9, 9], [True] * 4 + [False] * 2)
     assert out["tags_then_store"] == ([1, 2, 2, 1, 2, 2], [True] * 6)
     assert out["local_first"][0][:3] == base[:3]
-    # The diagnostic takes the best single code for the three uncovered labels.
-    assert out["store_oracle_constant"][0] == [1, 2, 2, 1 + P, 1 + P, 1 + P]
+    assert out["store_consensus"] == ([2] * 6, [True] * 6)
+    # The diagnostics read labels: the best single code for the three uncovered products,
+    # the medoid of the covered labels, tag passing from the covered labels, and the
+    # medoid of each product's five companions.
+    assert out["oracle_store_constant"][0] == [1, 2, 2, 1 + P, 1 + P, 1 + P]
+    assert out["oracle_covered_labels"] == ([1, 2, 2, 2, 2, 2], [True] * 6)
+    assert out["oracle_tags"] == ([1, 2, 2, 1, 9, 9], [True] * 4 + [False] * 2)
+    assert out["oracle_leave_one_out"] == ([1 + P, 1, 1, 1 + P, 1, 1], [True] * 6)
+
+
+def test_oracle_tags_pass_labels_and_not_predictions():
+    out = trans.store_variants([["u"], ["u"]], [5, 9], [True, False], [3, 3], prime=P, q=71)
+    assert out["tags"][0] == [5, 5]
+    assert out["oracle_tags"][0] == [5, 3]
+    assert out["oracle_leave_one_out"][0] == [3, 3]
 
 
 def test_a_store_with_no_covered_product_stays_on_the_default():
     out = trans.store_variants([["u"], ["u"]], [9, 9], [False, False], [1, 1], prime=P, q=71)
-    for name in ("store_default", "tags", "tags_then_store", "local_first"):
+    for name in ("store_default", "store_consensus", "tags", "tags_then_store", "local_first",
+                 "oracle_covered_labels", "oracle_tags"):
         assert out[name] == ([9, 9], [False, False])
+    alone = trans.store_variants([["u"]], [9], [False], [1], prime=P, q=71)
+    assert alone["oracle_leave_one_out"] == ([9], [False])
 
 
 def test_fold_rows_keep_stores_apart_except_at_fold_scope():
@@ -126,7 +142,9 @@ def test_fold_rows_keep_stores_apart_except_at_fold_scope():
     assert rows["tags"]["uncovered_loss_q2"] == pytest.approx(2 / 3)
     assert rows["tags_fold_scope"]["reached_share"] == pytest.approx(2 / 3)
     assert rows["store_default"]["exact_accuracy"] == pytest.approx(4 / 5)
-    assert rows["store_oracle_constant"]["exact_accuracy"] == 1
+    assert rows["oracle_store_constant"]["exact_accuracy"] == 1
+    assert rows["base"]["covered_products_loss_q2"] == 0
+    assert rows["store_consensus"]["changed_share"] == 0
     assert rows["local_first"]["changed_share"] == 0
 
     facts = trans.facts(testing, stores, covered, fitted, prime=P, q=71)
@@ -153,10 +171,11 @@ def test_collect_tests_every_variant_against_the_base_list():
                             facts=trans.facts(testing, stores, covered, fitted, prime=P, q=71)))
     report = trans.collect(results)
     names = set(report["fits"]["cell_backfill"])
-    assert {"base", "store_default", "tags", "tags_fold_scope", "store_oracle_constant"} <= names
+    assert {"base", "store_default", "tags", "tags_fold_scope", *trans.ORACLES} <= names
     tested = Counter(key.split("|")[1] for key in report["tests"]["minus_base"])
-    assert tested == {fill: len(names) - 2 for fill in trans.FILLS}
+    assert tested == {fill: len(names) - 1 - len(trans.ORACLES) for fill in trans.FILLS}
+    assert not any("oracle" in key for family in report["tests"].values() for key in family)
     assert len(report["tests"]["contrasts"]) == len(trans.CONTRASTS) * len(trans.FILLS)
     base = report["fits"]["cell_backfill"]["base"]
-    assert report["fits"]["cell_backfill"]["store_oracle_constant"]["loss_q2"] <= base["loss_q2"]
+    assert report["fits"]["cell_backfill"]["oracle_store_constant"]["loss_q2"] <= base["loss_q2"]
     assert all(row["holm_p_value"] >= row["p_value"] for row in report["tests"]["minus_base"].values())
