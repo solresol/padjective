@@ -54,17 +54,16 @@ jobs:
         run: |
           ulimit -c 0
           uv run --no-sync -m pytest -vv -m 'not slow'
-      - name: Single-thread control if baseline fails
-        if: steps.targeted.outcome == 'failure' || steps.full.outcome == 'failure'
-        env:
-          OMP_NUM_THREADS: '1'
-          OPENBLAS_NUM_THREADS: '1'
-          MKL_NUM_THREADS: '1'
-          BLIS_NUM_THREADS: '1'
+      - name: Capture native stack only if default full suite fails
+        if: steps.full.outcome == 'failure'
+        continue-on-error: true
         run: |
           ulimit -c 0
-          uv run --no-sync -m pytest -vv tests/test_taxonomy_levelwise_classifier.py::test_levelwise_classifier_predicts_valid_taxonomy_leaf
-          uv run --no-sync -m pytest -vv -m 'not slow'
+          command -v gdb || { echo 'gdb absent on the hosted runner; no installation attempted'; exit 2; }
+          timeout 180 gdb --batch --return-child-result \
+            -ex 'set auto-load off' -ex 'set debuginfod enabled off' \
+            -ex 'run' -ex 'bt 30' -ex 'info sharedlibrary' \
+            --args .venv/bin/python -m pytest -vv -m 'not slow'
       - name: Surface original failure in diagnostic status
         if: always() && (steps.targeted.outcome == 'failure' || steps.full.outcome == 'failure')
         run: exit 1
