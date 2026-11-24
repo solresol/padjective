@@ -175,3 +175,36 @@ def test_incremental_greedy_order_matches_rescoring_from_scratch(q, smoothing):
                     for i in range(rng.randint(5, 30))]
         assert plist.greedy_order(training, tags, prime=P, q=q, smoothing=smoothing) == naive_greedy(
             training, tags, q, smoothing)
+
+
+def best_loss(training, orders, q=2):
+    targets = [r.encoded_path for r in training]
+    best = None
+    for order in orders:
+        rank, cells = plist.fit_cells(training, order, prime=P, q=q)
+        value = loss(targets, plist.predict_priority(training, rank, cells, 0)[0], q)
+        best = value if best is None else min(best, value)
+    return best
+
+
+def test_placing_pure_tags_first_never_costs_fitting_loss():
+    rng = random.Random(23)
+    tags = list("abcde")
+    labels = [1, 2, 1 + P, 2 + P]
+    checked = 0
+    for _ in range(60):
+        training = [record(i, rng.sample(tags, rng.randint(1, 3)), rng.choice(labels))
+                    for i in range(rng.randint(4, 9))]
+        placed, kernel = plist.peel_pure_tags(training)
+        present = sorted({tag for r in training for tag in r.tags})
+        rest = [tag for tag in present if tag not in placed]
+        everything = best_loss(training, permutations(present))
+        peeled_first = best_loss(training, (placed + list(order) for order in permutations(rest)))
+        assert peeled_first == pytest.approx(everything)
+        # Peeled products are fitted exactly, so only the kernel carries loss.
+        rank, cells = plist.fit_cells(training, placed + rest, prime=P, q=2)
+        kept = {id(r) for r in kernel}
+        for r, value in zip(training, plist.predict_priority(training, rank, cells, 0)[0]):
+            assert id(r) in kept or value == r.encoded_path
+        checked += bool(placed) and bool(kernel)
+    assert checked >= 5

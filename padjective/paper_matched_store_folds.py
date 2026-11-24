@@ -42,16 +42,8 @@ _contexts = None
 _threads = None
 
 
-def load_data(conn):
-    dataset = _load_paper_dataset(conn, snapshot_ref=PAPER_SNAPSHOT, schema="padjective")
-    if (_snapshot_digest(dataset) != SNAPSHOT_DIGEST or dataset.features.shape != (6693, 2542)
-            or dataset.prime_base != PRIME):
-        raise ValueError("The frozen paper snapshot does not match")
-    paths = {str(label): runtime.parse_taxonomy_path(path) for label, path in conn.execute("""
-        SELECT DISTINCT taxonomy_id,taxonomy_path FROM padjective.product_taxonomy_bench_products
-        WHERE snapshot_id=%s
-    """, (PAPER_SNAPSHOT,))}
-    keys = {r.product_key for r in dataset.records}
+def store_membership(conn, keys):
+    """The one store domain of every benchmark product, by product key."""
     stores = defaultdict(set)
     for url, domain, handle in conn.execute("""
         SELECT product_url,myshopify_domain,product_handle FROM cantbuymelove.product
@@ -61,7 +53,20 @@ def load_data(conn):
             stores[key].add(domain.strip().lower())
     if stores.keys() != keys or any(len(v) != 1 for v in stores.values()):
         raise ValueError("A frozen benchmark URL has missing or conflicting store membership")
-    assignment = [(r.product_key, next(iter(stores[r.product_key]))) for r in dataset.records]
+    return {key: next(iter(domains)) for key, domains in stores.items()}
+
+
+def load_data(conn):
+    dataset = _load_paper_dataset(conn, snapshot_ref=PAPER_SNAPSHOT, schema="padjective")
+    if (_snapshot_digest(dataset) != SNAPSHOT_DIGEST or dataset.features.shape != (6693, 2542)
+            or dataset.prime_base != PRIME):
+        raise ValueError("The frozen paper snapshot does not match")
+    paths = {str(label): runtime.parse_taxonomy_path(path) for label, path in conn.execute("""
+        SELECT DISTINCT taxonomy_id,taxonomy_path FROM padjective.product_taxonomy_bench_products
+        WHERE snapshot_id=%s
+    """, (PAPER_SNAPSHOT,))}
+    stores = store_membership(conn, {r.product_key for r in dataset.records})
+    assignment = [(r.product_key, stores[r.product_key]) for r in dataset.records]
     records = [replace(r, cv_fold=live.store_fold(domain))
                for r, (_, domain) in zip(dataset.records, assignment, strict=True)]
     provenance = dict(snapshot_id=PAPER_SNAPSHOT, product_fold_digest=SNAPSHOT_DIGEST,
