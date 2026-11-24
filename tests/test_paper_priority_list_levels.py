@@ -150,7 +150,15 @@ def test_rows_report_prefix_accuracy_and_collect_tests_both_references():
             assert all(a >= b - 1e-12 for a, b in zip(chain, chain[1:]))
         assert rows["list"]["nodes"] == 1 and rows["levels_all"]["nodes"] > rows["levels_1"]["nodes"] > 1
         results.append(dict(split="product", fold=fold, n=len(testing), rows=rows))
-    report = levels.collect(results)
+    classical = {"ulr": [dict(loss_q2=.5, root_accuracy=.6, exact_accuracy=.2)] * 5,
+                 "unn": [dict(loss_q2=.4 + fold / 100) for fold in range(5)]}
+    report = levels.collect(results, classical)
+    assert report["classical"]["ulr"] == dict(
+        loss_q2=.5, root_accuracy=.6, exact_accuracy=.2, fold_loss_q2=[.5] * 5)
+    assert report["classical"]["unn"]["loss_q2"] == pytest.approx(.42)
+    versus = report["tests"]["minus_classical"]
+    assert set(versus) == {f"{name}-{model}" for name in levels.VARIANTS for model in classical}
+    assert versus["list-ulr"]["mean_difference"] == pytest.approx(report["fits"]["list"]["loss_q2"] - .5)
     assert set(report["tests"]["minus_list"]) == set(levels.VARIANTS) - {"list"}
     assert set(report["tests"]["minus_spread_list"]) == set(levels.VARIANTS) - set(levels.REFERENCES)
     assert report["fits"]["levels_all"]["nodes"] > 1

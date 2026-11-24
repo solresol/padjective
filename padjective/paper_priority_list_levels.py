@@ -15,12 +15,15 @@ from dataclasses import replace
 import json
 import multiprocessing
 from pathlib import Path
+from statistics import mean
 
-from . import benchmark_runtime as runtime
+from . import benchmark_runtime as runtime, db
 from . import paper_matched_store_folds as matched
 from . import paper_priority_list as plist
 from . import paper_priority_list_graph as graph
 from . import paper_sum_oracle as oracle
+from .q_loss_rescore import load_predictions
+from .subspace_voting import corrected_test, holm
 
 EXPERIMENT = "paper-priority-list-levels-2026-11-24"
 FIT_Q = 71
@@ -42,6 +45,8 @@ VARIANTS = {
     "levels_all_shared_order": dict(limit=FULL, shared=True),
 }
 EXTRA = ("prefix2_accuracy", "prefix3_accuracy", "train_loss_q2", "nodes")
+CLASSICAL = ("ulr", "unn")
+SHOWN = ("loss_q2", "root_accuracy", "exact_accuracy")
 _datasets = None
 
 
@@ -173,7 +178,16 @@ def fold_job(job):
         name: variant_row(training, testing, options, shared_order) for name, options in VARIANTS.items()})
 
 
-def collect(results):
+def classical_scores(conn, datasets):
+    """Archived per-fold scores of L1 logistic regression and the neural network."""
+    stored = {m["model"]: m for m in oracle.archived_report(conn, matched.EXPERIMENT)["models"]}
+    return dict(
+        product={key: [matched.SCORE(*load_predictions(conn, datasets["product"], key, fold))
+                       for fold in matched.FOLDS] for key in CLASSICAL},
+        store={key: stored[key]["folds"] for key in CLASSICAL})
+
+
+def collect(results, classical):
     results = sorted(results, key=lambda r: r["fold"])
     sizes = [r["n"] for r in results]
     fits = {name: plist.summarise([dict(fold=r["fold"], **r["rows"][name]) for r in results], EXTRA)
@@ -183,16 +197,28 @@ def collect(results):
         return plist.paired({name: fits[name] for name in names},
                             {name: fits[reference] for name in names}, sizes)
 
+    versus = {f"{name}-{model}": corrected_test(
+        [mine["loss_q2"] - theirs["loss_q2"] for mine, theirs in zip(fits[name]["folds"], folds, strict=True)],
+        sizes) for model, folds in classical.items() for name in fits}
+    for key, adjusted in zip(versus, holm([t["p_value"] for t in versus.values()]), strict=True):
+        versus[key]["holm_p_value"] = adjusted
     return dict(
         fold_sizes=sizes, fits=fits,
+        classical={model: dict(
+            **{key: mean(fold[key] for fold in folds) for key in SHOWN if key in folds[0]},
+            fold_loss_q2=[fold["loss_q2"] for fold in folds]) for model, folds in classical.items()},
         tests=dict(
             minus_list=against("list", [name for name in fits if name != "list"]),
-            minus_spread_list=against("spread_list", [name for name in fits if name not in REFERENCES])))
+            minus_spread_list=against("spread_list", [name for name in fits if name not in REFERENCES]),
+            minus_classical=versus))
 
 
 def run(source_commit, workers, *, archive=False):
     provenance, inputs = oracle.load_splits()
     datasets = {split: data for split, (data, _, _) in inputs.items()}
+    with db.get_connection() as conn:
+        conn.read_only = True
+        classical = classical_scores(conn, datasets)
     jobs = [(split, fold) for split in datasets for fold in matched.FOLDS]
     with ProcessPoolExecutor(max_workers=workers, mp_context=multiprocessing.get_context("spawn"),
                              initializer=initialise, initargs=(datasets,)) as pool:
@@ -215,10 +241,12 @@ def run(source_commit, workers, *, archive=False):
                  "variants give each tag its most common digit and take the plurality, with ties "
                  "to the smaller digit. The consistent variant fits each child only on the products "
                  "its parent sends to it correctly. The shared-order variant uses the "
-                 "taxonomy-association order of the whole fitting fold at every node. Folds have "
-                 "equal weight.",
+                 "taxonomy-association order of the whole fitting fold at every node. The archived "
+                 "L1 logistic regression and neural network are compared on the same folds. Folds "
+                 "have equal weight.",
         **provenance,
-        splits={split: collect([r for r in results if r["split"] == split]) for split in datasets})
+        splits={split: collect([r for r in results if r["split"] == split], classical[split])
+                for split in datasets})
     return oracle.save_report(report) if archive else report
 
 
