@@ -226,7 +226,9 @@ uv run -m padjective.build_site \
     --benchmark-views latest,paper
 
 REMOTE_SITE="padjective@merah.cassia.ifost.org.au:/var/www/vhosts/padjective.symmachus.org/htdocs/"
-rsync -az --delete "$OUTPUT_DIR/" "$REMOTE_SITE"
+REMOTE_DUMPS="padjective@merah.cassia.ifost.org.au:/var/www/vhosts/datadumps.ifost.org.au/htdocs/padjective/"
+bash "$SCRIPT_DIR/scripts/publish_site_datadumps.sh" "$OUTPUT_DIR/datadumps" "$REMOTE_DUMPS" "${REMOTE_SITE}datadumps/"
+rsync -az --delete --exclude='/datadumps/' "$OUTPUT_DIR/" "$REMOTE_SITE"
 
 # Sync taxonomy classifier reports
 if [ -d "$TAXONOMY_CLASSIFIER_REPORT_DIR" ]; then
@@ -239,11 +241,4 @@ fi
 
 if [ -d "$TAXONOMY_ULR_CLASSIFIER_REPORT_DIR" ]; then
     rsync -az "$TAXONOMY_ULR_CLASSIFIER_REPORT_DIR/" "$REMOTE_SITE/unconstrained_logistic_regression/"
-fi
-
-# Sync data dumps
-DUMP_SOURCE="$OUTPUT_DIR/datadumps/"
-if [ -d "$DUMP_SOURCE" ]; then
-    REMOTE_DUMPS="padjective@merah.cassia.ifost.org.au:/var/www/vhosts/datadumps.ifost.org.au/htdocs/padjective/"
-    rsync -az "$DUMP_SOURCE" "$REMOTE_DUMPS"
 fi
