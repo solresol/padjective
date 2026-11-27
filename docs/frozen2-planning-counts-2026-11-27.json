@@ -1,0 +1,223 @@
+{
+ "status": "planning counts, not the preflight",
+ "taken_at_utc": "2026-11-27T05:15Z",
+ "code_commit": "d390dfd",
+ "method": "Read-only replication of the eligibility rules of product_taxonomy_bench.create_snapshot, with thresholds counted inside each pool. No model was fitted and no fold of product holdouts was assigned. Labels, tags and store membership only; aggregates only.",
+ "label_cutoff_equivalent": "classified_at <= 2026-11-27T00:00:00Z (no later label existed when the counts were taken)",
+ "paper_snapshot": {
+  "id": "244ddbe3-0a2c-4c04-9436-0a0253108a09",
+  "created": "2026-02-26",
+  "products": 6693,
+  "stores": 395,
+  "paths": 363,
+  "tags": 2542,
+  "prime": 71,
+  "precision": 7
+ },
+ "source": {
+  "products_in_table": 38385,
+  "joined_rows": 38286,
+  "stores": 2273,
+  "label_sources": {
+   "gold_llm": 38286
+  },
+  "latest_fetch": "2025-01-20 01:40:05.714973",
+  "latest_label": "2026-11-27 07:09:30.153685+11:00"
+ },
+ "paper": {
+  "products": 6693,
+  "stores": 395,
+  "paths": 363,
+  "products_still_in_source": 6723
+ },
+ "check_against_latest_snapshot": {
+  "name": "latest-2026-11-27T0028Z",
+  "snapshot_products": 23314,
+  "replicated_products": 23314,
+  "only_in_snapshot": 0,
+  "only_in_replication": 0
+ },
+ "pools": [
+  {
+   "pool": "no exclusions (replicates the nightly snapshot)",
+   "source_rows": 38286,
+   "source_rows_with_no_tags": 9197,
+   "products": 23314,
+   "stores": 1255,
+   "paths": 884,
+   "tags": 6693,
+   "paths_also_in_paper": 363,
+   "products_on_paths_not_in_paper": 6653,
+   "prime": 83,
+   "precision": 8,
+   "products_per_store": {
+    "median": 3,
+    "largest": 241,
+    "top10_share": 0.096
+   },
+   "store_fold_sizes": [
+    3888,
+    4996,
+    4964,
+    4423,
+    5043
+   ],
+   "store_fold_unseen_path_share": [
+    0.0854,
+    0.0631,
+    0.0796,
+    0.0746,
+    0.1029
+   ],
+   "products_in_paper": 6693,
+   "products_in_paper_stores": 9426,
+   "label_sources": {
+    "gold_llm": 23314
+   },
+   "classified_by_month": {
+    "2025-10": 954,
+    "2025-11": 1574,
+    "2025-12": 1630,
+    "2026-01": 1697,
+    "2026-02": 1621,
+    "2026-03": 1799,
+    "2026-04": 1900,
+    "2026-05": 1783,
+    "2026-06": 1990,
+    "2026-07": 1648,
+    "2026-08": 1847,
+    "2026-09": 1451,
+    "2026-10": 1767,
+    "2026-11": 1653
+   },
+   "fetched_by_month": {
+    "2023-03": 13287,
+    "2023-04": 372,
+    "2023-05": 815,
+    "2023-06": 2445,
+    "2024-08": 9,
+    "2025-01": 6386
+   }
+  },
+  {
+   "pool": "non-paper products",
+   "source_rows": 31563,
+   "source_rows_with_no_tags": 9195,
+   "products": 16314,
+   "stores": 988,
+   "paths": 773,
+   "tags": 4435,
+   "paths_also_in_paper": 254,
+   "products_on_paths_not_in_paper": 6537,
+   "prime": 83,
+   "precision": 8,
+   "products_per_store": {
+    "median": 3.0,
+    "largest": 239,
+    "top10_share": 0.124
+   },
+   "store_fold_sizes": [
+    3027,
+    3433,
+    3191,
+    3020,
+    3643
+   ],
+   "store_fold_unseen_path_share": [
+    0.1127,
+    0.0871,
+    0.1257,
+    0.0917,
+    0.0867
+   ],
+   "products_in_paper": 0,
+   "products_in_paper_stores": 2583,
+   "label_sources": {
+    "gold_llm": 16314
+   },
+   "classified_by_month": {
+    "2025-10": 73,
+    "2025-11": 87,
+    "2025-12": 126,
+    "2026-01": 159,
+    "2026-02": 220,
+    "2026-03": 1780,
+    "2026-04": 1876,
+    "2026-05": 1768,
+    "2026-06": 1961,
+    "2026-07": 1619,
+    "2026-08": 1817,
+    "2026-09": 1436,
+    "2026-10": 1759,
+    "2026-11": 1633
+   },
+   "fetched_by_month": {
+    "2023-03": 9105,
+    "2023-04": 229,
+    "2023-05": 62,
+    "2023-06": 683,
+    "2025-01": 6235
+   }
+  },
+  {
+   "pool": "non-paper products from non-paper stores",
+   "source_rows": 25559,
+   "source_rows_with_no_tags": 7423,
+   "products": 13368,
+   "stores": 790,
+   "paths": 625,
+   "tags": 3783,
+   "paths_also_in_paper": 222,
+   "products_on_paths_not_in_paper": 5301,
+   "prime": 79,
+   "precision": 8,
+   "products_per_store": {
+    "median": 3.0,
+    "largest": 239,
+    "top10_share": 0.149
+   },
+   "store_fold_sizes": [
+    2835,
+    2767,
+    2399,
+    2532,
+    2835
+   ],
+   "store_fold_unseen_path_share": [
+    0.1362,
+    0.1037,
+    0.1772,
+    0.1197,
+    0.116
+   ],
+   "products_in_paper": 0,
+   "products_in_paper_stores": 0,
+   "label_sources": {
+    "gold_llm": 13368
+   },
+   "classified_by_month": {
+    "2025-10": 20,
+    "2025-11": 9,
+    "2025-12": 7,
+    "2026-01": 48,
+    "2026-02": 124,
+    "2026-03": 1642,
+    "2026-04": 1810,
+    "2026-05": 1665,
+    "2026-06": 1851,
+    "2026-07": 1544,
+    "2026-08": 1612,
+    "2026-09": 1359,
+    "2026-10": 1403,
+    "2026-11": 274
+   },
+   "fetched_by_month": {
+    "2023-03": 6596,
+    "2023-04": 176,
+    "2023-05": 17,
+    "2023-06": 527,
+    "2025-01": 6052
+   }
+  }
+ ]
+}
