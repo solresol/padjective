@@ -78,6 +78,8 @@ def test_failed_canonical_upload_leaves_legacy_files_alone(dirs):
     source, canonical, legacy = dirs
     (source / "current.sql").write_text("new dump")
     (legacy / "current.sql").write_text("old dump")
-    assert publish(source, canonical / "missing" / "nested", legacy, check=False).returncode != 0
+    blocked_destination = canonical / "file"
+    blocked_destination.touch()
+    assert publish(source, blocked_destination / "nested", legacy, check=False).returncode != 0
     assert not (legacy / "current.sql").is_symlink()
     assert (legacy / "current.sql").read_text() == "old dump"
