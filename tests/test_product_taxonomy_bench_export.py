@@ -130,7 +130,14 @@ def test_notebook_keeps_legacy_environment_override(monkeypatch) -> None:
     monkeypatch.setenv("PRODUCT_TAXONOMY_BENCH_ALLOW_ENVIRONMENT_DRIFT", "1")
     namespace = {}
 
-    exec(compile(setup_source, "notebook-config", "exec"), namespace)
+    try:
+        exec(compile(setup_source, "notebook-config", "exec"), namespace)
+    finally:
+        # The notebook deliberately changes native thread limits for its whole
+        # session; do not leak that state to other tests in this process.
+        controller = namespace.get("paper_thread_controller")
+        if controller is not None:
+            controller.restore_original_limits()
 
     assert namespace["DATASET_ID"] == "gregb/product-taxonomy-bench"
     assert namespace["SNAPSHOT"] == "paper"
