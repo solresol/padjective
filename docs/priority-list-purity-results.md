@@ -7,7 +7,7 @@ spread with the tree distance at a range of weights and puts the least noisy
 tag first. On product holdouts the backfilled list falls from 0.1516 to
 0.1427 to 0.1432 at weights 2 to 4, lower on every fold, which is within
 0.001 of the level-by-level lists and of the neural network. No comparison
-survives adjustment over the 34 in this run. On store holdouts the change is
+survives adjustment over the 32 in this run. On store holdouts the change is
 about -0.006 and not significant.
 
 Report: `docs/priority-list-purity-2026-11-27.json`, experiment
@@ -84,7 +84,9 @@ the Spearman correlation with position in the taxonomy-association order.
   below L1 logistic regression (-0.0249 to +0.0042), lower on four folds.
 - The fitting loss falls from 0.096 to 0.091 at weight 2.
 - Fitting the cells at weight 2 changes no entry by more than 0.001.
-- The smallest Holm-adjusted p over the 34 comparisons is 0.15.
+- The family has 32 comparisons: sixteen orders, with cells fitted at weight
+  71 and at weight 2. The smallest Holm-adjusted p among the orders that
+  lower the loss is 0.15.
 
 ## Store holdouts
 
